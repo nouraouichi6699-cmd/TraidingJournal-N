@@ -1,1 +1,1 @@
-# legendary-giggle
+# traiding journal website NA
