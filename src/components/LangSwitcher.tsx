@@ -11,8 +11,20 @@ export default function LangSwitcher({ lang, onChange }: Props) {
     <div
       className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1"
       role="radiogroup"
-      aria-label="تبديل اللغة"
+      aria-label={lang === "ar" ? "تبديل اللغة" : "Switch language"}
     >
+      <button
+        role="radio"
+        aria-checked={lang === "en"}
+        aria-label="English"
+        onClick={() => onChange("en")}
+        className={`rounded-lg px-3 py-2 text-small transition-colors ${
+          lang === "en" ? "bg-primary text-white" : "text-muted hover:bg-bg"
+        }`}
+        style={{ minHeight: "36px", minWidth: "36px" }}
+      >
+        EN
+      </button>
       <button
         role="radio"
         aria-checked={lang === "ar"}
@@ -25,18 +37,6 @@ export default function LangSwitcher({ lang, onChange }: Props) {
       >
         <Languages size={16} />
         <span>ع</span>
-      </button>
-      <button
-        role="radio"
-        aria-checked={lang === "en"}
-        aria-label="English"
-        onClick={() => onChange("en")}
-        className={`rounded-lg px-3 py-2 text-small transition-colors ${
-          lang === "en" ? "bg-primary text-white" : "text-muted hover:bg-bg"
-        }`}
-        style={{ minHeight: "36px", minWidth: "36px" }}
-      >
-        EN
       </button>
     </div>
   );

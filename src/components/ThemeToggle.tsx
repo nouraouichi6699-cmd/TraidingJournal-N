@@ -1,30 +1,31 @@
 import { Moon, Sun, BookOpen } from "lucide-react";
-import type { Theme } from "../types";
+import type { Theme, Lang } from "../types";
 
 interface Props {
   theme: Theme;
   onChange: (t: Theme) => void;
+  lang: Lang;
 }
 
-const themes: { value: Theme; label: string; icon: typeof Moon }[] = [
-  { value: "dark", label: "إميرالد", icon: Moon },
-  { value: "light", label: "نعناع", icon: Sun },
-  { value: "cream", label: "ورقي", icon: BookOpen },
+const themes: { value: Theme; label: string; labelAr: string; icon: typeof Moon }[] = [
+  { value: "dark", label: "Emerald", labelAr: "إميرالد", icon: Moon },
+  { value: "light", label: "Mint", labelAr: "نعناع", icon: Sun },
+  { value: "cream", label: "Paper", labelAr: "ورقي", icon: BookOpen },
 ];
 
-export default function ThemeToggle({ theme, onChange }: Props) {
+export default function ThemeToggle({ theme, onChange, lang }: Props) {
   return (
     <div
       className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1"
       role="radiogroup"
-      aria-label="تبديل المظهر"
+      aria-label={lang === "ar" ? "تبديل المظهر" : "Switch theme"}
     >
-      {themes.map(({ value, label, icon: Icon }) => (
+      {themes.map(({ value, label, labelAr, icon: Icon }) => (
         <button
           key={value}
           role="radio"
           aria-checked={theme === value}
-          aria-label={`المظهر: ${label}`}
+          aria-label={lang === "ar" ? `المظهر: ${labelAr}` : `Theme: ${label}`}
           onClick={() => onChange(value)}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-small transition-colors ${
             theme === value
@@ -34,7 +35,7 @@ export default function ThemeToggle({ theme, onChange }: Props) {
           style={{ minHeight: "36px", minWidth: "36px" }}
         >
           <Icon size={16} className={theme === value ? "text-white" : "text-muted"} />
-          <span className="hidden sm:inline">{label}</span>
+          <span className="hidden sm:inline">{lang === "ar" ? labelAr : label}</span>
         </button>
       ))}
     </div>

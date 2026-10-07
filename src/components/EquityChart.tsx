@@ -1,10 +1,18 @@
 import { useId } from "react";
 import { equityCurveData } from "../data";
+import type { Lang } from "../types";
 
-export default function EquityChart() {
+interface Props {
+  lang: Lang;
+}
+
+export default function EquityChart({ lang }: Props) {
   const gradientId = useId();
 
-  const data = equityCurveData;
+  const data = equityCurveData.map((d) => ({
+    ...d,
+    displayLabel: lang === "ar" ? d.labelAr : d.label,
+  }));
   const width = 800;
   const height = 320;
   const padding = { top: 30, right: 30, bottom: 45, left: 65 };
@@ -25,7 +33,7 @@ export default function EquityChart() {
     x: padding.left + i * xStep,
     y: padding.top + chartH - ((d.value - yMin) / yRange) * chartH,
     value: d.value,
-    label: d.label,
+    label: d.displayLabel,
   }));
 
   const linePath = points
@@ -50,6 +58,17 @@ export default function EquityChart() {
   const lastValue = data[data.length - 1].value;
   const totalReturn = (((lastValue - firstValue) / firstValue) * 100).toFixed(1);
 
+  const titleText = lang === "ar" ? "منحنى رأس المال" : "Equity Curve";
+  const subtitleText = lang === "ar" ? "تطور رصيد الحساب خلال الفترة المحددة" : "Account balance growth over the selected period";
+
+  const ariaText = lang === "ar"
+    ? `منحنى رأس المال من ${data[0].label} إلى ${data[data.length - 1].label}. بدأ الرصيد بـ $${firstValue.toLocaleString("en-US")} وانتهى عند $${lastValue.toLocaleString("en-US")}. العائد الإجمالي ${totalReturn}%.`
+    : `Equity curve from ${data[0].label} to ${data[data.length - 1].label}. Balance started at $${firstValue.toLocaleString("en-US")} and ended at $${lastValue.toLocaleString("en-US")}. Total return ${totalReturn}%.`;
+
+  const srText = lang === "ar"
+    ? `منحنى رأس المال يوضح نمو الرصيد من ${data[0].label} إلى ${data[data.length - 1].label}. بدأ الرصيد بمبلغ ${firstValue.toLocaleString("en-US")} دولار وانتهى عند ${lastValue.toLocaleString("en-US")} دولار، بعائد إجمالي قدره ${totalReturn} بالمائة.`
+    : `The equity curve shows balance growth from ${data[0].label} to ${data[data.length - 1].label}. Balance started at $${firstValue.toLocaleString("en-US")} and ended at $${lastValue.toLocaleString("en-US")}, with a total return of ${totalReturn} percent.`;
+
   return (
     <div
       className="rounded-card border border-border bg-surface p-5"
@@ -58,10 +77,10 @@ export default function EquityChart() {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 className="font-heading" style={{ fontSize: "19px", fontWeight: "600" }}>
-            منحنى رأس المال
+            {titleText}
           </h3>
           <p className="mt-1 text-small text-muted" style={{ fontSize: "13px" }}>
-            تطور رصيد الحساب خلال الفترة المحددة
+            {subtitleText}
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-lg bg-primary-tint px-3 py-1.5">
@@ -78,7 +97,7 @@ export default function EquityChart() {
           height="auto"
           style={{ minHeight: "220px", display: "block" }}
           role="img"
-          aria-label={`منحنى رأس المال من ${data[0].label} إلى ${data[data.length - 1].label}. بدأ الرصيد بـ $${firstValue.toLocaleString("en-US")} وانتهى عند $${lastValue.toLocaleString("en-US")}. العائد الإجمالي ${totalReturn}%.`}
+          aria-label={ariaText}
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -161,11 +180,7 @@ export default function EquityChart() {
         </svg>
       </div>
 
-      <p className="sr-only">
-        منحنى رأس المال يوضح نمو الرصيد من {data[0].label} إلى {data[data.length - 1].label}.
-        بدأ الرصيد بمبلغ {firstValue.toLocaleString("en-US")} دولار وانتهى عند {lastValue.toLocaleString("en-US")} دولار،
-        بعائد إجمالي قدره {totalReturn} بالمائة.
-      </p>
+      <p className="sr-only">{srText}</p>
     </div>
   );
 }

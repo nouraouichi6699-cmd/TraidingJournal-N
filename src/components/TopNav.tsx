@@ -7,6 +7,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { navItems } from "../data";
+import type { Lang } from "../types";
 
 const iconMap: Record<string, typeof LayoutDashboard> = {
   LayoutDashboard,
@@ -19,9 +20,10 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
 interface Props {
   active: string;
   onSelect: (id: string) => void;
+  lang: Lang;
 }
 
-export default function TopNav({ active, onSelect }: Props) {
+export default function TopNav({ active, onSelect, lang }: Props) {
   return (
     <header
       className="desktop-only sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur-md"
@@ -38,11 +40,11 @@ export default function TopNav({ active, onSelect }: Props) {
             <TrendingUp size={22} className="text-white" />
           </div>
           <span className="font-heading font-bold" style={{ fontSize: "20px" }}>
-            تحليلات التداول
+            {lang === "ar" ? "تحليلات التداول" : "Trading Analytics"}
           </span>
         </div>
 
-        <nav aria-label="القائمة الرئيسية">
+        <nav aria-label={lang === "ar" ? "القائمة الرئيسية" : "Main navigation"}>
           <ul className="flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = iconMap[item.icon];
@@ -65,7 +67,7 @@ export default function TopNav({ active, onSelect }: Props) {
                       fill={isActive ? "currentColor" : "none"}
                       className={isActive ? "text-primary" : ""}
                     />
-                    <span>{item.label}</span>
+                    <span>{lang === "ar" ? item.labelAr : item.label}</span>
                   </button>
                 </li>
               );

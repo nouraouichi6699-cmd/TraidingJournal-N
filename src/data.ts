@@ -17,12 +17,12 @@ export interface Trade {
 }
 
 export const instruments = [
-  { value: "all", label: "كل الأدوات" },
-  { value: "EURUSD", label: "يورو/دولار" },
-  { value: "GBPUSD", label: "جنيه/دولار" },
-  { value: "XAUUSD", label: "ذهب" },
-  { value: "BTCUSD", label: "بيتكوين" },
-  { value: "US100", label: "ناسداك 100" },
+  { value: "all", label: "All Instruments", labelAr: "كل الأدوات" },
+  { value: "EURUSD", label: "EUR/USD", labelAr: "يورو/دولار" },
+  { value: "GBPUSD", label: "GBP/USD", labelAr: "جنيه/دولار" },
+  { value: "XAUUSD", label: "Gold", labelAr: "ذهب" },
+  { value: "BTCUSD", label: "Bitcoin", labelAr: "بيتكوين" },
+  { value: "US100", label: "Nasdaq 100", labelAr: "ناسداك 100" },
 ];
 
 export const trades: Trade[] = [
@@ -47,44 +47,44 @@ export const trades: Trade[] = [
 ];
 
 export const equityCurveData = [
-  { label: "٢٨ سبتمبر", value: 10000 },
-  { label: "٢٩ سبتمبر", value: 10420 },
-  { label: "٣٠ سبتمبر", value: 10640 },
-  { label: "١ أكتوبر", value: 11350 },
-  { label: "٢ أكتوبر", value: 11700 },
-  { label: "٣ أكتوبر", value: 12560 },
-  { label: "٤ أكتوبر", value: 12760 },
-  { label: "٥ أكتوبر", value: 13510 },
-  { label: "٦ أكتوبر", value: 14190 },
+  { label: "Sep 28", labelAr: "٢٨ سبتمبر", value: 10000 },
+  { label: "Sep 29", labelAr: "٢٩ سبتمبر", value: 10420 },
+  { label: "Sep 30", labelAr: "٣٠ سبتمبر", value: 10640 },
+  { label: "Oct 1", labelAr: "١ أكتوبر", value: 11350 },
+  { label: "Oct 2", labelAr: "٢ أكتوبر", value: 11700 },
+  { label: "Oct 3", labelAr: "٣ أكتوبر", value: 12560 },
+  { label: "Oct 4", labelAr: "٤ أكتوبر", value: 12760 },
+  { label: "Oct 5", labelAr: "٥ أكتوبر", value: 13510 },
+  { label: "Oct 6", labelAr: "٦ أكتوبر", value: 14190 },
 ];
 
 export const kpiData = {
-  netProfit: { value: 4190, sub: "هذا الشهر" },
-  winRate: { value: 72.2, sub: "من ١٨ صفقة" },
-  profitFactor: { value: 3.14, sub: "الأرباح/الخسائر" },
-  avgR: { value: 1.05, sub: "متعدد المخاطرة" },
-  maxDrawdown: { value: -5.8, sub: "أقصى تراجع" },
-  totalTrades: { value: 18, sub: "آخر ٣٠ يوم" },
+  netProfit: { value: 4190, sub: "This month", subAr: "هذا الشهر" },
+  winRate: { value: 72.2, sub: "of 18 trades", subAr: "من ١٨ صفقة" },
+  profitFactor: { value: 3.14, sub: "Profit/Loss", subAr: "الأرباح/الخسائر" },
+  avgR: { value: 1.05, sub: "Risk multiple", subAr: "متعدد المخاطرة" },
+  maxDrawdown: { value: -5.8, sub: "Max drawdown", subAr: "أقصى تراجع" },
+  totalTrades: { value: 18, sub: "Last 30 days", subAr: "آخر ٣٠ يوم" },
 };
 
 export const filterPeriods = [
-  { value: "week", label: "أسبوع" },
-  { value: "month", label: "شهر" },
-  { value: "year", label: "سنة" },
-  { value: "all", label: "الكل" },
+  { value: "week", label: "Week", labelAr: "أسبوع" },
+  { value: "month", label: "Month", labelAr: "شهر" },
+  { value: "year", label: "Year", labelAr: "سنة" },
+  { value: "all", label: "All", labelAr: "الكل" },
 ];
 
 export const navItems = [
-  { id: "dashboard", label: "الرئيسية", labelEn: "Dashboard", icon: "LayoutDashboard" },
-  { id: "trades", label: "الصفقات", labelEn: "Trades", icon: "CandlestickChart" },
-  { id: "analytics", label: "التحليلات", labelEn: "Analytics", icon: "BarChart3" },
-  { id: "journal", label: "اليوميات", labelEn: "Journal", icon: "NotebookPen" },
-  { id: "settings", label: "الإعدادات", labelEn: "Settings", icon: "Settings" },
+  { id: "dashboard", label: "Dashboard", labelAr: "الرئيسية", icon: "LayoutDashboard" },
+  { id: "trades", label: "Trades", labelAr: "الصفقات", icon: "CandlestickChart" },
+  { id: "analytics", label: "Analytics", labelAr: "التحليلات", icon: "BarChart3" },
+  { id: "journal", label: "Journal", labelAr: "اليوميات", icon: "NotebookPen" },
+  { id: "settings", label: "Settings", labelAr: "الإعدادات", icon: "Settings" },
 ];
 
 export const mobileNavItems = [
-  { id: "dashboard", label: "الرئيسية", icon: "LayoutDashboard" },
-  { id: "trades", label: "الصفقات", icon: "CandlestickChart" },
-  { id: "analytics", label: "التحليلات", icon: "BarChart3" },
-  { id: "settings", label: "الإعدادات", icon: "Settings" },
+  { id: "dashboard", label: "Dashboard", labelAr: "الرئيسية", icon: "LayoutDashboard" },
+  { id: "trades", label: "Trades", labelAr: "الصفقات", icon: "CandlestickChart" },
+  { id: "analytics", label: "Analytics", labelAr: "التحليلات", icon: "BarChart3" },
+  { id: "settings", label: "Settings", labelAr: "الإعدادات", icon: "Settings" },
 ];

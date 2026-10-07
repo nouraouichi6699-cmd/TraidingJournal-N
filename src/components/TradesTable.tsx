@@ -1,7 +1,12 @@
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { trades, instruments } from "../data";
 import type { Trade } from "../data";
+import type { Lang } from "../types";
 import { useState, useMemo } from "react";
+
+interface Props {
+  lang: Lang;
+}
 
 function PnLCell({ pnl }: { pnl: number }) {
   const isProfit = pnl >= 0;
@@ -23,14 +28,21 @@ function formatR(r: number) {
   return `${sign}${r.toFixed(1)}R`;
 }
 
-function TradeCard({ trade }: { trade: Trade }) {
+function TradeCard({ trade, lang }: { trade: Trade; lang: Lang }) {
   const isProfit = trade.status === "win";
+  const instrLabel = lang === "ar" ? trade.instrumentAr : trade.instrument;
+  const sideLabel = lang === "ar" ? trade.sideAr : trade.side === "buy" ? "Buy" : "Sell";
+  const dateLabel = lang === "ar" ? trade.dateAr : trade.date;
+  const entryLabel = lang === "ar" ? "دخول" : "Entry";
+  const exitLabel = lang === "ar" ? "خروج" : "Exit";
+  const pnlLabel = lang === "ar" ? "الربح" : "P&L";
+
   return (
     <div className="rounded-xl border border-border bg-surface p-4" style={{ boxShadow: "var(--shadow-card)" }}>
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <span className="font-heading font-semibold" style={{ fontSize: "16px" }}>
-            {trade.instrumentAr}
+            {instrLabel}
           </span>
           <span
             className={`rounded-md px-2 py-0.5 text-xs font-medium ${
@@ -39,20 +51,20 @@ function TradeCard({ trade }: { trade: Trade }) {
                 : "bg-loss/10 text-loss"
             }`}
           >
-            {trade.sideAr}
+            {sideLabel}
           </span>
         </div>
         <span className="text-small text-muted" style={{ fontSize: "12px" }}>
-          {trade.dateAr}
+          {dateLabel}
         </span>
       </div>
       <div className="grid grid-cols-4 gap-2">
         <div>
-          <p className="text-xs text-muted">دخول</p>
+          <p className="text-xs text-muted">{entryLabel}</p>
           <p className="tnum text-small font-medium">{trade.entry.toLocaleString("en-US")}</p>
         </div>
         <div>
-          <p className="text-xs text-muted">خروج</p>
+          <p className="text-xs text-muted">{exitLabel}</p>
           <p className="tnum text-small font-medium">{trade.exit.toLocaleString("en-US")}</p>
         </div>
         <div>
@@ -62,7 +74,7 @@ function TradeCard({ trade }: { trade: Trade }) {
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted">الربح</p>
+          <p className="text-xs text-muted">{pnlLabel}</p>
           <PnLCell pnl={trade.pnl} />
         </div>
       </div>
@@ -70,13 +82,24 @@ function TradeCard({ trade }: { trade: Trade }) {
   );
 }
 
-export default function TradesTable() {
+export default function TradesTable({ lang }: Props) {
   const [instrument, setInstrument] = useState("all");
 
   const filteredTrades = useMemo(
     () => (instrument === "all" ? trades : trades.filter((t) => t.instrument === instrument)),
     [instrument]
   );
+
+  const headerText = lang === "ar" ? "سجل الصفقات" : "Trade History";
+  const countText = lang === "ar" ? "صفقة" : "trades";
+  const filterLabel = lang === "ar" ? "الأداة:" : "Instrument:";
+  const filterAria = lang === "ar" ? "تصفية حسب الأداة" : "Filter by instrument";
+  const colInstrument = lang === "ar" ? "الأداة" : "Instrument";
+  const colSide = lang === "ar" ? "النوع" : "Side";
+  const colEntry = lang === "ar" ? "دخول" : "Entry";
+  const colExit = lang === "ar" ? "خروج" : "Exit";
+  const colDate = lang === "ar" ? "التاريخ" : "Date";
+  const colPnl = lang === "ar" ? "الربح/الخسارة" : "P&L";
 
   return (
     <div
@@ -86,25 +109,25 @@ export default function TradesTable() {
       <div className="flex flex-col gap-3 p-5 border-b border-border sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="font-heading" style={{ fontSize: "19px", fontWeight: "600" }}>
-            سجل الصفقات
+            {headerText}
           </h3>
           <p className="mt-1 text-small text-muted" style={{ fontSize: "13px" }}>
-            {filteredTrades.length} صفقة
+            {filteredTrades.length} {countText}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="instrument-filter" className="text-small text-muted whitespace-nowrap">
-            الأداة:
+            {filterLabel}
           </label>
           <select
             id="instrument-filter"
             value={instrument}
             onChange={(e) => setInstrument(e.target.value)}
-            aria-label="تصفية حسب الأداة"
+            aria-label={filterAria}
           >
             {instruments.map((inst) => (
               <option key={inst.value} value={inst.value}>
-                {inst.label}
+                {lang === "ar" ? inst.labelAr : inst.label}
               </option>
             ))}
           </select>
@@ -116,25 +139,25 @@ export default function TradesTable() {
           <thead>
             <tr className="sticky top-0 bg-surface">
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted" style={{ fontSize: "13px" }}>
-                الأداة
+                {colInstrument}
               </th>
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted" style={{ fontSize: "13px" }}>
-                النوع
+                {colSide}
               </th>
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted tnum" style={{ fontSize: "13px" }}>
-                دخول
+                {colEntry}
               </th>
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted tnum" style={{ fontSize: "13px" }}>
-                خروج
+                {colExit}
               </th>
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted tnum" style={{ fontSize: "13px" }}>
                 R
               </th>
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted" style={{ fontSize: "13px" }}>
-                التاريخ
+                {colDate}
               </th>
               <th scope="col" className="px-5 py-3 text-start text-small font-semibold text-muted tnum" style={{ fontSize: "13px" }}>
-                الربح/الخسارة
+                {colPnl}
               </th>
             </tr>
           </thead>
@@ -149,10 +172,12 @@ export default function TradesTable() {
                 }}
               >
                 <td className="px-5 py-3.5" style={{ fontSize: "15px" }}>
-                  <span className="font-medium">{trade.instrumentAr}</span>
-                  <span className="text-muted text-small mr-2" style={{ fontSize: "12px" }}>
-                    {trade.instrument}
-                  </span>
+                  <span className="font-medium">{lang === "ar" ? trade.instrumentAr : trade.instrument}</span>
+                  {lang === "ar" && (
+                    <span className="text-muted text-small mr-2" style={{ fontSize: "12px" }}>
+                      {trade.instrument}
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3.5">
                   <span
@@ -162,7 +187,7 @@ export default function TradesTable() {
                         : "bg-loss/10 text-loss"
                     }`}
                   >
-                    {trade.sideAr}
+                    {lang === "ar" ? trade.sideAr : trade.side === "buy" ? "Buy" : "Sell"}
                   </span>
                 </td>
                 <td className="px-5 py-3.5 tnum" style={{ fontSize: "15px" }}>
@@ -175,7 +200,7 @@ export default function TradesTable() {
                   {formatR(trade.rMultiple)}
                 </td>
                 <td className="px-5 py-3.5 text-muted" style={{ fontSize: "14px" }}>
-                  {trade.dateAr}
+                  {lang === "ar" ? trade.dateAr : trade.date}
                 </td>
                 <td className="px-5 py-3.5">
                   <PnLCell pnl={trade.pnl} />
@@ -188,7 +213,7 @@ export default function TradesTable() {
 
       <div className="mobile-only flex flex-col gap-3 p-4">
         {filteredTrades.map((trade) => (
-          <TradeCard key={trade.id} trade={trade} />
+          <TradeCard key={trade.id} trade={trade} lang={lang} />
         ))}
       </div>
     </div>

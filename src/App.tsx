@@ -12,7 +12,7 @@ import TradesTable from "./components/TradesTable";
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>("dark");
-  const [lang, setLang] = useState<Lang>("ar");
+  const [lang, setLang] = useState<Lang>("en");
   const [activeNav, setActiveNav] = useState("dashboard");
 
   useEffect(() => {
@@ -30,9 +30,11 @@ export default function App() {
     }
   }, []);
 
+  const t = (en: string, ar: string) => (lang === "ar" ? ar : en);
+
   return (
     <div className="min-h-screen bg-bg text-text">
-      <TopNav active={activeNav} onSelect={setActiveNav} />
+      <TopNav active={activeNav} onSelect={setActiveNav} lang={lang} />
 
       <main
         className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8"
@@ -51,12 +53,12 @@ export default function App() {
               <TrendingUp size={22} className="text-white" />
             </div>
             <span className="font-heading font-bold" style={{ fontSize: "18px" }}>
-              تحليلات التداول
+              {t("Trading Analytics", "تحليلات التداول")}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              aria-label="الإشعارات"
+              aria-label={t("Notifications", "الإشعارات")}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-muted"
             >
               <Bell size={20} />
@@ -68,44 +70,42 @@ export default function App() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="font-heading" style={{ fontSize: "30px", fontWeight: "700", lineHeight: "1.3" }}>
-                {lang === "ar" ? "نظرة عامة على الأداء" : "Performance Overview"}
+                {t("Performance Overview", "نظرة عامة على الأداء")}
               </h1>
               <p className="mt-1 text-small text-muted" style={{ fontSize: "14px" }}>
-                {lang === "ar"
-                  ? "تحليل أداء التداول لشهر أكتوبر ٢٠٢٦"
-                  : "Trading performance analysis for October 2026"}
+                {t("Trading performance analysis for October 2026", "تحليل أداء التداول لشهر أكتوبر ٢٠٢٦")}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <button
-                aria-label="بحث"
+                aria-label={t("Search", "بحث")}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-colors hover:text-text"
               >
                 <Search size={20} />
               </button>
               <LangSwitcher lang={lang} onChange={setLang} />
-              <ThemeToggle theme={theme} onChange={setTheme} />
+              <ThemeToggle theme={theme} onChange={setTheme} lang={lang} />
             </div>
           </div>
 
-          <Filters />
+          <Filters lang={lang} />
         </div>
 
         <div className="mb-6">
-          <KpiRow />
+          <KpiRow lang={lang} />
         </div>
 
         <div className="mb-6">
-          <EquityChart />
+          <EquityChart lang={lang} />
         </div>
 
         <div className="mb-6">
-          <TradesTable />
+          <TradesTable lang={lang} />
         </div>
       </main>
 
-      <MobileTabBar active={activeNav} onSelect={setActiveNav} />
+      <MobileTabBar active={activeNav} onSelect={setActiveNav} lang={lang} />
     </div>
   );
 }

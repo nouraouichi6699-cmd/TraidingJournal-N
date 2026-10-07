@@ -9,6 +9,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { kpiData } from "../data";
+import type { Lang } from "../types";
 
 interface KpiCardProps {
   icon: typeof DollarSign;
@@ -65,9 +66,16 @@ function KpiCard({ icon: Icon, label, value, sub, isProfit, isLoss, suffix, pref
   );
 }
 
-export default function KpiRow() {
+interface Props {
+  lang: Lang;
+}
+
+export default function KpiRow({ lang }: Props) {
+  const t = (en: string, ar: string) => (lang === "ar" ? ar : en);
+  const ts = (en: string, ar: string) => (lang === "ar" ? ar : en);
+
   return (
-    <section aria-label="المؤشرات الرئيسية">
+    <section aria-label={t("Key metrics", "المؤشرات الرئيسية")}>
       <div
         className="grid gap-4"
         style={{
@@ -76,45 +84,45 @@ export default function KpiRow() {
       >
         <KpiCard
           icon={DollarSign}
-          label="صافي الربح"
+          label={t("Net Profit", "صافي الربح")}
           value={kpiData.netProfit.value}
-          sub={kpiData.netProfit.sub}
+          sub={ts(kpiData.netProfit.sub, kpiData.netProfit.subAr)}
           isProfit
           prefix="$"
         />
         <KpiCard
           icon={Target}
-          label="نسبة الفوز"
+          label={t("Win Rate", "نسبة الفوز")}
           value={kpiData.winRate.value}
-          sub={kpiData.winRate.sub}
+          sub={ts(kpiData.winRate.sub, kpiData.winRate.subAr)}
           suffix="%"
         />
         <KpiCard
           icon={Scale}
-          label="معامل الربحية"
+          label={t("Profit Factor", "معامل الربحية")}
           value={kpiData.profitFactor.value}
-          sub={kpiData.profitFactor.sub}
+          sub={ts(kpiData.profitFactor.sub, kpiData.profitFactor.subAr)}
         />
         <KpiCard
           icon={Activity}
-          label="متوسط R"
+          label={t("Average R", "متوسط R")}
           value={kpiData.avgR.value}
-          sub={kpiData.avgR.sub}
+          sub={ts(kpiData.avgR.sub, kpiData.avgR.subAr)}
           prefix="R"
         />
         <KpiCard
           icon={TrendingDown}
-          label="أقصى تراجع"
+          label={t("Max Drawdown", "أقصى تراجع")}
           value={kpiData.maxDrawdown.value}
-          sub={kpiData.maxDrawdown.sub}
+          sub={ts(kpiData.maxDrawdown.sub, kpiData.maxDrawdown.subAr)}
           isLoss
           suffix="%"
         />
         <KpiCard
           icon={Receipt}
-          label="إجمالي الصفقات"
+          label={t("Total Trades", "إجمالي الصفقات")}
           value={kpiData.totalTrades.value}
-          sub={kpiData.totalTrades.sub}
+          sub={ts(kpiData.totalTrades.sub, kpiData.totalTrades.subAr)}
         />
       </div>
     </section>

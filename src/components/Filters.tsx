@@ -1,7 +1,12 @@
 import { filterPeriods } from "../data";
 import { useState } from "react";
+import type { Lang } from "../types";
 
-export default function Filters() {
+interface Props {
+  lang: Lang;
+}
+
+export default function Filters({ lang }: Props) {
   const [period, setPeriod] = useState("month");
 
   return (
@@ -9,7 +14,7 @@ export default function Filters() {
       <div
         className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface p-1"
         role="radiogroup"
-        aria-label="الفترة الزمنية"
+        aria-label={lang === "ar" ? "الفترة الزمنية" : "Time period"}
       >
         {filterPeriods.map((p) => (
           <button
@@ -24,7 +29,7 @@ export default function Filters() {
             }`}
             style={{ minHeight: "36px", minWidth: "44px" }}
           >
-            {p.label}
+            {lang === "ar" ? p.labelAr : p.label}
           </button>
         ))}
       </div>
