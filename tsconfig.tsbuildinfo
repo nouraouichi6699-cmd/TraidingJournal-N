@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/data.ts","./src/main.tsx","./src/types.ts","./src/components/EquityChart.tsx","./src/components/Filters.tsx","./src/components/KpiRow.tsx","./src/components/LangSwitcher.tsx","./src/components/MobileTabBar.tsx","./src/components/ThemeToggle.tsx","./src/components/TopNav.tsx","./src/components/TradesTable.tsx"],"version":"5.9.3"}
