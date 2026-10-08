@@ -4,10 +4,10 @@ import {
   BarChart3,
   NotebookPen,
   Settings,
-  TrendingUp,
 } from "lucide-react";
 import { navItems } from "../data";
 import type { Lang } from "../types";
+import Brand from "./Brand";
 
 const iconMap: Record<string, typeof LayoutDashboard> = {
   LayoutDashboard,
@@ -30,19 +30,7 @@ export default function TopNav({ active, onSelect, lang }: Props) {
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{
-              background: "linear-gradient(135deg, var(--primary), var(--primary-2))",
-            }}
-          >
-            <TrendingUp size={22} className="text-white" />
-          </div>
-          <span className="font-heading font-bold" style={{ fontSize: "20px" }}>
-            {lang === "ar" ? "تحليلات التداول" : "Trading Analytics"}
-          </span>
-        </div>
+        <Brand lang={lang} />
 
         <nav aria-label={lang === "ar" ? "القائمة الرئيسية" : "Main navigation"}>
           <ul className="flex items-center gap-1">

@@ -19,8 +19,11 @@ export default {
         "skeleton": "var(--skeleton)",
       },
       fontFamily: {
-        body: ['"IBM Plex Sans Arabic"', "Tajawal", "system-ui", "sans-serif"],
-        heading: ['"Readex Pro"', '"Cairo"', '"IBM Plex Sans Arabic"', "sans-serif"],
+        body: ['"Inter"', '"IBM Plex Sans Arabic"', "system-ui", "sans-serif"],
+        heading: ['"Readex Pro"', '"IBM Plex Sans Arabic"', "sans-serif"],
+        wordmark: ['"Sora"', '"Reem Kufi"', "sans-serif"],
+        "wordmark-ar": ['"Reem Kufi"', '"Sora"', "sans-serif"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       borderRadius: {
         card: "16px",

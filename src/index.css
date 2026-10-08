@@ -70,7 +70,9 @@ html {
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: "IBM Plex Sans Arabic", Tajawal, system-ui, sans-serif;
+  font-family: "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
   font-size: 16px;
   line-height: 1.8;
   font-weight: 400;
@@ -81,18 +83,32 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: "Readex Pro", "Cairo", "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Readex Pro", "IBM Plex Sans Arabic", sans-serif;
+  letter-spacing: -0.01em;
   line-height: 1.35;
   color: var(--text);
 }
 
 .font-heading {
-  font-family: "Readex Pro", "Cairo", "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Readex Pro", "IBM Plex Sans Arabic", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.font-wordmark {
+  font-family: "Sora", "Reem Kufi", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.font-wordmark-ar {
+  font-family: "Reem Kufi", "Sora", sans-serif;
+  font-weight: 700;
 }
 
 .tnum {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+  letter-spacing: -0.02em;
 }
 
 [dir="rtl"] .directional-icon {

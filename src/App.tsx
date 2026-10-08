@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, Bell, Search } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import type { Theme, Lang } from "./types";
 import ThemeToggle from "./components/ThemeToggle";
 import LangSwitcher from "./components/LangSwitcher";
+import Brand from "./components/Brand";
 import TopNav from "./components/TopNav";
 import MobileTabBar from "./components/MobileTabBar";
 import KpiRow from "./components/KpiRow";
@@ -43,19 +44,7 @@ export default function App() {
         }}
       >
         <div className="mobile-only mb-6 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{
-                background: "linear-gradient(135deg, var(--primary), var(--primary-2))",
-              }}
-            >
-              <TrendingUp size={22} className="text-white" />
-            </div>
-            <span className="font-heading font-bold" style={{ fontSize: "18px" }}>
-              {t("Trading Analytics", "تحليلات التداول")}
-            </span>
-          </div>
+          <Brand lang={lang} size="sm" />
           <div className="flex items-center gap-2">
             <button
               aria-label={t("Notifications", "الإشعارات")}
