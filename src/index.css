@@ -16,6 +16,7 @@
   --loss: #f87171;
   --primary-tint: rgba(230, 184, 74, 0.14);
   --skeleton: #112650;
+  --icon: #e6b84a;
   --brand-navy: #0a1f5c;
   --brand-gold: #f2c14e;
   --shadow-card: none;
@@ -24,6 +25,7 @@
 }
 
 [data-theme="light"] {
+  --icon: #946900;
   --bg: #f3f5fa;
   --surface: #ffffff;
   --border: #dbe1ee;
@@ -43,6 +45,7 @@
 }
 
 [data-theme="cream"] {
+  --icon: #8a6100;
   --bg: #fbf6e8;
   --surface: #fffdf6;
   --border: #eadfc0;
@@ -148,3 +151,50 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
   border: 0;
 }
+
+[dir="rtl"] .directional-icon {
+  transform: scaleX(-1);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  transition: background-color 0.15s ease;
+}
+.icon-btn:hover {
+  background: var(--primary-tint);
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.menu-row:hover {
+  background: var(--primary-tint);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+.menu-item:hover {
+  background: var(--primary-tint);
+}
+

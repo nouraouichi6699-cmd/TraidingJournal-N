@@ -33,9 +33,9 @@ export default function Brand({ lang, size = "md" }: Props) {
 export function ByLine() {
   return (
     <span
-      className="font-wordmark text-muted whitespace-nowrap"
+      className="font-wordmark text-text whitespace-nowrap opacity-80"
       dir="ltr"
-      style={{ fontSize: "11px", letterSpacing: "0.2em", fontWeight: 400 }}
+      style={{ fontSize: "12px", letterSpacing: "0.22em", fontWeight: 400 }}
     >
       BY NOUR AOUICHI
     </span>

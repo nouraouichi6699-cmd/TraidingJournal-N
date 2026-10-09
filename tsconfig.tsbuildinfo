@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/types.ts","./src/components/Brand.tsx"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/i18n.ts","./src/main.tsx","./src/types.ts","./src/components/Brand.tsx","./src/components/Dropdown.tsx","./src/components/Header.tsx","./src/components/Sidebar.tsx"],"version":"5.9.3"}

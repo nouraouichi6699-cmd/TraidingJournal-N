@@ -12,6 +12,7 @@ export default {
         muted: "var(--muted)",
         primary: "var(--primary)",
         "on-primary": "var(--on-primary)",
+        icon: "var(--icon)",
         "primary-2": "var(--primary-2)",
         accent: "var(--accent)",
         profit: "var(--profit)",
