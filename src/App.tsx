@@ -25,12 +25,6 @@ export default function App() {
     document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
   }, [lang]);
 
-  useEffect(() => {
-    if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-      setTheme("light");
-    }
-  }, []);
-
   const t = (en: string, ar: string) => (lang === "ar" ? ar : en);
 
   return (

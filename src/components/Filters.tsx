@@ -24,7 +24,7 @@ export default function Filters({ lang }: Props) {
             onClick={() => setPeriod(p.value)}
             className={`rounded-lg px-4 py-2 text-small transition-all ${
               period === p.value
-                ? "bg-primary text-white font-semibold"
+                ? "bg-primary text-on-primary font-semibold"
                 : "text-muted hover:text-text hover:bg-bg"
             }`}
             style={{ minHeight: "36px", minWidth: "44px" }}

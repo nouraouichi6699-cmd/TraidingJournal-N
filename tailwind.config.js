@@ -11,6 +11,7 @@ export default {
         text: "var(--text)",
         muted: "var(--muted)",
         primary: "var(--primary)",
+        "on-primary": "var(--on-primary)",
         "primary-2": "var(--primary-2)",
         accent: "var(--accent)",
         profit: "var(--profit)",
@@ -21,8 +22,8 @@ export default {
       fontFamily: {
         body: ['"Inter"', '"IBM Plex Sans Arabic"', "system-ui", "sans-serif"],
         heading: ['"Readex Pro"', '"IBM Plex Sans Arabic"', "sans-serif"],
-        wordmark: ['"Sora"', '"Reem Kufi"', "sans-serif"],
-        "wordmark-ar": ['"Reem Kufi"', '"Sora"', "sans-serif"],
+        wordmark: ['"Tinos"', '"Times New Roman"', '"Amiri"', "serif"],
+        "wordmark-ar": ['"Amiri"', '"Tinos"', "serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       borderRadius: {

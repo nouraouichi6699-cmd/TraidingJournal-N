@@ -19,7 +19,7 @@ export default function LangSwitcher({ lang, onChange }: Props) {
         aria-label="English"
         onClick={() => onChange("en")}
         className={`rounded-lg px-3 py-2 text-small transition-colors ${
-          lang === "en" ? "bg-primary text-white" : "text-muted hover:bg-bg"
+          lang === "en" ? "bg-primary text-on-primary" : "text-muted hover:bg-bg"
         }`}
         style={{ minHeight: "36px", minWidth: "36px" }}
       >
@@ -31,7 +31,7 @@ export default function LangSwitcher({ lang, onChange }: Props) {
         aria-label="العربية"
         onClick={() => onChange("ar")}
         className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-small transition-colors ${
-          lang === "ar" ? "bg-primary text-white" : "text-muted hover:bg-bg"
+          lang === "ar" ? "bg-primary text-on-primary" : "text-muted hover:bg-bg"
         }`}
         style={{ minHeight: "36px", minWidth: "36px" }}
       >

@@ -8,9 +8,9 @@ interface Props {
 }
 
 const themes: { value: Theme; label: string; labelAr: string; icon: typeof Moon }[] = [
-  { value: "dark", label: "Emerald", labelAr: "إميرالد", icon: Moon },
-  { value: "light", label: "Mint", labelAr: "نعناع", icon: Sun },
-  { value: "cream", label: "Paper", labelAr: "ورقي", icon: BookOpen },
+  { value: "dark", label: "Navy", labelAr: "كحلي", icon: Moon },
+  { value: "light", label: "Ivory", labelAr: "عاجي", icon: Sun },
+  { value: "cream", label: "Sand", labelAr: "رملي", icon: BookOpen },
 ];
 
 export default function ThemeToggle({ theme, onChange, lang }: Props) {
@@ -29,12 +29,12 @@ export default function ThemeToggle({ theme, onChange, lang }: Props) {
           onClick={() => onChange(value)}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-small transition-colors ${
             theme === value
-              ? "bg-primary text-white"
+              ? "bg-primary text-on-primary"
               : "text-muted hover:bg-bg"
           }`}
           style={{ minHeight: "36px", minWidth: "36px" }}
         >
-          <Icon size={16} className={theme === value ? "text-white" : "text-muted"} />
+          <Icon size={16} className={theme === value ? "text-on-primary" : "text-muted"} />
           <span className="hidden sm:inline">{lang === "ar" ? labelAr : label}</span>
         </button>
       ))}
