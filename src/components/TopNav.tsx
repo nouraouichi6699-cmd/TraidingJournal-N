@@ -30,7 +30,7 @@ export default function TopNav({ active, onSelect, lang }: Props) {
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
-        <Brand />
+        <Brand lang={lang} />
 
         <nav aria-label={lang === "ar" ? "القائمة الرئيسية" : "Main navigation"}>
           <ul className="flex items-center gap-1">

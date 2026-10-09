@@ -38,7 +38,7 @@ export default function App() {
         }}
       >
         <div className="mobile-only mb-6 flex items-center justify-between gap-3">
-          <Brand size="sm" />
+          <Brand lang={lang} size="sm" />
           <div className="flex items-center gap-3">
             <ByLine />
             <button
