@@ -3,7 +3,7 @@ import { Bell, Search } from "lucide-react";
 import type { Theme, Lang } from "./types";
 import ThemeToggle from "./components/ThemeToggle";
 import LangSwitcher from "./components/LangSwitcher";
-import Brand from "./components/Brand";
+import Brand, { ByLine } from "./components/Brand";
 import TopNav from "./components/TopNav";
 import MobileTabBar from "./components/MobileTabBar";
 import KpiRow from "./components/KpiRow";
@@ -38,8 +38,9 @@ export default function App() {
         }}
       >
         <div className="mobile-only mb-6 flex items-center justify-between gap-3">
-          <Brand lang={lang} size="sm" />
-          <div className="flex items-center gap-2">
+          <Brand size="sm" />
+          <div className="flex items-center gap-3">
+            <ByLine />
             <button
               aria-label={t("Notifications", "الإشعارات")}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-muted"
