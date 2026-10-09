@@ -1,2 +1,2 @@
 export type Theme = "dark" | "light" | "cream";
-export type Lang = "ar" | "en";
+export type Lang = "en" | "ar";
