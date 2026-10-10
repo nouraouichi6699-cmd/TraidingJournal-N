@@ -28,13 +28,14 @@ interface Props {
   theme: Theme;
   onLang: (l: Lang) => void;
   onTheme: (t: Theme) => void;
+  onConnect: () => void;
 }
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-function MenuRow({ icon, label }: { icon: React.ReactNode; label: string }) {
+function MenuRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) {
   return (
-    <button type="button" className="menu-row">
+    <button type="button" className="menu-row" onClick={onClick}>
       {icon}
       <span className="flex-1 text-start">{label}</span>
       <ArrowRight size={16} className="text-muted directional-icon" />
@@ -42,7 +43,7 @@ function MenuRow({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
-export default function Header({ lang, t, theme, onLang, onTheme }: Props) {
+export default function Header({ lang, t, theme, onLang, onTheme, onConnect }: Props) {
   const tabs = [
     { icon: LayoutGrid, label: t("metrics"), active: true },
     { icon: CalendarDays, label: t("calendar"), active: false },
@@ -59,7 +60,7 @@ export default function Header({ lang, t, theme, onLang, onTheme }: Props) {
       <div className="grid min-w-0 flex-1 grid-cols-2 grid-rows-[auto_auto_auto] lg:grid-rows-[auto_auto] lg:grid-cols-[1fr_auto_1fr] items-center gap-x-4 gap-y-2">
         {/* Row 1 */}
         <div className="hidden w-full max-w-[340px] flex-col gap-1 min-[1360px]:flex">
-          <MenuRow icon={<SquarePlus {...ic} />} label={t("connect")} />
+          <MenuRow icon={<SquarePlus {...ic} />} label={t("connect")} onClick={onConnect} />
           <MenuRow icon={<MessageCircle {...ic} />} label={t("feedback")} />
         </div>
         <div className="col-span-2 col-start-1 row-start-1 justify-self-start lg:col-span-1 min-[1360px]:col-start-2 min-[1360px]:justify-self-center">

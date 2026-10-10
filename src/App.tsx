@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
+import ConnectAccountModal from "./components/ConnectAccountModal";
+import AccountsList from "./components/AccountsList";
+import { useAccounts } from "./useAccounts";
 import { makeT } from "./i18n";
 import type { Lang, Theme } from "./types";
 
@@ -17,6 +20,8 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() => read("mizan-lang", ["en", "ar", "fr"], "en"));
   const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "cream"], "dark"));
   const t = makeT(lang);
+  const { accounts, add, remove } = useAccounts();
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -35,11 +40,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} onLang={setLang} onTheme={setTheme} />
+      <Header lang={lang} t={t} theme={theme} onLang={setLang} onTheme={setTheme} onConnect={() => setConnecting(true)} />
       <div className="flex">
         <Sidebar t={t} />
-        <main className="min-w-0 flex-1 p-4" />
+        <main className="min-w-0 flex-1 p-4">
+          <AccountsList t={t} accounts={accounts} onRemove={remove} onConnect={() => setConnecting(true)} />
+        </main>
       </div>
+      {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}
     </div>
   );
 }

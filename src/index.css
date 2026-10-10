@@ -198,3 +198,17 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--primary-tint);
 }
 
+
+.field {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+.field:focus {
+  border-color: var(--icon);
+}
