@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
 import AccountsList from "./components/AccountsList";
 import { useAccounts } from "./useAccounts";
@@ -22,6 +22,7 @@ export default function App() {
   const t = makeT(lang);
   const { accounts, add, remove } = useAccounts();
   const [connecting, setConnecting] = useState(false);
+  const [view, setView] = useState<View>("dashboard");
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -42,9 +43,11 @@ export default function App() {
     <div className="min-h-screen bg-bg text-text">
       <Header lang={lang} t={t} theme={theme} onLang={setLang} onTheme={setTheme} onConnect={() => setConnecting(true)} />
       <div className="flex">
-        <Sidebar t={t} />
+        <Sidebar t={t} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
-          <AccountsList t={t} accounts={accounts} onRemove={remove} onConnect={() => setConnecting(true)} />
+          {view === "accounts" && (
+            <AccountsList t={t} accounts={accounts} onRemove={remove} onConnect={() => setConnecting(true)} />
+          )}
         </main>
       </div>
       {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}

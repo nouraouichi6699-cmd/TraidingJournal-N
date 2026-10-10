@@ -9,20 +9,29 @@ const items = [
   { id: "reports", icon: ClipboardList },
 ] as const;
 
-export default function Sidebar({ t }: { t: (k: Key) => string }) {
+export type View = (typeof items)[number]["id"];
+
+interface Props {
+  t: (k: Key) => string;
+  view: View;
+  onView: (v: View) => void;
+}
+
+export default function Sidebar({ t, view, onView }: Props) {
   return (
     <nav
       aria-label={t("mainNav")}
       className="sticky top-3 m-3 flex w-14 sm:w-[92px] shrink-0 flex-col gap-1 self-start rounded-2xl border border-border bg-surface p-2"
     >
-      {items.map(({ id, icon: Icon }, i) => (
+      {items.map(({ id, icon: Icon }) => (
         <button
           key={id}
           type="button"
           aria-label={t(id)}
-          aria-current={i === 0 ? "page" : undefined}
+          aria-current={view === id ? "page" : undefined}
+          onClick={() => onView(id)}
           className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-3 text-[11px] font-semibold ${
-            i === 0 ? "bg-primary-tint" : "hover:bg-primary-tint"
+            view === id ? "bg-primary-tint" : "hover:bg-primary-tint"
           }`}
         >
           <Icon size={22} strokeWidth={1.8} className="text-icon" />
