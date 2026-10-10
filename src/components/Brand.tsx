@@ -1,28 +1,18 @@
 import type { Lang } from "../types";
 
-interface Props {
-  lang: Lang;
-  size?: "md" | "sm";
-}
-
-export default function Brand({ lang, size = "md" }: Props) {
+export default function Brand({ lang }: { lang: Lang }) {
   const isAr = lang === "ar";
-  const h = size === "md" ? 66 : 54;
   return (
-    <div className="flex flex-col items-center" style={{ gap: 2 }}>
+    <div className="flex items-center gap-2.5">
       <img
         src="/logo.png"
-        alt="Mizan"
-        height={h}
-        style={{ height: h, width: "auto", borderRadius: 10, background: "#fff", padding: 2 }}
+        alt=""
+        height={40}
+        style={{ height: 40, width: "auto", borderRadius: 8, background: "#fff", padding: 2 }}
       />
       <span
         className={isAr ? "font-wordmark-ar" : "font-wordmark"}
-        style={{
-          color: "var(--accent)",
-          fontSize: isAr ? (size === "md" ? 22 : 18) : size === "md" ? 19 : 16,
-          lineHeight: 1.2,
-        }}
+        style={{ color: "var(--accent)", fontSize: isAr ? 26 : 22, lineHeight: 1 }}
       >
         {isAr ? "ميزان" : "MIZAN"}
       </span>
@@ -30,14 +20,16 @@ export default function Brand({ lang, size = "md" }: Props) {
   );
 }
 
-export function ByLine() {
+/** Discreet signature, fixed to the bottom-left corner of the viewport. */
+export function Watermark() {
   return (
-    <span
-      className="font-wordmark text-text whitespace-nowrap opacity-80"
+    <div
+      aria-hidden
       dir="ltr"
-      style={{ fontSize: "12px", letterSpacing: "0.22em", fontWeight: 400 }}
+      className="font-wordmark pointer-events-none fixed bottom-3 left-4 z-10 select-none text-text/35"
+      style={{ fontSize: 11, letterSpacing: "0.22em", fontWeight: 400 }}
     >
       BY NOUR AOUICHI
-    </span>
+    </div>
   );
 }

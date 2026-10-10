@@ -3,6 +3,10 @@ import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
 import AccountsList from "./components/AccountsList";
+import ImportView from "./components/ImportView";
+import JournalView from "./components/JournalView";
+import { Watermark } from "./components/Brand";
+import { useJournal } from "./useJournal";
 import { useAccounts } from "./useAccounts";
 import { makeT } from "./i18n";
 import type { Lang, Theme } from "./types";
@@ -21,6 +25,7 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "cream"], "dark"));
   const t = makeT(lang);
   const { accounts, add, remove } = useAccounts();
+  const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View>("dashboard");
 
@@ -46,10 +51,25 @@ export default function App() {
         <Sidebar t={t} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
           {view === "accounts" && (
-            <AccountsList t={t} accounts={accounts} onRemove={remove} onConnect={() => setConnecting(true)} />
+            <AccountsList
+              t={t}
+              accounts={accounts}
+              trades={journal.trades}
+              balances={journal.balances}
+              onRemove={(id) => {
+                remove(id);
+                journal.purgeAccount(id);
+              }}
+              onConnect={() => setConnecting(true)}
+            />
+          )}
+          {view === "journal" && <JournalView t={t} accounts={accounts} trades={journal.trades} />}
+          {view === "import" && (
+            <ImportView t={t} accounts={accounts} journal={journal} onConnect={() => setConnecting(true)} />
           )}
         </main>
       </div>
+      <Watermark />
       {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}
     </div>
   );

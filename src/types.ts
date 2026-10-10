@@ -13,3 +13,25 @@ export interface Account {
   server?: string;
   createdAt: number;
 }
+
+export interface Trade {
+  key: string; // accountId + entry order id
+  accountId: string;
+  no: number;
+  symbol: string;
+  side: "long" | "short";
+  qty: number;
+  entryTime: string | null;
+  entryPrice: number;
+  exitTime: string | null;
+  exitPrice: number | null;
+  pnl: number | null; // net, null while open
+  returnPct: number | null;
+  commission: number;
+  status: "open" | "closed";
+}
+
+export interface BalancePoint {
+  t: string;
+  balance: number;
+}
