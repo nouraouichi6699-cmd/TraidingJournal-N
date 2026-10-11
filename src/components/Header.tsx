@@ -15,11 +15,12 @@ interface Props {
   onLang: (l: Lang) => void;
   onTheme: (t: Theme) => void;
   onProfile: () => void;
+  onNews: () => void;
 }
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile }: Props) {
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews }: Props) {
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
@@ -32,8 +33,8 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
   };
 
   const tabs = [
-    { icon: CalendarDays, label: t("calendar") },
-    { icon: Newspaper, label: t("news") },
+    { icon: CalendarDays, label: t("calendar"), onClick: undefined as (() => void) | undefined },
+    { icon: Newspaper, label: t("news"), onClick: onNews },
   ];
 
   return (
@@ -49,8 +50,8 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
 
         <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 text-sm">
           <div className="hidden items-center gap-1 lg:flex">
-            {tabs.map(({ icon: Icon, label }) => (
-              <button key={label} type="button" aria-label={label} className="flex items-center gap-2 rounded-lg px-3 py-1.5 font-medium hover:bg-primary-tint">
+            {tabs.map(({ icon: Icon, label, onClick }) => (
+              <button key={label} type="button" aria-label={label} onClick={onClick} className="flex items-center gap-2 rounded-lg px-3 py-1.5 font-medium hover:bg-primary-tint">
                 <Icon size={16} strokeWidth={1.9} className="text-icon" />
                 <span className="hidden 2xl:inline">{label}</span>
               </button>
