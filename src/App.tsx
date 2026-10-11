@@ -24,7 +24,7 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() => read("mizan-lang", ["en", "ar", "fr"], "en"));
   const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "cream"], "dark"));
   const t = makeT(lang);
-  const { accounts, add, remove } = useAccounts();
+  const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View>("dashboard");
@@ -65,7 +65,7 @@ export default function App() {
           )}
           {view === "journal" && <JournalView t={t} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
-            <ImportView t={t} accounts={accounts} journal={journal} onConnect={() => setConnecting(true)} />
+            <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
           )}
         </main>
       </div>

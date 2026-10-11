@@ -67,8 +67,11 @@ const dict = {
   pickAccount: { en: "Account", ar: "الحساب", fr: "Compte" },
   noTvAccount: { en: "Connect a TradingView account first.", ar: "اربط حساب TradingView أولًا.", fr: "Connectez d'abord un compte TradingView." },
   dropHint: { en: "Drop CSV files here or click to choose", ar: "اسحب ملفات CSV هنا أو انقر للاختيار", fr: "Déposez des fichiers CSV ici ou cliquez pour choisir" },
-  importHelp: { en: "Use the trade history and balance history exported from TradingView Paper Trading.", ar: "استخدم سجل الصفقات وسجل الرصيد المصدَّرين من TradingView Paper Trading.", fr: "Utilisez l'historique des trades et du solde exportés de TradingView Paper Trading." },
-  mt5Soon: { en: "MetaTrader 5 report import is coming next.", ar: "استيراد تقارير MetaTrader 5 قادم لاحقًا.", fr: "L'import des rapports MetaTrader 5 arrive bientôt." },
+  importHelp: { en: "TradingView Paper Trading CSV files, or a MetaTrader 5 history report (.xlsx).", ar: "ملفات CSV من TradingView Paper Trading، أو تقرير سجل MetaTrader 5 (.xlsx).", fr: "Fichiers CSV TradingView Paper Trading, ou rapport d'historique MetaTrader 5 (.xlsx)." },
+  kindMt5: { en: "MT5 report", ar: "تقرير MT5", fr: "Rapport MT5" },
+  mt5Created: { en: "account created automatically", ar: "أُنشئ الحساب تلقائيًا", fr: "compte créé automatiquement" },
+  csvNeedsTv: { en: "Select a TradingView account first.", ar: "اختر حساب TradingView أولًا.", fr: "Sélectionnez d'abord un compte TradingView." },
+  fileError: { en: "Could not read this file", ar: "تعذّرت قراءة هذا الملف", fr: "Impossible de lire ce fichier" },
   kindTrades: { en: "Trade history", ar: "سجل الصفقات", fr: "Historique des trades" },
   kindBalance: { en: "Balance history", ar: "سجل الرصيد", fr: "Historique du solde" },
   kindUnknown: { en: "Unrecognised file", ar: "ملف غير معروف", fr: "Fichier non reconnu" },
@@ -93,6 +96,9 @@ const dict = {
   netPnl: { en: "Net P&L", ar: "صافي الربح", fr: "P&L net" },
   balance: { en: "Balance", ar: "الرصيد", fr: "Solde" },
   allAccounts: { en: "All accounts", ar: "كل الحسابات", fr: "Tous les comptes" },
+  errNeedTv: { en: "Choose a TradingView account for this file.", ar: "اختر حساب TradingView لهذا الملف.", fr: "Choisissez un compte TradingView pour ce fichier." },
+  accCreated: { en: "account created", ar: "حساب جديد أُنشئ", fr: "compte créé" },
+  importHelp2: { en: "TradingView: CSV exports. MetaTrader 5: the History report saved as .xlsx.", ar: "TradingView: ملفات CSV. وMetaTrader 5: تقرير History محفوظ بصيغة xlsx.", fr: "TradingView : exports CSV. MetaTrader 5 : rapport d'historique enregistré en .xlsx." },
 } satisfies Dict;
 
 export type Key = keyof typeof dict;

@@ -47,7 +47,7 @@ export default function JournalView({ t, accounts, trades }: Props) {
                   <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>
                   <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>
                   <td className="px-4 py-3 tnum" dir="ltr">{x.qty.toLocaleString("en-US")}</td>
-                  <td className={`px-4 py-3 tnum font-semibold ${x.pnl == null ? "" : x.pnl >= 0 ? "text-profit" : "text-loss"}`} dir="ltr">
+                  <td className={`px-4 py-3 tnum font-semibold ${x.pnl == null || x.pnl === 0 ? "text-muted" : x.pnl > 0 ? "text-profit" : "text-loss"}`} dir="ltr">
                     {x.pnl == null ? "—" : `${x.pnl > 0 ? "+" : ""}${fmt(x.pnl)}`}
                   </td>
                   <td className="px-4 py-3">{t(x.status === "open" ? "open" : "closed")}</td>

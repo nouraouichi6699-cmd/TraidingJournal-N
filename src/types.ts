@@ -28,6 +28,8 @@ export interface Trade {
   pnl: number | null; // net, null while open
   returnPct: number | null;
   commission: number;
+  sl?: number | null;
+  tp?: number | null;
   status: "open" | "closed";
 }
 

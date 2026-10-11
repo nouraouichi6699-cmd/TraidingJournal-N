@@ -68,7 +68,7 @@ const monthOf = (name: string) =>
 export function parseDate(s?: string): string | null {
   if (!s) return null;
   const t = s.trim();
-  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  let m = t.match(/^(\d{4})[-.](\d{2})[-.](\d{2})[ T](\d{2}):(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
   // 7 oct. 2026, 14:50
   m = t.match(/^(\d{1,2})\s+([^\s,\d]+)\s+(\d{4}),?\s+(\d{1,2}):(\d{2})/);
