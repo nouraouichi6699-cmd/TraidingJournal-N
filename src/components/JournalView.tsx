@@ -9,6 +9,8 @@ interface Props {
   trades: Trade[];
 }
 
+// Hide the data-source prefix ("FX:", "TVC:"): only the traded instrument matters.
+const instrument = (s: string) => s.replace(/^[^:]+:/, "");
 const when = (s: string | null) => (s ? s.replace("T", " ") : "—");
 
 export default function JournalView({ t, accounts, trades }: Props) {
@@ -42,7 +44,7 @@ export default function JournalView({ t, accounts, trades }: Props) {
             <tbody>
               {rows.map((x) => (
                 <tr key={x.key} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-medium" dir="ltr">{x.symbol}</td>
+                  <td className="px-4 py-3 font-medium" dir="ltr">{instrument(x.symbol)}</td>
                   <td className="px-4 py-3">{t(x.side)}</td>
                   <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>
                   <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>

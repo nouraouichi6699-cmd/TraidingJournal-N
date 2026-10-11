@@ -7,6 +7,8 @@ import ImportView from "./components/ImportView";
 import JournalView from "./components/JournalView";
 import { Watermark } from "./components/Brand";
 import { useJournal } from "./useJournal";
+import ProfileView from "./components/ProfileView";
+import { useProfile } from "./useProfile";
 import { useAccounts } from "./useAccounts";
 import { makeT } from "./i18n";
 import type { Lang, Theme } from "./types";
@@ -27,7 +29,8 @@ export default function App() {
   const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View | "profile">("dashboard");
+  const { profile, save: saveProfile } = useProfile();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -46,7 +49,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} onLang={setLang} onTheme={setTheme} onConnect={() => setConnecting(true)} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} />
       <div className="flex">
         <Sidebar t={t} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -63,13 +66,28 @@ export default function App() {
               onConnect={() => setConnecting(true)}
             />
           )}
+          {view === "profile" && (
+            <ProfileView
+              key={JSON.stringify(profile)}
+              t={t}
+              lang={lang}
+              profile={profile}
+              onSave={saveProfile}
+              onDeleteAll={() => {
+                try {
+                  Object.keys(localStorage).filter((k) => k.startsWith("mizan-")).forEach((k) => localStorage.removeItem(k));
+                } catch {}
+                location.reload();
+              }}
+            />
+          )}
           {view === "journal" && <JournalView t={t} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
             <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
           )}
         </main>
       </div>
-      <Watermark />
+      <Watermark feedback={t("feedback")} />
       {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}
     </div>
   );

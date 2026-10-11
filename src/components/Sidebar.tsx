@@ -29,7 +29,7 @@ export type View = (typeof main)[number]["id"] | (typeof more)[number]["id"];
 
 interface Props {
   t: (k: Key) => string;
-  view: View;
+  view: string;
   onView: (v: View) => void;
 }
 
