@@ -235,3 +235,37 @@ h1, h2, h3, h4, h5, h6 {
   .nav-pill, .nav-item svg { transition: none; }
   .nav-item[aria-current="page"] svg { animation: none; }
 }
+
+/* News motion */
+@keyframes news-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes news-zoom { from { opacity: 0; transform: scale(0.88) translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes news-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes news-next { from { opacity: 0; transform: translateX(40px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes news-prev { from { opacity: 0; transform: translateX(-40px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes news-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.news-card {
+  animation: news-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 55ms);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, box-shadow 0.28s ease;
+}
+.news-card:hover, .news-card:focus-visible {
+  transform: translateY(-4px) scale(1.025);
+  border-color: var(--icon);
+  box-shadow: 0 14px 34px -14px color-mix(in srgb, var(--icon) 55%, transparent);
+}
+.news-card:active { transform: scale(0.99); }
+.news-overlay { animation: news-fade 0.2s ease both; }
+.news-panel { animation: news-zoom 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.news-slide-next { animation: news-next 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.news-slide-prev { animation: news-prev 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+[dir="rtl"] .news-slide-next { animation-name: news-prev; }
+[dir="rtl"] .news-slide-prev { animation-name: news-next; }
+.news-skel {
+  background: linear-gradient(90deg, var(--skeleton) 25%, var(--border) 50%, var(--skeleton) 75%);
+  background-size: 200% 100%;
+  animation: news-shimmer 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .news-card, .news-overlay, .news-panel, .news-slide-next, .news-slide-prev, .news-skel { animation: none; }
+  .news-card:hover, .news-card:focus-visible { transform: none; }
+}

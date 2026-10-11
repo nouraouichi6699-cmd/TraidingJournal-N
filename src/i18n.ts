@@ -139,6 +139,7 @@ const dict = {
   noNews: { en: "No news matches your filters.", ar: "لا توجد أخبار تطابق الفلاتر.", fr: "Aucune actualité ne correspond à vos filtres." },
   readAtSource: { en: "Read at source", ar: "اقرأ في المصدر", fr: "Lire à la source" },
   newsDisclaimer: { en: "Headlines and short summaries from the original publishers, shown for information only; always open the source. Not financial advice.", ar: "عناوين وملخصات قصيرة من الناشرين الأصليين للاطلاع فقط؛ افتح المصدر دائمًا. ليست نصيحة مالية.", fr: "Titres et courts résumés des éditeurs d'origine, à titre informatif ; ouvrez toujours la source. Pas un conseil financier." },
+  reportedBy: { en: "Reported by", ar: "نقلته", fr: "Rapporté par" },
   changeEmail: { en: "Change email", ar: "تغيير البريد", fr: "Changer l'e-mail" },
   accessSec: { en: "Account access", ar: "الوصول إلى الحساب", fr: "Accès au compte" },
   closeAccount: { en: "Close your account", ar: "إغلاق حسابك", fr: "Fermer votre compte" },
