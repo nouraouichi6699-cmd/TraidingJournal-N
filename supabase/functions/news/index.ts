@@ -3,7 +3,10 @@
 
 type Cat = "forex" | "crypto" | "geopolitics" | "economy";
 interface Feed { source: string; url: string; cat: Cat }
-export interface Item { id: string; title: string; summary: string; url: string; sources: string[]; category: Cat; date: string }
+type Dir = "up" | "down" | "flat";
+export interface Asset { sym: string; dir: Dir }
+export interface Impact { level: "high" | "medium" | "low"; assets: Asset[] }
+export interface Item { id: string; title: string; summary: string; url: string; sources: string[]; category: Cat; date: string; image?: string; impact: Impact }
 
 const FEEDS: Feed[] = [
   { source: "FXStreet", url: "https://www.fxstreet.com/rss/news", cat: "forex" },
@@ -32,6 +35,93 @@ const tag = (block: string, name: string) => {
   return m ? m[1] : "";
 };
 
+
+// ---------- Automatic impact estimate (keyword rules, NOT a trading signal) ----------
+const UP = /\b(rises?|rising|rose|climb\w*|gain\w*|rall(?:y|ies|ied)|surg\w*|jump\w*|soar\w*|advanc\w*|rebound\w*|record high|higher|strengthen\w*|bullish|recover\w*|inflows?|approv\w*|spik\w*|extends? gains)\b/i;
+const DOWN = /\b(falls?|fell|fallen|drop\w*|slid\w*|slip\w*|declin\w*|tumbl\w*|plung\w*|sink\w*|slump\w*|lower|weaken\w*|bearish|retreat\w*|loses?|lost|losses|crash\w*|dips?|dipped|hack\w*|ban(?:s|ned)?|outflows?|sell-?off)\b/i;
+
+const count = (re: RegExp, t: string) => (t.match(new RegExp(re.source, "gi")) ?? []).length;
+const sentiment = (t: string): Dir => {
+  const u = count(UP, t), d = count(DOWN, t);
+  return u > d ? "up" : d > u ? "down" : "flat";
+};
+/** Sentiment of the words right around a mention; falls back to the whole headline. */
+const near = (text: string, re: RegExp, fallback: string): Dir => {
+  const m = re.exec(text);
+  if (!m) return sentiment(fallback);
+  const after = text.slice(m.index, m.index + m[0].length + 34);
+  const d = sentiment(after);
+  return d !== "flat" ? d : sentiment(fallback);
+};
+
+const CCY: [RegExp, string][] = [
+  [/\b(aussie|australian dollar|aud)\b/i, "AUD"], [/\b(euro|eur)\b/i, "EUR"], [/\b(sterling|pound|gbp|cable)\b/i, "GBP"],
+  [/\b(yen|jpy)\b/i, "JPY"], [/\b(loonie|canadian dollar|cad)\b/i, "CAD"], [/\b(swiss franc|chf)\b/i, "CHF"],
+  [/\b(kiwi|nzd)\b/i, "NZD"], [/\b(yuan|renminbi|cny)\b/i, "CNY"],
+];
+const ISO = new Set("USD EUR GBP JPY AUD CAD CHF NZD CNY".split(" "));
+
+const HIGH = /\b(war|invasion|invad\w+|missiles?|airstrikes?|nuclear|sanctions?|embargo|default|bankrupt\w*|collapse[sd]?|flash crash|emergency|exploit(?:ed)?|hack(?:ed|s)?|rate (?:hike|cut)s?|(?:raises?|cuts?|hikes?|slash\w*) (?:interest )?rates?|fomc|interest rate decision|monetary policy decision|blockade|hormuz|coup|escalat\w+|liquidations?|tariffs?|market turmoil)\b/i;
+const MEDIUM = /\b(inflation|cpi|ppi|payrolls?|nfp|jobs report|unemployment|gdp|pmi|retail sales|yields?|opec|oil|crude|etf|sec|regulat\w+|central bank|fed|ecb|boj|boe|powell|lagarde|treasury|ceasefire|talks|summit|election|bitcoin|ethereum|gold)\b/i;
+
+const ESCALATE = /\b(war|missiles?|airstrikes?|attack\w*|escalat\w+|tensions?|conflict|invasion|strikes?|blockade|hormuz|sanctions?)\b/i;
+const PEACE = /\b(ceasefire|cease-fire|peace deal|truce|de-escalat\w+|talks resume|agreement reached)\b/i;
+const HAWK = /\b(hike|hikes|hiking|hawkish|higher for longer|strong jobs|hot inflation|stronger dollar|yields? (?:rise|jump|climb)\w*|raises? rates?)\b/i;
+const DOVE = /\b(rate cuts?|cuts? rates?|dovish|pause|paus\w+|weak jobs|softer inflation|cooling inflation|weaker dollar|easing|slash\w* rates?)\b/i;
+const MIDEAST = /\b(iran|iraq|israel|gaza|hormuz|saudi|houthi|red sea|russia|ukraine|opec)\b/i;
+
+export function analyze(title: string, summary: string, source: string): Impact {
+  const text = `${title}. ${summary}`;
+  const assets: Asset[] = [];
+  const add = (sym: string, dir: Dir) => { if (!assets.some((a) => a.sym === sym)) assets.push({ sym, dir }); };
+
+  // explicit pairs like EUR/USD
+  for (const m of title.matchAll(/\b([A-Z]{3})\/([A-Z]{3})\b/g)) if (ISO.has(m[1]) && ISO.has(m[2])) add(`${m[1]}/${m[2]}`, near(title, new RegExp(m[0]), text));
+  if (/\b(bitcoin|btc)\b/i.test(text)) add("BTC", near(title, /\b(bitcoin|btc)\b/i, text));
+  if (/\b(ethereum|ether|eth)\b/i.test(text)) add("ETH", near(title, /\b(ethereum|ether|eth)\b/i, text));
+  if (assets.length === 0 && /\b(crypto|altcoins?|stablecoins?|defi)\b/i.test(text)) add("Crypto", near(title, /\b(crypto|altcoins?|stablecoins?|defi)\b/i, text));
+  if (/\b(gold|xau|bullion)\b/i.test(text)) add("XAU", near(title, /\b(gold|xau|bullion)\b/i, text));
+  if (/\b(oil|crude|brent|wti)\b/i.test(text)) add("OIL", near(title, /\b(oil|crude|brent|wti)\b/i, text));
+
+  const macroHawk = HAWK.test(text), macroDove = DOVE.test(text);
+  if (/\b(fed|federal reserve|fomc|powell|dollar|usd|greenback|treasury)\b/i.test(text) && !assets.some((a) => a.sym.includes("USD"))) {
+    const d: Dir = macroHawk && !macroDove ? "up" : macroDove && !macroHawk ? "down" : near(title, /\b(dollar|usd|greenback)\b/i, "");
+    add("USD", d);
+  }
+  for (const [re, sym] of CCY) if (re.test(text) && !assets.some((a) => a.sym.includes(sym))) add(sym, near(title, re, text));
+
+  // Implicit effects of big macro / geopolitical stories (only when not already named)
+  const escalate = ESCALATE.test(text), peace = PEACE.test(text);
+  if (!assets.some((a) => a.sym === "XAU") && (escalate || peace || macroHawk || macroDove)) {
+    const up = (escalate && !peace) || (macroDove && !macroHawk);
+    const down = peace || (macroHawk && !macroDove);
+    if (up !== down) add("XAU", up ? "up" : "down");
+  }
+  if (!assets.some((a) => a.sym === "OIL") && MIDEAST.test(text) && (escalate || peace)) add("OIL", peace && !escalate ? "down" : "up");
+
+  let level: Impact["level"] = HIGH.test(text) ? "high" : MEDIUM.test(text) ? "medium" : "low";
+  if ((source === "Federal Reserve" || source === "ECB") && level === "low") level = "medium";
+  if (level === "high" && assets.length === 0) level = "medium";
+  return { level, assets: assets.slice(0, 4) };
+}
+
+const imageOf = (b: string, base: string): string | undefined => {
+  const raw =
+    b.match(/<media:content[^>]+url=["']([^"']+)["']/i)?.[1] ??
+    b.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i)?.[1] ??
+    b.match(/<enclosure[^>]+type=["']image\/[^"']*["'][^>]*url=["']([^"']+)["']/i)?.[1] ??
+    b.match(/<enclosure[^>]+url=["']([^"']+)["'][^>]*type=["']image\//i)?.[1] ??
+    b.match(/<img[^>]+src=["']([^"']+)["']/i)?.[1] ??
+    b.match(/&lt;img[^&]+src=["']([^"']+)["']/i)?.[1];
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw.replace(/&amp;/g, "&"), base).href;
+    return u.startsWith("https://") ? u : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export function parseRss(xml: string, feed: Feed): Item[] {
   const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? xml.match(/<entry[\s>][\s\S]*?<\/entry>/gi) ?? [];
   const out: Item[] = [];
@@ -42,7 +132,8 @@ export function parseRss(xml: string, feed: Feed): Item[] {
     const d = new Date(decode(tag(b, "pubDate")) || decode(tag(b, "updated")) || decode(tag(b, "dc:date")));
     if (!title || !/^https?:\/\//.test(link) || isNaN(+d)) continue;
     const summary = decode(tag(b, "description") || tag(b, "summary")).slice(0, 240);
-    out.push({ id: link, title, summary: summary === title ? "" : summary, url: link, sources: [feed.source], category: feed.cat, date: d.toISOString() });
+    const sm = summary === title ? "" : summary;
+    out.push({ id: link, title, summary: sm, url: link, sources: [feed.source], category: feed.cat, date: d.toISOString(), image: imageOf(b, feed.url), impact: analyze(title, sm, feed.source) });
   }
   return out;
 }
@@ -64,6 +155,7 @@ export function merge(items: Item[]): Item[] {
     const hit = out.find((o) => o.it.category === it.category && w.size >= 4 && sim(w, o.w) >= 0.7 && Math.abs(+new Date(o.it.date) - +new Date(it.date)) < 36e5 * 36);
     if (hit) {
       for (const s of it.sources) if (!hit.it.sources.includes(s)) hit.it.sources.push(s);
+      if (!hit.it.image && it.image) hit.it.image = it.image;
     } else out.push({ it, w });
   }
   return out.map((o) => o.it);
