@@ -31,7 +31,7 @@ export default function NewsView({ t, lang }: { t: (k: Key) => string; lang: Lan
   const load = async () => {
     setBusy(true);
     setErr(false);
-    const { data, error } = await supabase.functions.invoke("news");
+    const { data, error } = await supabase.functions.invoke("NEWS");
     setBusy(false);
     if (error || !data?.items) return setErr(true);
     setData(data as Payload);
