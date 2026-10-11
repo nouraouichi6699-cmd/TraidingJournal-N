@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "./lib/supabase";
+import AuthView from "./components/AuthView";
+import { pullCloud, useCloudSync } from "./useCloudSync";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
@@ -22,30 +26,14 @@ const read = <T extends string>(key: string, allowed: readonly T[], fallback: T)
   }
 };
 
-export default function App() {
-  const [lang, setLang] = useState<Lang>(() => read("mizan-lang", ["en", "ar", "fr"], "en"));
-  const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "cream"], "dark"));
+function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void; email: string; userId: string }) {
   const t = makeT(lang);
+  useCloudSync(userId);
   const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View | "profile">("dashboard");
   const { profile, save: saveProfile } = useProfile();
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    try {
-      localStorage.setItem("mizan-theme", theme);
-    } catch {}
-  }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("lang", lang);
-    document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
-    try {
-      localStorage.setItem("mizan-lang", lang);
-    } catch {}
-  }, [lang]);
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -68,16 +56,21 @@ export default function App() {
           )}
           {view === "profile" && (
             <ProfileView
+              email={email}
               key={JSON.stringify(profile)}
               t={t}
               lang={lang}
               profile={profile}
               onSave={saveProfile}
               onDeleteAll={() => {
-                try {
-                  Object.keys(localStorage).filter((k) => k.startsWith("mizan-")).forEach((k) => localStorage.removeItem(k));
-                } catch {}
-                location.reload();
+                void (async () => {
+                  await supabase.from("user_data").delete().eq("user_id", userId);
+                  await supabase.auth.signOut();
+                  try {
+                    Object.keys(localStorage).filter((k) => k.startsWith("mizan-") && k !== "mizan-lang" && k !== "mizan-theme").forEach((k) => localStorage.removeItem(k));
+                  } catch {}
+                  location.reload();
+                })();
               }}
             />
           )}
@@ -91,4 +84,43 @@ export default function App() {
       {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}
     </div>
   );
+}
+
+export default function App() {
+  const [lang, setLang] = useState<Lang>(() => read("mizan-lang", ["en", "ar", "fr"], "en"));
+  const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "cream"], "dark"));
+  const t = makeT(lang);
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [readyFor, setReadyFor] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem("mizan-theme", theme);
+    } catch {}
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("lang", lang);
+    document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    try {
+      localStorage.setItem("mizan-lang", lang);
+    } catch {}
+  }, [lang]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const uid = session?.user.id;
+  useEffect(() => {
+    if (uid && readyFor !== uid) pullCloud(uid).finally(() => setReadyFor(uid));
+  }, [uid, readyFor]);
+
+  if (session === undefined || (session && readyFor !== session.user.id))
+    return <div className="flex min-h-screen items-center justify-center bg-bg text-muted">{t("loadingData")}</div>;
+  if (!session) return <AuthView t={t} lang={lang} />;
+  return <Main lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} email={session.user.email ?? ""} userId={session.user.id} />;
 }

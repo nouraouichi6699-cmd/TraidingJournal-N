@@ -2,11 +2,13 @@ import { useRef, useState } from "react";
 import { Camera, Trash2, Info, User, Check } from "lucide-react";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
+import { supabase } from "../lib/supabase";
 import type { Profile } from "../useProfile";
 
 interface Props {
   t: (k: Key) => string;
   lang: Lang;
+  email: string;
   profile: Profile;
   onSave: (p: Profile) => void;
   onDeleteAll: () => void;
@@ -14,7 +16,7 @@ interface Props {
 
 const COUNTRIES = "TN DZ MA EG LY SA AE QA KW BH OM JO LB SY IQ PS YE SD MR TR FR DE ES IT PT BE NL CH GB IE SE NO DK FI PL US CA MX BR AR CL CO IN PK CN JP KR SG MY ID AU NZ ZA NG KE".split(" ");
 
-export default function ProfileView({ t, lang, profile, onSave, onDeleteAll }: Props) {
+export default function ProfileView({ t, lang, email, profile, onSave, onDeleteAll }: Props) {
   const [draft, setDraft] = useState(profile);
   const [msg, setMsg] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
@@ -62,9 +64,9 @@ export default function ProfileView({ t, lang, profile, onSave, onDeleteAll }: P
       <section className={`${card} flex flex-wrap items-center justify-between gap-3`}>
         <div>
           <h3 className="mb-1 text-sm font-semibold text-icon">{t("accountSec")}</h3>
-          <p className="text-sm text-muted">{t("notSignedIn")}</p>
+          <p className="text-sm text-muted">{t("signedInAs")} <span className="font-semibold text-text">{email}</span></p>
         </div>
-        <button type="button" disabled className={`${btn} border-icon text-icon disabled:opacity-40`}>{t("changeEmail")}</button>
+        <button type="button" onClick={() => supabase.auth.signOut()} className={`${btn} border-icon text-icon hover:bg-primary-tint`}>{t("signOut")}</button>
       </section>
 
       <section className={`${card} flex flex-wrap items-center justify-between gap-3 !border-loss/40`}>
