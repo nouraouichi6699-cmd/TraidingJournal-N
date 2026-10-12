@@ -44,24 +44,25 @@
   --chart-axis: rgba(75, 90, 125, 0.3);
 }
 
-[data-theme="cream"] {
-  --icon: #8a6100;
-  --bg: #fbf6e8;
-  --surface: #fffdf6;
-  --border: #eadfc0;
-  --text: #0a1a3f;
-  --muted: #5d5a4a;
-  --primary: #0a1f5c;
-  --primary-2: #1b3a8a;
-  --on-primary: #f2c14e;
-  --accent: #8a6100;
-  --profit: #856000;
-  --loss: #b91c1c;
-  --primary-tint: rgba(10, 31, 92, 0.09);
-  --skeleton: #f1e9d2;
-  --shadow-card: 0 1px 3px rgba(10, 26, 63, 0.08), 0 1px 2px rgba(10, 26, 63, 0.04);
-  --chart-grid: rgba(93, 90, 74, 0.16);
-  --chart-axis: rgba(93, 90, 74, 0.3);
+/* Black & Gold: pure black surfaces, bright gold accents */
+[data-theme="black"] {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --border: #1f1f1f;
+  --text: #ffffff;
+  --muted: #9a9a9a;
+  --primary: #f5b83d;
+  --primary-2: #d99a1c;
+  --on-primary: #1a1200;
+  --accent: #ffd36b;
+  --profit: #f5b83d;
+  --loss: #f87171;
+  --primary-tint: rgba(245, 184, 61, 0.14);
+  --skeleton: #151515;
+  --icon: #f5b83d;
+  --shadow-card: none;
+  --chart-grid: rgba(154, 154, 154, 0.14);
+  --chart-axis: rgba(154, 154, 154, 0.3);
 }
 
 * {

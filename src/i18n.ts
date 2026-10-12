@@ -9,7 +9,7 @@ export const languages: { code: Lang; label: string }[] = [
 export const themeNames: Record<Theme, Record<Lang, string>> = {
   dark: { en: "Navy", ar: "كحلي", fr: "Marine" },
   light: { en: "Ivory", ar: "عاجي", fr: "Ivoire" },
-  cream: { en: "Sand", ar: "رملي", fr: "Sable" },
+  black: { en: "Black & Gold", ar: "أسود وذهبي", fr: "Noir & or" },
 };
 
 type Dict = Record<string, Record<Lang, string>>;

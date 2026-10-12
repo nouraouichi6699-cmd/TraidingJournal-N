@@ -1,4 +1,4 @@
-export type Theme = "dark" | "light" | "cream";
+export type Theme = "dark" | "light" | "black";
 export type Lang = "en" | "ar" | "fr";
 
 export type Platform = "tradingview" | "mt5";

@@ -20,9 +20,10 @@ import { useAccounts } from "./useAccounts";
 import { makeT } from "./i18n";
 import type { Lang, Theme } from "./types";
 
-const read = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+const read = <T extends string>(key: string, allowed: readonly T[], fallback: T, migrate: Record<string, T> = {}): T => {
   try {
-    const v = localStorage.getItem(key) as T | null;
+    const raw = localStorage.getItem(key);
+    const v = (raw && migrate[raw] ? migrate[raw] : raw) as T | null;
     return v && allowed.includes(v) ? v : fallback;
   } catch {
     return fallback;
@@ -94,7 +95,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
 
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => read("mizan-lang", ["en", "ar", "fr"], "en"));
-  const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "cream"], "dark"));
+  const [theme, setTheme] = useState<Theme>(() => read("mizan-theme", ["dark", "light", "black"], "dark", { cream: "black" }));
   const t = makeT(lang);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [readyFor, setReadyFor] = useState<string | null>(null);
