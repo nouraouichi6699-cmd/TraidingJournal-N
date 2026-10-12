@@ -8,12 +8,14 @@ import {
   Upload,
   Target,
   Trophy,
+  Route,
 } from "lucide-react";
 import type { Key } from "../i18n";
 
 const main = [
   { id: "dashboard", icon: LayoutDashboard },
   { id: "journal", icon: PenLine },
+  { id: "roadmap", icon: Route },
   { id: "accounts", icon: SquarePlus },
   { id: "charts", icon: LineChart },
   { id: "reports", icon: ClipboardList },

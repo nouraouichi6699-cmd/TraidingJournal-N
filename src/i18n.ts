@@ -16,6 +16,7 @@ type Dict = Record<string, Record<Lang, string>>;
 
 const dict = {
   dashboard: { en: "Dashboard", ar: "الرئيسية", fr: "Tableau" },
+  roadmap: { en: "Road map", ar: "خارطة الطريق", fr: "Feuille de route" },
   journal: { en: "Journal", ar: "اليوميات", fr: "Journal" },
   accounts: { en: "Accounts", ar: "الحسابات", fr: "Comptes" },
   charts: { en: "Charts", ar: "الرسوم", fr: "Graphiques" },
