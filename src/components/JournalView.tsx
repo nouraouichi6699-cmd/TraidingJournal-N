@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import SymbolIcon from "./SymbolIcon";
 import { Eye, EyeOff } from "lucide-react";
 import { fmt } from "../lib/stats";
 import { pipsOf, weekOfMonth } from "../lib/pips";
@@ -118,7 +119,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                 const wk = weekOfMonth(x.entryTime ?? x.exitTime);
                 return (
                   <tr key={x.key} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 font-medium" dir="ltr">{instrument(x.symbol)}</td>
+                    <td className="px-4 py-3 font-medium" dir="ltr"><span className="inline-flex items-center gap-2"><SymbolIcon symbol={x.symbol} />{instrument(x.symbol)}</span></td>
                     <td className="px-4 py-3">
                       <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${x.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{t(x.side)}</span>
                     </td>
