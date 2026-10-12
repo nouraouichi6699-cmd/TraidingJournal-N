@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import Brand from "./Brand";
 import Dropdown from "./Dropdown";
 import Sessions from "./Sessions";
+import NotificationsPanel from "./NotificationsPanel";
+import type { Interests } from "../useInterests";
 import { languages, themeNames, type Key } from "../i18n";
 import type { Lang, Theme } from "../types";
 
@@ -17,11 +19,12 @@ interface Props {
   onProfile: () => void;
   onNews: () => void;
   onCalendar: () => void;
+  interests: Interests;
 }
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar }: Props) {
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, interests }: Props) {
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
@@ -81,10 +84,20 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             }
           </Dropdown>
 
-          <button type="button" aria-label={t("notifications")} className="icon-btn relative">
-            <Bell {...ic} />
-            <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-loss px-1 text-[10px] font-bold text-white">1</span>
-          </button>
+          <Dropdown
+            label={t("notifications")}
+            panelClass="w-[min(92vw,380px)]"
+            trigger={
+              <span className={`relative flex items-center justify-center ${interests.unread > 0 ? "bell-ringing" : ""}`}>
+                <Bell {...ic} className="bell-ico" />
+                {interests.unread > 0 && (
+                  <span className="absolute -end-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-loss px-1 text-[10px] font-bold text-white">{interests.unread > 9 ? "9+" : interests.unread}</span>
+                )}
+              </span>
+            }
+          >
+            {(close) => <NotificationsPanel t={t} lang={lang} interests={interests} onNews={onNews} onCalendar={onCalendar} close={close} />}
+          </Dropdown>
 
           <button type="button" aria-label={t("fullscreen")} title={t("fullscreen")} onClick={toggleFull} className="icon-btn hidden sm:inline-flex">
             {full ? <Minimize2 {...ic} /> : <Maximize2 {...ic} />}

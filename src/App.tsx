@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
 import { pullCloud, useCloudSync } from "./useCloudSync";
+import { useInterests } from "./useInterests";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
@@ -31,6 +32,7 @@ const read = <T extends string>(key: string, allowed: readonly T[], fallback: T)
 function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void; email: string; userId: string }) {
   const t = makeT(lang);
   useCloudSync(userId);
+  const interests = useInterests();
   const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
@@ -39,7 +41,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} interests={interests} />
       <div className="flex">
         <Sidebar t={t} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -76,8 +78,8 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               }}
             />
           )}
-          {view === "calendar" && <CalendarView t={t} lang={lang} />}
-          {view === "news" && <NewsView t={t} lang={lang} />}
+          {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
+          {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
           {view === "journal" && <JournalView t={t} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
             <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />

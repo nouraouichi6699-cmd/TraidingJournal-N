@@ -4,9 +4,10 @@ interface Props {
   label: string;
   trigger: ReactNode;
   children: (close: () => void) => ReactNode;
+  panelClass?: string;
 }
 
-export default function Dropdown({ label, trigger, children }: Props) {
+export default function Dropdown({ label, trigger, children, panelClass = "min-w-[170px]" }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -39,7 +40,7 @@ export default function Dropdown({ label, trigger, children }: Props) {
       {open && (
         <div
           role="menu"
-          className="absolute end-0 top-full z-50 mt-2 min-w-[170px] rounded-xl border border-border bg-surface p-1.5 shadow-xl"
+          className={`absolute end-0 top-full z-50 mt-2 ${panelClass} rounded-xl border border-border bg-surface p-1.5 shadow-xl`}
         >
           {children(() => setOpen(false))}
         </div>

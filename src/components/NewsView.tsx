@@ -6,6 +6,8 @@ import {
 import { supabase } from "../lib/supabase";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
+import HeartButton from "./HeartButton";
+import { newsKey, type Interests } from "../useInterests";
 
 type Cat = "forex" | "crypto" | "geopolitics" | "economy";
 type Level = "high" | "medium" | "low";
@@ -105,7 +107,7 @@ function Cover({ item, className, big }: { item: Item; className: string; big?: 
   );
 }
 
-export default function NewsView({ t, lang }: { t: (k: Key) => string; lang: Lang }) {
+export default function NewsView({ t, lang, interests }: { t: (k: Key) => string; lang: Lang; interests: Interests }) {
   const [data, setData] = useState<Payload | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -224,7 +226,8 @@ export default function NewsView({ t, lang }: { t: (k: Key) => string; lang: Lan
           const hero = idx === 0;
           const level = i.impact?.level ?? "low";
           return (
-            <li key={i.id} className={hero ? "sm:col-span-2" : ""}>
+            <li key={i.id} className={`relative ${hero ? "sm:col-span-2" : ""}`}>
+              <HeartButton on={interests.has(newsKey(i))} label={interests.has(newsKey(i)) ? t("unfollow") : t("follow")} onClick={() => interests.toggle(newsKey(i))} overlay className="absolute end-3 top-3 z-10" />
               <button
                 type="button"
                 onClick={() => { setDir("none"); setOpen(idx); }}
@@ -272,6 +275,7 @@ export default function NewsView({ t, lang }: { t: (k: Key) => string; lang: Lan
                 <div className="relative h-52 overflow-hidden sm:h-64">
                   <Cover item={i} big className="h-full w-full" />
                   <span className="absolute start-4 top-4"><Sev level={level} t={t} big /></span>
+                  <HeartButton on={interests.has(newsKey(i))} label={interests.has(newsKey(i)) ? t("unfollow") : t("follow")} onClick={() => interests.toggle(newsKey(i))} overlay className="absolute end-14 top-3" />
                   <button type="button" aria-label="close" onClick={() => setOpen(null)} className="icon-btn absolute end-3 top-3 !h-8 !w-8 bg-black/50"><X size={18} className="text-white" /></button>
                 </div>
                 <div className="p-6">

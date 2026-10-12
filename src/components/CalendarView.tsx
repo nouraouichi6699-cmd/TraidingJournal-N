@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Search, SlidersHorizontal, Bell, BellRing, Download, RefreshCw, X, CalendarDays, CalendarOff, Mic, ArrowUp, ArrowDown, Equal,
+  Search, SlidersHorizontal, Bell, BellRing, Heart, Download, RefreshCw, X, CalendarDays, CalendarOff, Mic, ArrowUp, ArrowDown, Equal,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
+import HeartButton from "./HeartButton";
+import { evKey, type Interests } from "../useInterests";
 import fUS from "flag-icons/flags/1x1/us.svg?url";
 import fEU from "flag-icons/flags/1x1/eu.svg?url";
 import fGB from "flag-icons/flags/1x1/gb.svg?url";
@@ -90,7 +92,7 @@ function Flag({ cur }: { cur: string }) {
   );
 }
 
-export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang: Lang }) {
+export default function CalendarView({ t, lang, interests }: { t: (k: Key) => string; lang: Lang; interests: Interests }) {
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -106,7 +108,6 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
   const [now, setNow] = useState(Date.now());
   const [openId, setOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const fired = useRef(new Set<string>());
 
   const save = (p: Prefs) => {
     setPrefs(p);
@@ -130,21 +131,6 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
-
-  // In-app (and browser) alerts shortly before an event starts.
-  useEffect(() => {
-    if (!events) return;
-    for (const e of events) {
-      if (!prefs.alerts.includes(e.id) || fired.current.has(e.id)) continue;
-      const at = +new Date(e.time);
-      if (now >= at - prefs.lead * 60e3 && now < at) {
-        fired.current.add(e.id);
-        const msg = `${e.currency} · ${e.title} — ${t("calAlertFire")} ${Math.max(1, Math.round((at - now) / 60e3))} min`;
-        say(msg);
-        try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Mizan", { body: msg }); } catch {}
-      }
-    }
-  }, [now, events, prefs.alerts, prefs.lead]);
 
   const tzOff = prefs.tz === "auto" ? -new Date().getTimezoneOffset() / 60 : Number(prefs.tz);
   const clock = shifted(new Date(now).toISOString(), tzOff);
@@ -204,18 +190,10 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
     return null;
   };
 
-  const toggleAlert = (e: Ev) => {
-    const on = prefs.alerts.includes(e.id);
-    save({ ...prefs, alerts: on ? prefs.alerts.filter((x) => x !== e.id) : [...prefs.alerts, e.id] });
-    fired.current.delete(e.id);
-    say(on ? t("calAlertOff") : `${t("calAlertSet")}: ${prefs.lead} min`);
-    try { if (!on && typeof Notification !== "undefined" && Notification.permission === "default") void Notification.requestPermission(); } catch {}
-  };
-  const upcoming = rows.filter((e) => +new Date(e.time) > now);
-  const allOn = upcoming.length > 0 && upcoming.every((e) => prefs.alerts.includes(e.id));
-  const bulk = () => {
-    const ids = upcoming.map((e) => e.id);
-    save({ ...prefs, alerts: allOn ? prefs.alerts.filter((x) => !ids.includes(x)) : Array.from(new Set([...prefs.alerts, ...ids])) });
+  const toggleFollow = (e: Ev) => {
+    const was = interests.has(evKey(e));
+    interests.toggle(evKey(e));
+    say(was ? t("calAlertOff") : `${t("follow")}: ${e.currency} · ${e.title}`);
   };
 
   const exportFile = (kind: "csv" | "xml") => {
@@ -234,7 +212,7 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
     URL.revokeObjectURL(a.href);
   };
 
-  const openPanel = () => { setDraft(prefs); setPanel(true); };
+  const openPanel = () => { setDraft({ ...prefs, lead: interests.lead }); setPanel(true); };
   const flip = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const pill = (on: boolean) =>
     `rounded-lg border px-3 py-1.5 text-sm font-medium ${on ? "border-icon bg-primary-tint text-icon" : "border-border text-muted hover:text-text"}`;
@@ -355,7 +333,7 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
                 <button type="button" className="font-semibold text-icon hover:underline" onClick={() => exportFile("xml")}>XML</button>
                 <span className="ms-auto flex gap-2">
                   <button type="button" className={pill(false)} onClick={() => setPanel(false)}>{t("calCancel")}</button>
-                  <button type="button" className="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-on-primary" onClick={() => { save({ ...prefs, ...draft, tz: prefs.tz, alerts: prefs.alerts }); setPanel(false); }}>{t("calApply")}</button>
+                  <button type="button" className="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-on-primary" onClick={() => { save({ ...prefs, ...draft, tz: prefs.tz, alerts: prefs.alerts }); interests.setLead(draft.lead); setPanel(false); }}>{t("calApply")}</button>
                 </span>
               </div>
             </div>
@@ -373,9 +351,7 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
           <div className={`hidden border-b border-border bg-primary-tint px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted ${grid}`}>
             <span>{t("colDate")}</span><span>{t("colLeft")}</span><span>{t("colCur")}</span><span>{t("colEvent")}</span><span>{t("colImpact")}</span>
             <span className="text-end">{t("colPrev")}</span><span className="text-end">{t("colForecast")}</span><span className="text-end">{t("colActual")}</span>
-            <button type="button" onClick={bulk} aria-label={t("calAlerts")} title={`${t("calAlerts")}: ${allOn ? t("calNone") : t("catAll")}`} className="justify-self-center text-icon">
-              {allOn ? <BellRing size={16} /> : <Bell size={16} />}
-            </button>
+            <Heart size={15} className="justify-self-center text-icon" aria-label={t("follow")} />
           </div>
 
           {groups.length === 0 && (
@@ -391,7 +367,7 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
               {list.map((e) => {
                 const l = left(e);
                 const mins = (now - +new Date(e.time)) / 60e3;
-                const on = prefs.alerts.includes(e.id);
+                const on = interests.has(evKey(e));
                 const open = openId === e.id;
                 return (
                   <div key={e.id} className="border-b border-border last:border-0">
@@ -411,9 +387,7 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
                       <span className="tnum text-muted md:text-end"><span className="md:hidden">{t("colPrev")}: </span>{e.previous || "—"}</span>
                       <span className="tnum text-muted md:text-end"><span className="md:hidden">{t("colForecast")}: </span>{e.forecast || "—"}</span>
                       <span className={`tnum font-bold md:text-end ${actualTone(e)}`}><span className="font-normal text-muted md:hidden">{t("colActual")}: </span>{e.actual || "—"}</span>
-                      <button type="button" aria-label={t("calAlerts")} aria-pressed={on} onClick={(ev) => { ev.stopPropagation(); toggleAlert(e); }} className={`ms-auto justify-self-center rounded-lg p-1.5 md:ms-0 ${on ? "text-icon" : "text-muted hover:text-text"}`}>
-                        {on ? <BellRing size={17} fill="currentColor" /> : <Bell size={17} />}
-                      </button>
+                      <HeartButton on={on} label={on ? t("unfollow") : t("follow")} onClick={() => toggleFollow(e)} className="ms-auto justify-self-center md:ms-0" />
                     </div>
                     {open && (
                       <div className="news-overlay grid gap-3 bg-bg/60 px-4 py-4 text-sm sm:grid-cols-3">
@@ -429,7 +403,7 @@ export default function CalendarView({ t, lang }: { t: (k: Key) => string; lang:
                             })()}
                           </p>
                         </div>
-                        <div><p className="text-xs text-muted">{t("calAlerts")}</p><p className="font-semibold">{on ? `${prefs.lead} min` : "—"}</p></div>
+                        <div><p className="text-xs text-muted">{t("calAlerts")}</p><p className="font-semibold">{on ? `${interests.lead} min` : "—"}</p></div>
                       </div>
                     )}
                   </div>
