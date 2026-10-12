@@ -81,7 +81,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
           )}
           {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
           {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
-          {view === "journal" && <JournalView t={t} accounts={accounts} trades={journal.trades} />}
+          {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
             <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
           )}
