@@ -25,6 +25,17 @@ function GoldBar() {
   );
 }
 
+function OilBarrel() {
+  return (
+    <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden>
+      <rect x="2" y="1" width="14" height="20" rx="3" fill="#2b2b2b" stroke="#6b7280" strokeWidth="1" />
+      <rect x="2" y="5" width="14" height="1.6" fill="#6b7280" />
+      <rect x="2" y="15.4" width="14" height="1.6" fill="#6b7280" />
+      <path d="M9 7.6c2 2.6 3 4 3 5.4a3 3 0 0 1-6 0c0-1.4 1-2.8 3-5.4z" fill="#f5b83d" />
+    </svg>
+  );
+}
+
 function CryptoIcon({ sym }: { sym: string }) {
   const [bad, setBad] = useState(false);
   const s = sym === "XBT" ? "btc" : sym.toLowerCase();
@@ -42,6 +53,7 @@ export default function SymbolIcon({ symbol }: { symbol: string }) {
   let inner: React.ReactNode = null;
   if (/^(XAU|GOLD)/.test(s)) inner = <><GoldBar /><Flag code="us" /></>;
   else if (/^(XAG|SILVER)/.test(s)) inner = <><span className="h-3 w-4 rounded-sm bg-gradient-to-b from-[#e5e7eb] to-[#9ca3af]" /><Flag code="us" /></>;
+  else if (/^(USOIL|UKOIL|WTI|BRENT|XTI|XBR|OIL|USO|UKO)/.test(s) || /OIL|WTI|BRENT/.test(s)) inner = <OilBarrel />;
   else {
     const c = CRYPTO.find((k) => s.startsWith(k));
     if (c) inner = <CryptoIcon sym={c} />;
