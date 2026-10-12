@@ -6,4 +6,4 @@ const key = import.meta.env.VITE_SUPABASE_KEY ?? "sb_publishable_YfWaHqtMmfi6c46
 
 export const supabase = createClient(url, key);
 
-export const SYNC_KEYS = ["mizan-accounts", "mizan-journal", "mizan-profile", "mizan-news"] as const;
+export const SYNC_KEYS = ["mizan-accounts", "mizan-journal", "mizan-profile", "mizan-news", "mizan-calendar"] as const;

@@ -11,6 +11,7 @@ import ImportView from "./components/ImportView";
 import JournalView from "./components/JournalView";
 import { Watermark } from "./components/Brand";
 import { useJournal } from "./useJournal";
+import CalendarView from "./components/CalendarView";
 import NewsView from "./components/NewsView";
 import ProfileView from "./components/ProfileView";
 import { useProfile } from "./useProfile";
@@ -33,12 +34,12 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
-  const [view, setView] = useState<View | "profile" | "news">("dashboard");
+  const [view, setView] = useState<View | "profile" | "news" | "calendar">("dashboard");
   const { profile, save: saveProfile } = useProfile();
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} />
       <div className="flex">
         <Sidebar t={t} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -75,6 +76,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               }}
             />
           )}
+          {view === "calendar" && <CalendarView t={t} lang={lang} />}
           {view === "news" && <NewsView t={t} lang={lang} />}
           {view === "journal" && <JournalView t={t} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (

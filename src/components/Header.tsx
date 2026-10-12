@@ -16,11 +16,12 @@ interface Props {
   onTheme: (t: Theme) => void;
   onProfile: () => void;
   onNews: () => void;
+  onCalendar: () => void;
 }
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews }: Props) {
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar }: Props) {
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
@@ -33,7 +34,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
   };
 
   const tabs = [
-    { icon: CalendarDays, label: t("calendar"), onClick: undefined as (() => void) | undefined },
+    { icon: CalendarDays, label: t("calendar"), onClick: onCalendar },
     { icon: Newspaper, label: t("news"), onClick: onNews },
   ];
 

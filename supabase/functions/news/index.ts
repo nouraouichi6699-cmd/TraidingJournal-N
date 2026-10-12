@@ -161,6 +161,49 @@ export function merge(items: Item[]): Item[] {
   return out.map((o) => o.it);
 }
 
+
+// ---------- Economic calendar (public weekly JSON feed) ----------
+export interface CalEvent { id: string; time: string; currency: string; title: string; impact: "high" | "medium" | "low" | "none" | "holiday"; previous: string; forecast: string; actual: string }
+const CAL_URLS = ["https://nfs.faireconomy.media/ff_calendar_thisweek.json", "https://nfs.faireconomy.media/ff_calendar_nextweek.json"];
+let calCache: { at: number; events: CalEvent[]; ok: boolean } | null = null;
+
+export function normalizeCal(rows: unknown): CalEvent[] {
+  if (!Array.isArray(rows)) return [];
+  const out: CalEvent[] = [];
+  for (const r of rows as Record<string, unknown>[]) {
+    const d = new Date(String(r.date ?? ""));
+    const title = String(r.title ?? "").trim();
+    const cur = String(r.country ?? "").trim().toUpperCase();
+    if (!title || isNaN(+d) || !/^[A-Z]{2,4}$/.test(cur)) continue;
+    const imp = String(r.impact ?? "").toLowerCase();
+    const impact = imp === "high" || imp === "medium" || imp === "low" || imp === "holiday" ? imp : "none";
+    out.push({
+      id: `${d.toISOString()}|${cur}|${title}`, time: d.toISOString(), currency: cur, title, impact,
+      previous: String(r.previous ?? ""), forecast: String(r.forecast ?? ""), actual: String(r.actual ?? ""),
+    });
+  }
+  return out;
+}
+
+async function loadCalendar() {
+  if (calCache && Date.now() - calCache.at < 15 * 60_000) return calCache;
+  const parts = await Promise.all(
+    CAL_URLS.map(async (u) => {
+      try {
+        const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0 (compatible; MizanCalendar/1.0)" }, signal: AbortSignal.timeout(8000) });
+        if (!r.ok) throw new Error(String(r.status));
+        return { ok: true, ev: normalizeCal(await r.json()) };
+      } catch {
+        return { ok: false, ev: [] as CalEvent[] };
+      }
+    }),
+  );
+  const events = parts.flatMap((p) => p.ev).sort((a, b) => +new Date(a.time) - +new Date(b.time));
+  // Keep the last good data if a refresh fails entirely.
+  calCache = events.length || !calCache ? { at: Date.now(), events, ok: parts.some((p) => p.ok) } : { ...calCache, at: Date.now() - 10 * 60_000 };
+  return calCache;
+}
+
 let cache: { at: number; items: Item[]; failed: string[] } | null = null;
 
 async function load() {
@@ -185,6 +228,16 @@ async function load() {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  let type = "news";
+  try {
+    if (req.method === "POST") type = (await req.json())?.type ?? "news";
+  } catch { /* no body */ }
+  if (type === "calendar") {
+    const { events, ok, at } = await loadCalendar();
+    return new Response(JSON.stringify({ events, ok, updated: new Date(at).toISOString() }), {
+      headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+    });
+  }
   const { items, failed, at } = await load();
   return new Response(JSON.stringify({ items, failed, updated: new Date(at).toISOString(), sources: FEEDS.map((f) => f.source) }), {
     headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },

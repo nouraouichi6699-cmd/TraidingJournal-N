@@ -268,7 +268,7 @@ export default function NewsView({ t, lang }: { t: (k: Key) => string; lang: Lan
               <button type="button" aria-label="previous" disabled={open === 0} onClick={() => go(-1)} className="icon-btn shrink-0 border border-border bg-surface disabled:opacity-30 directional-icon">
                 <ChevronLeft size={20} className="text-icon" />
               </button>
-              <article key={i.id} className={`max-h-[90vh] min-w-0 flex-1 overflow-y-auto rounded-2xl border bg-surface ${level === "high" ? "border-[#f87171]/60" : "border-icon/60"} ${dir === "next" ? "news-slide-next" : dir === "prev" ? "news-slide-prev" : ""}`}>
+              <article key={i.id} className={`max-h-[90vh] min-w-0 flex-1 overflow-y-auto rounded-2xl border bg-surface ${level === "high" ? "border-[#f87171]/60" : "border-icon"} ${dir === "next" ? "news-slide-next" : dir === "prev" ? "news-slide-prev" : ""}`}>
                 <div className="relative h-52 overflow-hidden sm:h-64">
                   <Cover item={i} big className="h-full w-full" />
                   <span className="absolute start-4 top-4"><Sev level={level} t={t} big /></span>
