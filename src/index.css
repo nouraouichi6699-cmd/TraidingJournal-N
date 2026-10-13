@@ -283,3 +283,10 @@ h1, h2, h3, h4, h5, h6 {
 @media (prefers-reduced-motion: reduce) {
   .bell-ringing .bell-ico, .heart-on svg { animation: none; }
 }
+
+@keyframes sess-glow {
+  0%, 100% { box-shadow: 0 0 6px 0 rgb(245 184 61 / 0.35); }
+  50% { box-shadow: 0 0 22px 4px rgb(245 184 61 / 0.85); }
+}
+.sess-soon { animation: sess-glow 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sess-soon { animation: none; box-shadow: 0 0 14px 2px rgb(245 184 61 / 0.7); } }
