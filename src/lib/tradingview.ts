@@ -84,5 +84,55 @@ export function parseTradingViewCsv(text: string): ParseResult {
     return points.length ? { kind: "balance", points } : { kind: "unknown" };
   }
 
-  return { kind: "unknown" };
+  return parseGenericTrades(header, data);
+}
+
+/** Fallback: any CSV with a recognisable header row (symbol / type / times / prices / volume / profit). */
+function parseGenericTrades(header: string[], data: string[][]): ParseResult {
+  const h = header.map((x) => x.trim().toLowerCase());
+  const find = (re: RegExp, skip: number[] = []) => h.findIndex((x, i) => !skip.includes(i) && re.test(x));
+  const iSym = find(/symbol|symbole|pair|instrument|item|asset|ticker|رمز|زوج/);
+  const iSide = find(/^(type|side|direction|action|buy\/sell|sens)|نوع/);
+  const iQty = find(/volume|size|qty|quantity|lots?|quantité|taille|حجم/);
+  const iPnl = find(/profit|p&l|pnl|net|gain|ربح/);
+  const iComm = find(/commission|fee|frais|عمولة/);
+  const iId = find(/ticket|order|position|deal|^id$|^#$/);
+  const timeCols = h.map((x, i) => (/time|date|heure|وقت|تاريخ/.test(x) ? i : -1)).filter((i) => i >= 0);
+  const priceCols = h.map((x, i) => (/price|prix|سعر/.test(x) && !/s\/l|t\/p|stop|take|sl|tp/.test(x) ? i : -1)).filter((i) => i >= 0);
+  const pick = (re: RegExp, cols: number[], fallbackIdx: number) => {
+    const named = cols.find((i) => re.test(h[i]));
+    return named ?? cols[fallbackIdx] ?? -1;
+  };
+  const iOpenT = pick(/open|entr|ouv|دخول|فتح/, timeCols, 0);
+  const iCloseT = pick(/close|exit|clôt|ferm|خروج|إغلاق/, timeCols.filter((i) => i !== iOpenT), 0);
+  const iEntryP = pick(/open|entr|ouv|دخول|فتح/, priceCols, 0);
+  const iExitP = pick(/close|exit|clôt|ferm|خروج|إغلاق/, priceCols.filter((i) => i !== iEntryP), 0);
+  if (iSym < 0 || iSide < 0 || iEntryP < 0 || iPnl < 0) return { kind: "unknown" };
+
+  const trades: ParsedTrade[] = [];
+  data.forEach((r, idx) => {
+    const side = /sell|short|vente|بيع/i.test(r[iSide] ?? "") ? "short" : /buy|long|achat|شراء/i.test(r[iSide] ?? "") ? "long" : null;
+    const entryPrice = parseNum(r[iEntryP]);
+    const symbol = (r[iSym] ?? "").trim();
+    if (!side || entryPrice == null || !symbol) return;
+    const exitTime = iCloseT >= 0 ? parseDate(r[iCloseT]) : null;
+    const exitPrice = iExitP >= 0 ? parseNum(r[iExitP]) : null;
+    const closed = exitTime !== null && exitPrice != null;
+    trades.push({
+      no: idx + 1,
+      symbol,
+      side,
+      qty: iQty >= 0 ? parseNum(r[iQty]) ?? 0 : 0,
+      entryTime: iOpenT >= 0 ? parseDate(r[iOpenT]) : null,
+      entryPrice,
+      exitTime: closed ? exitTime : null,
+      exitPrice: closed ? exitPrice : null,
+      pnl: closed ? parseNum(r[iPnl]) : null,
+      returnPct: null,
+      commission: iComm >= 0 ? Math.abs(parseNum(r[iComm]) ?? 0) : 0,
+      status: closed ? "closed" : "open",
+      orderId: iId >= 0 ? r[iId]?.trim() || undefined : undefined,
+    });
+  });
+  return trades.length ? { kind: "trades", trades, currency: null } : { kind: "unknown" };
 }

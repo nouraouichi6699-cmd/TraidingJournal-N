@@ -49,10 +49,14 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
           });
           continue;
         }
-        const res = parseTradingViewCsv(await f.text());
+        const txt = await f.text();
+        const res = parseTradingViewCsv(txt);
         if (res.kind === "unknown") {
-          out.push({ name: f.name, ok: false, text: t("kindUnknown") });
-        } else if (!selected || selected.platform !== "tradingview") {
+          const head = (txt.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "").slice(0, 160);
+          out.push({ name: f.name, ok: false, text: `${t("kindUnknown")} — ${head}` });
+        } else if (res.kind === "trades" && !selected) {
+          out.push({ name: f.name, ok: false, text: t("errNeedTv") });
+        } else if (res.kind === "balance" && (!selected || selected.platform !== "tradingview")) {
           out.push({ name: f.name, ok: false, text: t("errNeedTv") });
         } else if (res.kind === "trades") {
           const r = journal.importTrades(selected.id, res.trades);
