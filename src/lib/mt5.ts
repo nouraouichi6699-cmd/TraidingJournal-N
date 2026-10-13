@@ -29,7 +29,31 @@ const when = (c: Cell) => parseDate(text(c));
  * Sections are recognised by the shape of their rows, not by (localised) titles.
  */
 export async function parseMt5Xlsx(file: File): Promise<Mt5Report | null> {
-  const rows = (await readSheet(file)) as Cell[][];
+  return parseMt5Rows((await readSheet(file)) as Cell[][]);
+}
+
+/** Reads an MT5 report saved as .html (MT5 writes UTF-16 for this export). */
+export async function parseMt5Html(file: File): Promise<Mt5Report | null> {
+  const buf = await file.arrayBuffer();
+  const b = new Uint8Array(buf);
+  const utf16 = (b[0] === 0xff && b[1] === 0xfe) || (b[0] === 0xfe && b[1] === 0xff) || (b[1] === 0 && b[3] === 0);
+  const html = new TextDecoder(utf16 ? (b[0] === 0xfe ? "utf-16be" : "utf-16le") : "utf-8").decode(buf);
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const rows: Cell[][] = [];
+  doc.querySelectorAll("tr").forEach((tr) => {
+    const row: Cell[] = [];
+    tr.querySelectorAll("td,th").forEach((c) => {
+      const txt = (c.textContent ?? "").replace(/\u00a0/g, " ").trim();
+      const span = Number(c.getAttribute("colspan")) || 1;
+      row.push(txt);
+      for (let i = 1; i < span; i++) row.push("");
+    });
+    if (row.some((x) => x !== "")) rows.push(row);
+  });
+  return parseMt5Rows(rows);
+}
+
+function parseMt5Rows(rows: Cell[][]): Mt5Report | null {
   const report: Mt5Report = { login: null, currency: null, server: null, deposit: null, trades: [], points: [] };
 
   for (const r of rows) {

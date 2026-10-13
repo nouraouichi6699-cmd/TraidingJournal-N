@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { parseTradingViewCsv } from "../lib/tradingview";
-import { parseMt5Xlsx } from "../lib/mt5";
+import { parseMt5Xlsx, parseMt5Html } from "../lib/mt5";
 import type { Key } from "../i18n";
 import type { Account } from "../types";
 import type { useJournal } from "../useJournal";
@@ -33,8 +33,8 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
     // Process sequentially: each import builds on the latest stored data
     for (const f of Array.from(files)) {
       try {
-        if (/\.xlsx$/i.test(f.name)) {
-          const rep = await parseMt5Xlsx(f);
+        if (/\.(xlsx|html?)$/i.test(f.name)) {
+          const rep = /\.xlsx$/i.test(f.name) ? await parseMt5Xlsx(f) : await parseMt5Html(f);
           if (!rep) {
             out.push({ name: f.name, ok: false, text: t("kindUnknown") });
             continue;
@@ -122,7 +122,7 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
         <input
           ref={input}
           type="file"
-          accept=".csv,.xlsx,text/csv"
+          accept=".csv,.xlsx,.html,.htm,text/csv,text/html"
           multiple
           hidden
           onChange={(e) => {
