@@ -87,10 +87,9 @@ export function parseTradingViewCsv(text: string): ParseResult {
   return parseGenericTrades(header, data);
 }
 
-/** Fallback: any CSV with a recognisable header row (symbol / type / times / prices / volume / profit). */
-function parseGenericTrades(header: string[], data: string[][]): ParseResult {
+function detectColumns(header: string[]) {
   const h = header.map((x) => x.trim().toLowerCase());
-  const find = (re: RegExp, skip: number[] = []) => h.findIndex((x, i) => !skip.includes(i) && re.test(x));
+  const find = (re: RegExp) => h.findIndex((x) => re.test(x));
   const iSym = find(/symbol|symbole|pair|instrument|item|asset|ticker|رمز|زوج/);
   const iSide = find(/^(type|side|direction|action|buy\/sell|sens)|نوع/);
   const iQty = find(/volume|size|qty|quantity|lots?|quantité|taille|حجم/);
@@ -107,6 +106,25 @@ function parseGenericTrades(header: string[], data: string[][]): ParseResult {
   const iCloseT = pick(/close|exit|clôt|ferm|خروج|إغلاق/, timeCols.filter((i) => i !== iOpenT), 0);
   const iEntryP = pick(/open|entr|ouv|دخول|فتح/, priceCols, 0);
   const iExitP = pick(/close|exit|clôt|ferm|خروج|إغلاق/, priceCols.filter((i) => i !== iEntryP), 0);
+  return { iSym, iSide, iQty, iPnl, iComm, iId, iOpenT, iCloseT, iEntryP, iExitP };
+}
+
+/** Why a CSV could not be read: empty file, or which required columns are missing. */
+export function diagnoseCsv(text: string): { reason: "empty" | "columns"; header: string[]; missing: string[] } {
+  const rows = parseCsv(text);
+  if (rows.length < 2) return { reason: "empty", header: rows[0] ?? [], missing: [] };
+  const c = detectColumns(rows[0]);
+  const missing: string[] = [];
+  if (c.iSym < 0) missing.push("Symbol");
+  if (c.iSide < 0) missing.push("Type (buy/sell)");
+  if (c.iEntryP < 0) missing.push("Open price");
+  if (c.iPnl < 0) missing.push("Profit");
+  return { reason: "columns", header: rows[0], missing };
+}
+
+/** Fallback: any CSV with a recognisable header row (symbol / type / times / prices / volume / profit). */
+function parseGenericTrades(header: string[], data: string[][]): ParseResult {
+  const { iSym, iSide, iQty, iPnl, iComm, iId, iOpenT, iCloseT, iEntryP, iExitP } = detectColumns(header);
   if (iSym < 0 || iSide < 0 || iEntryP < 0 || iPnl < 0) return { kind: "unknown" };
 
   const trades: ParsedTrade[] = [];
@@ -131,7 +149,7 @@ function parseGenericTrades(header: string[], data: string[][]): ParseResult {
       returnPct: null,
       commission: iComm >= 0 ? Math.abs(parseNum(r[iComm]) ?? 0) : 0,
       status: closed ? "closed" : "open",
-      orderId: iId >= 0 ? r[iId]?.trim() || undefined : undefined,
+      orderId: (iId >= 0 ? r[iId]?.trim() : "") || `${symbol}|${r[iOpenT] ?? idx}|${side}|${entryPrice}`,
     });
   });
   return trades.length ? { kind: "trades", trades, currency: null } : { kind: "unknown" };

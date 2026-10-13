@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
-import { parseTradingViewCsv } from "../lib/tradingview";
+import { parseTradingViewCsv, diagnoseCsv } from "../lib/tradingview";
 import { parseMt5Xlsx, parseMt5Html } from "../lib/mt5";
 import type { Key } from "../i18n";
 import type { Account } from "../types";
@@ -19,6 +19,7 @@ interface Line {
   name: string;
   text: string;
   ok: boolean;
+  details?: string[];
 }
 
 export default function ImportView({ t, accounts, journal, resolveMt5, onConnect }: Props) {
@@ -28,6 +29,16 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
   const input = useRef<HTMLInputElement>(null);
   const selected = accounts.find((a) => a.id === accountId) ?? accounts[0];
 
+  const summary = (title: string, r: { added: number; updated: number; skipped: number }, pts = 0) => {
+    const details = [
+      `${r.added} ${t("impNew")}`,
+      ...(r.skipped > 0 ? [`${r.skipped} ${t("impExisting")}`] : []),
+      ...(r.updated > 0 ? [`${r.updated} ${t("impUpdated")}`] : []),
+      ...(pts > 0 ? [`${pts} ${t("resPoints")}`] : []),
+    ];
+    return { text: r.added === 0 && r.updated === 0 ? `${title} — ${t("impNothingNew")}` : title, details };
+  };
+
   const handle = async (files: FileList | File[]) => {
     const out: Line[] = [];
     // Process sequentially: each import builds on the latest stored data
@@ -36,7 +47,7 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
         if (/\.(xlsx|html?)$/i.test(f.name)) {
           const rep = /\.xlsx$/i.test(f.name) ? await parseMt5Xlsx(f) : await parseMt5Html(f);
           if (!rep) {
-            out.push({ name: f.name, ok: false, text: t("kindUnknown") });
+            out.push({ name: f.name, ok: false, text: t("errNotMt5") });
             continue;
           }
           const { account, created } = resolveMt5({ ...rep, preferId: selected?.platform === "mt5" ? selected.id : undefined });
@@ -45,32 +56,36 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
           out.push({
             name: f.name,
             ok: true,
-            text: `${t("kindMt5")} → ${account.name}${created ? ` (${t("accCreated")})` : ""}: ${r.added} ${t("resAdded")} · ${r.updated} ${t("resUpdated")} · ${r.skipped} ${t("resSkipped")} · ${b.added} ${t("resPoints")}`,
+            ...summary(`${t("kindMt5")} → ${account.name}${created ? ` (${t("accCreated")})` : ""}`, r, b.added),
           });
           continue;
         }
         const txt = await f.text();
         const res = parseTradingViewCsv(txt);
         if (res.kind === "unknown") {
-          const head = (txt.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "").slice(0, 160);
-          out.push({ name: f.name, ok: false, text: `${t("kindUnknown")} — ${head}` });
+          const d = diagnoseCsv(txt);
+          if (d.reason === "empty") out.push({ name: f.name, ok: false, text: t("errEmpty") });
+          else if (d.missing.length === 0) out.push({ name: f.name, ok: false, text: t("errNoValid") });
+          else out.push({ name: f.name, ok: false, text: `${t("errCols")} ${d.missing.join(" · ")}`, details: [`${t("errColsFound")} ${d.header.join(" | ").slice(0, 200)}`] });
         } else if (res.kind === "trades" && !selected) {
           out.push({ name: f.name, ok: false, text: t("errNeedTv") });
         } else if (res.kind === "balance" && (!selected || selected.platform !== "tradingview")) {
           out.push({ name: f.name, ok: false, text: t("errNeedTv") });
         } else if (res.kind === "trades") {
-          const r = journal.importTrades(selected.id, res.trades);
+          const r = journal.importTrades(selected!.id, res.trades);
+          out.push({ name: f.name, ok: true, ...summary(t("kindTrades"), r) });
+        } else {
+          const r = journal.importBalance(selected!.id, res.points);
+          const old = res.points.length - r.added;
           out.push({
             name: f.name,
             ok: true,
-            text: `${t("kindTrades")}: ${r.added} ${t("resAdded")} · ${r.updated} ${t("resUpdated")} · ${r.skipped} ${t("resSkipped")}`,
+            text: t("kindBalance"),
+            details: [`${r.added} ${t("impPtsNew")}`, ...(old > 0 ? [`${old} ${t("impPtsOld")}`] : [])],
           });
-        } else {
-          const r = journal.importBalance(selected.id, res.points);
-          out.push({ name: f.name, ok: true, text: `${t("kindBalance")}: ${r.added} ${t("resPoints")}` });
         }
-      } catch {
-        out.push({ name: f.name, ok: false, text: t("kindUnknown") });
+      } catch (e) {
+        out.push({ name: f.name, ok: false, text: `${t("errRead")} ${e instanceof Error ? e.message : ""}`.trim() });
       }
     }
     setLines(out);
@@ -142,6 +157,9 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
             <li key={i} className="rounded-xl border border-border bg-surface px-4 py-3 text-sm">
               <p className="truncate font-medium" dir="ltr">{l.name}</p>
               <p className={l.ok ? "text-icon" : "text-loss"}>{l.text}</p>
+              {l.details?.map((d, j) => (
+                <p key={j} className="text-xs text-muted">{d}</p>
+              ))}
             </li>
           ))}
         </ul>

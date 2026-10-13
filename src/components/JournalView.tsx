@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import SymbolIcon from "./SymbolIcon";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import { fmt } from "../lib/stats";
 import { pipsOf, weekOfMonth } from "../lib/pips";
 import Dropdown from "./Dropdown";
@@ -54,10 +54,68 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
     [trades, acc],
   );
 
+  // The current month stays in the main table; older months are grouped below, newest first.
+  const nowYm = new Date().toISOString().slice(0, 7);
+  const ymOf = (x: Trade) => (x.entryTime ?? x.exitTime ?? "").slice(0, 7);
+  const current = useMemo(() => rows.filter((x) => ymOf(x) === nowYm || ymOf(x) > nowYm), [rows, nowYm]);
+  const past = useMemo(() => {
+    const m = new Map<string, Trade[]>();
+    for (const x of rows) {
+      const ym = ymOf(x);
+      if (ym && ym < nowYm) m.set(ym, [...(m.get(ym) ?? []), x]);
+    }
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [rows, nowYm]);
+  const [openMonths, setOpenMonths] = useState<string[]>([]);
+  const [pastOpen, setPastOpen] = useState(false);
+
   const monthName = (ym: string) =>
     new Intl.DateTimeFormat(lang, { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${ym}-01T00:00:00Z`));
 
   const th = "px-4 py-3 text-start font-bold text-icon";
+
+  const renderTable = (list: Trade[]) => (
+        <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
+          <table className="w-full min-w-[820px] text-sm">
+            <thead>
+              <tr className="border-b border-icon/40 bg-primary-tint">
+                <th scope="col" className={th}>{t("symbol")}</th>
+                <th scope="col" className={th}>{t("side")}</th>
+                {show("entry") && <th scope="col" className={th}>{t("entry")}</th>}
+                {show("exit") && <th scope="col" className={th}>{t("exit")}</th>}
+                {show("size") && <th scope="col" className={th}>{t("size")}</th>}
+                {show("pips") && <th scope="col" className={th}>{t("pips")}</th>}
+                {show("pnl") && <th scope="col" className={th}>{t("pnl")}</th>}
+                <th scope="col" className={th}>{t("colWeek")}</th>
+                <th scope="col" className={th}>{t("status")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((x) => {
+                const pips = pipsOf(x);
+                const wk = weekOfMonth(x.entryTime ?? x.exitTime);
+                return (
+                  <tr key={x.key} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-medium" dir="ltr"><span className="inline-flex items-center gap-2"><SymbolIcon symbol={x.symbol} />{instrument(x.symbol)}</span></td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${x.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{t(x.side)}</span>
+                    </td>
+                    {show("entry") && <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>}
+                    {show("exit") && <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>}
+                    {show("size") && <td className="px-4 py-3 tnum" dir="ltr">{x.qty.toLocaleString("en-US")}</td>}
+                    {show("pips") && <td className={`px-4 py-3 tnum font-semibold ${tone(pips)}`} dir="ltr">{pips == null ? "—" : signed(pips, 1)}</td>}
+                    {show("pnl") && <td className={`px-4 py-3 tnum font-semibold ${tone(x.pnl)}`} dir="ltr">{x.pnl == null ? "—" : signed(x.pnl)}</td>}
+                    <td className="px-4 py-3">
+                      {wk ? (<>{t(WEEK_KEYS[Math.min(wk.week, 6) - 1])}<span className="block text-xs text-muted">{monthName(wk.month)}</span></>) : "—"}
+                    </td>
+                    <td className="px-4 py-3">{t(x.status === "open" ? "open" : "closed")}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+  );
 
   return (
     <section className="flex flex-col gap-4">
@@ -98,46 +156,41 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
       {rows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-muted">{t("noTrades")}</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-          <table className="w-full min-w-[820px] text-sm">
-            <thead>
-              <tr className="border-b border-icon/40 bg-primary-tint">
-                <th scope="col" className={th}>{t("symbol")}</th>
-                <th scope="col" className={th}>{t("side")}</th>
-                {show("entry") && <th scope="col" className={th}>{t("entry")}</th>}
-                {show("exit") && <th scope="col" className={th}>{t("exit")}</th>}
-                {show("size") && <th scope="col" className={th}>{t("size")}</th>}
-                {show("pips") && <th scope="col" className={th}>{t("pips")}</th>}
-                {show("pnl") && <th scope="col" className={th}>{t("pnl")}</th>}
-                <th scope="col" className={th}>{t("colWeek")}</th>
-                <th scope="col" className={th}>{t("status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((x) => {
-                const pips = pipsOf(x);
-                const wk = weekOfMonth(x.entryTime ?? x.exitTime);
-                return (
-                  <tr key={x.key} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 font-medium" dir="ltr"><span className="inline-flex items-center gap-2"><SymbolIcon symbol={x.symbol} />{instrument(x.symbol)}</span></td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${x.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{t(x.side)}</span>
-                    </td>
-                    {show("entry") && <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>}
-                    {show("exit") && <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>}
-                    {show("size") && <td className="px-4 py-3 tnum" dir="ltr">{x.qty.toLocaleString("en-US")}</td>}
-                    {show("pips") && <td className={`px-4 py-3 tnum font-semibold ${tone(pips)}`} dir="ltr">{pips == null ? "—" : signed(pips, 1)}</td>}
-                    {show("pnl") && <td className={`px-4 py-3 tnum font-semibold ${tone(x.pnl)}`} dir="ltr">{x.pnl == null ? "—" : signed(x.pnl)}</td>}
-                    <td className="px-4 py-3">
-                      {wk ? (<>{t(WEEK_KEYS[Math.min(wk.week, 6) - 1])}<span className="block text-xs text-muted">{monthName(wk.month)}</span></>) : "—"}
-                    </td>
-                    <td className="px-4 py-3">{t(x.status === "open" ? "open" : "closed")}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {current.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted">{t("noTradesMonth")}</p>
+          ) : (
+            renderTable(current)
+          )}
+          {past.length > 0 && (
+            <div className="rounded-2xl border border-border bg-surface">
+              <button type="button" aria-expanded={pastOpen} onClick={() => setPastOpen(!pastOpen)} className="flex w-full items-center gap-2 px-4 py-3 text-start font-bold text-icon">
+                <span className="flex-1">{t("pastMonths")}</span>
+                <span className="text-xs font-semibold text-muted">{past.length}</span>
+                <ChevronDown size={18} className={`transition-transform ${pastOpen ? "rotate-180" : ""}`} />
+              </button>
+              {pastOpen && (
+                <div className="flex flex-col gap-2 border-t border-border p-3">
+                  {past.map(([ym, list]) => {
+                    const open = openMonths.includes(ym);
+                    const total = list.reduce((a, x) => a + (x.pnl ?? 0), 0);
+                    return (
+                      <div key={ym} className="rounded-xl border border-border">
+                        <button type="button" aria-expanded={open} onClick={() => setOpenMonths(open ? openMonths.filter((m) => m !== ym) : [...openMonths, ym])} className="flex w-full items-center gap-3 px-3 py-2.5 text-start text-sm">
+                          <span className="flex-1 font-semibold">{monthName(ym)}</span>
+                          <span className="text-xs text-muted">{list.length} {t("monthTrades")}</span>
+                          {show("pnl") && <span className={`tnum font-semibold ${tone(total)}`} dir="ltr">{signed(total)}</span>}
+                          <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+                        </button>
+                        {open && <div className="border-t border-border">{renderTable(list)}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
