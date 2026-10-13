@@ -5,9 +5,10 @@ interface Props {
   trigger: ReactNode;
   children: (close: () => void) => ReactNode;
   panelClass?: string;
+  bare?: boolean; // trigger brings its own styling (no square icon button)
 }
 
-export default function Dropdown({ label, trigger, children, panelClass = "min-w-[170px]" }: Props) {
+export default function Dropdown({ label, trigger, children, panelClass = "min-w-[170px]", bare = false }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -33,7 +34,7 @@ export default function Dropdown({ label, trigger, children, panelClass = "min-w
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="icon-btn"
+        className={bare ? "" : "icon-btn"}
       >
         {trigger}
       </button>

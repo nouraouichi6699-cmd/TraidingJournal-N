@@ -9,6 +9,7 @@ import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
 import AccountsList from "./components/AccountsList";
 import ImportView from "./components/ImportView";
+import ChartsView from "./components/ChartsView";
 import JournalView from "./components/JournalView";
 import { Watermark } from "./components/Brand";
 import { useJournal } from "./useJournal";
@@ -81,6 +82,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
           )}
           {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
           {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
+          {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
           {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
             <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
