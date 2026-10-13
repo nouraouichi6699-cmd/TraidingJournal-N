@@ -290,3 +290,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 .sess-soon { animation: sess-glow 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .sess-soon { animation: none; box-shadow: 0 0 14px 2px rgb(245 184 61 / 0.7); } }
+
+@keyframes ch-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes ch-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ch-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.ch-line { stroke-dasharray: 1; animation: ch-draw 1.2s cubic-bezier(.3,.7,.2,1) both; }
+.ch-fade { animation: ch-fade 1s ease .2s both; }
+.ch-bar { animation: ch-grow .6s cubic-bezier(.3,.7,.2,1) both; transition: opacity .15s; }
+@media (prefers-reduced-motion: reduce) { .ch-line, .ch-fade, .ch-bar { animation: none; } }
