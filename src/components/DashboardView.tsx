@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Plus, X, Check, Pencil, DollarSign, Percent, Scale, Hash, LineChart, CalendarDays, Repeat, Trophy, ListOrdered, TrendingUp, Layers } from "lucide-react";
+import { GripVertical, MoveDiagonal2, Plus, X, Check, Pencil, DollarSign, Percent, Scale, Hash, LineChart, CalendarDays, Repeat, Trophy, ListOrdered, TrendingUp, Layers } from "lucide-react";
 import { useDashEdit } from "../useDashEdit";
 import { usePrivacy } from "../usePrivacy";
 import { computeStats, fmt } from "../lib/stats";
@@ -96,14 +96,41 @@ const DEFAULT = ["net", "win", "pf", "count", "equity", "weekday"];
 export default function DashboardView({ t: _t, lang, trades }: Props) {
   const { editing, toggle } = useDashEdit();
   const { hidden } = usePrivacy();
-  const [ids, setIds] = useState<string[]>(() => {
-    try { const v = JSON.parse(localStorage.getItem(STORE) || "null"); if (Array.isArray(v)) return v.filter((x) => DEFS.some((d) => d.id === x)); } catch {}
-    return DEFAULT;
+  type Item = { id: string; w: number; h: number };
+  const [items, setItems] = useState<Item[]>(() => {
+    const dflt = (id: string): Item => ({ id, w: DEFS.find((d) => d.id === id)?.wide ? 2 : 1, h: 1 });
+    try {
+      const v = JSON.parse(localStorage.getItem(STORE) || "null");
+      if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? dflt(x) : { id: x.id, w: Math.min(4, Math.max(1, x.w | 0 || 1)), h: Math.min(3, Math.max(1, x.h | 0 || 1)) })).filter((x) => DEFS.some((d) => d.id === x.id));
+    } catch {}
+    return DEFAULT.map(dflt);
   });
-  useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify(ids)); } catch {} }, [ids]);
+  const ids = items.map((i) => i.id);
+  const [drag, setDrag] = useState<string | null>(null);
+  useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify(items)); } catch {} }, [items]);
+  const dropOn = (target: string) => setItems((a) => {
+    if (!drag || drag === target) return a;
+    const from = a.findIndex((x) => x.id === drag), to = a.findIndex((x) => x.id === target);
+    const b = [...a]; const [m] = b.splice(from, 1); b.splice(to, 0, m); return b;
+  });
+  const startResize = (e: React.PointerEvent, it: Item) => {
+    e.preventDefault(); e.stopPropagation();
+    const card = (e.currentTarget as HTMLElement).parentElement!;
+    const r = card.getBoundingClientRect();
+    const cu = (r.width + 12) / it.w, ru = (r.height + 12) / it.h;
+    const x0 = e.clientX, y0 = e.clientY;
+    const rtl = document.dir === "rtl" || getComputedStyle(card).direction === "rtl";
+    const mv = (ev: PointerEvent) => {
+      const dx = (rtl ? -1 : 1) * (ev.clientX - x0), dy = ev.clientY - y0;
+      const w = Math.min(4, Math.max(1, Math.round((r.width + dx + 12) / cu)));
+      const h = Math.min(3, Math.max(1, Math.round((r.height + dy + 12) / ru)));
+      setItems((a) => a.map((x) => (x.id === it.id && (x.w !== w || x.h !== h) ? { ...x, w, h } : x)));
+    };
+    const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+  };
   const c: Ctx = useMemo(() => ({ trades, closed: trades.filter((x) => x.status === "closed" && x.pnl != null), s: computeStats(trades), hide: hidden, lang }), [trades, hidden, lang]);
   const L = (l: L) => l[lang];
-  const move = (i: number, d: number) => setIds((a) => { const b = [...a]; const j = i + d; if (j < 0 || j >= b.length) return a; [b[i], b[j]] = [b[j], b[i]]; return b; });
   const avail = DEFS.filter((d) => !ids.includes(d.id));
 
   return (
@@ -121,7 +148,7 @@ export default function DashboardView({ t: _t, lang, trades }: Props) {
           {avail.length === 0 ? <div className="text-xs text-muted">{TR("Everything is already on your dashboard.", "كل الأدوات مضافة إلى لوحتك.", "Tout est déjà sur votre tableau de bord.")[lang]}</div> : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {avail.map((d) => (
-                <button key={d.id} type="button" onClick={() => setIds((a) => [...a, d.id])} className="group flex items-center gap-3 rounded-xl border border-border bg-surface p-3 text-start transition hover:border-primary">
+                <button key={d.id} type="button" onClick={() => setItems((a) => [...a, { id: d.id, w: d.wide ? 2 : 1, h: 1 }])} className="group flex items-center gap-3 rounded-xl border border-border bg-surface p-3 text-start transition hover:border-primary">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary-tint text-icon">{d.icon}</span>
                   <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{L(d.name)}</span><span className="block truncate text-[11px] text-muted">{L(d.desc)}</span></span>
                   <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-on-primary"><Plus size={15} /></span>
@@ -132,22 +159,22 @@ export default function DashboardView({ t: _t, lang, trades }: Props) {
         </div>
       )}
 
-      {ids.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-muted">{TR("Your dashboard is empty. Press Customize to add tools.", "لوحتك فارغة. اضغط تخصيص لإضافة الأدوات.", "Tableau vide. Appuyez sur Personnaliser.")[lang]}</div>
       ) : (
-        <div className="grid grid-flow-dense grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {ids.map((id, i) => {
-            const d = DEFS.find((x) => x.id === id)!;
+        <div className="grid grid-flow-dense grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" style={{ gridAutoRows: 130 }}>
+          {items.map((it) => {
+            const d = DEFS.find((x) => x.id === it.id)!;
             return (
-              <div key={id} className={`relative overflow-hidden rounded-2xl border bg-surface p-4 ${d.wide ? "sm:col-span-2" : ""} ${editing ? "border-primary/50" : "border-border"}`} style={{ minHeight: 150 }}>
-                <div className="mb-2 flex items-center gap-2 text-xs text-muted"><span className="text-icon">{d.icon}</span>{L(d.name)}</div>
-                <div className="h-[100px]">{d.render(c)}</div>
+              <div key={it.id} data-w={it.w} draggable={editing} onDragStart={() => setDrag(it.id)} onDragEnd={() => setDrag(null)} onDragOver={(e) => { if (editing && drag) { e.preventDefault(); } }} onDrop={() => dropOn(it.id)}
+                className={`dash-card relative flex flex-col overflow-hidden rounded-2xl border bg-surface p-4 ${editing ? "cursor-grab border-primary/50" : "border-border"} ${drag === it.id ? "opacity-40" : ""}`} style={{ ["--w" as string]: it.w, ["--h" as string]: it.h }}>
+                <div className="mb-2 flex items-center gap-2 text-xs text-muted">{editing && <GripVertical size={14} className="text-icon" />}<span className="text-icon">{d.icon}</span>{L(d.name)}</div>
+                <div className="min-h-0 flex-1">{d.render(c)}</div>
                 {editing && (
-                  <div className="absolute end-2 top-2 flex gap-1">
-                    <button type="button" aria-label="left" onClick={() => move(i, -1)} className="icon-btn !h-7 !w-7"><ArrowLeft size={13} className="rtl:rotate-180" /></button>
-                    <button type="button" aria-label="right" onClick={() => move(i, 1)} className="icon-btn !h-7 !w-7"><ArrowRight size={13} className="rtl:rotate-180" /></button>
-                    <button type="button" aria-label="remove" onClick={() => setIds((a) => a.filter((x) => x !== id))} className="icon-btn !h-7 !w-7"><X size={13} style={{ color: RED }} /></button>
-                  </div>
+                  <>
+                    <button type="button" aria-label="remove" onClick={() => setItems((a) => a.filter((x) => x.id !== it.id))} className="icon-btn absolute end-2 top-2 !h-7 !w-7"><X size={13} style={{ color: RED }} /></button>
+                    <span onPointerDown={(e) => startResize(e, it)} role="separator" aria-label="resize" className="absolute bottom-1 end-1 grid h-6 w-6 cursor-nwse-resize place-items-center rounded-md bg-primary-tint text-icon" style={{ touchAction: "none" }}><MoveDiagonal2 size={13} className="rtl:-scale-x-100" /></span>
+                  </>
                 )}
               </div>
             );
