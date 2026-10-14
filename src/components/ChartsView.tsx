@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Download, Maximize2, Minimize2 } from "lucide-react";
+import { ChevronDown, Download, X, Wallet, CandlestickChart } from "lucide-react";
 import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
-import { fmt } from "../lib/stats";
+import { fmt, computeStats } from "../lib/stats";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
@@ -22,17 +22,18 @@ const PALETTE = ["#f5b83d", "#22c55e", "#60a5fa", "#f472b6", "#a78bfa", "#fb923c
 const RANGES = ["all", "1M", "3M", "6M", "YTD", "1Y"] as const;
 type Range = (typeof RANGES)[number];
 type Metric = "profit" | "balance" | "drawdown" | "periods";
-type By = "symbol" | "account";
+type Mode = "symbol" | "account";
 type Bucket = "day" | "week" | "month" | "session";
 type Pt = { t: number; v: number };
 type Bar = { key: string; label: string; v: number; n: number };
-type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[] };
+type Stats = { net: number; n: number; winRate: number | null; pf: number | null };
+type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[]; stats: Stats };
 
 interface Saved {
-  metric: Metric; by: By; selected: string[]; selectedAcc: string[]; colors: Record<string, string>;
+  metric: Metric; selected: string[]; selectedAcc: string[]; colors: Record<string, string>;
   range: Range; split: boolean; smooth: boolean; bucket: Bucket;
 }
-const defaults: Saved = { metric: "profit", by: "symbol", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day" };
+const defaults: Saved = { metric: "profit", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day" };
 const load = (): Saved => {
   try { return { ...defaults, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") }; } catch { return defaults; }
 };
@@ -41,14 +42,14 @@ const inst = (s: string) => s.replace(/^[^:]+:/, "");
 const ts = (s: string | null) => (s ? Date.parse(s.length <= 16 ? `${s}Z` : s) : NaN);
 const DAY = 864e5;
 
-function niceTicks(min: number, max: number, n = 5): number[] {
+function niceTicks(min: number, max: number, n = 5): { ticks: number[]; step: number } {
   if (min === max) { min -= 1; max += 1; }
   const raw = (max - min) / n;
   const mag = 10 ** Math.floor(Math.log10(raw));
   const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw;
   const out: number[] = [];
   for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6);
-  return out;
+  return { ticks: out, step };
 }
 
 const valueAt = (pts: Pt[], t: number) => {
@@ -151,7 +152,8 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
   const span = yMax - yMin || 1;
   yMin -= span * (bars || kind === "dd" ? 0.06 : 0.1);
   yMax += span * (kind === "dd" ? 0.04 : 0.1);
-  const ticks = niceTicks(yMin, yMax);
+  const { ticks, step: tickStep } = niceTicks(yMin, yMax);
+  const dec = tickStep >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(tickStep)));
   const X = (t0: number) => padL + ((t0 - xMin) / (xMax - xMin || 1)) * iw;
   const Y = (v: number) => padT + (1 - (v - yMin) / (yMax - yMin || 1)) * ih;
 
@@ -159,11 +161,23 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
     if (smooth && kind !== "dd") return smoothPath(pts.map((p) => [X(p.t), Y(p.v)]));
     return pts.map((p, i) => (i === 0 ? `M${X(p.t)} ${Y(p.v)}` : `H${X(p.t)} V${Y(p.v)}`)).join(" ");
   };
+  const spanMs = xMax - xMin;
+  const fmtTick = (t0: number) =>
+    new Intl.DateTimeFormat(lang, spanMs < 2 * DAY ? { hour: "2-digit", minute: "2-digit", timeZone: "UTC" } : spanMs < 75 * DAY ? { day: "numeric", month: "short", timeZone: "UTC" } : { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(t0));
   const fmtDate = (t0: number, long = false) =>
     new Intl.DateTimeFormat(lang, long ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" } : { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(t0));
-  const xTicks = Array.from({ length: 5 }, (_, i) => xMin + ((xMax - xMin) * i) / 4);
+  const fmtBadge = (t0: number) =>
+    spanMs >= 75 * DAY ? fmtDate(t0).replace(/^/, "") : new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", ...(spanMs < 30 * DAY ? { hour: "2-digit", minute: "2-digit" } : {}), timeZone: "UTC" }).format(new Date(t0));
+  const xTicks = Array.from({ length: 5 }, (_, i) => ({ t: xMin + ((xMax - xMin) * i) / 4, i })).filter((tk, k, arr) => k === 0 || fmtTick(tk.t) !== fmtTick(arr[k - 1].t));
   const zeroY = Y(0);
 
+  // latest-value badges on the right axis (skip ones that would overlap)
+  const badges: { s: Series; y: number }[] = [];
+  if (!bars) {
+    series.map((s) => ({ s, y: Y(s.pts[s.pts.length - 1].v) })).sort((a, b) => a.y - b.y).forEach((b) => {
+      if (!badges.length || b.y - badges[badges.length - 1].y > 20) badges.push(b);
+    });
+  }
   // ----- hover (snaps to the nearest real data point) -----
   const times = useMemo(() => [...new Set(all.map((p) => p.t))].sort((a, b) => a - b), [series]); // eslint-disable-line react-hooks/exhaustive-deps
   const step = bars ? iw / Math.max(1, barList.length) : 0;
@@ -181,19 +195,7 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
   const ax = active == null ? 0 : bars ? padL + (active + 0.5) * step : X(active);
   const tipLeft = active != null && ax > w * 0.6;
 
-  // ----- landmarks (single line only) -----
-  const one = kind === "line" && series.length === 1 ? series[0] : null;
-  const hi = one ? one.pts.reduce((a, p) => (p.v > a.v ? p : a)) : null;
-  const lo = one ? one.pts.reduce((a, p) => (p.v < a.v ? p : a)) : null;
-  const clampX = (x: number) => Math.min(w - padR - 34, Math.max(padL + 34, x));
 
-  // latest-value badges on the right axis (skip ones that would overlap)
-  const badges: { s: Series; y: number }[] = [];
-  if (!bars) {
-    series.map((s) => ({ s, y: Y(s.pts[s.pts.length - 1].v) })).sort((a, b) => a.y - b.y).forEach((b) => {
-      if (!badges.length || b.y - badges[badges.length - 1].y > 20) badges.push(b);
-    });
-  }
   const cid = (s: Series) => `${gid}${s.id.replace(/\W/g, "")}`;
   const sig = `${kind}${smooth}${series.map((s) => s.id + s.pts.length).join()}`;
 
@@ -216,68 +218,51 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
               <stop offset="100%" stopColor={s.color} stopOpacity="0" />
             </linearGradient>
           ))}
-          <filter id={`${gid}glow`} x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="4" /></filter>
+          
         </defs>
 
         {ticks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.95 : 0.55} strokeDasharray={v === 0 ? undefined : "2 6"} />
-            <text x={w - padR + 12} y={Y(v) + 4} fontSize="11" fill="var(--muted)" className="tnum">{fmt(v === 0 ? 0 : v, Math.abs(v) < 10 && v !== 0 ? 2 : 0)}</text>
+            {badges.every((b) => Math.abs(b.y - Y(v)) > 15) && <text x={w - padR + 12} y={Y(v) + 4} fontSize="11" fill="var(--muted)" className="tnum">{fmt(v === 0 ? 0 : v, dec)}</text>}
           </g>
         ))}
 
-        {!bars && xTicks.map((t0, i) => (
-          <text key={i} x={X(t0)} y={height - 9} fontSize="11" fill="var(--muted)" textAnchor={i === 0 ? "start" : i === 4 ? "end" : "middle"}>{fmtDate(t0)}</text>
+        {!bars && xTicks.map((tk) => (
+          <text key={tk.i} x={X(tk.t)} y={height - 9} fontSize="11" fill="var(--muted)" textAnchor={tk.i === 0 ? "start" : tk.i === 4 ? "end" : "middle"}>{fmtTick(tk.t)}</text>
         ))}
         {bars && barList.map((b, i) => (i % Math.max(1, Math.ceil(barList.length / 8)) === 0 ? (
           <text key={b.key} x={padL + (i + 0.5) * step} y={height - 9} fontSize="11" fill="var(--muted)" textAnchor="middle">{b.label}</text>
         ) : null))}
 
         {bars ? (
-          <g key={sig}>
+          <g key={sig} className="ch-fade">
             {barList.map((b, i) => {
               const bw = Math.max(2, Math.min(34, step * 0.66));
               const y0 = Y(0), y1 = Y(b.v);
               const on = active === i;
               return (
                 <rect key={b.key} x={padL + (i + 0.5) * step - bw / 2} y={Math.min(y0, y1)} width={bw} height={Math.max(1.5, Math.abs(y1 - y0))} rx={Math.min(4, bw / 2)}
-                  fill={b.v >= 0 ? GREEN : RED} opacity={active == null || on ? 1 : 0.45} className="ch-bar"
-                  style={{ transformOrigin: b.v >= 0 ? "50% 100%" : "50% 0%", transformBox: "fill-box", animationDelay: `${Math.min(i * 12, 500)}ms` }} />
+                  fill={b.v >= 0 ? GREEN : RED} opacity={active == null || on ? 1 : 0.45} />
               );
             })}
           </g>
         ) : (
-          <g key={sig}>
+          <g key={sig} className="ch-fade">
             {series.length === 1 && series[0].pts.length > 1 && (
-              <path className="ch-fade" d={`${linePath(series[0].pts)} V${kind === "dd" ? zeroY : height - padB} H${X(series[0].pts[0].t)} Z`} fill={`url(#${cid(series[0])})`} />
+              <path d={`${linePath(series[0].pts)} V${kind === "dd" ? zeroY : height - padB} H${X(series[0].pts[0].t)} Z`} fill={`url(#${cid(series[0])})`} />
             )}
             {series.length > 1 && series.map((s) => (
-              <path key={`a${s.id}`} className="ch-fade" d={`${linePath(s.pts)} V${height - padB} H${X(s.pts[0].t)} Z`} fill={`url(#${cid(s)})`} />
-            ))}
-            {series.length <= 3 && series.map((s) => (
-              <path key={`g${s.id}`} d={linePath(s.pts)} pathLength={1} className="ch-line" fill="none" stroke={s.color} strokeWidth="5" strokeOpacity="0.35" filter={`url(#${gid}glow)`} />
+              <path key={`a${s.id}`} d={`${linePath(s.pts)} V${height - padB} H${X(s.pts[0].t)} Z`} fill={`url(#${cid(s)})`} />
             ))}
             {series.map((s) => (
-              <path key={s.id} d={linePath(s.pts)} pathLength={1} className="ch-line" fill="none" stroke={s.color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              <path key={s.id} d={linePath(s.pts)} pathLength={1} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
             ))}
             {series.map((s) => {
               const p = s.pts[s.pts.length - 1];
               return (
                 <g key={`e${s.id}`}>
                   <circle cx={X(p.t)} cy={Y(p.v)} r="3.5" fill={s.color} />
-                  <circle cx={X(p.t)} cy={Y(p.v)} r="3.5" fill="none" stroke={s.color} strokeWidth="1.5">
-                    <animate attributeName="r" values="3.5;12" dur="1.8s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.7;0" dur="1.8s" repeatCount="indefinite" />
-                  </circle>
-                </g>
-              );
-            })}
-            {hi && lo && hi.t !== lo.t && [[hi, true], [lo, false]].map(([p, top]) => {
-              const pt = p as Pt;
-              return (
-                <g key={String(top)}>
-                  <circle cx={X(pt.t)} cy={Y(pt.v)} r="3" fill="var(--bg)" stroke={top ? GREEN : RED} strokeWidth="1.6" />
-                  <text x={clampX(X(pt.t))} y={Y(pt.v) + (top ? -9 : 17)} fontSize="10.5" fontWeight="600" textAnchor="middle" fill={top ? GREEN : RED} className="tnum">{money(pt.v)}</text>
                 </g>
               );
             })}
@@ -299,8 +284,8 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
                 <circle cx={ax} cy={Y(valueAt(s.pts, active))} r="4.5" fill={s.color} stroke="var(--bg)" strokeWidth="2" />
               </g>
             ))}
-            <rect x={Math.min(Math.max(ax - 44, padL), w - padR - 88)} y={height - padB + 4} width="88" height="20" rx="6" fill="var(--icon)" />
-            <text x={Math.min(Math.max(ax, padL + 44), w - padR - 44)} y={height - padB + 18} fontSize="11" fontWeight="700" textAnchor="middle" fill="var(--on-primary)">{fmtDate(active)}</text>
+            <rect x={Math.min(Math.max(ax - 52, padL), w - padR - 104)} y={height - padB + 4} width="104" height="20" rx="6" fill="var(--icon)" />
+            <text x={Math.min(Math.max(ax, padL + 52), w - padR - 52)} y={height - padB + 18} fontSize="11" fontWeight="700" textAnchor="middle" fill="var(--on-primary)">{fmtBadge(active)}</text>
           </g>
         )}
       </svg>
@@ -345,15 +330,29 @@ const weekStart = (t0: number) => { const d = new Date(t0); const wd = (d.getUTC
 
 export default function ChartsView({ t, lang, accounts, trades, balances }: Props) {
   const [st, setSt] = useState<Saved>(load);
+  const [open, setOpen] = useState<Mode | null>(null); // only one analysis is ever open
   const [acc, setAcc] = useState("all");
-  const [full, setFull] = useState(false);
+  const [vh, setVh] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 800));
+  useEffect(() => {
+    const on = () => setVh(window.innerHeight);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const k = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    document.addEventListener("keydown", k);
+    return () => document.removeEventListener("keydown", k);
+  }, [open]);
   const save = (p: Partial<Saved>) => {
     const next = { ...st, ...p };
     setSt(next);
     try { localStorage.setItem(STORE, JSON.stringify(next)); } catch {}
   };
 
-  const byAcc = st.by === "account" && accounts.length > 1;
+  const mode: Mode = open ?? "symbol";
+  const byAcc = mode === "account";
+  const metric: Metric = !byAcc && st.metric === "balance" ? "profit" : st.metric; // balance only makes sense per account
   const closed = useMemo(() => trades.filter((x) => x.status === "closed" && x.pnl != null && !isNaN(ts(x.exitTime))), [trades]);
   const scope = useMemo(() => (byAcc || acc === "all" ? closed : closed.filter((x) => x.accountId === acc)), [closed, acc, byAcc]);
   const accsInView = byAcc || acc === "all" ? accounts : accounts.filter((a) => a.id === acc);
@@ -365,7 +364,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
   const nameOf = (id: string) => (id === ALL ? t("chAll") : byAcc ? accounts.find((a) => a.id === id)?.name ?? id : inst(id));
   const colorOf = (id: string) => st.colors[id] ?? (id === ALL ? PALETTE[0] : PALETTE[(1 + Math.max(0, items.indexOf(id) - 1)) % PALETTE.length]);
   const stored = byAcc ? st.selectedAcc : st.selected;
-  const chosen = stored.filter((id) => items.includes(id)).length ? stored.filter((id) => items.includes(id)) : [ALL];
+  const valid = stored.filter((id) => items.includes(id));
+  const chosen = valid.length ? valid : [ALL];
   const setChosen = (next: string[]) => save(byAcc ? { selectedAcc: next } : { selected: next });
 
   const cutoff = useMemo(() => {
@@ -389,18 +389,28 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
     return { key, label };
   };
 
+  // Balance curve of one account: real history if imported, else start balance + cumulative P&L.
+  const accountBalance = (a: Account): Pt[] => {
+    const real = balances[a.id];
+    if (real && real.length > 1) return real.map((p) => ({ t: ts(p.t), v: p.balance })).filter((p) => !isNaN(p.t)).sort((x, y) => x.t - y.t);
+    const list = closed.filter((x) => x.accountId === a.id).sort((x, y) => ts(x.exitTime) - ts(y.exitTime));
+    if (!list.length) return [];
+    let run = a.startBalance || 0;
+    return [{ t: ts(list[0].entryTime ?? list[0].exitTime) || ts(list[0].exitTime), v: run }, ...list.map((x) => ({ t: ts(x.exitTime), v: (run += x.pnl as number) }))];
+  };
+
   const series: Series[] = useMemo(() => {
     return chosen
-      .map((id) => {
+      .map((id): Series => {
         const list = scope
           .filter((x) => id === ALL || (byAcc ? x.accountId === id : x.symbol === id))
           .sort((a, b) => ts(a.exitTime) - ts(b.exitTime));
-        const startOf = id === ALL ? accsInView.reduce((a, x) => a + (x.startBalance || 0), 0) : byAcc ? accounts.find((a) => a.id === id)?.startBalance ?? 0 : accsInView.reduce((a, x) => a + (x.startBalance || 0), 0);
-        const base = st.metric === "balance" ? startOf : 0;
         const color = colorOf(id);
         const name = nameOf(id);
+        const cs = computeStats(list);
+        const stats: Stats = { net: cs.net, n: list.length, winRate: cs.winRate, pf: cs.profitFactor };
 
-        if (st.metric === "periods") {
+        if (metric === "periods") {
           const m = new Map<string, Bar>();
           for (const x of list) {
             if (cutoff != null && ts(x.exitTime) < cutoff) continue;
@@ -410,175 +420,239 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
             m.set(b.key, cur);
           }
           const bars = [...m.values()].sort((a, b) => (st.bucket === "session" ? 0 : a.key.localeCompare(b.key)));
-          return { id, name, color, pts: [], bars };
+          return { id, name, color, pts: [], bars, stats };
         }
 
         let pts: Pt[] = [];
-        const acct = id === ALL ? (accsInView.length === 1 ? accsInView[0] : undefined) : byAcc ? accounts.find((a) => a.id === id) : undefined;
-        const real = st.metric === "balance" && acct ? balances[acct.id] : undefined;
-        if (real && real.length > 1) pts = real.map((p) => ({ t: ts(p.t), v: p.balance })).filter((p) => !isNaN(p.t)).sort((a, b) => a.t - b.t);
-        else {
-          let run = base;
+        if (metric === "balance") {
+          if (id === ALL) {
+            const curves = accounts.map(accountBalance).filter((c) => c.length);
+            const times = [...new Set(curves.flatMap((c) => c.map((p) => p.t)))].sort((a, b) => a - b);
+            pts = times.map((tm) => ({ t: tm, v: curves.reduce((sum, c) => sum + (tm < c[0].t ? c[0].v : valueAt(c, tm)), 0) }));
+          } else {
+            const a = accounts.find((x) => x.id === id);
+            pts = a ? accountBalance(a) : [];
+          }
+        } else {
+          let run = 0;
           pts = list.map((x) => ({ t: ts(x.exitTime), v: (run += x.pnl as number) }));
-          if (pts.length) pts.unshift({ t: ts(list[0].entryTime ?? list[0].exitTime) || pts[0].t, v: base });
+          if (pts.length) pts.unshift({ t: ts(list[0].entryTime ?? list[0].exitTime) || pts[0].t, v: 0 });
+          if (metric === "drawdown") {
+            let peak = 0, r = 0;
+            pts = list.length ? [{ t: pts[0].t, v: 0 }, ...list.map((x) => { r += x.pnl as number; peak = Math.max(peak, r); return { t: ts(x.exitTime), v: r - peak }; })] : [];
+          }
         }
-        if (st.metric === "drawdown") {
-          let peak = 0, run = 0;
-          pts = [{ t: pts[0]?.t ?? 0, v: 0 }, ...list.map((x) => { run += x.pnl as number; peak = Math.max(peak, run); return { t: ts(x.exitTime), v: run - peak }; })];
-          if (!list.length) pts = [];
-        }
-        // one point per timestamp (keep the last), so curves stay well-defined
         const dedup: Pt[] = [];
         for (const p of pts) { if (dedup.length && dedup[dedup.length - 1].t === p.t) dedup[dedup.length - 1] = p; else dedup.push(p); }
         pts = dedup;
         if (cutoff != null && pts.length) pts = [{ t: cutoff, v: valueAt(pts, cutoff) }, ...pts.filter((p) => p.t > cutoff)];
-        return { id, name, color, pts, bars: [] };
+        return { id, name, color, pts, bars: [], stats };
       })
-      .filter((s) => (st.metric === "periods" ? s.bars.length > 0 : s.pts.length > 1));
+      .filter((s) => (metric === "periods" ? s.bars.length > 0 : s.pts.length > 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, chosen.join("|"), st.metric, st.colors, st.bucket, cutoff, balances, acc, byAcc, lang]);
+  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, cutoff, balances, acc, byAcc, lang, accounts]);
 
   // ----- headline -----
   const head = series[0];
   const startAll = accsInView.reduce((a, x) => a + (x.startBalance || 0), 0);
   let headVal = 0, pct: number | null = null, sub = "";
   if (head) {
-    if (st.metric === "periods") {
+    if (metric === "periods") {
       headVal = head.bars.reduce((a, b) => a + b.v, 0);
       const pos = head.bars.filter((b) => b.v > 0).length;
       sub = `${pos}/${head.bars.length} ${t("chPosPeriods")}`;
       pct = startAll ? (headVal / startAll) * 100 : null;
-    } else if (st.metric === "drawdown") {
+    } else if (metric === "drawdown") {
       headVal = Math.min(...head.pts.map((p) => p.v));
       pct = startAll ? (headVal / startAll) * 100 : null;
     } else {
       headVal = head.pts[head.pts.length - 1].v;
       const first = head.pts[0].v;
-      pct = st.metric === "balance" ? (first ? ((headVal - first) / Math.abs(first)) * 100 : null) : startAll ? (headVal / startAll) * 100 : null;
+      pct = metric === "balance" ? (first ? ((headVal - first) / Math.abs(first)) * 100 : null) : startAll ? (headVal / startAll) * 100 : null;
     }
   }
-  const metricLabel = t(({ profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods" } as const)[st.metric]);
-  const lineKind = st.metric === "drawdown" ? "dd" : "line";
-  const toggle = (id: string) => setChosen(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
-  const isBars = st.metric === "periods";
+  const label = (m: Metric) => t(({ profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods" } as const)[m]);
+  const lineKind = metric === "drawdown" ? "dd" : "line";
+  const isBars = metric === "periods";
   const split = st.split || isBars;
+  const toggle = (id: string) => setChosen(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
+  const value = (s: Series) => (isBars ? s.bars.reduce((a, b) => a + b.v, 0) : metric === "drawdown" ? Math.min(...s.pts.map((p) => p.v)) : s.pts[s.pts.length - 1].v);
+  const metrics: Metric[] = byAcc ? ["profit", "balance", "drawdown", "periods"] : ["profit", "drawdown", "periods"];
 
   const seg = (on: boolean) => `px-3 py-1.5 transition-colors ${on ? "bg-primary text-on-primary" : "hover:text-icon"}`;
   const group = "flex overflow-hidden rounded-lg border border-border text-sm font-semibold";
   const pill = "flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold transition-colors hover:border-icon";
-  const chartH = full ? Math.max(360, (typeof window !== "undefined" ? window.innerHeight : 800) - 260) : 400;
+  const chartH = Math.max(320, vh - 400);
+  const oneH = Math.max(320, vh - 440);
+  const cardH = Math.max(240, Math.min(300, (vh - 360) / 2));
+
+  const launch = (m: Mode, Icon: typeof Wallet, title: string, hint: string) => {
+    const on = open === m;
+    return (
+      <button
+        type="button"
+        aria-pressed={on}
+        onClick={() => setOpen(on ? null : m)}
+        className={`flex items-center gap-3 rounded-2xl border px-5 py-3 text-start transition-colors ${on ? "border-icon bg-primary-tint" : "border-border bg-surface hover:border-icon"}`}
+      >
+        <Icon size={22} className="text-icon" strokeWidth={1.8} />
+        <span>
+          <span className="block font-heading text-base font-bold">{title}</span>
+          <span className="block text-xs text-muted">{hint}</span>
+        </span>
+      </button>
+    );
+  };
+
+  // Symbol analytics sits at the top-left, account analytics at the top-right (regardless of text direction).
+  const switcher = (
+    <div className="flex items-center justify-between gap-3" dir="ltr">
+      {launch("symbol", CandlestickChart, t("chSymAnalytics"), t("chSymHint"))}
+      {launch("account", Wallet, t("chAccAnalytics"), t("chAccHint"))}
+    </div>
+  );
+
+  if (!open) {
+    return (
+      <section className="flex flex-col gap-4">
+        {switcher}
+        <p className="rounded-2xl border border-dashed border-border py-20 text-center text-sm text-muted">{t("chPick")}</p>
+      </section>
+    );
+  }
 
   return (
-    <section className={full ? "fixed inset-0 z-[60] flex flex-col gap-3 overflow-auto bg-bg p-5" : "flex flex-col gap-4"}>
-      <div className="rounded-2xl border border-border bg-surface p-4 shadow-[0_0_0_1px_rgb(245_184_61/0.04),0_20px_50px_-30px_rgb(245_184_61/0.25)]">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="me-auto">
-            <div className="flex items-center gap-2 text-sm text-muted">
-              {metricLabel}
-              {pct != null && head && (
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>
-              )}
-            </div>
-            <p className={`font-heading text-3xl font-bold tnum ${st.metric === "drawdown" && headVal < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{money(headVal)}</p>
-            {sub && <p className="text-xs text-muted">{sub}</p>}
+    <>
+      {/* placeholder keeps the page layout while the analysis covers the screen */}
+      <section className="flex flex-col gap-4">{switcher}</section>
+      <div className="fixed inset-0 z-[60] flex flex-col gap-4 overflow-auto bg-bg p-5" role="dialog" aria-label={t(byAcc ? "chAccAnalytics" : "chSymAnalytics")}>
+        <div className="flex items-center gap-3" dir="ltr">
+          <div className="flex flex-1 items-center justify-between gap-3">
+            {launch("symbol", CandlestickChart, t("chSymAnalytics"), t("chSymHint"))}
+            {launch("account", Wallet, t("chAccAnalytics"), t("chAccHint"))}
           </div>
+          <button type="button" onClick={() => setOpen(null)} className="icon-btn" aria-label={t("chClose")} title={t("chClose")}><X size={20} className="text-icon" /></button>
+        </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {accounts.length > 1 && !byAcc && (
-              <select className="field !w-auto" value={acc} onChange={(e) => setAcc(e.target.value)} aria-label={t("pickAccount")}>
-                <option value="all">{t("allAccounts")}</option>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            )}
-            {accounts.length > 1 && (
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="me-auto">
+              <div className="flex items-center gap-2 text-sm text-muted">
+                {label(metric)}
+                {pct != null && head && (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>
+                )}
+              </div>
+              <p className={`font-heading text-3xl font-bold tnum ${metric === "drawdown" && headVal < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{money(headVal)}</p>
+              {sub && <p className="text-xs text-muted">{sub}</p>}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!byAcc && accounts.length > 1 && (
+                <select className="field !w-auto" value={acc} onChange={(e) => setAcc(e.target.value)} aria-label={t("pickAccount")}>
+                  <option value="all">{t("allAccounts")}</option>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              )}
               <div className={group} role="group">
-                {(["symbol", "account"] as const).map((b) => (
-                  <button key={b} type="button" aria-pressed={st.by === b} onClick={() => save({ by: b })} className={seg(st.by === b)}>{t(b === "symbol" ? "chBySymbol" : "chByAccount")}</button>
+                {metrics.map((m) => (
+                  <button key={m} type="button" aria-pressed={metric === m} onClick={() => save({ metric: m })} className={seg(metric === m)}>{label(m)}</button>
                 ))}
               </div>
-            )}
-            <div className={group} role="group">
-              {(["profit", "balance", "drawdown", "periods"] as const).map((m) => (
-                <button key={m} type="button" aria-pressed={st.metric === m} onClick={() => save({ metric: m })} className={seg(st.metric === m)}>{t(({ profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods" } as const)[m])}</button>
-              ))}
-            </div>
-            {isBars ? (
-              <select className="field !w-auto" value={st.bucket} onChange={(e) => save({ bucket: e.target.value as Bucket })} aria-label={t("chPeriods")}>
-                {(["day", "week", "month", "session"] as const).map((b) => <option key={b} value={b}>{t(({ day: "chBucketDay", week: "chBucketWeek", month: "chBucketMonth", session: "chBucketSession" } as const)[b])}</option>)}
-              </select>
-            ) : (
-              <>
-                <div className={group} role="group">
-                  {[false, true].map((sp) => (
-                    <button key={String(sp)} type="button" aria-pressed={st.split === sp} onClick={() => save({ split: sp })} className={seg(st.split === sp)}>{t(sp ? "chSplit" : "chOverlay")}</button>
-                  ))}
-                </div>
-                {st.metric !== "drawdown" && (
+              {isBars ? (
+                <select className="field !w-auto" value={st.bucket} onChange={(e) => save({ bucket: e.target.value as Bucket })} aria-label={t("chPeriods")}>
+                  {(["day", "week", "month", "session"] as const).map((b) => <option key={b} value={b}>{t(({ day: "chBucketDay", week: "chBucketWeek", month: "chBucketMonth", session: "chBucketSession" } as const)[b])}</option>)}
+                </select>
+              ) : (
+                <>
                   <div className={group} role="group">
-                    {[true, false].map((sm) => (
-                      <button key={String(sm)} type="button" aria-pressed={st.smooth === sm} onClick={() => save({ smooth: sm })} className={seg(st.smooth === sm)}>{t(sm ? "chSmooth" : "chStep")}</button>
+                    {[false, true].map((sp) => (
+                      <button key={String(sp)} type="button" aria-pressed={st.split === sp} onClick={() => save({ split: sp })} className={seg(st.split === sp)}>{t(sp ? "chSplit" : "chOverlay")}</button>
+                    ))}
+                  </div>
+                  {metric !== "drawdown" && (
+                    <div className={group} role="group">
+                      {[true, false].map((sm) => (
+                        <button key={String(sm)} type="button" aria-pressed={st.smooth === sm} onClick={() => save({ smooth: sm })} className={seg(st.smooth === sm)}>{t(sm ? "chSmooth" : "chStep")}</button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <Dropdown
+                label={t(byAcc ? "chByAccount" : "chSymbols")}
+                panelClass="w-72 max-h-80 overflow-auto"
+                bare
+                trigger={<span className={pill}><span className="flex -space-x-1">{chosen.slice(0, 4).map((id) => <span key={id} className="h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: colorOf(id) }} />)}</span>{chosen.length}/{items.length}<ChevronDown size={14} /></span>}
+              >
+                {() => (
+                  <div className="flex flex-col gap-0.5">
+                    <button type="button" role="menuitemcheckbox" aria-checked={chosen.length === items.length} onClick={() => setChosen(chosen.length === items.length ? [ALL] : items)} className="menu-item border-b border-border pb-2 font-bold">
+                      <input type="checkbox" readOnly checked={chosen.length === items.length} className="accent-[var(--primary)]" />
+                      <span className="flex-1 text-start">{t("chSelectAll")}<span className="block text-xs font-normal text-muted">{chosen.length}/{items.length}</span></span>
+                    </button>
+                    {items.map((id) => (
+                      <div key={id} className="menu-item">
+                        <input type="checkbox" checked={chosen.includes(id)} onChange={() => toggle(id)} aria-label={nameOf(id)} className="accent-[var(--primary)]" />
+                        <span className="flex flex-1 items-center gap-2 text-start" dir="ltr">{id === ALL ? <span className="font-bold">{t("chAll")}</span> : (<>{!byAcc && <SymbolIcon symbol={id} />}{nameOf(id)}</>)}</span>
+                        <label title={t("chColor")} className="relative h-5 w-5 cursor-pointer overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-110">
+                          <span className="absolute inset-0" style={{ background: colorOf(id) }} />
+                          <input type="color" value={colorOf(id)} onChange={(e) => save({ colors: { ...st.colors, [id]: e.target.value } })} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" aria-label={t("chColor")} />
+                        </label>
+                      </div>
                     ))}
                   </div>
                 )}
-              </>
-            )}
+              </Dropdown>
 
-            <Dropdown
-              label={t("chSymbols")}
-              panelClass="w-72 max-h-80 overflow-auto"
-              bare
-              trigger={<span className={pill}><span className="flex -space-x-1">{chosen.slice(0, 4).map((id) => <span key={id} className="h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: colorOf(id) }} />)}</span>{chosen.length}/{items.length}<ChevronDown size={14} /></span>}
-            >
-              {() => (
-                <div className="flex flex-col gap-0.5">
-                  <button type="button" role="menuitemcheckbox" aria-checked={chosen.length === items.length} onClick={() => setChosen(chosen.length === items.length ? [ALL] : items)} className="menu-item border-b border-border pb-2 font-bold">
-                    <input type="checkbox" readOnly checked={chosen.length === items.length} className="accent-[var(--primary)]" />
-                    <span className="flex-1 text-start">{t("chSelectAll")}<span className="block text-xs font-normal text-muted">{chosen.length}/{items.length}</span></span>
-                  </button>
-                  {items.map((id) => (
-                    <div key={id} className="menu-item">
-                      <input type="checkbox" checked={chosen.includes(id)} onChange={() => toggle(id)} aria-label={nameOf(id)} className="accent-[var(--primary)]" />
-                      <span className="flex flex-1 items-center gap-2 text-start" dir="ltr">{id === ALL ? <span className="font-bold">{t("chAll")}</span> : (<>{!byAcc && <SymbolIcon symbol={id} />}{nameOf(id)}</>)}</span>
-                      <label title={t("chColor")} className="relative h-5 w-5 cursor-pointer overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-110">
-                        <span className="absolute inset-0" style={{ background: colorOf(id) }} />
-                        <input type="color" value={colorOf(id)} onChange={(e) => save({ colors: { ...st.colors, [id]: e.target.value } })} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" aria-label={t("chColor")} />
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Dropdown>
-
-            <select className="field !w-auto" value={st.range} onChange={(e) => save({ range: e.target.value as Range })} aria-label={t("chRange")}>
-              {RANGES.map((r) => <option key={r} value={r}>{r === "all" ? t("chRangeAll") : r}</option>)}
-            </select>
-            <button type="button" onClick={() => setFull(!full)} className="icon-btn" aria-label={t("chFullscreen")}>{full ? <Minimize2 size={18} className="text-icon" /> : <Maximize2 size={18} className="text-icon" />}</button>
-          </div>
-        </div>
-
-        {series.length === 0 ? (
-          <p className="py-20 text-center text-sm text-muted">{t("chNoData")}</p>
-        ) : split ? (
-          <div className={`mt-4 grid gap-4 ${series.length > 1 ? "lg:grid-cols-2" : ""}`}>
-            {series.map((s) => (
-              <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
-                <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
-                  <span className="ms-auto tnum" style={{ color: isBars ? (s.bars.reduce((a, b) => a + b.v, 0) >= 0 ? GREEN : RED) : s.color }}>{money(isBars ? s.bars.reduce((a, b) => a + b.v, 0) : st.metric === "drawdown" ? Math.min(...s.pts.map((p) => p.v)) : s.pts[s.pts.length - 1].v)}</span></p>
-                <Chart series={[s]} lang={lang} money={money} height={series.length > 1 ? 260 : chartH} label={metricLabel} title={`${metricLabel} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4">
-            <Chart series={series} lang={lang} money={money} height={chartH} label={metricLabel} title={`${metricLabel} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
-            <div className="mt-2 flex flex-wrap gap-3 text-xs" dir="ltr">
-              {series.map((s) => (
-                <span key={s.id} className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1"><span className="h-2 w-2 rounded-full" style={{ background: s.color }} /><span className="font-medium">{s.name}</span><span className="tnum text-muted">{money(st.metric === "drawdown" ? Math.min(...s.pts.map((p) => p.v)) : s.pts[s.pts.length - 1].v)}</span></span>
-              ))}
+              <select className="field !w-auto" value={st.range} onChange={(e) => save({ range: e.target.value as Range })} aria-label={t("chRange")}>
+                {RANGES.map((r) => <option key={r} value={r}>{r === "all" ? t("chRangeAll") : r}</option>)}
+              </select>
             </div>
           </div>
-        )}
+
+          {series.length === 0 ? (
+            <p className="py-24 text-center text-sm text-muted">{t("chNoData")}</p>
+          ) : split ? (
+            <div className={`mt-4 grid gap-4 ${series.length > 1 ? "lg:grid-cols-2" : ""}`}>
+              {series.map((s) => (
+                <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
+                  <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
+                    <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{money(value(s))}</span></p>
+                  <Chart series={[s]} lang={lang} money={money} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
+                  <StatsRow s={s} money={money} t={t} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4">
+              <Chart series={series} lang={lang} money={money} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
+              <div className="mt-3 flex flex-col gap-2">
+                {series.map((s) => (
+                  <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border px-3 py-2" dir="ltr">
+                    <span className="flex min-w-[130px] items-center gap-2 text-sm font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</span>
+                    <span className="tnum text-sm font-bold" style={{ color: s.color }}>{money(value(s))}</span>
+                    <StatsRow s={s} money={money} t={t} inline />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </section>
+    </>
+  );
+}
+
+function StatsRow({ s, money, t, inline }: { s: Series; money: (n: number) => string; t: (k: Key) => string; inline?: boolean }) {
+  const chip = "flex items-baseline gap-1.5 text-xs";
+  return (
+    <div className={`flex flex-wrap gap-x-4 gap-y-1 ${inline ? "" : "mt-2 border-t border-border pt-2"}`} dir="ltr">
+      <span className={chip}><span className="text-muted">{t("pnl")}</span><span className="tnum font-semibold" style={{ color: s.stats.net >= 0 ? GREEN : RED }}>{money(s.stats.net)}</span></span>
+      <span className={chip}><span className="text-muted">{t("monthTrades")}</span><span className="tnum font-semibold">{s.stats.n}</span></span>
+      <span className={chip}><span className="text-muted">{t("chWinRate")}</span><span className="tnum font-semibold">{s.stats.winRate == null ? "—" : `${fmt(s.stats.winRate, 1)}%`}</span></span>
+      <span className={chip}><span className="text-muted">{t("chPF")}</span><span className="tnum font-semibold">{s.stats.pf == null ? "—" : fmt(s.stats.pf)}</span></span>
+    </div>
   );
 }

@@ -295,6 +295,6 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes ch-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ch-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .ch-line { stroke-dasharray: 1; animation: ch-draw 1.2s cubic-bezier(.3,.7,.2,1) both; }
-.ch-fade { animation: ch-fade 1s ease .2s both; }
+.ch-fade { animation: ch-fade .35s ease both; }
 .ch-bar { animation: ch-grow .6s cubic-bezier(.3,.7,.2,1) both; transition: opacity .15s; }
 @media (prefers-reduced-motion: reduce) { .ch-line, .ch-fade, .ch-bar { animation: none; } }
