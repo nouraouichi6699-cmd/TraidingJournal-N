@@ -5,6 +5,7 @@ import Dropdown from "./Dropdown";
 import Sessions from "./Sessions";
 import NotificationsPanel from "./NotificationsPanel";
 import { usePrivacy } from "../usePrivacy";
+import { useDashEdit } from "../useDashEdit";
 import type { Interests } from "../useInterests";
 import { languages, themeNames, type Key } from "../i18n";
 import type { Lang, Theme } from "../types";
@@ -20,13 +21,15 @@ interface Props {
   onProfile: () => void;
   onNews: () => void;
   onCalendar: () => void;
+  onDashboard: () => void;
   interests: Interests;
 }
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, interests }: Props) {
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, onDashboard, interests }: Props) {
   const privacy = usePrivacy();
+  const dash = useDashEdit();
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
@@ -69,8 +72,8 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             <button type="button" aria-label={t("addBoard")} className="icon-btn !h-8 !w-8">
               <Plus size={16} className="text-icon" />
             </button>
-            <button type="button" aria-label={t("editBoards")} className="icon-btn !h-8 !w-8">
-              <Pencil size={15} className="text-icon" />
+            <button type="button" aria-label={t("editBoards")} aria-pressed={dash.editing} onClick={() => { onDashboard(); dash.toggle(); }} className={`icon-btn !h-8 !w-8 ${dash.editing ? "!bg-primary" : ""}`}>
+              <Pencil size={15} className={dash.editing ? "text-on-primary" : "text-icon"} />
             </button>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           </div>

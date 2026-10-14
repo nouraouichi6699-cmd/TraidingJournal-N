@@ -10,6 +10,7 @@ import ConnectAccountModal from "./components/ConnectAccountModal";
 import AccountsList from "./components/AccountsList";
 import ImportView from "./components/ImportView";
 import ChartsView from "./components/ChartsView";
+import DashboardView from "./components/DashboardView";
 import ReportsView from "./components/ReportsView";
 import JournalView from "./components/JournalView";
 import { Watermark } from "./components/Brand";
@@ -44,7 +45,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} interests={interests} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} interests={interests} />
       <div className="flex">
         <Sidebar t={t} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -84,6 +85,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
           {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
           {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
           {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
+          {view === "dashboard" && <DashboardView t={t} lang={lang} trades={journal.trades} />}
           {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
           {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
