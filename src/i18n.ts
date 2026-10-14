@@ -123,6 +123,7 @@ const dict = {
   chClose: { en: "Close", ar: "إغلاق", fr: "Fermer" },
   chWinRate: { en: "Win rate", ar: "نسبة الربح", fr: "Taux de gain" },
   chPF: { en: "Profit factor", ar: "معامل الربح", fr: "Facteur de profit" },
+  chNeedStart: { en: "Set the account starting balance to see percentages.", ar: "حدّد رصيد بداية الحساب لعرض النسب المئوية.", fr: "Renseignez le solde initial du compte pour afficher les %." },
   chNoData: { en: "No closed trades to chart yet.", ar: "لا توجد صفقات مغلقة لرسمها بعد.", fr: "Aucun trade clôturé à afficher." },
   pastMonths: { en: "Past months", ar: "الأشهر الماضية", fr: "Mois précédents" },
   currentMonth: { en: "This month", ar: "الشهر الحالي", fr: "Ce mois-ci" },

@@ -27,13 +27,13 @@ type Bucket = "day" | "week" | "month" | "session";
 type Pt = { t: number; v: number };
 type Bar = { key: string; label: string; v: number; n: number };
 type Stats = { net: number; n: number; winRate: number | null; pf: number | null };
-type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[]; stats: Stats };
+type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[]; stats: Stats; base: number };
 
 interface Saved {
   metric: Metric; selected: string[]; selectedAcc: string[]; colors: Record<string, string>;
-  range: Range; split: boolean; smooth: boolean; bucket: Bucket; v?: number;
+  range: Range; split: boolean; smooth: boolean; bucket: Bucket; unit: "money" | "pct"; v?: number;
 }
-const defaults: Saved = { metric: "profit", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day" };
+const defaults: Saved = { metric: "profit", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day", unit: "money" };
 const load = (): Saved => {
   try {
     const p = JSON.parse(localStorage.getItem(STORE) ?? "{}");
@@ -116,6 +116,7 @@ interface ChartProps {
   lang: Lang;
   money: (n: number) => string;
   cur: string;
+  pct?: boolean;
   height: number;
   label: string;
   title: string;
@@ -153,7 +154,7 @@ const lerpAt = (pts: Pt[], t0: number) => {
   return pts[pts.length - 1].v;
 };
 
-function Chart({ series, lang, money, cur, height, label, title, smooth, kind, t }: ChartProps) {
+function Chart({ series, lang, money, cur, pct, height, label, title, smooth, kind, t }: ChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [w, setW] = useState(900);
@@ -256,7 +257,7 @@ function Chart({ series, lang, money, cur, height, label, title, smooth, kind, t
         {ticks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.9 : 0.35} />
-            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{v < 0 ? "-" : ""}{cur}{fmt(Math.abs(v), dec)}</text>
+            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : `${v < 0 ? "-" : ""}${cur}${fmt(Math.abs(v), dec)}`}</text>
           </g>
         ))}
 
@@ -289,7 +290,8 @@ function Chart({ series, lang, money, cur, height, label, title, smooth, kind, t
             ))}
             {series.map((s, k) => {
               const last = drawn[k][drawn[k].length - 1];
-              const text = `${last.v < 0 ? "-" : ""}${cur}${fmt(Math.abs(s.pts[s.pts.length - 1].v), 0)}`;
+              const lv = s.pts[s.pts.length - 1].v;
+              const text = pct ? `${lv > 0 ? "+" : ""}${fmt(lv, 1)}%` : `${lv < 0 ? "-" : ""}${cur}${fmt(Math.abs(lv), 0)}`;
               const bw = text.length * 7.2 + 16;
               return (
                 <g key={`e${s.id}`}>
@@ -344,7 +346,7 @@ function Chart({ series, lang, money, cur, height, label, title, smooth, kind, t
               })}
               {single && kind === "line" && (() => {
                 const d = valueAt(series[0].pts, active) - series[0].pts[0].v;
-                return <p className="mt-1 flex justify-between border-t border-border pt-1 text-muted"><span>{t("chFromStart")}</span><span className="tnum font-semibold" style={{ color: d >= 0 ? GREEN : RED }}>{d > 0 ? "+" : ""}{money(d)}</span></p>;
+                return <p className="mt-1 flex justify-between border-t border-border pt-1 text-muted"><span>{t("chFromStart")}</span><span className="tnum font-semibold" style={{ color: d >= 0 ? GREEN : RED }}>{!pct && d > 0 ? "+" : ""}{money(d)}</span></p>;
               })()}
             </>
           )}
@@ -385,7 +387,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
   const scope = useMemo(() => (byAcc || acc === "all" ? closed : closed.filter((x) => x.accountId === acc)), [closed, acc, byAcc]);
   const accsInView = byAcc || acc === "all" ? accounts : accounts.filter((a) => a.id === acc);
   const currency = accsInView[0]?.currency ?? "USD";
-  const money = (n: number) => `${n < 0 ? "-" : ""}${currency === "USD" ? "$" : ""}${fmt(Math.abs(n))}${currency === "USD" ? "" : ` ${currency}`}`;
+  const moneyBase = (n: number) => `${n < 0 ? "-" : ""}${currency === "USD" ? "$" : ""}${fmt(Math.abs(n))}${currency === "USD" ? "" : ` ${currency}`}`;
 
   const symbols = useMemo(() => [...new Set(scope.map((x) => x.symbol))].sort(), [scope]);
   const items = byAcc ? [ALL, ...accounts.map((a) => a.id)] : [ALL, ...symbols];
@@ -427,7 +429,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
     return [{ t: ts(list[0].entryTime ?? list[0].exitTime) || ts(list[0].exitTime), v: run }, ...list.map((x) => ({ t: ts(x.exitTime), v: (run += x.pnl as number) }))];
   };
 
-  const series: Series[] = useMemo(() => {
+  const startSum = accsInView.reduce((a, x) => a + (x.startBalance || 0), 0);
+  const rawSeries: Series[] = useMemo(() => {
     return chosen
       .map((id): Series => {
         const list = scope
@@ -437,6 +440,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
         const name = nameOf(id);
         const cs = computeStats(list);
         const stats: Stats = { net: cs.net, n: list.length, winRate: cs.winRate, pf: cs.profitFactor };
+        const base = id !== ALL && byAcc ? accounts.find((a) => a.id === id)?.startBalance ?? 0 : startSum;
 
         if (metric === "periods") {
           const m = new Map<string, Bar>();
@@ -448,7 +452,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
             m.set(b.key, cur);
           }
           const bars = [...m.values()].sort((a, b) => (st.bucket === "session" ? 0 : a.key.localeCompare(b.key)));
-          return { id, name, color, pts: [], bars, stats };
+          return { id, name, color, pts: [], bars, stats, base };
         }
 
         let pts: Pt[] = [];
@@ -474,15 +478,25 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
         for (const p of pts) { if (dedup.length && dedup[dedup.length - 1].t === p.t) dedup[dedup.length - 1] = p; else dedup.push(p); }
         pts = dedup;
         if (cutoff != null && pts.length) pts = [{ t: cutoff, v: valueAt(pts, cutoff) }, ...pts.filter((p) => p.t > cutoff)];
-        return { id, name, color, pts, bars: [], stats };
+        return { id, name, color, pts, bars: [], stats, base };
       })
       .filter((s) => (metric === "periods" ? s.bars.length > 0 : s.pts.length > 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, cutoff, balances, acc, byAcc, lang, accounts]);
+  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, cutoff, balances, acc, byAcc, lang, accounts, startSum]);
+
+  // $ / % : percent is relative to the starting balance (balance view: change since the start)
+  const canPct = rawSeries.length > 0 && rawSeries.every((x) => x.base > 0);
+  const pctMode = st.unit === "pct" && canPct;
+  const series: Series[] = useMemo(() => {
+    if (!pctMode) return rawSeries;
+    const f = (x: Series, v: number) => (metric === "balance" ? ((v - x.base) / x.base) * 100 : (v / x.base) * 100);
+    return rawSeries.map((x) => ({ ...x, pts: x.pts.map((p) => ({ t: p.t, v: f(x, p.v) })), bars: x.bars.map((b) => ({ ...b, v: f(x, b.v) })) }));
+  }, [rawSeries, pctMode, metric]);
+  const money = pctMode ? (n: number) => `${n > 0 ? "+" : ""}${fmt(n)}%` : moneyBase;
 
   // ----- headline -----
   const head = series[0];
-  const startAll = accsInView.reduce((a, x) => a + (x.startBalance || 0), 0);
+  const startAll = startSum;
   let headVal = 0, pct: number | null = null, sub = "";
   if (head) {
     if (metric === "periods") {
@@ -567,7 +581,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
             <div className="me-auto">
               <div className="flex items-center gap-2 text-sm text-muted">
                 {label(metric)}
-                {pct != null && head && (
+                {pct != null && head && !pctMode && (
                   <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>
                 )}
               </div>
@@ -634,6 +648,11 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
                 )}
               </Dropdown>
 
+              <div className={group} role="group" title={canPct ? undefined : t("chNeedStart")}>
+                {(["money", "pct"] as const).map((u) => (
+                  <button key={u} type="button" disabled={u === "pct" && !canPct} aria-pressed={(u === "pct") === pctMode} onClick={() => save({ unit: u })} className={`${seg((u === "pct") === pctMode)} disabled:cursor-not-allowed disabled:opacity-40`}>{u === "money" ? (currency === "USD" ? "$" : currency) : "%"}</button>
+                ))}
+              </div>
               <select className="field !w-auto" value={st.range} onChange={(e) => save({ range: e.target.value as Range })} aria-label={t("chRange")}>
                 {RANGES.map((r) => <option key={r} value={r}>{r === "all" ? t("chRangeAll") : r}</option>)}
               </select>
@@ -648,20 +667,20 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
                 <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
                   <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
                     <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{money(value(s))}</span></p>
-                  <Chart series={[s]} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
-                  <StatsRow s={s} money={money} t={t} />
+                  <Chart series={[s]} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
+                  <StatsRow s={s} money={moneyBase} t={t} />
                 </div>
               ))}
             </div>
           ) : (
             <div className="mt-4">
-              <Chart series={series} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
+              <Chart series={series} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
               <div className="mt-3 flex flex-col gap-2">
                 {series.map((s) => (
                   <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border px-3 py-2" dir="ltr">
                     <span className="flex min-w-[130px] items-center gap-2 text-sm font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</span>
                     <span className="tnum text-sm font-bold" style={{ color: s.color }}>{money(value(s))}</span>
-                    <StatsRow s={s} money={money} t={t} inline />
+                    <StatsRow s={s} money={moneyBase} t={t} inline />
                   </div>
                 ))}
               </div>
