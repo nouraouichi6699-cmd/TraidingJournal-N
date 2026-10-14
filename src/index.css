@@ -298,7 +298,3 @@ h1, h2, h3, h4, h5, h6 {
 .ch-fade { animation: ch-fade .35s ease both; }
 .ch-bar { animation: ch-grow .6s cubic-bezier(.3,.7,.2,1) both; transition: opacity .15s; }
 @media (prefers-reduced-motion: reduce) { .ch-line, .ch-fade, .ch-bar { animation: none; } }
-
-.dash-card{grid-row:span var(--h)}
-@media (min-width:640px) and (max-width:1023px){.dash-card[data-w="2"],.dash-card[data-w="3"],.dash-card[data-w="4"]{grid-column:span 2}}
-@media (min-width:1024px){.dash-card{grid-column:span var(--w)}}
