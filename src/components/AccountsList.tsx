@@ -1,4 +1,5 @@
 import { CandlestickChart, Server, Trash2, SquarePlus } from "lucide-react";
+import Private from "./Private";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Trade } from "../types";
 import { computeStats, fmt } from "../lib/stats";
@@ -71,18 +72,18 @@ export default function AccountsList({ t, accounts, onRemove, onConnect, trades,
                 </button>
               </div>
               <p className="tnum text-2xl font-semibold" dir="ltr">
-                {fmt(current)} <span className="text-sm text-muted">{a.currency}</span>
+                <Private hint={t("privacyReveal")}>{fmt(current)} <span className="text-sm text-muted">{a.currency}</span></Private>
               </p>
               <Sparkline points={bal} />
               {st.count > 0 ? (
                 <dl className="grid grid-cols-3 gap-2 text-xs">
                   <div><dt className="text-muted">{t("tradesCount")}</dt><dd className="tnum font-semibold" dir="ltr">{st.count}</dd></div>
                   <div><dt className="text-muted">{t("winRate")}</dt><dd className="tnum font-semibold" dir="ltr">{st.winRate != null ? `${st.winRate.toFixed(0)}%` : "—"}</dd></div>
-                  <div><dt className="text-muted">{t("netPnl")}</dt><dd className={`tnum font-semibold ${st.net >= 0 ? "text-profit" : "text-loss"}`} dir="ltr">{st.net > 0 ? "+" : ""}{fmt(st.net)}</dd></div>
+                  <div><dt className="text-muted">{t("netPnl")}</dt><dd className={`tnum font-semibold ${st.net >= 0 ? "text-profit" : "text-loss"}`} dir="ltr"><Private hint={t("privacyReveal")}>{st.net > 0 ? "+" : ""}{fmt(st.net)}</Private></dd></div>
                 </dl>
               ) : (
                 <p className="text-xs text-muted">
-                  {a.login ? <span dir="ltr">#{a.login} · </span> : null}
+                  {a.login ? <span dir="ltr"><Private hint={t("privacyReveal")}>#{a.login}</Private> · </span> : null}
                   {t("awaiting")}
                 </p>
               )}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart } from "lucide-react";
 import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
+import { usePrivacy } from "../usePrivacy";
 import { fmt, computeStats } from "../lib/stats";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
@@ -174,6 +175,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
     ro.observe(wrap.current);
     return () => ro.disconnect();
   }, []);
+  const { hidden: hide } = usePrivacy();
   const gid = useRef(`g${Math.random().toString(36).slice(2, 7)}`).current;
 
   const bars = kind === "bars";
@@ -295,7 +297,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
         {ticks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.9 : 0.35} />
-            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : `${v < 0 ? "-" : ""}${cur}${fmt(Math.abs(v), dec)}`}</text>
+            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : hide ? "•••" : `${v < 0 ? "-" : ""}${cur}${fmt(Math.abs(v), dec)}`}</text>
           </g>
         ))}
 
@@ -329,7 +331,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
             {series.map((s, k) => {
               const last = drawn[k][drawn[k].length - 1];
               const lv = s.pts[s.pts.length - 1].v;
-              const text = pct ? `${lv > 0 ? "+" : ""}${fmt(lv, 1)}%` : `${lv < 0 ? "-" : ""}${cur}${fmt(Math.abs(lv), 0)}`;
+              const text = pct ? `${lv > 0 ? "+" : ""}${fmt(lv, 1)}%` : hide ? "•••" : `${lv < 0 ? "-" : ""}${cur}${fmt(Math.abs(lv), 0)}`;
               const bw = text.length * 7.2 + 16;
               return (
                 <g key={`e${s.id}`}>
@@ -427,7 +429,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
   const scope = useMemo(() => (byAcc || acc === "all" ? closed : closed.filter((x) => x.accountId === acc)), [closed, acc, byAcc]);
   const accsInView = byAcc || acc === "all" ? accounts : accounts.filter((a) => a.id === acc);
   const currency = accsInView[0]?.currency ?? "USD";
-  const moneyBase = (n: number) => `${n < 0 ? "-" : ""}${currency === "USD" ? "$" : ""}${fmt(Math.abs(n))}${currency === "USD" ? "" : ` ${currency}`}`;
+  const { hidden: hideMoney } = usePrivacy();
+  const moneyBase = (n: number) => hideMoney ? "••••" : `${n < 0 ? "-" : ""}${currency === "USD" ? "$" : ""}${fmt(Math.abs(n))}${currency === "USD" ? "" : ` ${currency}`}`;
 
   const symbols = useMemo(() => [...new Set(scope.map((x) => x.symbol))].sort(), [scope]);
   const items = byAcc ? [ALL, ...accounts.map((a) => a.id)] : [ALL, ...symbols];

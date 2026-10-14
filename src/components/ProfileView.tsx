@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import Private from "./Private";
 import { Camera, Trash2, Info, User, Check } from "lucide-react";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -64,7 +65,7 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
       <section className={`${card} flex flex-wrap items-center justify-between gap-3`}>
         <div>
           <h3 className="mb-1 text-sm font-semibold text-icon">{t("accountSec")}</h3>
-          <p className="text-sm text-muted">{t("signedInAs")} <span className="font-semibold text-text">{email}</span></p>
+          <p className="text-sm text-muted">{t("signedInAs")} <span className="font-semibold text-text"><Private hint={t("privacyReveal")}>{email}</Private></span></p>
         </div>
         <button type="button" onClick={() => supabase.auth.signOut()} className={`${btn} border-icon text-icon hover:bg-primary-tint`}>{t("signOut")}</button>
       </section>

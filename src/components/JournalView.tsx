@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import SymbolIcon from "./SymbolIcon";
+import Private from "./Private";
 import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import { fmt } from "../lib/stats";
 import { pipsOf, weekOfMonth } from "../lib/pips";
@@ -102,9 +103,9 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                     </td>
                     {show("entry") && <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>}
                     {show("exit") && <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>}
-                    {show("size") && <td className="px-4 py-3 tnum" dir="ltr">{x.qty.toLocaleString("en-US")}</td>}
+                    {show("size") && <td className="px-4 py-3 tnum" dir="ltr"><Private hint={t("privacyReveal")}>{x.qty.toLocaleString("en-US")}</Private></td>}
                     {show("pips") && <td className={`px-4 py-3 tnum font-semibold ${tone(pips)}`} dir="ltr">{pips == null ? "—" : signed(pips, 1)}</td>}
-                    {show("pnl") && <td className={`px-4 py-3 tnum font-semibold ${tone(x.pnl)}`} dir="ltr">{x.pnl == null ? "—" : signed(x.pnl)}</td>}
+                    {show("pnl") && <td className={`px-4 py-3 tnum font-semibold ${tone(x.pnl)}`} dir="ltr">{x.pnl == null ? "—" : <Private hint={t("privacyReveal")}>{signed(x.pnl)}</Private>}</td>}
                     <td className="px-4 py-3">
                       {wk ? (<>{t(WEEK_KEYS[Math.min(wk.week, 6) - 1])}<span className="block text-xs text-muted">{monthName(wk.month)}</span></>) : "—"}
                     </td>
@@ -179,7 +180,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                         <button type="button" aria-expanded={open} onClick={() => setOpenMonths(open ? openMonths.filter((m) => m !== ym) : [...openMonths, ym])} className="flex w-full items-center gap-3 px-3 py-2.5 text-start text-sm">
                           <span className="flex-1 font-semibold">{monthName(ym)}</span>
                           <span className="text-xs text-muted">{list.length} {t("monthTrades")}</span>
-                          {show("pnl") && <span className={`tnum font-semibold ${tone(total)}`} dir="ltr">{signed(total)}</span>}
+                          {show("pnl") && <span className={`tnum font-semibold ${tone(total)}`} dir="ltr"><Private hint={t("privacyReveal")}>{signed(total)}</Private></span>}
                           <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180" : ""}`} />
                         </button>
                         {open && <div className="border-t border-border">{renderTable(list)}</div>}

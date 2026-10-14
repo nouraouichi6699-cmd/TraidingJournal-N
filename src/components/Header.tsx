@@ -1,9 +1,10 @@
-import { Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check } from "lucide-react";
+import { Eye, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import Brand from "./Brand";
 import Dropdown from "./Dropdown";
 import Sessions from "./Sessions";
 import NotificationsPanel from "./NotificationsPanel";
+import { usePrivacy } from "../usePrivacy";
 import type { Interests } from "../useInterests";
 import { languages, themeNames, type Key } from "../i18n";
 import type { Lang, Theme } from "../types";
@@ -25,6 +26,7 @@ interface Props {
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
 export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, interests }: Props) {
+  const privacy = usePrivacy();
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
@@ -72,6 +74,10 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             </button>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           </div>
+
+          <button type="button" aria-pressed={privacy.hidden} aria-label={t(privacy.hidden ? "privacyOff" : "privacyOn")} title={t(privacy.hidden ? "privacyOff" : "privacyOn")} onClick={privacy.toggle} className="icon-btn">
+            {privacy.hidden ? <EyeOff {...ic} /> : <Eye {...ic} />}
+          </button>
 
           <Dropdown label={t("language")} trigger={<Globe {...ic} />}>
             {(close) =>
