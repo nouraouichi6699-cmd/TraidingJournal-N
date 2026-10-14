@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Download, X, Wallet, CandlestickChart } from "lucide-react";
+import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart } from "lucide-react";
 import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
 import { fmt, computeStats } from "../lib/stats";
@@ -160,6 +160,14 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
   const [w, setW] = useState(900);
   const [hover, setHover] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
+  const [focus, setFocus] = useState<string | null>(null); // hover details: one series alone, or all together
+  const [pickOpen, setPickOpen] = useState(false);
+  useEffect(() => {
+    if (!pickOpen) return;
+    const off = (e: MouseEvent) => !wrap.current?.querySelector("[data-pick]")?.contains(e.target as Node) && setPickOpen(false);
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, [pickOpen]);
   useEffect(() => {
     if (!wrap.current) return;
     const ro = new ResizeObserver(([e]) => setW(Math.max(300, e.contentRect.width)));
@@ -232,6 +240,9 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
   const cid = (s: Series) => `${gid}${s.id.replace(/\W/g, "")}`;
   const sig = `${kind}${smooth}${series.map((s) => s.id + s.pts.length).join()}`;
   const single = series.length === 1;
+  const focusId = focus && series.some((x) => x.id === focus) ? focus : null;
+  const hoverSeries = focusId ? series.filter((x) => x.id === focusId) : series;
+  const dim = (id: string) => (focusId && id !== focusId ? 0.22 : 1);
   const multi = series.length > 2; // crowded: colour lines only (no fills, no end badges)
 
   return (
@@ -245,6 +256,32 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
       >
         <Download size={15} className="text-icon" />
       </button>
+      {!bars && series.length > 1 && (
+        <div data-pick className="absolute end-11 top-0 z-20">
+          <button
+            type="button"
+            aria-label={t("chHoverPick")}
+            title={t("chHoverPick")}
+            aria-expanded={pickOpen}
+            onClick={(e) => { e.stopPropagation(); setPickOpen(!pickOpen); }}
+            className={`grid h-8 w-8 place-items-center rounded-lg border bg-surface/80 backdrop-blur transition-opacity hover:border-icon focus:opacity-100 group-hover:opacity-100 ${focusId || pickOpen ? "border-icon opacity-100" : "border-border opacity-0"}`}
+          >
+            <Crosshair size={15} className="text-icon" />
+          </button>
+          {pickOpen && (
+            <div role="menu" className="absolute end-0 top-full mt-1.5 w-52 rounded-xl border border-border bg-surface p-1.5 shadow-xl">
+              <p className="px-2 pb-1 pt-0.5 text-xs font-semibold text-muted">{t("chHoverPick")}</p>
+              {[{ id: null as string | null, name: t("chHoverAll"), color: "" }, ...series.map((x) => ({ id: x.id as string | null, name: x.name, color: x.color }))].map((o) => (
+                <button key={o.id ?? "all"} type="button" role="menuitemradio" aria-checked={focusId === o.id} onClick={(e) => { e.stopPropagation(); setFocus(o.id); setPickOpen(false); }} className="menu-item">
+                  {o.color ? <span className="h-2.5 w-2.5 rounded-full" style={{ background: o.color }} /> : <span className="flex -space-x-1">{series.slice(0, 3).map((x) => <span key={x.id} className="h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: x.color }} />)}</span>}
+                  <span className="flex-1 truncate text-start">{o.name}</span>
+                  {focusId === o.id && <span className="text-icon">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <svg ref={svgRef} width={w} height={height} onPointerMove={move} onPointerLeave={() => setHover(null)} onClick={() => setPinned(pinned == null ? hover : null)} className="block cursor-crosshair" style={{ fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif" }} role="img" aria-label={label}>
         <defs>
           {series.map((s) => (
@@ -284,10 +321,10 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
         ) : (
           <g key={sig} className="ch-fade">
             {!multi && series.map((s, k) => (
-              <path key={`a${s.id}`} d={`${linePath(drawn[k])} V${kind === "dd" ? zeroY : height - padB} H${X(drawn[k][0].t)} Z`} fill={`url(#${cid(s)})`} />
+              <path key={`a${s.id}`} opacity={dim(s.id)} d={`${linePath(drawn[k])} V${kind === "dd" ? zeroY : height - padB} H${X(drawn[k][0].t)} Z`} fill={`url(#${cid(s)})`} />
             ))}
             {series.map((s, k) => (
-              <path key={s.id} d={linePath(drawn[k])} fill="none" stroke={s.color} strokeWidth={multi ? 2 : 2.6} strokeLinecap="round" strokeLinejoin="round" />
+              <path key={s.id} opacity={dim(s.id)} d={linePath(drawn[k])} fill="none" stroke={s.color} strokeWidth={multi ? 2 : 2.6} strokeLinecap="round" strokeLinejoin="round" />
             ))}
             {series.map((s, k) => {
               const last = drawn[k][drawn[k].length - 1];
@@ -311,7 +348,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
         {active != null && !bars && (
           <g>
             <line x1={ax} x2={ax} y1={padT} y2={height - padB} stroke="var(--icon)" strokeOpacity="0.55" strokeDasharray="3 5" />
-            {series.map((s, k) => (
+            {series.map((s, k) => focusId && s.id !== focusId ? null : (
               <g key={s.id}>
                 <circle cx={ax} cy={Y(lerpAt(drawn[k], active))} r="8" fill={s.color} opacity="0.2" />
                 <circle cx={ax} cy={Y(lerpAt(drawn[k], active))} r="4.5" fill={s.color} stroke="var(--bg)" strokeWidth="2" />
@@ -337,7 +374,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
           ) : (
             <>
               <p className="mb-1 text-muted">{fmtDate(active)} · UTC{pinned != null ? " 📌" : ""}</p>
-              {series.map((s) => {
+              {hoverSeries.map((s) => {
                 const v = valueAt(s.pts, active);
                 return (
                   <p key={s.id} className="flex items-center gap-2 py-0.5">
@@ -347,8 +384,8 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
                   </p>
                 );
               })}
-              {single && kind === "line" && (() => {
-                const d = valueAt(series[0].pts, active) - series[0].pts[0].v;
+              {hoverSeries.length === 1 && kind === "line" && (() => {
+                const d = valueAt(hoverSeries[0].pts, active) - hoverSeries[0].pts[0].v;
                 return <p className="mt-1 flex justify-between border-t border-border pt-1 text-muted"><span>{t("chFromStart")}</span><span className="tnum font-semibold" style={{ color: d >= 0 ? GREEN : RED }}>{!pct && d > 0 ? "+" : ""}{money(d)}</span></p>;
               })()}
             </>
