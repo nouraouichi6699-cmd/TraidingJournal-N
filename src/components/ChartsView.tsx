@@ -31,11 +31,15 @@ type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[];
 
 interface Saved {
   metric: Metric; selected: string[]; selectedAcc: string[]; colors: Record<string, string>;
-  range: Range; split: boolean; smooth: boolean; bucket: Bucket;
+  range: Range; split: boolean; smooth: boolean; bucket: Bucket; v?: number;
 }
 const defaults: Saved = { metric: "profit", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day" };
 const load = (): Saved => {
-  try { return { ...defaults, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") }; } catch { return defaults; }
+  try {
+    const p = JSON.parse(localStorage.getItem(STORE) ?? "{}");
+    // v2: curves are smooth by default (older saves may hold the "exact" step style)
+    return { ...defaults, ...p, ...(p.v === 2 ? {} : { smooth: true }), v: 2 } as Saved;
+  } catch { return defaults; }
 };
 
 const inst = (s: string) => s.replace(/^[^:]+:/, "");
@@ -111,6 +115,7 @@ interface ChartProps {
   series: Series[];
   lang: Lang;
   money: (n: number) => string;
+  cur: string;
   height: number;
   label: string;
   title: string;
@@ -119,7 +124,36 @@ interface ChartProps {
   t: (k: Key) => string;
 }
 
-function Chart({ series, lang, money, height, label, title, smooth, kind, t }: ChartProps) {
+// The data ends at this fraction of the width; the rest stays open so the chart reads as "still moving".
+const END_AT = 0.6;
+
+/** Even time grid + light [1,2,1] averaging: the soft, flowing curve of an equity chart. */
+function soften(pts: Pt[], n: number): Pt[] {
+  if (pts.length < 3) return pts;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  if (t1 <= t0) return pts;
+  const grid: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const tt = t0 + ((t1 - t0) * i) / n;
+    grid.push({ t: tt, v: valueAt(pts, tt) });
+  }
+  const out = grid.map((p, i) => (i === 0 || i === n ? p : { t: p.t, v: (grid[i - 1].v + 2 * p.v + grid[i + 1].v) / 4 }));
+  out[n] = { t: t1, v: pts[pts.length - 1].v };
+  return out;
+}
+
+const lerpAt = (pts: Pt[], t0: number) => {
+  if (t0 <= pts[0].t) return pts[0].v;
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].t >= t0) {
+      const a = pts[i - 1], b = pts[i];
+      return a.v + ((b.v - a.v) * (t0 - a.t)) / (b.t - a.t || 1);
+    }
+  }
+  return pts[pts.length - 1].v;
+};
+
+function Chart({ series, lang, money, cur, height, label, title, smooth, kind, t }: ChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [w, setW] = useState(900);
@@ -134,58 +168,57 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
   const gid = useRef(`g${Math.random().toString(36).slice(2, 7)}`).current;
 
   const bars = kind === "bars";
-  const padL = 14, padR = bars ? 70 : 84, padT = 18, padB = 32;
+  const padL = 62, padR = 18, padT = 16, padB = 32;
   const iw = w - padL - padR, ih = height - padT - padB;
 
   // ----- scales -----
   const all = series.flatMap((s) => s.pts);
   const barList = series[0]?.bars ?? [];
-  let xMin = 0, xMax = 1, yMin = 0, yMax = 1;
+  let xMin = 0, xLast = 1, xMax = 1, yMin = 0, yMax = 1;
   if (bars) {
     const vs = barList.map((b) => b.v);
     yMin = Math.min(0, ...vs); yMax = Math.max(0, ...vs);
   } else {
-    xMin = Math.min(...all.map((p) => p.t)); xMax = Math.max(...all.map((p) => p.t));
+    xMin = Math.min(...all.map((p) => p.t)); xLast = Math.max(...all.map((p) => p.t));
+    xMax = xMin + (xLast - xMin) / END_AT;
     yMin = Math.min(...all.map((p) => p.v)); yMax = Math.max(...all.map((p) => p.v));
     if (kind === "dd") yMax = Math.max(yMax, 0);
   }
   const span = yMax - yMin || 1;
-  yMin -= span * (bars || kind === "dd" ? 0.06 : 0.1);
-  yMax += span * (kind === "dd" ? 0.04 : 0.1);
+  yMin -= span * (bars || kind === "dd" ? 0.06 : 0.12);
+  yMax += span * (kind === "dd" ? 0.04 : 0.14);
   const { ticks, step: tickStep } = niceTicks(yMin, yMax);
   const dec = tickStep >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(tickStep)));
-  const X = (t0: number) => padL + ((t0 - xMin) / (xMax - xMin || 1)) * iw;
+  const xEnd = xMax;
+  const X = (t0: number) => padL + ((t0 - xMin) / (xEnd - xMin || 1)) * iw;
   const Y = (v: number) => padT + (1 - (v - yMin) / (yMax - yMin || 1)) * ih;
 
-  const linePath = (pts: Pt[]) => {
-    if (smooth && kind !== "dd") return smoothPath(pts.map((p) => [X(p.t), Y(p.v)]));
-    return pts.map((p, i) => (i === 0 ? `M${X(p.t)} ${Y(p.v)}` : `H${X(p.t)} V${Y(p.v)}`)).join(" ");
-  };
-  const spanMs = xMax - xMin;
+  const drawn = useMemo(
+    () => series.map((s) => (smooth ? soften(s.pts, Math.max(40, Math.min(110, Math.floor(iw * END_AT / 9)))) : s.pts)),
+    [series, smooth, iw],
+  );
+  const linePath = (pts: Pt[]) =>
+    smooth ? smoothPath(pts.map((p) => [X(p.t), Y(p.v)])) : pts.map((p, i) => `${i ? "L" : "M"}${X(p.t)} ${Y(p.v)}`).join(" ");
+
+  const spanMs = xEnd - xMin;
   const fmtTick = (t0: number) =>
     new Intl.DateTimeFormat(lang, spanMs < 2 * DAY ? { hour: "2-digit", minute: "2-digit", timeZone: "UTC" } : spanMs < 75 * DAY ? { day: "numeric", month: "short", timeZone: "UTC" } : { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(t0));
-  const fmtDate = (t0: number, long = false) =>
-    new Intl.DateTimeFormat(lang, long ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" } : { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(t0));
+  const fmtDate = (t0: number) =>
+    new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(t0));
   const fmtBadge = (t0: number) =>
-    spanMs >= 75 * DAY ? fmtDate(t0).replace(/^/, "") : new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", ...(spanMs < 30 * DAY ? { hour: "2-digit", minute: "2-digit" } : {}), timeZone: "UTC" }).format(new Date(t0));
-  const xTicks = Array.from({ length: 5 }, (_, i) => ({ t: xMin + ((xMax - xMin) * i) / 4, i })).filter((tk, k, arr) => k === 0 || fmtTick(tk.t) !== fmtTick(arr[k - 1].t));
+    spanMs >= 75 * DAY ? fmtTick(t0) : new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", ...(spanMs < 30 * DAY ? { hour: "2-digit", minute: "2-digit" } : {}), timeZone: "UTC" }).format(new Date(t0));
+  const xTicks = Array.from({ length: 7 }, (_, i) => ({ t: xMin + ((xMax - xMin) * i) / 6, i })).filter((tk, k, arr) => k === 0 || fmtTick(tk.t) !== fmtTick(arr[k - 1].t));
   const zeroY = Y(0);
 
-  // latest-value badges on the right axis (skip ones that would overlap)
-  const badges: { s: Series; y: number }[] = [];
-  if (!bars) {
-    series.map((s) => ({ s, y: Y(s.pts[s.pts.length - 1].v) })).sort((a, b) => a.y - b.y).forEach((b) => {
-      if (!badges.length || b.y - badges[badges.length - 1].y > 20) badges.push(b);
-    });
-  }
-  // ----- hover (snaps to the nearest real data point) -----
+  // ----- hover (snaps to the nearest real data point, only over the drawn data) -----
   const times = useMemo(() => [...new Set(all.map((p) => p.t))].sort((a, b) => a - b), [series]); // eslint-disable-line react-hooks/exhaustive-deps
   const step = bars ? iw / Math.max(1, barList.length) : 0;
   const move = (e: React.PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const px = e.clientX - r.left;
     if (bars) { setHover(Math.min(barList.length - 1, Math.max(0, Math.floor((px - padL) / step)))); return; }
-    const tt = xMin + ((px - padL) / iw) * (xMax - xMin);
+    if (px > X(xLast) + 24 || px < padL - 8) { setHover(null); return; }
+    const tt = xMin + ((px - padL) / iw) * (xEnd - xMin);
     let lo = 0, hi = times.length - 1;
     while (lo < hi) { const mid = (lo + hi) >> 1; if (times[mid] < tt) lo = mid + 1; else hi = mid; }
     const a = times[Math.max(0, lo - 1)], b = times[lo];
@@ -193,11 +226,11 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
   };
   const active = pinned ?? hover;
   const ax = active == null ? 0 : bars ? padL + (active + 0.5) * step : X(active);
-  const tipLeft = active != null && ax > w * 0.6;
-
+  const tipLeft = active != null && ax > w * 0.55;
 
   const cid = (s: Series) => `${gid}${s.id.replace(/\W/g, "")}`;
   const sig = `${kind}${smooth}${series.map((s) => s.id + s.pts.length).join()}`;
+  const single = series.length === 1;
 
   return (
     <div ref={wrap} className="group relative select-none" dir="ltr">
@@ -214,25 +247,24 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
         <defs>
           {series.map((s) => (
             <linearGradient key={s.id} id={cid(s)} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={s.color} stopOpacity={series.length > 1 ? 0.16 : 0.34} />
-              <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+              <stop offset="0%" stopColor={s.color} stopOpacity={single ? 0.5 : 0.2} />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0.02" />
             </linearGradient>
           ))}
-          
         </defs>
 
         {ticks.map((v) => (
           <g key={v}>
-            <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.95 : 0.55} strokeDasharray={v === 0 ? undefined : "2 6"} />
-            {badges.every((b) => Math.abs(b.y - Y(v)) > 15) && <text x={w - padR + 12} y={Y(v) + 4} fontSize="11" fill="var(--muted)" className="tnum">{fmt(v === 0 ? 0 : v, dec)}</text>}
+            <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.9 : 0.35} />
+            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{v < 0 ? "-" : ""}{cur}{fmt(Math.abs(v), dec)}</text>
           </g>
         ))}
 
         {!bars && xTicks.map((tk) => (
-          <text key={tk.i} x={X(tk.t)} y={height - 9} fontSize="11" fill="var(--muted)" textAnchor={tk.i === 0 ? "start" : tk.i === 4 ? "end" : "middle"}>{fmtTick(tk.t)}</text>
+          <text key={tk.i} x={X(tk.t)} y={height - 9} fontSize="11.5" fill="var(--muted)" textAnchor={tk.i === 0 ? "start" : tk.i === 6 ? "end" : "middle"}>{fmtTick(tk.t)}</text>
         ))}
         {bars && barList.map((b, i) => (i % Math.max(1, Math.ceil(barList.length / 8)) === 0 ? (
-          <text key={b.key} x={padL + (i + 0.5) * step} y={height - 9} fontSize="11" fill="var(--muted)" textAnchor="middle">{b.label}</text>
+          <text key={b.key} x={padL + (i + 0.5) * step} y={height - 9} fontSize="11.5" fill="var(--muted)" textAnchor="middle">{b.label}</text>
         ) : null))}
 
         {bars ? (
@@ -249,39 +281,35 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
           </g>
         ) : (
           <g key={sig} className="ch-fade">
-            {series.length === 1 && series[0].pts.length > 1 && (
-              <path d={`${linePath(series[0].pts)} V${kind === "dd" ? zeroY : height - padB} H${X(series[0].pts[0].t)} Z`} fill={`url(#${cid(series[0])})`} />
-            )}
-            {series.length > 1 && series.map((s) => (
-              <path key={`a${s.id}`} d={`${linePath(s.pts)} V${height - padB} H${X(s.pts[0].t)} Z`} fill={`url(#${cid(s)})`} />
+            {series.map((s, k) => (
+              <path key={`a${s.id}`} d={`${linePath(drawn[k])} V${kind === "dd" ? zeroY : height - padB} H${X(drawn[k][0].t)} Z`} fill={`url(#${cid(s)})`} />
             ))}
-            {series.map((s) => (
-              <path key={s.id} d={linePath(s.pts)} pathLength={1} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            {series.map((s, k) => (
+              <path key={s.id} d={linePath(drawn[k])} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
             ))}
-            {series.map((s) => {
-              const p = s.pts[s.pts.length - 1];
+            {series.map((s, k) => {
+              const last = drawn[k][drawn[k].length - 1];
+              const text = `${last.v < 0 ? "-" : ""}${cur}${fmt(Math.abs(s.pts[s.pts.length - 1].v), 0)}`;
+              const bw = text.length * 7.2 + 16;
               return (
                 <g key={`e${s.id}`}>
-                  <circle cx={X(p.t)} cy={Y(p.v)} r="3.5" fill={s.color} />
+                  <line x1={X(last.t)} x2={w - padR} y1={Y(last.v)} y2={Y(last.v)} stroke={s.color} strokeOpacity="0.4" strokeDasharray="2 7" strokeLinecap="round" />
+                  <circle cx={X(last.t)} cy={Y(last.v)} r="4" fill={s.color} stroke="var(--surface)" strokeWidth="2" />
+                  <rect x={X(last.t) + 12} y={Y(last.v) - 11} width={bw} height="22" rx="7" fill={s.color} />
+                  <text x={X(last.t) + 12 + bw / 2} y={Y(last.v) + 4} fontSize="11.5" fontWeight="700" textAnchor="middle" fill="#111" className="tnum">{text}</text>
                 </g>
               );
             })}
-            {badges.map(({ s, y }) => (
-              <g key={`b${s.id}`}>
-                <rect x={w - padR + 6} y={y - 10} width={padR - 8} height="20" rx="6" fill={s.color} />
-                <text x={w - padR + 6 + (padR - 8) / 2} y={y + 4} fontSize="11" fontWeight="700" textAnchor="middle" fill="#111" className="tnum">{fmt(s.pts[s.pts.length - 1].v, 0)}</text>
-              </g>
-            ))}
           </g>
         )}
 
         {active != null && !bars && (
           <g>
-            <line x1={ax} x2={ax} y1={padT} y2={height - padB} stroke="var(--icon)" strokeOpacity="0.7" strokeDasharray="4 5" />
-            {series.map((s) => (
+            <line x1={ax} x2={ax} y1={padT} y2={height - padB} stroke="var(--icon)" strokeOpacity="0.55" strokeDasharray="3 5" />
+            {series.map((s, k) => (
               <g key={s.id}>
-                <circle cx={ax} cy={Y(valueAt(s.pts, active))} r="8" fill={s.color} opacity="0.22" />
-                <circle cx={ax} cy={Y(valueAt(s.pts, active))} r="4.5" fill={s.color} stroke="var(--bg)" strokeWidth="2" />
+                <circle cx={ax} cy={Y(lerpAt(drawn[k], active))} r="8" fill={s.color} opacity="0.2" />
+                <circle cx={ax} cy={Y(lerpAt(drawn[k], active))} r="4.5" fill={s.color} stroke="var(--bg)" strokeWidth="2" />
               </g>
             ))}
             <rect x={Math.min(Math.max(ax - 52, padL), w - padR - 104)} y={height - padB + 4} width="104" height="20" rx="6" fill="var(--icon)" />
@@ -303,7 +331,7 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
             </>
           ) : (
             <>
-              <p className="mb-1 text-muted">{fmtDate(active, true)} · UTC{pinned != null ? " 📌" : ""}</p>
+              <p className="mb-1 text-muted">{fmtDate(active)} · UTC{pinned != null ? " 📌" : ""}</p>
               {series.map((s) => {
                 const v = valueAt(s.pts, active);
                 return (
@@ -314,7 +342,7 @@ function Chart({ series, lang, money, height, label, title, smooth, kind, t }: C
                   </p>
                 );
               })}
-              {series.length === 1 && kind === "line" && (() => {
+              {single && kind === "line" && (() => {
                 const d = valueAt(series[0].pts, active) - series[0].pts[0].v;
                 return <p className="mt-1 flex justify-between border-t border-border pt-1 text-muted"><span>{t("chFromStart")}</span><span className="tnum font-semibold" style={{ color: d >= 0 ? GREEN : RED }}>{d > 0 ? "+" : ""}{money(d)}</span></p>;
               })()}
@@ -620,14 +648,14 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
                 <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
                   <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
                     <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{money(value(s))}</span></p>
-                  <Chart series={[s]} lang={lang} money={money} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
+                  <Chart series={[s]} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
                   <StatsRow s={s} money={money} t={t} />
                 </div>
               ))}
             </div>
           ) : (
             <div className="mt-4">
-              <Chart series={series} lang={lang} money={money} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
+              <Chart series={series} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
               <div className="mt-3 flex flex-col gap-2">
                 {series.map((s) => (
                   <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border px-3 py-2" dir="ltr">
