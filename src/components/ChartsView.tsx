@@ -232,6 +232,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
   const cid = (s: Series) => `${gid}${s.id.replace(/\W/g, "")}`;
   const sig = `${kind}${smooth}${series.map((s) => s.id + s.pts.length).join()}`;
   const single = series.length === 1;
+  const multi = series.length > 2; // crowded: colour lines only (no fills, no end badges)
 
   return (
     <div ref={wrap} className="group relative select-none" dir="ltr">
@@ -282,11 +283,11 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
           </g>
         ) : (
           <g key={sig} className="ch-fade">
-            {series.map((s, k) => (
+            {!multi && series.map((s, k) => (
               <path key={`a${s.id}`} d={`${linePath(drawn[k])} V${kind === "dd" ? zeroY : height - padB} H${X(drawn[k][0].t)} Z`} fill={`url(#${cid(s)})`} />
             ))}
             {series.map((s, k) => (
-              <path key={s.id} d={linePath(drawn[k])} fill="none" stroke={s.color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path key={s.id} d={linePath(drawn[k])} fill="none" stroke={s.color} strokeWidth={multi ? 2 : 2.6} strokeLinecap="round" strokeLinejoin="round" />
             ))}
             {series.map((s, k) => {
               const last = drawn[k][drawn[k].length - 1];
@@ -295,10 +296,12 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
               const bw = text.length * 7.2 + 16;
               return (
                 <g key={`e${s.id}`}>
+                  {multi ? <circle cx={X(last.t)} cy={Y(last.v)} r="3.5" fill={s.color} /> : <>
                   <line x1={X(last.t)} x2={w - padR} y1={Y(last.v)} y2={Y(last.v)} stroke={s.color} strokeOpacity="0.4" strokeDasharray="2 7" strokeLinecap="round" />
                   <circle cx={X(last.t)} cy={Y(last.v)} r="4" fill={s.color} stroke="var(--surface)" strokeWidth="2" />
                   <rect x={X(last.t) + 12} y={Y(last.v) - 11} width={bw} height="22" rx="7" fill={s.color} />
                   <text x={X(last.t) + 12 + bw / 2} y={Y(last.v) + 4} fontSize="11.5" fontWeight="700" textAnchor="middle" fill="#111" className="tnum">{text}</text>
+                  </>}
                 </g>
               );
             })}
