@@ -10,7 +10,7 @@ export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 export const GREEN = "#22c55e", RED = "#f87171";
 
 export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang }
-export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; render: (c: Ctx) => ReactNode }
+export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; gauge?: boolean; render: (c: Ctx) => ReactNode }
 
 const tone = (n: number) => (n > 0 ? GREEN : n < 0 ? RED : "var(--text)");
 export const money = (c: Ctx, n: number, sign = true) => (c.hide ? "••••" : `${sign && n > 0 ? "+" : ""}${fmt(n)}`);
@@ -32,23 +32,23 @@ const Empty = ({ lang }: { lang: Lang }) => <div className="grid h-full place-it
 const Hidden = () => <div className="grid h-full place-items-center text-xl tracking-widest text-muted">••••</div>;
 const big = (extra?: string) => ({ fontSize: "clamp(1.4rem,min(30cqh,14cqw),3.4rem)", lineHeight: 1, ...(extra ? { color: extra } : {}) });
 
-function Donut({ pct, color, label }: { pct: number; color: string; label: string }) {
+function Donut({ pct, label }: { pct: number; color?: string; label: string }) {
   const r = 40, c = 2 * Math.PI * r;
   return (
     <svg viewBox="0 0 100 100" className="h-full max-h-full w-full" style={{ maxWidth: "100%" }}>
-      <circle cx="50" cy="50" r={r} fill="none" stroke="color-mix(in srgb,var(--text) 10%,transparent)" strokeWidth="11" />
-      <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} transform="rotate(-90 50 50)" style={{ transition: "stroke-dasharray .6s ease" }} />
+      <circle cx="50" cy="50" r={r} fill="none" stroke="var(--gauge-track)" strokeWidth="11" />
+      <circle cx="50" cy="50" r={r} fill="none" stroke="var(--gauge-arc)" strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} transform="rotate(-90 50 50)" style={{ transition: "stroke-dasharray .6s ease", filter: "var(--gauge-glow)" }} />
       <text x="50" y="55" textAnchor="middle" fontSize="19" fontWeight="700" fill="currentColor" className="tnum">{label}</text>
     </svg>
   );
 }
 
-function HalfGauge({ v, max, color }: { v: number; max: number; color: string }) {
+function HalfGauge({ v, max }: { v: number; max: number; color?: string }) {
   const f = Math.max(0, Math.min(1, v / max)), r = 40, L = Math.PI * r;
   return (
     <svg viewBox="0 0 100 56" className="h-full w-full">
-      <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="color-mix(in srgb,var(--text) 10%,transparent)" strokeWidth="11" strokeLinecap="round" />
-      <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke={color} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${f * L} ${L}`} style={{ transition: "stroke-dasharray .6s ease" }} />
+      <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="var(--gauge-track)" strokeWidth="11" strokeLinecap="round" />
+      <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="var(--gauge-arc)" strokeWidth="11" strokeLinecap="round" strokeDasharray={`${f * L} ${L}`} style={{ transition: "stroke-dasharray .6s ease", filter: "var(--gauge-glow)" }} />
     </svg>
   );
 }
@@ -255,11 +255,11 @@ const S = (label: L, c: Ctx) => label[c.lang];
 export const DEFS: Def[] = [
   { id: "net", icon: <DollarSign size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Net P&L", "صافي الربح والخسارة", "P&L net"), info: TR("Total profit or loss of all closed trades in the selected period.", "إجمالي ربح أو خسارة كل الصفقات المغلقة في الفترة المختارة.", "Résultat total des trades clôturés sur la période."),
     render: (c) => <Kpi value={money(c, c.m.net)} color={c.hide ? undefined : tone(c.m.net)} sub={`${c.m.n} ${S(TR("trades", "صفقة", "trades"), c)}`} /> },
-  { id: "win", icon: <Percent size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trade win %", "نسبة ربح الصفقات", "Taux de trades gagnants"), info: TR("Winning trades ÷ closed trades.", "الصفقات الرابحة ÷ الصفقات المغلقة.", "Trades gagnants ÷ trades clôturés."),
+  { id: "win", gauge: true, icon: <Percent size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trade win %", "نسبة ربح الصفقات", "Taux de trades gagnants"), info: TR("Winning trades ÷ closed trades.", "الصفقات الرابحة ÷ الصفقات المغلقة.", "Trades gagnants ÷ trades clôturés."),
     render: (c) => c.m.winRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.winRate, 1)}%`} sub={`${c.m.wins}W · ${c.m.losses}L`} visual={<Donut pct={c.m.winRate} color={GREEN} label="" />} /> },
-  { id: "pf", icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Profit factor", "معامل الربح", "Facteur de profit"), info: TR("Gross profit ÷ gross loss. Above 1 means profitable.", "إجمالي الربح ÷ إجمالي الخسارة. أعلى من 1 يعني رابحًا.", "Gains bruts ÷ pertes brutes. >1 = rentable."),
+  { id: "pf", gauge: true, icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Profit factor", "معامل الربح", "Facteur de profit"), info: TR("Gross profit ÷ gross loss. Above 1 means profitable.", "إجمالي الربح ÷ إجمالي الخسارة. أعلى من 1 يعني رابحًا.", "Gains bruts ÷ pertes brutes. >1 = rentable."),
     render: (c) => c.m.pf == null ? (c.m.wins ? <Kpi value="∞" /> : <Empty lang={c.lang} />) : <Kpi value={fmt(c.m.pf)} visual={<HalfGauge v={c.m.pf} max={3} color={c.m.pf >= 1 ? GREEN : RED} />} /> },
-  { id: "day", icon: <CalendarDays size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Day win %", "نسبة ربح الأيام", "Jours gagnants"), info: TR("Profitable trading days ÷ all trading days.", "أيام التداول الرابحة ÷ كل أيام التداول.", "Jours gagnants ÷ jours de trading."),
+  { id: "day", gauge: true, icon: <CalendarDays size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Day win %", "نسبة ربح الأيام", "Jours gagnants"), info: TR("Profitable trading days ÷ all trading days.", "أيام التداول الرابحة ÷ كل أيام التداول.", "Jours gagnants ÷ jours de trading."),
     render: (c) => c.m.dayWinRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.dayWinRate, 1)}%`} sub={`${c.m.days.length} ${S(TR("days", "يوم", "jours"), c)}`} visual={<Donut pct={c.m.dayWinRate} color={GREEN} label="" />} /> },
   { id: "avg", icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Avg win/loss trade", "متوسط الربح/الخسارة", "Gain/perte moyen"), info: TR("Average winning trade ÷ average losing trade.", "متوسط الصفقة الرابحة ÷ متوسط الصفقة الخاسرة.", "Gain moyen ÷ perte moyenne."),
     render: (c) => {

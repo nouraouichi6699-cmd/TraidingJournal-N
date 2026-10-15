@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --gauge-bg: #000000; --gauge-track: #2a2a2a; --gauge-arc: #ffc107; --gauge-glow: drop-shadow(0 0 5px rgba(255,193,7,.55));
   --bg: #061126;
   --surface: #0b1c3d;
   --border: #1d3466;
@@ -25,6 +26,7 @@
 }
 
 [data-theme="light"] {
+  --gauge-bg: var(--surface); --gauge-track: #e3e7f0; --gauge-arc: var(--primary); --gauge-glow: none;
   --icon: #946900;
   --bg: #f3f5fa;
   --surface: #ffffff;
