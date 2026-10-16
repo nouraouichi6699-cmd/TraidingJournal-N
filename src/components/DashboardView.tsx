@@ -208,7 +208,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
                 style={narrow ? { height: Math.max(it.h * rowH, 130) } : { left: g.x, top: g.y, width: g.w, height: g.h, zIndex: busy ? 50 : 1, padding: PAD, transition: busy ? "none" : "left .22s ease, top .22s ease, width .22s ease, height .22s ease" }}>
                 <div className={`group relative flex h-full flex-col rounded-2xl border p-4 ${can ? "cursor-grab select-none" : "transition hover:border-primary/50"} ${busy ? "cursor-grabbing" : ""}`}
                   style={{
-                    background: d.gauge ? "var(--gauge-bg)" : "linear-gradient(155deg, var(--surface), color-mix(in srgb, var(--surface) 92%, var(--primary) 8%))",
+                    background: d.gauge ? "var(--gauge-bg)" : "var(--card-bg)",
                     borderColor: busy ? "var(--primary)" : can ? "color-mix(in srgb,var(--primary) 45%,var(--border))" : "var(--border)",
                     boxShadow: busy ? "0 22px 44px -14px rgba(0,0,0,.6), 0 0 0 1px var(--primary)" : "0 1px 0 rgba(255,255,255,.03) inset",
                     touchAction: can ? "none" : undefined,
