@@ -90,7 +90,9 @@ function applyRemote(t: Tbl, rows: Row[], meta: Meta): boolean {
   return true;
 }
 
+let pullOk = false;
 async function pull(uid: string, meta: Meta): Promise<boolean> {
+  pullOk = false;
   const cur = rd<Partial<Record<Tbl, string>>>(CUR, {});
   let any = false;
   for (const t of TBLS) {
@@ -109,6 +111,7 @@ async function pull(uid: string, meta: Meta): Promise<boolean> {
     }
   }
   wr(CUR, cur); wr(META, meta);
+  pullOk = true;
   return any;
 }
 
@@ -153,21 +156,53 @@ async function push(uid: string, meta: Meta): Promise<void> {
   wr(META, meta);
 }
 
+// Reconcile: drop local rows that were synced before but no longer exist in the cloud (hard-deleted elsewhere).
+// Rows pending push (offline edits, new rows) are never removed. Any request error aborts without removing anything.
+let lastRec = 0;
+const RCOLS: Record<Tbl, string> = { accounts: "id", trades: "key", balance_points: "id,account_id,t" };
+const ROWID: Record<Tbl, string> = { accounts: "id", trades: "key", balance_points: "id" };
+async function reconcile(uid: string, meta: Meta): Promise<boolean> {
+  if (Date.now() - lastRec < 60000) return false;
+  const remote: Record<Tbl, Set<string>> = { accounts: new Set(), trades: new Set(), balance_points: new Set() };
+  for (const t of TBLS) {
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from(t).select(RCOLS[t]).eq("user_id", uid).is("deleted_at", null).order(ROWID[t]).range(from, from + 999);
+      if (error || !data) return false;
+      for (const r of data as unknown as Row[]) remote[t].add(idOf(t, r));
+      if (data.length < 1000) break;
+    }
+  }
+  lastRec = Date.now();
+  const gone = (t: Tbl, id: string) => { const m = meta[t][id]; return !!m && !m.p && !m.d && !remote[t].has(id); };
+  const l = local();
+  const accounts = l.accounts.filter((a) => !gone("accounts", a.id));
+  const trades = l.trades.filter((x) => !gone("trades", x.key));
+  const balances: Record<string, BalancePoint[]> = {};
+  for (const [a, ps] of Object.entries(l.balances)) { const keep = ps.filter((p) => !gone("balance_points", `${a}|${p.t}`)); if (keep.length) balances[a] = keep; }
+  const changed = accounts.length !== l.accounts.length || trades.length !== l.trades.length || JSON.stringify(balances) !== JSON.stringify(l.balances);
+  for (const t of TBLS) for (const id of Object.keys(meta[t])) if (gone(t, id)) delete meta[t][id];
+  if (changed) { wr(ACC, accounts); wr(JNL, { trades, balances }); wr(META, meta); }
+  return changed;
+}
+
 let running = false, paused = false;
 export const syncPaused = () => paused;
 export const resumeSync = () => { paused = false; };
 /** Stop background sync and wait for an in-flight cycle (used before wiping cloud data). */
 export async function haltSync() { paused = true; for (let i = 0; i < 50 && running; i++) await new Promise((r) => setTimeout(r, 100)); }
-async function cycle(uid: string, first: boolean) {
+async function cycle(uid: string, first: boolean, focus = false) {
   if (running || paused) return;
   running = true;
   try {
     const meta = loadMeta();
     let changed = false;
-    if (first) changed = await pull(uid, meta); // adopt cloud rows before judging local ones
+    if (first || focus) {
+      changed = await pull(uid, meta); // adopt cloud rows before judging local ones
+      if (pullOk && (await reconcile(uid, meta))) changed = true; // before any push, so stale data is never re-uploaded
+    }
     scan(meta); wr(META, meta);
     await push(uid, meta);
-    if (!first) changed = await pull(uid, meta);
+    if (!first && !focus) changed = await pull(uid, meta);
     if (changed) window.dispatchEvent(new Event(PULLED));
   } catch {} finally { running = false; }
 }
@@ -196,9 +231,10 @@ export async function initialSync(uid: string): Promise<void> {
 export function startRowSync(uid: string): () => void {
   const raw = () => { try { return (localStorage.getItem(ACC) ?? "") + (localStorage.getItem(JNL) ?? ""); } catch { return ""; } };
   let last = raw(), tick = 0;
-  const run = () => { if (navigator.onLine) void cycle(uid, false); };
+  const run = (focus = false) => { if (navigator.onLine) void cycle(uid, false, focus); };
   const id = window.setInterval(() => { const r = raw(); if (r !== last || ++tick % 4 === 0) { last = r; run(); } }, 2500);
-  const vis = () => { if (document.visibilityState === "visible") run(); };
-  window.addEventListener("online", run); document.addEventListener("visibilitychange", vis);
-  return () => { clearInterval(id); window.removeEventListener("online", run); document.removeEventListener("visibilitychange", vis); };
+  const vis = () => { if (document.visibilityState === "visible") run(true); };
+  const online = () => run();
+  window.addEventListener("online", online); document.addEventListener("visibilitychange", vis);
+  return () => { clearInterval(id); window.removeEventListener("online", online); document.removeEventListener("visibilitychange", vis); };
 }

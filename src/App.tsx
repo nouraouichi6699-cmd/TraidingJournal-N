@@ -78,7 +78,9 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
                   // Hard delete, children before parents (foreign keys).
                   for (const tbl of ["trades", "balance_points", "accounts", "user_settings"]) {
                     const { error } = await supabase.from(tbl).delete().eq("user_id", userId);
-                    if (error) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error.message})`); return; }
+                    // delete() reports no error when RLS matches 0 rows, so count what is left.
+                    const left = error ? null : await supabase.from(tbl).select("*", { count: "exact", head: true }).eq("user_id", userId);
+                    if (error || left?.error || left?.count) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error?.message ?? left?.error?.message ?? `${left?.count} rows left`})`); return; }
                   }
                   await supabase.auth.signOut();
                   try {

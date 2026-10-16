@@ -37,7 +37,9 @@ async function push(uid: string, meta: Meta) {
 }
 
 /** Apply remote values that are newer than the local ones. */
+let pullOk = false;
 async function pull(uid: string, meta: Meta) {
+  pullOk = false;
   const cur = rd<string | null>(CUR, null);
   let q = supabase.from("user_settings").select("*").eq("user_id", uid).order("synced_at", { ascending: true });
   if (cur) q = q.gt("synced_at", new Date(Date.parse(cur) - 5000).toISOString()); // overlap guards against late commits
@@ -49,7 +51,24 @@ async function pull(uid: string, meta: Meta) {
     wr(r.key, r.value);
     meta[r.key] = { u, h: hash(r.value), p: 0 };
   }
+  pullOk = true;
   if (data.length) wr(CUR, (data[data.length - 1] as { synced_at: string }).synced_at);
+  wr(META, meta);
+}
+
+
+// Reconcile: drop local settings that were synced before but no longer exist in the cloud (wiped elsewhere).
+// Keys pending push are kept; any request error aborts without removing anything.
+let lastRec = 0;
+async function reconcile(uid: string, meta: Meta) {
+  if (Date.now() - lastRec < 60000) return;
+  const { data, error } = await supabase.from("user_settings").select("key").eq("user_id", uid).is("deleted_at", null);
+  if (error || !data) return;
+  lastRec = Date.now();
+  const remote = new Set((data as { key: string }[]).map((r) => r.key));
+  for (const k of KEYS) {
+    if (meta[k] && !meta[k].p && !remote.has(k)) { try { localStorage.removeItem(k); } catch {} delete meta[k]; }
+  }
   wr(META, meta);
 }
 
@@ -59,6 +78,7 @@ export async function initialSettingsSync(uid: string): Promise<void> {
     const meta = rd<Meta>(META, {});
     scan(meta); wr(META, meta);
     await pull(uid, meta);
+    if (pullOk) await reconcile(uid, meta); // before push: stale data must not be re-uploaded
     await push(uid, meta);
   } catch {}
 }
@@ -78,5 +98,11 @@ export function startSettingsSync(uid: string): () => void {
     busy = true;
     try { const meta = rd<Meta>(META, {}); scan(meta); wr(META, meta); await push(uid, meta); last = r; } catch {} finally { busy = false; }
   }, 2500);
-  return () => window.clearInterval(id);
+  const onFocus = async () => {
+    if (document.visibilityState !== "visible" || busy || syncPaused() || !navigator.onLine) return;
+    busy = true;
+    try { const meta = rd<Meta>(META, {}); scan(meta); wr(META, meta); await pull(uid, meta); if (pullOk) await reconcile(uid, meta); await push(uid, meta); } catch {} finally { busy = false; }
+  };
+  document.addEventListener("visibilitychange", onFocus);
+  return () => { window.clearInterval(id); document.removeEventListener("visibilitychange", onFocus); };
 }
