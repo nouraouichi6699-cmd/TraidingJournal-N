@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PULLED } from "./lib/rowSync";
 import type { BalancePoint, Trade } from "./types";
 import type { ParsedTrade } from "./lib/tradingview";
 
@@ -21,6 +22,11 @@ export function useJournal() {
   const [store, setStore] = useState<Store>(load);
   // Always read the latest data here: several files can be imported in one go.
   const ref = useRef<Store>(store);
+  useEffect(() => {
+    const on = () => { const n = load(); ref.current = n; setStore(n); };
+    window.addEventListener(PULLED, on);
+    return () => window.removeEventListener(PULLED, on);
+  }, []);
 
   const commit = (next: Store) => {
     ref.current = next;

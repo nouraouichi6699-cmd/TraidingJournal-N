@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
 import { pullCloud, useCloudSync } from "./useCloudSync";
+import { initialSync, startRowSync } from "./lib/rowSync";
 import { useInterests } from "./useInterests";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
@@ -36,6 +37,7 @@ const read = <T extends string>(key: string, allowed: readonly T[], fallback: T,
 function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void; email: string; userId: string }) {
   const t = makeT(lang);
   useCloudSync(userId);
+  useEffect(() => startRowSync(userId), [userId]);
   const interests = useInterests();
   const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
@@ -129,7 +131,7 @@ export default function App() {
 
   const uid = session?.user.id;
   useEffect(() => {
-    if (uid && readyFor !== uid) pullCloud(uid).finally(() => setReadyFor(uid));
+    if (uid && readyFor !== uid) pullCloud(uid).then(() => initialSync(uid)).finally(() => setReadyFor(uid));
   }, [uid, readyFor]);
 
   if (session === undefined || (session && readyFor !== session.user.id))

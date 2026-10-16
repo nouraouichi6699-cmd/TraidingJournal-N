@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PULLED } from "./lib/rowSync";
 import type { Account } from "./types";
 
 const KEY = "mizan-accounts";
@@ -16,6 +17,11 @@ export function useAccounts() {
   const [accounts, setAccounts] = useState<Account[]>(load);
   // Latest list, readable synchronously (several files may be imported in one go).
   const ref = useRef<Account[]>(accounts);
+  useEffect(() => {
+    const on = () => { const n = load(); ref.current = n; setAccounts(n); };
+    window.addEventListener(PULLED, on);
+    return () => window.removeEventListener(PULLED, on);
+  }, []);
 
   const commit = (next: Account[]) => {
     ref.current = next;
