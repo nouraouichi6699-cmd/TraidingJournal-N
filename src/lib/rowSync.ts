@@ -65,8 +65,10 @@ function applyRemote(t: Tbl, rows: Row[], meta: Meta): boolean {
   const accs = new Map(l.accounts.map((a) => [a.id, a]));
   const trs = new Map(l.trades.map((x) => [x.key, x]));
   const bps = new Map(Object.entries(l.balances).flatMap(([a, ps]) => ps.map((p): [string, [string, BalancePoint]] => [`${a}|${p.t}`, [a, p]])));
+  const alive = new Set(l.accounts.map((a) => a.id));
   let changed = false;
   for (const r of rows) {
+    if (t !== "accounts" && !alive.has(r.account_id as string)) continue; // never resurrect rows of a deleted account
     const id = idOf(t, r), m = meta[t][id], u = Date.parse(r.updated_at as string);
     if (m && u <= m.u) continue;
     const del = !!r.deleted_at;

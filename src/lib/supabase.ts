@@ -6,5 +6,3 @@ const key = import.meta.env.VITE_SUPABASE_KEY ?? "sb_publishable_YfWaHqtMmfi6c46
 
 export const supabase = createClient(url, key);
 
-// Legacy blob sync is retired: settings now sync per key via user_settings (src/lib/settingsSync.ts).
-export const SYNC_KEYS = [] as const;
