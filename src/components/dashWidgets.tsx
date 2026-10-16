@@ -7,7 +7,7 @@ import type { Lang, Trade } from "../types";
 
 type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
-export const GREEN = "#22c55e", RED = "#f87171";
+export const GREEN = "#12d65f", RED = "#ff3b4f";
 
 export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang }
 export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; gauge?: boolean; render: (c: Ctx) => ReactNode }
@@ -235,7 +235,7 @@ function CalW({ c }: { c: Ctx }) {
           return [
             ...wk.map((k, i) => {
               const d = k ? map.get(k) : undefined;
-              const a = d ? 0.14 + (Math.abs(d.pnl) / mx) * 0.4 : 0;
+              const a = d ? 0.28 + (Math.abs(d.pnl) / mx) * 0.5 : 0;
               return (
                 <div key={`${wi}-${i}`} title={d ? `${k} · ${d.n}` : undefined} className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary" style={{ background: d ? `color-mix(in srgb, ${d.pnl >= 0 ? GREEN : RED} ${a * 100}%, transparent)` : k ? "color-mix(in srgb,var(--text) 5%,transparent)" : "transparent" }}>
                   <span className="text-[9px] leading-none text-muted">{k ? Number(k.slice(8)) : ""}</span>
