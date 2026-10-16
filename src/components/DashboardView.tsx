@@ -86,10 +86,11 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
     return () => { ro.disconnect(); window.removeEventListener("resize", on); };
   }, []);
 
+  const acc = accounts.some((a) => a.id === filter.acc) ? filter.acc : "all"; // stale saved account falls back to all
   const trades = useMemo(() => {
     const from = fromKey(filter.range);
-    return all.filter((t) => (filter.acc === "all" || t.accountId === filter.acc) && (!from || (dayKey(t) || "9") >= from));
-  }, [all, filter]);
+    return all.filter((t) => (acc === "all" || t.accountId === acc) && (!from || (dayKey(t) || "9") >= from));
+  }, [all, acc, filter.range]);
   const c: Ctx = useMemo(() => { const closed = trades.filter((x) => x.status === "closed" && x.pnl != null); return { trades, closed, m: metrics(closed), hide: hidden, lang }; }, [trades, hidden, lang]);
 
   const narrow = W < 640;
@@ -152,7 +153,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="me-2 font-heading text-lg font-semibold">{L(TT.title)}</h1>
           {accounts.length > 0 && (
-            <select aria-label="account" className="field !w-auto !py-1.5 text-sm" value={filter.acc} onChange={(e) => setFilter({ ...filter, acc: e.target.value })}>
+            <select aria-label="account" className="field !w-auto !py-1.5 text-sm" value={acc} onChange={(e) => setFilter({ ...filter, acc: e.target.value })}>
               <option value="all">{L(TT.allAcc)}</option>
               {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>

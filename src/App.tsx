@@ -4,6 +4,7 @@ import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
 import { pullCloud, useCloudSync } from "./useCloudSync";
 import { initialSync, startRowSync } from "./lib/rowSync";
+import { initialSettingsSync, startSettingsSync } from "./lib/settingsSync";
 import { useInterests } from "./useInterests";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
@@ -38,6 +39,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const t = makeT(lang);
   useCloudSync(userId);
   useEffect(() => startRowSync(userId), [userId]);
+  useEffect(() => startSettingsSync(userId), [userId]);
   const interests = useInterests();
   const { accounts, add, remove, resolveMt5 } = useAccounts();
   const journal = useJournal();
@@ -131,7 +133,7 @@ export default function App() {
 
   const uid = session?.user.id;
   useEffect(() => {
-    if (uid && readyFor !== uid) pullCloud(uid).then(() => initialSync(uid)).finally(() => setReadyFor(uid));
+    if (uid && readyFor !== uid) pullCloud(uid).then(() => Promise.all([initialSync(uid), initialSettingsSync(uid)])).finally(() => setReadyFor(uid));
   }, [uid, readyFor]);
 
   if (session === undefined || (session && readyFor !== session.user.id))

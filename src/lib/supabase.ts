@@ -6,4 +6,5 @@ const key = import.meta.env.VITE_SUPABASE_KEY ?? "sb_publishable_YfWaHqtMmfi6c46
 
 export const supabase = createClient(url, key);
 
-export const SYNC_KEYS = ["mizan-profile", "mizan-news", "mizan-calendar", "mizan-interests", "mizan-journal-cols", "mizan-charts", "mizan-dashboard-v2"] as const;
+// Legacy blob sync is retired: settings now sync per key via user_settings (src/lib/settingsSync.ts).
+export const SYNC_KEYS = [] as const;
