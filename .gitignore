@@ -11,4 +11,6 @@ vitest.config.mjs.timestamp-*.mjs
 vitest.config.cjs.timestamp-*.mjs
 vitest.config.ts.timestamp-*.mjs
 vitest.config.mts.timestamp-*.mjs
-vitest.config.cts.timestamp-*.mjs
+vitest.config.cts.timestamp-*.mjs 
+dist
+*.tsbuildinfo
