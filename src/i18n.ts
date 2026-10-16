@@ -333,6 +333,7 @@ const dict = {
   closeAccount: { en: "Close your account", ar: "إغلاق حسابك", fr: "Fermer votre compte" },
   closeHint: { en: "Erase all your Mizan data (cloud and this browser).", ar: "يمسح كل بياناتك في ميزان (السحابة وهذا المتصفح).", fr: "Efface toutes vos données Mizan (cloud et ce navigateur)." },
   deleteAccount: { en: "Delete account", ar: "حذف الحساب", fr: "Supprimer le compte" },
+  deleteFailed: { en: "Could not delete your cloud data. Nothing was signed out; try again.", ar: "تعذّر حذف بياناتك من السحابة. لم يتم تسجيل الخروج، حاول مرة أخرى.", fr: "Impossible de supprimer vos données cloud. Aucune déconnexion ; réessayez." },
   deleteConfirm: { en: "Delete all accounts, trades and settings? This cannot be undone.", ar: "حذف كل الحسابات والصفقات والإعدادات؟ لا يمكن التراجع.", fr: "Supprimer tous les comptes, trades et réglages ? Action irréversible." },
   prefsSec: { en: "Preferences", ar: "التفضيلات", fr: "Préférences" },
   name: { en: "Name", ar: "الاسم", fr: "Nom" },

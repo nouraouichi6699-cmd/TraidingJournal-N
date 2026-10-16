@@ -153,9 +153,13 @@ async function push(uid: string, meta: Meta): Promise<void> {
   wr(META, meta);
 }
 
-let running = false;
+let running = false, paused = false;
+export const syncPaused = () => paused;
+export const resumeSync = () => { paused = false; };
+/** Stop background sync and wait for an in-flight cycle (used before wiping cloud data). */
+export async function haltSync() { paused = true; for (let i = 0; i < 50 && running; i++) await new Promise((r) => setTimeout(r, 100)); }
 async function cycle(uid: string, first: boolean) {
-  if (running) return;
+  if (running || paused) return;
   running = true;
   try {
     const meta = loadMeta();

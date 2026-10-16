@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { syncPaused } from "./rowSync";
 
 // Per-key, last-write-wins sync of small user settings (profile, dashboard, charts, interests, journal columns).
 // Remote values are applied at startup (before the app mounts); local edits are pushed in the background.
@@ -62,13 +63,18 @@ export async function initialSettingsSync(uid: string): Promise<void> {
   } catch {}
 }
 
+let settingsBusy = () => false;
+/** Resolves once no settings push is in flight. */
+export async function settingsIdle() { for (let i = 0; i < 50 && settingsBusy(); i++) await new Promise((r) => setTimeout(r, 100)); }
+
 /** Background push of local setting edits. */
 export function startSettingsSync(uid: string): () => void {
   const raw = () => KEYS.map((k) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } }).join("|");
   let last = raw(), busy = false;
+  settingsBusy = () => busy;
   const id = window.setInterval(async () => {
     const r = raw();
-    if (r === last || busy || !navigator.onLine) return;
+    if (r === last || busy || syncPaused() || !navigator.onLine) return;
     busy = true;
     try { const meta = rd<Meta>(META, {}); scan(meta); wr(META, meta); await push(uid, meta); last = r; } catch {} finally { busy = false; }
   }, 2500);

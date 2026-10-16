@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
-import { initialSync, startRowSync } from "./lib/rowSync";
-import { initialSettingsSync, startSettingsSync } from "./lib/settingsSync";
+import { initialSync, startRowSync, haltSync, resumeSync } from "./lib/rowSync";
+import { initialSettingsSync, startSettingsSync, settingsIdle } from "./lib/settingsSync";
 import { useInterests } from "./useInterests";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
@@ -74,7 +74,12 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               onSave={saveProfile}
               onDeleteAll={() => {
                 void (async () => {
-                  await supabase.from("user_data").delete().eq("user_id", userId);
+                  await haltSync(); await settingsIdle(); // no background push may re-create rows
+                  // Hard delete, children before parents (foreign keys).
+                  for (const tbl of ["trades", "balance_points", "accounts", "user_settings"]) {
+                    const { error } = await supabase.from(tbl).delete().eq("user_id", userId);
+                    if (error) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error.message})`); return; }
+                  }
                   await supabase.auth.signOut();
                   try {
                     Object.keys(localStorage).filter((k) => k.startsWith("mizan-") && k !== "mizan-lang" && k !== "mizan-theme").forEach((k) => localStorage.removeItem(k));
