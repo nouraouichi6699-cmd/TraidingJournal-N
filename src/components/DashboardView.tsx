@@ -213,7 +213,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
                     boxShadow: busy ? "0 22px 44px -14px rgba(0,0,0,.6), 0 0 0 1px var(--primary)" : "0 1px 0 rgba(255,255,255,.03) inset",
                     touchAction: can ? "none" : undefined,
                   }}>
-                  <div className="mb-2 flex shrink-0 items-center gap-2 text-xs font-medium text-muted">
+                  <div className="mb-2 flex shrink-0 items-center gap-2 text-xs font-semibold text-primary">
                     {can && <GripVertical size={14} className="text-icon" />}
                     <span className="truncate">{L(d.name)}</span>
                     <span className="relative" onPointerDown={(e) => e.stopPropagation()}>
