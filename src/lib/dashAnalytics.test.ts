@@ -35,7 +35,13 @@ const sig = (b: ReturnType<typeof symbolBreakdown>) => b.symbols.map((x) => `${x
   check("yearly: Jan 2026 = +60 over 2 trades", y[0].months[0]?.net === 60 && y[0].months[0]?.n === 2);
   check("yearly: empty month null, open ignored", y[0].months[1] === null && y[0].months[2]?.net === 10);
   check("yearly: YTD = 70 / 3 trades", y[0].ytd.net === 70 && y[0].ytd.n === 3);
-  check("yearly: empty input -> []", yearlyBreakdown([]).length === 0); }
+  check("yearly: empty input -> []", yearlyBreakdown([]).length === 0);
+  const p = yearlyBreakdown([mk(100, "2026-01-05"), mk(-40, "2026-01-20"), mk(10, "2026-03-01"), mk(-5, "2025-12-31")], 1000);
+  check("yearly %: Dec 2025 = -5/1000 = -0.5%", Math.abs((p[1].months[11]?.pct ?? 9) + 0.5) < 1e-9);
+  check("yearly %: Jan 2026 = 60/995 (balance at month start)", Math.abs((p[0].months[0]?.pct ?? 0) - (60 / 995) * 100) < 1e-9);
+  check("yearly %: Mar 2026 = 10/1055", Math.abs((p[0].months[2]?.pct ?? 0) - (10 / 1055) * 100) < 1e-9);
+  check("yearly %: YTD 2026 = 70/995", Math.abs((p[0].ytd.pct ?? 0) - (70 / 995) * 100) < 1e-9);
+  check("yearly %: no start balance -> null", yearlyBreakdown([mk(5, "2026-01-05")], 0)[0].ytd.pct === null); }
 
 // b) data-driven
 const load = (csv: string, st?: string[]) => {

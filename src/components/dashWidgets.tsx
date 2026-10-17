@@ -12,7 +12,7 @@ type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 export const GREEN = "#12d65f", RED = "#ff3b4f";
 
-export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang }
+export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number }
 export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; gauge?: boolean; render: (c: Ctx) => ReactNode }
 
 const tone = (n: number) => (n > 0 ? GREEN : n < 0 ? RED : "var(--text)");
