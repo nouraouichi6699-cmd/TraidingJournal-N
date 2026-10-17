@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Hash, Trophy, Layers, Repeat, Target, LineChart, BarChart3, ListOrdered, CalendarRange, Info, PieChart, Grid3x3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Hash, Trophy, Layers, Repeat, Target, LineChart, BarChart3, ListOrdered, CalendarRange, Info, PieChart, Grid3x3, Flame } from "lucide-react";
 import SymbolsWidget from "./SymbolsWidget";
 import YearlyWidget from "./YearlyWidget";
+import StreakWidget from "./StreakWidget";
 import { symL } from "../i18n";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
@@ -289,6 +290,7 @@ export const DEFS: Def[] = [
   { id: "freq", icon: <Repeat size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trades per day", "الصفقات في اليوم", "Trades par jour"), info: TR("Average trades per trading day.", "متوسط الصفقات في يوم التداول.", "Moyenne par jour de trading."), render: (c) => { const a = computeActivity(c.trades); return a ? <Kpi value={fmt(a.perDay)} sub={`${a.tradingDays} ${S(TR("days", "يوم", "jours"), c)}`} /> : <Empty lang={c.lang} />; } },
   { id: "sym", icon: <PieChart size={14} />, min: { w: 3, h: 4 }, size: { w: 4, h: 5 }, name: symL("title"), info: symL("info"), render: (c) => <SymbolsWidget c={c} /> },
   { id: "year", icon: <Grid3x3 size={14} />, min: { w: 6, h: 2 }, size: { w: 12, h: 3 }, name: symL("yTitle"), info: symL("yInfo"), render: (c) => <YearlyWidget c={c} /> },
+  { id: "streak", icon: <Flame size={14} />, min: { w: 3, h: 2 }, size: { w: 4, h: 2 }, name: symL("sTitle"), info: symL("sInfo"), render: (c) => <StreakWidget c={c} /> },
 ];
-export const DEFAULT_IDS = ["net", "win", "pf", "day", "avg", "score", "cum", "daily", "trades", "cal", "sym", "year"];
+export const DEFAULT_IDS = ["net", "win", "pf", "day", "avg", "score", "cum", "daily", "trades", "cal", "sym", "year", "streak"];
 export { Info };

@@ -56,3 +56,29 @@ export function yearlyBreakdown(trades: Trade[], start = 0): YearRow[] {
   }
   return asc.reverse();
 }
+
+export interface Streak { current: { kind: "win" | "loss" | "none"; n: number }; bestWin: number; worstLoss: number }
+export interface Streaks { trades: Streak; days: Streak }
+
+const runs = (vals: number[]): Streak => {
+  let kind: "win" | "loss" | "none" = "none", n = 0, bestWin = 0, worstLoss = 0;
+  for (const v of vals) {
+    const k = v > 0 ? "win" : v < 0 ? "loss" : "none"; // breakeven breaks a streak
+    if (k === "none") { kind = "none"; n = 0; continue; }
+    if (k === kind) n++; else { kind = k; n = 1; }
+    if (k === "win") bestWin = Math.max(bestWin, n); else worstLoss = Math.max(worstLoss, n);
+  }
+  return { current: { kind, n }, bestWin, worstLoss };
+};
+
+/**
+ * Win/loss streaks over closed trades (ordered by close time, then trade no.) and over trading days (day = close date, net P&L > 0 win, < 0 loss).
+ * A breakeven trade/day resets the current streak. "Worst" = longest losing streak.
+ */
+export function streakBreakdown(trades: Trade[]): Streaks {
+  const closed = trades.filter((t) => t.status === "closed" && t.pnl != null)
+    .sort((a, b) => (a.exitTime || a.entryTime || "").localeCompare(b.exitTime || b.entryTime || "") || a.no - b.no);
+  const day = new Map<string, number>();
+  for (const t of closed) { const d = (t.exitTime || t.entryTime || "").slice(0, 10); if (d) day.set(d, (day.get(d) ?? 0) + (t.pnl as number)); }
+  return { trades: runs(closed.map((t) => t.pnl as number)), days: runs([...day.keys()].sort().map((d) => day.get(d) as number)) };
+}

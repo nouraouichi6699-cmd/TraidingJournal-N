@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/dashAnalytics.test.ts
 import { existsSync, readFileSync } from "node:fs";
-import { symbolBreakdown, yearlyBreakdown } from "./dashAnalytics";
+import { symbolBreakdown, yearlyBreakdown, streakBreakdown } from "./dashAnalytics";
 import { parseTradingViewCsv } from "./tradingview";
 import type { Trade } from "../types";
 
@@ -42,6 +42,17 @@ const sig = (b: ReturnType<typeof symbolBreakdown>) => b.symbols.map((x) => `${x
   check("yearly %: Mar 2026 = 10/1055", Math.abs((p[0].months[2]?.pct ?? 0) - (10 / 1055) * 100) < 1e-9);
   check("yearly %: YTD 2026 = 70/995", Math.abs((p[0].ytd.pct ?? 0) - (70 / 995) * 100) < 1e-9);
   check("yearly %: no start balance -> null", yearlyBreakdown([mk(5, "2026-01-05")], 0)[0].ytd.pct === null); }
+
+// streaks
+{ const mk = (pnl: number, d: string, h = "10", st: "closed" | "open" = "closed") => ({ ...T("A", st, pnl), exitTime: `${d}T${h}:00`, entryTime: `${d}T09:00` });
+  const e = streakBreakdown([]); check("streak: empty -> zeros", e.trades.current.n === 0 && e.trades.bestWin === 0 && e.days.worstLoss === 0);
+  const s1 = streakBreakdown([mk(1, "2026-01-05"), mk(2, "2026-01-05", "11"), mk(3, "2026-01-06"), mk(-1, "2026-01-07"), mk(-1, "2026-01-08"), mk(5, "2026-01-09"), mk(6, "2026-01-12"), mk(7, "2026-01-12", "12")]);
+  check("streak trades: best win 3, worst loss 2", s1.trades.bestWin === 3 && s1.trades.worstLoss === 2);
+  check("streak trades: current = 3 wins", s1.trades.current.kind === "win" && s1.trades.current.n === 3);
+  check("streak days: best 2, worst 2, current 2 wins", s1.days.bestWin === 2 && s1.days.worstLoss === 2 && s1.days.current.kind === "win" && s1.days.current.n === 2);
+  const s2 = streakBreakdown([mk(1, "2026-02-02"), mk(0, "2026-02-03"), mk(1, "2026-02-04")]); check("streak: breakeven resets", s2.trades.bestWin === 1 && s2.trades.current.n === 1);
+  const s3 = streakBreakdown([mk(-1, "2026-02-02"), mk(-2, "2026-02-03"), mk(9, "2026-02-04", "10", "open")]); check("streak: open ignored, current = 2 losses", s3.trades.current.kind === "loss" && s3.trades.current.n === 2);
+  const s4 = streakBreakdown([mk(5, "2026-03-02"), mk(-5, "2026-03-02", "11"), mk(1, "2026-03-03")]); check("streak days: net-zero day resets", s4.days.bestWin === 1 && s4.days.current.n === 1); }
 
 // b) data-driven
 const load = (csv: string, st?: string[]) => {
