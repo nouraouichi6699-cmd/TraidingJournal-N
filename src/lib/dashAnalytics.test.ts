@@ -50,9 +50,11 @@ const sig = (b: ReturnType<typeof symbolBreakdown>) => b.symbols.map((x) => `${x
   check("streak trades: best win 3, worst loss 2", s1.trades.bestWin === 3 && s1.trades.worstLoss === 2);
   check("streak trades: current = 3 wins", s1.trades.current.kind === "win" && s1.trades.current.n === 3);
   check("streak days: best 2, worst 2, current 2 wins", s1.days.bestWin === 2 && s1.days.worstLoss === 2 && s1.days.current.kind === "win" && s1.days.current.n === 2);
-  const s2 = streakBreakdown([mk(1, "2026-02-02"), mk(0, "2026-02-03"), mk(1, "2026-02-04")]); check("streak: breakeven resets", s2.trades.bestWin === 1 && s2.trades.current.n === 1);
+  const s2 = streakBreakdown([mk(1, "2026-02-02"), mk(0, "2026-02-03"), mk(1, "2026-02-04")]); check("streak: breakeven does not break a win streak (1,0,1 -> 2)", s2.trades.bestWin === 2 && s2.trades.current.n === 2 && s2.trades.bestBE === 1);
+  const s5 = streakBreakdown([mk(-1, "2026-04-01"), mk(0, "2026-04-02"), mk(0, "2026-04-03"), mk(-1, "2026-04-06"), mk(1, "2026-04-07"), mk(0, "2026-04-08")]); check("streak: losses 2 across breakevens, best BE run 2, current win 1", s5.trades.worstLoss === 2 && s5.trades.bestBE === 2 && s5.trades.current.kind === "win" && s5.trades.current.n === 1);
+  const s6 = streakBreakdown([mk(0, "2026-04-01")]); check("streak: only breakeven -> no win/loss streak, BE 1", s6.trades.current.n === 0 && s6.trades.bestBE === 1);
   const s3 = streakBreakdown([mk(-1, "2026-02-02"), mk(-2, "2026-02-03"), mk(9, "2026-02-04", "10", "open")]); check("streak: open ignored, current = 2 losses", s3.trades.current.kind === "loss" && s3.trades.current.n === 2);
-  const s4 = streakBreakdown([mk(5, "2026-03-02"), mk(-5, "2026-03-02", "11"), mk(1, "2026-03-03")]); check("streak days: net-zero day resets", s4.days.bestWin === 1 && s4.days.current.n === 1); }
+  const s4 = streakBreakdown([mk(5, "2026-03-02"), mk(-5, "2026-03-02", "11"), mk(1, "2026-03-03")]); check("streak days: net-zero day is skipped", s4.days.bestWin === 1 && s4.days.current.n === 1); }
 
 // b) data-driven
 const load = (csv: string, st?: string[]) => {
