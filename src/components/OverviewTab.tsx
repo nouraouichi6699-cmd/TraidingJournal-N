@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, BarChart3, Info, LayoutGrid, List, ShieldAlert, Target, TrendingUp, Wallet } from "lucide-react";
 import { ovT } from "../i18n";
-import { fmt } from "../lib/stats";
+import { fmt, fmtHold } from "../lib/stats";
 import type { Overview } from "../lib/stats";
 import { usePrivacy } from "../usePrivacy";
 import { Donut, GREEN, HalfGauge, RED } from "./dashWidgets";
@@ -26,7 +26,7 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
       case "int": return String(Math.round(m.v));
       case "lots": return `${fmt(m.v)} ${T("lots")}`;
       case "days": return `${Math.round(m.v)}${T("d")}`;
-      case "time": { const h = Math.floor(m.v / 60), mm = Math.round(m.v % 60); return h ? `${h}h ${mm}m` : `${mm}m`; }
+      case "time": return fmtHold(m.v);
       default: return fmt(m.v);
     }
   };

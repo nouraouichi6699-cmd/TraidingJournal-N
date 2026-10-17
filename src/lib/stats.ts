@@ -19,6 +19,9 @@ export function computeStats(trades: Trade[]) {
   };
 }
 
+/** Minutes -> "1h 24m" (rounds total minutes first so 119.6 -> "2h 0m"). */
+export const fmtHold = (v: number) => { const t = Math.round(v), h = Math.floor(t / 60), m = t % 60; return h ? `${h}h ${m}m` : `${m}m`; };
+
 export const fmt = (n: number, digits = 2) =>
   n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
@@ -67,15 +70,19 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
   const commissions = closed.reduce((a, t) => a + (t.commission || 0), 0);
   const holds = closed.map((t) => { const a = ms(t.entryTime), b = ms(t.exitTime); return a != null && b != null && b >= a ? (b - a) / 60000 : null; }).filter((x): x is number => x != null);
 
-  const totalReturn = n && start > 0 ? s.net / start : null;
+  const totalReturn = n && start > 0 ? s.net / start : null; // fraction; exposed x100
   if (n && totalReturn == null) why.totalReturn = "start";
 
   // Drawdown family (balance based).
   const cv = n ? curve(closed, ids, accounts, balances, from) : [];
-  let peak = -Infinity, peakT = 0, maxAmt = 0, maxPct = 0, under = 0;
+  let inDD = false;
+  let peak = -Infinity, peakT = 0, maxAmt = 0, maxPct = 0, under = 0, lastT = 0;
   for (const pt of cv) {
-    if (pt.v >= peak) { peak = pt.v; peakT = pt.t; } else { maxAmt = Math.max(maxAmt, peak - pt.v); if (peak > 0) maxPct = Math.max(maxPct, (peak - pt.v) / peak); under = Math.max(under, pt.t - peakT); }
+    lastT = pt.t;
+    if (pt.v >= peak) { if (peak > -Infinity && pt.t > peakT && pt.v >= peak && inDD) under = Math.max(under, pt.t - peakT); inDD = false; peak = pt.v; peakT = pt.t; }
+    else { inDD = true; maxAmt = Math.max(maxAmt, peak - pt.v); if (peak > 0) maxPct = Math.max(maxPct, (peak - pt.v) / peak); }
   }
+  if (inDD) under = Math.max(under, lastT - peakT); // drawdown still open: counts until the last trade
   const haveCurve = cv.length >= 2;
   const maxBalDD = haveCurve && (start > 0 || peak > 0) ? maxPct * 100 : null;
   if (n && maxBalDD == null) why.maxBalDD = "balance";
@@ -91,8 +98,15 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
   if (n && days >= 30 && start > 0) {
     const byDay: Record<string, number> = {};
     for (const t of closed) { const d = (t.exitTime ?? t.entryTime ?? "").slice(0, 10); if (d) byDay[d] = (byDay[d] ?? 0) + p(t); }
+    const keys = Object.keys(byDay).sort();
     let bal = start; const r: number[] = [];
-    for (const d of Object.keys(byDay).sort()) { if (bal > 0) r.push(byDay[d] / bal); bal += byDay[d]; }
+    const u = (d: string) => Date.parse(d + "T00:00:00Z");
+    for (let t = u(keys[0]); t <= u(keys[keys.length - 1]); t += 864e5) {
+      const d = new Date(t).toISOString().slice(0, 10), wd = new Date(t).getUTCDay(), pl = byDay[d] ?? 0;
+      if (wd === 0 || wd === 6) { if (pl === 0) continue; } // weekend: only if it has trades
+      if (bal > 0) r.push(pl / bal);
+      bal += pl;
+    }
     if (r.length >= 2) {
       const m = r.reduce((a, x) => a + x, 0) / r.length;
       const sd = Math.sqrt(r.reduce((a, x) => a + (x - m) ** 2, 0) / (r.length - 1));
@@ -106,7 +120,7 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
   for (const id of ["sharpe", "sortino", "calmar"]) if (n && (id === "sharpe" ? sharpe : id === "sortino" ? sortino : calmar) == null) why[id] = needStart ? "start" : needDays ? "days" : undefined;
 
   return {
-    n, net: s.net, totalReturn: fin(totalReturn), avgDaily: days ? s.net / days : null, avgTrade: n ? s.net / n : null,
+    n, net: s.net, totalReturn: totalReturn == null ? null : fin(totalReturn * 100), avgDaily: days ? s.net / days : null, avgTrade: n ? s.net / n : null,
     best: n ? Math.max(...closed.map(p)) : null, worst: n ? Math.min(...closed.map(p)) : null,
     costDrag: gp > 0 ? (commissions / gp) * 100 : null,
     winRate: s.winRate, beRate: n ? (closed.filter((t) => p(t) === 0).length / n) * 100 : null,

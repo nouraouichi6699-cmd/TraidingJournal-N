@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { metrics } from "../lib/dashStats";
 import { LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
@@ -87,6 +88,14 @@ export default function ReportsView({ t, lang, accounts, trades, balances }: Pro
   }, [trades, acc, per]);
   const a = useMemo(() => computeActivity(list), [list]);
   const ov = useMemo(() => computeOverview(list, acc === "all" ? accounts : accounts.filter((x) => x.id === acc), balances, ""), [list, accounts, balances, acc]);
+
+  // Dev-only consistency check against the Dashboard maths.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const d = metrics(list.filter((x) => x.status === "closed" && x.pnl != null));
+    const bad = (a: number | null, b: number | null) => (a == null) !== (b == null) || (a != null && b != null && Math.abs(a - b) > 0.01);
+    if (bad(ov.net, d.net) || bad(ov.winRate, d.winRate) || bad(ov.pf, d.pf)) console.warn("[Overview] mismatch with Dashboard", { net: [ov.net, d.net], winRate: [ov.winRate, d.winRate], pf: [ov.pf, d.pf] });
+  }, [list, ov]);
 
   const wdNames = useMemo(() => Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + i)))), [lang]);
   const wdLong = useMemo(() => Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(lang, { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + i)))), [lang]);
