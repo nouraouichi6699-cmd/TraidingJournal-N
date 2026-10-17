@@ -32,7 +32,7 @@ const Empty = ({ lang }: { lang: Lang }) => <div className="grid h-full place-it
 const Hidden = () => <div className="grid h-full place-items-center text-xl tracking-widest text-muted">••••</div>;
 const big = (extra?: string) => ({ fontSize: "clamp(1.4rem,min(30cqh,14cqw),3.4rem)", lineHeight: 1, ...(extra ? { color: extra } : {}) });
 
-function Donut({ pct, label }: { pct: number; color?: string; label: string }) {
+export function Donut({ pct, label }: { pct: number; color?: string; label: string }) {
   const r = 40, c = 2 * Math.PI * r;
   return (
     <svg viewBox="0 0 100 100" className="h-full max-h-full w-full" style={{ maxWidth: "100%" }}>
@@ -43,7 +43,7 @@ function Donut({ pct, label }: { pct: number; color?: string; label: string }) {
   );
 }
 
-function HalfGauge({ v, max }: { v: number; max: number; color?: string }) {
+export function HalfGauge({ v, max }: { v: number; max: number; color?: string }) {
   const f = Math.max(0, Math.min(1, v / max)), r = 40, L = Math.PI * r;
   return (
     <svg viewBox="0 0 100 56" className="h-full w-full">

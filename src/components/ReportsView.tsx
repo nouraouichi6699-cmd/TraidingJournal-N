@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
-import { Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
+import { LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
+import { computeOverview } from "../lib/stats";
+import OverviewTab from "./OverviewTab";
+import { ovT } from "../i18n";
 import type { Key } from "../i18n";
-import type { Account, Lang, Trade } from "../types";
+import type { Account, BalancePoint, Lang, Trade } from "../types";
 
-interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[] }
+interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]> }
 type L = Record<Lang, string>;
 const X = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 
@@ -66,12 +69,12 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   return <div className="rounded-2xl border border-border bg-surface p-5"><div className="mb-4 font-heading text-sm font-semibold text-text">{title}</div>{children}</div>;
 }
 
-export default function ReportsView({ t, lang, accounts, trades }: Props) {
-  const [tab, setTab] = useState("activity");
+export default function ReportsView({ t, lang, accounts, trades, balances }: Props) {
+  const [tab, setTab] = useState("overview");
   const [acc, setAcc] = useState("all");
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
-  const TABS = [{ id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
+  const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
 
   const list = useMemo(() => {
     let r = acc === "all" ? trades : trades.filter((x) => x.accountId === acc);
@@ -83,6 +86,7 @@ export default function ReportsView({ t, lang, accounts, trades }: Props) {
     return r;
   }, [trades, acc, per]);
   const a = useMemo(() => computeActivity(list), [list]);
+  const ov = useMemo(() => computeOverview(list, acc === "all" ? accounts : accounts.filter((x) => x.id === acc), balances, ""), [list, accounts, balances, acc]);
 
   const wdNames = useMemo(() => Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + i)))), [lang]);
   const wdLong = useMemo(() => Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(lang, { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + i)))), [lang]);
@@ -123,7 +127,9 @@ export default function ReportsView({ t, lang, accounts, trades }: Props) {
         <select className="field" value={per} onChange={(e) => setPer(e.target.value)}>{[{ value: "all", label: L(TX.pAll) }, { value: "p1", label: L(TX.p1) }, { value: "p3", label: L(TX.p3) }, { value: "p12", label: L(TX.p12) }].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
       </div>
 
-      {!a ? (
+      {tab === "overview" ? (
+        <OverviewTab lang={lang} o={ov} />
+      ) : !a ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{L(TX.empty)}</div>
       ) : (
         <>
