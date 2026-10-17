@@ -73,10 +73,13 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
 
   const Tip = ({ m }: { m: M }) => {
     const reason = !ok(m.v) && o.why[m.id] ? T(WHY[o.why[m.id] as string]) : "";
+    const id = `tip-${m.id}`;
     return (
       <span className="group relative inline-flex">
-        {reason ? <AlertTriangle size={12} className="text-primary" /> : <Info size={12} className="text-muted" />}
-        <span className="pointer-events-none absolute start-0 top-full z-20 mt-1 hidden w-56 rounded-lg border border-border bg-surface p-2 text-[11px] font-normal leading-snug text-text shadow-xl group-hover:block">
+        <button type="button" aria-label={T(m.id)} aria-describedby={id} className="inline-flex rounded outline-none focus-visible:ring-1 focus-visible:ring-[var(--primary)]">
+          {reason ? <AlertTriangle size={12} className="text-primary" /> : <Info size={12} className="text-muted" />}
+        </button>
+        <span id={id} role="tooltip" className="pointer-events-none absolute start-0 top-full z-20 mt-1 hidden w-56 rounded-lg border border-border bg-surface p-2 text-[11px] font-normal leading-snug text-text shadow-xl group-focus-within:block group-hover:block">
           {T(m.id + "T")}{reason && <span className="mt-1 block text-primary">{reason}</span>}
         </span>
       </span>
