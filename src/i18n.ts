@@ -404,6 +404,7 @@ export const ovT = (lang: Lang) => (k: string): string => ov[k]?.[lang === "en" 
 
 // ---------- Dashboard > Symbols traded widget ----------
 const sym: Record<string, [string, string, string]> = {
+  yTitle: ["Yearly performance", "الأداء السنوي", "Performance annuelle"], yInfo: ["Net P&L and trade count for each month, with a year-to-date total.", "صافي الربح وعدد الصفقات لكل شهر مع إجمالي السنة.", "P&L net et nombre de trades par mois, avec le cumul annuel."], ytd: ["YTD", "السنة", "Cumul"],
   title: ["Symbols traded", "الرموز المتداولة", "Symboles tradés"],
   info: ["Closed trades per symbol, with each symbol's share of the total.", "الصفقات المغلقة لكل رمز مع نصيب كل رمز من الإجمالي.", "Trades clôturés par symbole, avec la part de chacun."],
   trades: ["Trades", "صفقة", "Trades"], all: ["All", "الكل", "Tous"], more: ["more", "أخرى", "de plus"], less: ["Show less", "عرض أقل", "Réduire"],

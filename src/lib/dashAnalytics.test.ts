@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/dashAnalytics.test.ts
 import { existsSync, readFileSync } from "node:fs";
-import { symbolBreakdown } from "./dashAnalytics";
+import { symbolBreakdown, yearlyBreakdown } from "./dashAnalytics";
 import { parseTradingViewCsv } from "./tradingview";
 import type { Trade } from "../types";
 
@@ -27,6 +27,15 @@ const sig = (b: ReturnType<typeof symbolBreakdown>) => b.symbols.map((x) => `${x
 { const b = symbolBreakdown(many("A", 5, "open")); check("only open trades -> empty", b.total === 0 && b.symbols.length === 0); }
 { const b = symbolBreakdown([...many("A", 2), ...many("B", 2)], []); check("empty selection = all", b.distinct === 2); }
 { const b = symbolBreakdown([T("")]); check("blank symbol -> UNKNOWN, no crash", b.symbols[0]?.symbol === "UNKNOWN"); }
+
+// yearly breakdown
+{ const mk = (pnl: number, d: string, st: "closed" | "open" = "closed") => ({ ...T("A", st, pnl), exitTime: d + "T10:00", entryTime: d + "T09:00" });
+  const y = yearlyBreakdown([mk(100, "2026-01-05"), mk(-40, "2026-01-20"), mk(10, "2026-03-01"), mk(-5, "2025-12-31"), mk(99, "2026-02-02", "open")]);
+  check("yearly: years newest first", y.length === 2 && y[0].year === 2026 && y[1].year === 2025);
+  check("yearly: Jan 2026 = +60 over 2 trades", y[0].months[0]?.net === 60 && y[0].months[0]?.n === 2);
+  check("yearly: empty month null, open ignored", y[0].months[1] === null && y[0].months[2]?.net === 10);
+  check("yearly: YTD = 70 / 3 trades", y[0].ytd.net === 70 && y[0].ytd.n === 3);
+  check("yearly: empty input -> []", yearlyBreakdown([]).length === 0); }
 
 // b) data-driven
 const load = (csv: string, st?: string[]) => {

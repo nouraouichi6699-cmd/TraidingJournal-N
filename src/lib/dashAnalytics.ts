@@ -27,3 +27,21 @@ export function symbolBreakdown(trades: Trade[], selected?: string[]): SymbolBre
     .sort((a, b) => b.count - a.count || (a.symbol < b.symbol ? -1 : a.symbol > b.symbol ? 1 : 0));
   return { total, distinct: symbols.length, symbols };
 }
+
+export interface Cell { net: number; n: number }
+export interface YearRow { year: number; months: (Cell | null)[]; ytd: Cell }
+
+/** Net P&L and trade count per month for each year (newest year first). Closed trades only; month = close date. */
+export function yearlyBreakdown(trades: Trade[]): YearRow[] {
+  const ys = new Map<number, YearRow>();
+  for (const t of trades) {
+    if (t.status !== "closed" || t.pnl == null) continue;
+    const d = (t.exitTime || t.entryTime || "").slice(0, 7), y = Number(d.slice(0, 4)), m = Number(d.slice(5, 7)) - 1;
+    if (!Number.isInteger(y) || !(m >= 0 && m < 12) || y < 1970) continue;
+    const row = ys.get(y) ?? { year: y, months: Array(12).fill(null), ytd: { net: 0, n: 0 } };
+    const c = row.months[m] ?? (row.months[m] = { net: 0, n: 0 });
+    c.net += t.pnl; c.n++; row.ytd.net += t.pnl; row.ytd.n++;
+    ys.set(y, row);
+  }
+  return [...ys.values()].sort((a, b) => b.year - a.year);
+}
