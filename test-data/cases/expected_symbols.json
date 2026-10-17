@@ -1,0 +1,188 @@
+{
+ "rules": [
+  "Only CLOSED trades count (open trades excluded, breakeven closed trades included).",
+  "Symbol key = strip \"EXCHANGE:\" prefix, trim, uppercase. Broker suffixes like \".m\" are NOT merged.",
+  "Sort by count desc, then symbol ascending (A-Z).",
+  "pct = count / total of the selected set * 100 (unrounded here; the UI shows 1 decimal).",
+  "A selected symbol that does not exist is ignored."
+ ],
+ "cases": [
+  {
+   "file": "symbols_ties.csv",
+   "selected": null,
+   "total": 21,
+   "distinct": 5,
+   "symbols": [
+    {
+     "symbol": "EURUSD",
+     "count": 5,
+     "pct": 23.8095
+    },
+    {
+     "symbol": "GBPUSD",
+     "count": 5,
+     "pct": 23.8095
+    },
+    {
+     "symbol": "USDJPY",
+     "count": 5,
+     "pct": 23.8095
+    },
+    {
+     "symbol": "AUDUSD",
+     "count": 3,
+     "pct": 14.2857
+    },
+    {
+     "symbol": "XAUUSD",
+     "count": 3,
+     "pct": 14.2857
+    }
+   ]
+  },
+  {
+   "file": "symbols_single.csv",
+   "selected": null,
+   "total": 7,
+   "distinct": 1,
+   "symbols": [
+    {
+     "symbol": "XAUUSD",
+     "count": 7,
+     "pct": 100.0
+    }
+   ]
+  },
+  {
+   "file": "symbols_many.csv",
+   "selected": null,
+   "total": 128,
+   "distinct": 12,
+   "symbols": [
+    {
+     "symbol": "XAUUSD",
+     "count": 30,
+     "pct": 23.4375
+    },
+    {
+     "symbol": "EURUSD",
+     "count": 25,
+     "pct": 19.5312
+    },
+    {
+     "symbol": "GBPUSD",
+     "count": 20,
+     "pct": 15.625
+    },
+    {
+     "symbol": "USDJPY",
+     "count": 15,
+     "pct": 11.7188
+    },
+    {
+     "symbol": "BTCUSD",
+     "count": 10,
+     "pct": 7.8125
+    },
+    {
+     "symbol": "US30",
+     "count": 8,
+     "pct": 6.25
+    },
+    {
+     "symbol": "NAS100",
+     "count": 6,
+     "pct": 4.6875
+    },
+    {
+     "symbol": "AUDUSD",
+     "count": 5,
+     "pct": 3.9062
+    },
+    {
+     "symbol": "USDCAD",
+     "count": 4,
+     "pct": 3.125
+    },
+    {
+     "symbol": "XAGUSD",
+     "count": 3,
+     "pct": 2.3438
+    },
+    {
+     "symbol": "NZDUSD",
+     "count": 1,
+     "pct": 0.7812
+    },
+    {
+     "symbol": "USDCHF",
+     "count": 1,
+     "pct": 0.7812
+    }
+   ]
+  },
+  {
+   "file": "symbols_many.csv",
+   "selected": [
+    "XAUUSD",
+    "EURUSD",
+    "GBPUSD",
+    "DOESNOTEXIST"
+   ],
+   "total": 75,
+   "distinct": 3,
+   "symbols": [
+    {
+     "symbol": "XAUUSD",
+     "count": 30,
+     "pct": 40.0
+    },
+    {
+     "symbol": "EURUSD",
+     "count": 25,
+     "pct": 33.3333
+    },
+    {
+     "symbol": "GBPUSD",
+     "count": 20,
+     "pct": 26.6667
+    }
+   ]
+  },
+  {
+   "file": "symbols_normalization.csv",
+   "selected": null,
+   "total": 15,
+   "distinct": 4,
+   "symbols": [
+    {
+     "symbol": "EURUSD",
+     "count": 9,
+     "pct": 60.0
+    },
+    {
+     "symbol": "GBPUSD",
+     "count": 2,
+     "pct": 13.3333
+    },
+    {
+     "symbol": "XAUUSD",
+     "count": 2,
+     "pct": 13.3333
+    },
+    {
+     "symbol": "XAUUSD.M",
+     "count": 2,
+     "pct": 13.3333
+    }
+   ]
+  },
+  {
+   "file": "symbols_only_open.csv",
+   "selected": null,
+   "total": 0,
+   "distinct": 0,
+   "symbols": []
+  }
+ ]
+}
