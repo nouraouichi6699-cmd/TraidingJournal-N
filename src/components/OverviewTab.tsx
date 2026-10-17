@@ -111,7 +111,7 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className={heroCard} style={bg}>
             <div><div className="text-xs font-semibold text-primary">{T("net")}</div>
-              <div className="tnum mt-2 text-3xl font-bold" style={{ color: !hidden && o.net !== 0 ? (o.net > 0 ? GREEN : RED) : undefined }}>{hero(o.net, "money", true)}</div></div>
+              <div className="tnum mt-2 text-3xl font-bold" style={{ color: !hidden && o.net !== 0 ? (o.net > 0 ? GREEN : RED) : undefined }}><span dir="ltr">{hero(o.net, "money", true)}</span></div></div>
             <TrendingUp size={34} className="text-primary opacity-70" />
           </div>
           <div className={heroCard} style={bg}>
@@ -126,12 +126,12 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
           </div>
           <div className={heroCard} style={bg}>
             <div><div className="text-xs font-semibold text-primary">{T("expectancy")}</div>
-              <div className="tnum mt-2 text-3xl font-bold" style={{ color: !hidden && ok(o.avgTrade) && o.avgTrade !== 0 ? (o.avgTrade > 0 ? GREEN : RED) : undefined }}>{hero(o.avgTrade, "money", true)}</div></div>
+              <div className="tnum mt-2 text-3xl font-bold" style={{ color: !hidden && ok(o.avgTrade) && o.avgTrade !== 0 ? (o.avgTrade > 0 ? GREEN : RED) : undefined }}><span dir="ltr">{hero(o.avgTrade, "money", true)}</span></div></div>
             <Target size={34} className="text-primary opacity-70" />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-1">
+        <div className="grid grid-cols-1 gap-4">
           {SECTIONS.map((s) => (
             <section key={s.id} className="rounded-2xl border border-border p-5" style={bg}>
               <div className="mb-4 flex items-center gap-3">
@@ -141,9 +141,9 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
               {view === "grid" ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {s.items.map((m) => (
-                    <div key={m.id} className="rounded-xl border border-border bg-black/20 p-3 transition hover:-translate-y-0.5 hover:border-primary/50">
+                    <div key={m.id} className="rounded-xl border border-border p-3 transition hover:-translate-y-0.5 hover:border-[var(--primary)]" style={{ background: "color-mix(in srgb, var(--text) 4%, transparent)" }}>
                       <div className="flex items-center gap-1.5 text-xs text-muted"><span className="truncate">{T(m.id)}</span><Tip m={m} /></div>
-                      <div className="tnum mt-1.5 text-xl font-bold" style={{ color: colour(m) }}>{show(m)}</div>
+                      <div className="tnum mt-1.5 text-xl font-bold" style={{ color: colour(m) }}><span dir="ltr">{show(m)}</span></div>
                       {m.bar != null && ok(m.v) && (
                         <div className="mt-2 h-1 overflow-hidden rounded-full" style={{ background: "var(--gauge-track)" }}>
                           <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, m.bar))}%`, background: "var(--gauge-arc)" }} />
@@ -157,7 +157,7 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
                   {s.items.map((m) => (
                     <div key={m.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                       <span className="flex items-center gap-1.5 text-muted">{T(m.id)}<Tip m={m} /></span>
-                      <span className="tnum font-semibold" style={{ color: colour(m) }}>{show(m)}</span>
+                      <span dir="ltr" className="tnum font-semibold" style={{ color: colour(m) }}>{show(m)}</span>
                     </div>
                   ))}
                 </div>

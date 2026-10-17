@@ -12,14 +12,14 @@ export default function YearlyWidget({ c }: { c: Ctx }) {
   if (!rows.length) return <div className="grid h-full place-items-center text-center text-xs text-muted">{({ en: "No data yet", ar: "لا توجد بيانات بعد", fr: "Pas encore de données" })[c.lang]}</div>;
   const trades = ({ en: "trades", ar: "صفقة", fr: "trades" })[c.lang];
   const pct = mode === "pct";
-  const num = (x: Cell) => pct ? (x.pct == null ? "-" : `${x.pct > 0 ? "+" : ""}${fmt(x.pct, 1)}%`) : c.hide ? "••••" : `${x.net > 0 ? "+" : ""}${fmt(x.net, 0)}`;
+  const num = (x: Cell) => pct ? (x.pct == null ? "-" : Math.abs(x.pct) < 0.05 ? "0.0%" : `${x.pct > 0 ? "+" : ""}${fmt(x.pct, 1)}%`) : c.hide ? "••••" : Math.round(x.net) === 0 ? "0" : `${x.net > 0 ? "+" : ""}${fmt(x.net, 0)}`;
 
   const cell = (x: Cell | null, key: string) => {
-    if (!x) return <div key={key} className="grid place-items-center rounded-lg border border-border/60 text-muted" style={{ minHeight: "2.6rem", background: "color-mix(in srgb, var(--surface) 60%, transparent)" }}>-</div>;
-    const col = x.net > 0 ? GREEN : x.net < 0 ? RED : null;
+    if (!x) return <div key={key} className="grid place-items-center rounded-lg border border-border text-muted" style={{ minHeight: "2.6rem", opacity: 0.55 }}>-</div>;
+    const col = Math.round(x.net) === 0 ? null : x.net > 0 ? GREEN : RED;
     return (
       <div key={key} className="flex flex-col items-center justify-center rounded-lg border px-1 py-1 text-center transition hover:-translate-y-0.5" style={{ minHeight: "2.6rem", borderColor: col ? `color-mix(in srgb, ${col} 55%, transparent)` : "var(--border)", background: col ? `color-mix(in srgb, ${col} 12%, var(--surface))` : "var(--surface)" }}>
-        <div className="tnum text-[13px] font-bold leading-tight" style={{ color: col ?? "var(--text)" }}>{num(x)}</div>
+        <div dir="ltr" className="tnum text-[13px] font-bold leading-tight" style={{ color: col ?? "var(--text)" }}>{num(x)}</div>
         <div className="tnum text-[10px] leading-tight text-muted">{x.n} {trades}</div>
       </div>
     );
@@ -32,7 +32,7 @@ export default function YearlyWidget({ c }: { c: Ctx }) {
           {(["usd", "pct"] as const).map((m) => <button key={m} type="button" aria-pressed={mode === m} onClick={() => pick(m)} className={`tnum rounded-md px-2 py-0.5 transition ${mode === m ? "bg-primary text-on-primary" : "text-muted hover:text-text"}`}>{m === "usd" ? "$" : "%"}</button>)}
         </div>
       </div>
-      <div className="grid min-h-0 min-w-[44rem] items-stretch gap-1.5" style={{ gridTemplateColumns: "2.8rem repeat(12, minmax(0,1fr)) minmax(0,1.1fr)" }}>
+      <div className="grid min-h-0 min-w-[44rem] flex-1 items-stretch gap-1.5" style={{ gridTemplateColumns: "2.8rem repeat(12, minmax(0,1fr)) minmax(0,1.1fr)", gridTemplateRows: `auto repeat(${rows.length}, minmax(2.6rem, 1fr))` }}>
         <div />
         {months.map((m) => <div key={m} className="pb-0.5 text-center text-[11px] font-semibold text-muted">{m}</div>)}
         <div className="pb-0.5 text-center text-[11px] font-semibold text-primary">{symL("ytd")[c.lang]}</div>
