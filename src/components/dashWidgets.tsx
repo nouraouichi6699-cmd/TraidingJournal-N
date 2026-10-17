@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Hash, Trophy, Layers, Repeat, Target, LineChart, BarChart3, ListOrdered, CalendarRange, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Hash, Trophy, Layers, Repeat, Target, LineChart, BarChart3, ListOrdered, CalendarRange, Info, PieChart } from "lucide-react";
+import SymbolsWidget from "./SymbolsWidget";
+import { symL } from "../i18n";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
 import { dayKey, type Metrics } from "../lib/dashStats";
@@ -284,6 +286,7 @@ export const DEFS: Def[] = [
   { id: "dir", icon: <Layers size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Long vs short", "شراء مقابل بيع", "Long vs short"), info: TR("Direction split of your trades.", "توزيع اتجاه صفقاتك.", "Répartition des directions."),
     render: (c) => { const a = computeActivity(c.trades); if (!a) return <Empty lang={c.lang} />; return <div className="flex h-full flex-col justify-center gap-2"><div dir="ltr" className="flex h-3 overflow-hidden rounded-full bg-border"><div style={{ width: `${(a.long / a.trades) * 100}%`, background: GREEN }} /><div style={{ width: `${(a.short / a.trades) * 100}%`, background: RED }} /></div><div className="tnum flex justify-between text-sm"><span style={{ color: GREEN }}>{a.long}</span><span style={{ color: RED }}>{a.short}</span></div></div>; } },
   { id: "freq", icon: <Repeat size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trades per day", "الصفقات في اليوم", "Trades par jour"), info: TR("Average trades per trading day.", "متوسط الصفقات في يوم التداول.", "Moyenne par jour de trading."), render: (c) => { const a = computeActivity(c.trades); return a ? <Kpi value={fmt(a.perDay)} sub={`${a.tradingDays} ${S(TR("days", "يوم", "jours"), c)}`} /> : <Empty lang={c.lang} />; } },
+  { id: "sym", icon: <PieChart size={14} />, min: { w: 3, h: 4 }, size: { w: 4, h: 5 }, name: symL("title"), info: symL("info"), render: (c) => <SymbolsWidget c={c} /> },
 ];
-export const DEFAULT_IDS = ["net", "win", "pf", "day", "avg", "score", "cum", "daily", "trades", "cal"];
+export const DEFAULT_IDS = ["net", "win", "pf", "day", "avg", "score", "cum", "daily", "trades", "cal", "sym"];
 export { Info };

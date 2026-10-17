@@ -401,3 +401,12 @@ const ov: Record<string, [string, string, string]> = {
   lots: ["lots", "لوت", "lots"], d: ["d", "ي", "j"],
 };
 export const ovT = (lang: Lang) => (k: string): string => ov[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;
+
+// ---------- Dashboard > Symbols traded widget ----------
+const sym: Record<string, [string, string, string]> = {
+  title: ["Symbols traded", "الرموز المتداولة", "Symboles tradés"],
+  info: ["Closed trades per symbol, with each symbol's share of the total.", "الصفقات المغلقة لكل رمز مع نصيب كل رمز من الإجمالي.", "Trades clôturés par symbole, avec la part de chacun."],
+  trades: ["Trades", "صفقة", "Trades"], all: ["All", "الكل", "Tous"], more: ["more", "أخرى", "de plus"], less: ["Show less", "عرض أقل", "Réduire"],
+  pick: ["Choose symbols", "اختر الرموز", "Choisir les symboles"], keep: ["At least one symbol must stay selected", "يجب إبقاء رمز واحد على الأقل", "Gardez au moins un symbole"],
+};
+export const symL = (k: string): Record<Lang, string> => ({ en: sym[k][0], ar: sym[k][1], fr: sym[k][2] });
