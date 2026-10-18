@@ -75,7 +75,7 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
     const reason = !ok(m.v) && o.why[m.id] ? T(WHY[o.why[m.id] as string]) : "";
     const id = `tip-${m.id}`;
     return (
-      <span className="group relative inline-flex rounded outline-none focus-visible:ring-1 focus-visible:ring-[var(--primary)]" tabIndex={0} role="note" aria-label={`${T(m.id)}: ${T(m.id + "T")}${reason ? " " + reason : ""}`}>
+      <span className="group relative inline-flex">
         <button type="button" aria-label={T(m.id)} aria-describedby={id} className="inline-flex rounded outline-none focus-visible:ring-1 focus-visible:ring-[var(--primary)]">
           {reason ? <AlertTriangle size={12} className="text-primary" /> : <Info size={12} className="text-muted" />}
         </button>
