@@ -64,14 +64,15 @@ export function tradeCore(closed: Trade[]) {
 }
 
 /** Balance curve: real balance points when there are enough, otherwise start balance + cumulative closed P&L. */
-function curve(closed: Trade[], ids: string[], accounts: Account[], balances: Record<string, BalancePoint[]>, from: string): { t: number; v: number }[] {
+function curve(closed: Trade[], ids: string[], accounts: Account[], balances: Record<string, BalancePoint[]>, from: string): { t: number; v: number }[] & { base?: number } {
   const ev = ids.flatMap((id) => (balances[id] ?? []).filter((p) => !from || p.t >= from).map((p) => ({ id, t: ms(p.t), v: p.balance }))).filter((e): e is { id: string; t: number; v: number } => e.t != null).sort((a, b) => a.t - b.t);
   if (ev.length >= 2) {
     const last: Record<string, number> = {};
     return ev.map((e) => { last[e.id] = e.v; return { t: e.t, v: Object.values(last).reduce((s, x) => s + x, 0) }; });
   }
   let run = accounts.filter((a) => ids.includes(a.id)).reduce((s, a) => s + a.startBalance, 0);
-  const out = [] as { t: number; v: number }[];
+  const out = [] as ({ t: number; v: number }[] & { base?: number });
+  out.base = run; // start balance counts as the first peak for drawdown depth
   for (const x of [...closed].sort((a, b) => (a.exitTime ?? "").localeCompare(b.exitTime ?? ""))) { const t = ms(x.exitTime); if (t != null) out.push({ t, v: (run += x.pnl as number) }); }
   return out;
 }
@@ -96,13 +97,16 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
   // Drawdown family (balance based).
   const cv = n ? curve(closed, ids, accounts, balances, from) : [];
   let inDD = false;
-  let peak = -Infinity, peakT = 0, maxAmt = 0, maxPct = 0, under = 0, lastT = 0;
+  let peak = -Infinity, peakT = 0, under = 0, lastT = 0;
   for (const pt of cv) {
     lastT = pt.t;
-    if (pt.v >= peak) { if (peak > -Infinity && pt.t > peakT && pt.v >= peak && inDD) under = Math.max(under, pt.t - peakT); inDD = false; peak = pt.v; peakT = pt.t; }
-    else { inDD = true; maxAmt = Math.max(maxAmt, peak - pt.v); if (peak > 0) maxPct = Math.max(maxPct, (peak - pt.v) / peak); }
+    if (pt.v >= peak) { if (peak > -Infinity && pt.t > peakT && inDD) under = Math.max(under, pt.t - peakT); inDD = false; peak = pt.v; peakT = pt.t; }
+    else inDD = true;
   }
   if (inDD) under = Math.max(under, lastT - peakT); // drawdown still open: counts until the last trade
+  // Drawdown depth: standard definition, the start balance is the first peak (when the curve is built from P&L).
+  let dPeak = cv.base != null && cv.base > 0 ? cv.base : -Infinity, maxAmt = 0, maxPct = 0;
+  for (const pt of cv) { if (pt.v >= dPeak) dPeak = pt.v; else { maxAmt = Math.max(maxAmt, dPeak - pt.v); if (dPeak > 0) maxPct = Math.max(maxPct, (dPeak - pt.v) / dPeak); } }
   const haveCurve = cv.length >= 2;
   const maxBalDD = haveCurve && (start > 0 || peak > 0) ? maxPct * 100 : null;
   if (n && maxBalDD == null) why.maxBalDD = "balance";
