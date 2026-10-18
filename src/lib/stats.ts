@@ -42,6 +42,27 @@ export interface Overview {
 const fin = (v: number | null): number | null => (v != null && Number.isFinite(v) ? v : null);
 const ms = (s: string | null) => { const v = s ? Date.parse(s) : NaN; return Number.isFinite(v) ? v : null; };
 
+/** P&L rounded to cents: classification (win/loss/breakeven) is done on this value. */
+export const cents = (x: number) => Math.round(x * 100) / 100;
+
+/** Shared trade-outcome core: the single source of truth for Overview and Trade outcomes. Percent values are in percent units. */
+export function tradeCore(closed: Trade[]) {
+  const p = (t: Trade) => t.pnl as number;
+  const wins = closed.filter((t) => cents(p(t)) > 0), losses = closed.filter((t) => cents(p(t)) < 0);
+  const n = closed.length, be = n - wins.length - losses.length;
+  const gp = wins.reduce((a, t) => a + p(t), 0), gl = Math.abs(losses.reduce((a, t) => a + p(t), 0));
+  const net = closed.reduce((a, t) => a + p(t), 0);
+  const avgWin = wins.length ? gp / wins.length : null, avgLoss = losses.length ? -gl / losses.length : null;
+  return {
+    n, net, wins, losses, gp, gl, be,
+    winRate: n ? (wins.length / n) * 100 : null, beRate: n ? (be / n) * 100 : null,
+    pf: gl > 0 ? fin(gp / gl) : null,
+    payoff: avgWin != null && avgLoss != null && avgLoss !== 0 ? fin(avgWin / Math.abs(avgLoss)) : null,
+    avgWin, avgLoss, avgTrade: n ? net / n : null,
+    best: wins.length ? Math.max(...wins.map(p)) : null, worst: losses.length ? Math.min(...losses.map(p)) : null,
+  };
+}
+
 /** Balance curve: real balance points when there are enough, otherwise start balance + cumulative closed P&L. */
 function curve(closed: Trade[], ids: string[], accounts: Account[], balances: Record<string, BalancePoint[]>, from: string): { t: number; v: number }[] {
   const ev = ids.flatMap((id) => (balances[id] ?? []).filter((p) => !from || p.t >= from).map((p) => ({ id, t: ms(p.t), v: p.balance }))).filter((e): e is { id: string; t: number; v: number } => e.t != null).sort((a, b) => a.t - b.t);
@@ -57,11 +78,10 @@ function curve(closed: Trade[], ids: string[], accounts: Account[], balances: Re
 
 export function computeOverview(trades: Trade[], accounts: Account[], balances: Record<string, BalancePoint[]>, from = ""): Overview {
   const closed = trades.filter((t) => t.status === "closed" && t.pnl != null);
-  const s = computeStats(closed);
+  const core = tradeCore(closed);
+  const s = { net: core.net, winRate: core.winRate };
   const p = (t: Trade) => t.pnl as number;
-  const wins = closed.filter((t) => p(t) > 0), losses = closed.filter((t) => p(t) < 0);
-  const gp = wins.reduce((a, t) => a + p(t), 0), gl = Math.abs(losses.reduce((a, t) => a + p(t), 0));
-  const n = closed.length;
+  const { wins, losses, gp, gl, n } = core;
   const act = computeActivity(closed);
   const ids = [...new Set(closed.map((t) => t.accountId))];
   const start = accounts.filter((a) => ids.includes(a.id)).reduce((x, a) => x + a.startBalance, 0);
@@ -120,12 +140,11 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
   for (const id of ["sharpe", "sortino", "calmar"]) if (n && (id === "sharpe" ? sharpe : id === "sortino" ? sortino : calmar) == null) why[id] = needStart ? "start" : needDays ? "days" : undefined;
 
   return {
-    n, net: s.net, totalReturn: totalReturn == null ? null : fin(totalReturn * 100), avgDaily: days ? s.net / days : null, avgTrade: n ? s.net / n : null,
-    best: n ? Math.max(...closed.map(p)) : null, worst: n ? Math.min(...closed.map(p)) : null,
+    n, net: s.net, totalReturn: totalReturn == null ? null : fin(totalReturn * 100), avgDaily: days ? s.net / days : null, avgTrade: core.avgTrade,
+    best: core.best, worst: core.worst,
     costDrag: gp > 0 ? (commissions / gp) * 100 : null,
-    winRate: s.winRate, beRate: n ? (closed.filter((t) => p(t) === 0).length / n) * 100 : null,
-    pf: gl > 0 ? gp / gl : null, payoff: wins.length && losses.length ? fin(gp / wins.length / (gl / losses.length)) : null,
-    avgWin: wins.length ? gp / wins.length : null, avgLoss: losses.length ? -gl / losses.length : null,
+    winRate: core.winRate, beRate: core.beRate,
+    pf: core.pf, payoff: core.payoff, avgWin: core.avgWin, avgLoss: core.avgLoss,
     maxBalDD, underwaterDays, sharpe, sortino, calmar, recovery,
     tradingDays: days, activeFreq: act ? act.freq * 100 : null, perDay: act ? act.perDay : null,
     holdMin: holds.length ? holds.reduce((a, x) => a + x, 0) / holds.length : null, volume: act ? act.vol.total : 0, commissions, why,
