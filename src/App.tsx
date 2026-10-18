@@ -95,7 +95,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
           {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
           {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
           {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
-          {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
+          {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} />}
           {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
           {view === "import" && (
             <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />

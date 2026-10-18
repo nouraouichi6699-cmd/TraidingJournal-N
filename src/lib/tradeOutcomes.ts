@@ -109,3 +109,13 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
   for (const k of ALL_KEYS) r[k] = num(r[k]);
   return r;
 }
+
+export interface RecentTrade { key: string; date: string; symbol: string; pnl: number; kind: "win" | "loss" | "be" }
+
+/** The last `k` closed trades (close time, then ticket), oldest first. */
+export function recentOutcomes(trades: Trade[], k = 60): RecentTrade[] {
+  return trades.filter((t) => t.status === "closed" && t.pnl != null)
+    .sort((a, b) => closeKey(a).localeCompare(closeKey(b)) || a.no - b.no)
+    .slice(-k)
+    .map((t) => { const c = cents(t.pnl as number); return { key: t.key, date: closeKey(t).replace("T", " "), symbol: t.symbol, pnl: t.pnl as number, kind: c > 0 ? "win" : c < 0 ? "loss" : "be" }; });
+}

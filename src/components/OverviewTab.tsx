@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertTriangle, BarChart3, Info, LayoutGrid, List, ShieldAlert, Target, TrendingUp, Wallet } from "lucide-react";
+import { BarChart3, ShieldAlert, Target, TrendingUp, Wallet } from "lucide-react";
+import { MetricSection, ViewHeader, cardBg, type Item } from "./metricUi";
 import { ovT } from "../i18n";
 import { fmt, fmtHold } from "../lib/stats";
 import type { Overview } from "../lib/stats";
@@ -71,42 +72,19 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
       { id: "swaps", v: null, kind: "money" } ] },
   ];
 
-  const Tip = ({ m }: { m: M }) => {
-    const reason = !ok(m.v) && o.why[m.id] ? T(WHY[o.why[m.id] as string]) : "";
-    const id = `tip-${m.id}`;
-    return (
-      <span className="group relative inline-flex">
-        <button type="button" aria-label={T(m.id)} aria-describedby={id} className="inline-flex rounded outline-none focus-visible:ring-1 focus-visible:ring-[var(--primary)]">
-          {reason ? <AlertTriangle size={12} className="text-primary" /> : <Info size={12} className="text-muted" />}
-        </button>
-        <span id={id} role="tooltip" className="pointer-events-none absolute start-0 top-full z-20 mt-1 hidden w-56 rounded-lg border border-border bg-surface p-2 text-[11px] font-normal leading-snug text-text shadow-xl group-focus-within:block group-hover:block">
-          {T(m.id + "T")}{reason && <span className="mt-1 block text-primary">{reason}</span>}
-        </span>
-      </span>
-    );
-  };
+  const toItem = (m: M): Item => ({
+    id: m.id, label: T(m.id), tip: T(m.id + "T"), value: show(m), color: colour(m),
+    reason: !ok(m.v) && o.why[m.id] ? T(WHY[o.why[m.id] as string]) : undefined, bar: m.bar != null && ok(m.v) ? m.bar : null,
+  });
 
   const hero = (v: number | null, kind: M["kind"], sign = false) => show({ id: "", v, kind, sign, hide: true });
   const heroCard = "flex min-h-[8.5rem] items-center justify-between gap-3 rounded-2xl border border-border p-5 transition hover:-translate-y-0.5";
-  const bg = { background: "var(--gauge-bg)" };
+  const bg = cardBg;
   const wr = o.winRate ?? 0, pf = o.pf;
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-heading text-xl font-bold text-primary">{T("title")}</h2>
-          <p className="text-sm text-muted">{T("sub")}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-border bg-primary-tint px-3 py-1 text-xs font-semibold text-primary">{T("metrics")}</span>
-          <div className="inline-flex gap-1 rounded-xl border border-border bg-surface p-1">
-            {([["grid", <LayoutGrid size={15} key="g" />], ["list", <List size={15} key="l" />]] as const).map(([k, ic]) => (
-              <button key={k} title={T(k)} aria-label={T(k)} onClick={() => setView(k)} className={`rounded-lg p-1.5 transition ${view === k ? "bg-primary text-on-primary" : "text-muted hover:text-text"}`}>{ic}</button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <ViewHeader title={T("title")} sub={T("sub")} badge={T("metrics")} view={view} onView={setView} gridLabel={T("grid")} listLabel={T("list")} />
 
       {o.n === 0 ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{T("empty")}</div>
@@ -135,38 +113,7 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {SECTIONS.map((s) => (
-            <section key={s.id} className="rounded-2xl border border-border p-5" style={bg}>
-              <div className="mb-4 flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-tint text-primary">{s.icon}</span>
-                <div><div className="font-heading text-sm font-semibold text-primary">{T(s.id)}</div><div className="text-xs text-muted">{T(s.id + "d")}</div></div>
-              </div>
-              {view === "grid" ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {s.items.map((m) => (
-                    <div key={m.id} className="rounded-xl border border-border p-3 transition hover:-translate-y-0.5 hover:border-[var(--primary)]" style={{ background: "color-mix(in srgb, var(--text) 4%, transparent)" }}>
-                      <div className="flex items-center gap-1.5 text-xs text-muted"><span className="truncate">{T(m.id)}</span><Tip m={m} /></div>
-                      <div className="tnum mt-1.5 text-xl font-bold" style={{ color: colour(m) }}><span dir="ltr">{show(m)}</span></div>
-                      {m.bar != null && ok(m.v) && (
-                        <div className="mt-2 h-1 overflow-hidden rounded-full" style={{ background: "var(--gauge-track)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, m.bar))}%`, background: "var(--gauge-arc)" }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {s.items.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                      <span className="flex items-center gap-1.5 text-muted">{T(m.id)}<Tip m={m} /></span>
-                      <span dir="ltr" className="tnum font-semibold" style={{ color: colour(m) }}>{show(m)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
+          {SECTIONS.map((x) => <MetricSection key={x.id} icon={x.icon} title={T(x.id)} subtitle={T(x.id + "d")} view={view} items={x.items.map(toItem)} />)}
         </div>
       </>)}
     </div>
