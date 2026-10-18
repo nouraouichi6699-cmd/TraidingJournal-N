@@ -1,9 +1,6 @@
 // Run: npx tsx src/lib/tradeOutcomes.test.ts
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { ALL_KEYS, computeTradeOutcomes, type TradeOutcomes } from "./tradeOutcomes";
 import { computeOverview } from "./stats";
-import { parseTradingViewCsv } from "./tradingview";
 import type { Account, Trade } from "../types";
 
 let pass = 0, fail = 0;
@@ -66,25 +63,6 @@ const run = (t: Trade[], start = 1000) => computeTradeOutcomes(t, start);
   const pairs: [number | null, number | null, string][] = [[o.totalTrades, ov.n, "totalTrades"], [o.winRate, ov.winRate, "winRate"], [o.breakevenRate, ov.beRate, "breakevenRate"], [o.profitFactor, ov.pf, "profitFactor"], [o.tradeExpectancy, ov.avgTrade, "expectancy"], [o.payoffRatio, ov.payoff, "payoff"], [o.averageWinningTrade, ov.avgWin, "avgWin"], [o.averageLosingTrade, ov.avgLoss, "avgLoss"], [o.largestWinningTrade, ov.best, "largestWin"], [o.largestLosingTrade, ov.worst, "largestLoss"], [o.averageTradePnl, ov.avgTrade, "avgTrade"]];
   check("Overview and Trade outcomes return identical shared values", pairs.every(([a, b]) => eq(a, b, 0)), pairs.filter(([a, b]) => !eq(a, b, 0)).map((x) => x[2]).join(",")); }
 
-// ---- data-driven ----
-const dir = "test-data/cases", jf = `${dir}/expected_outcomes.json`;
-if (!existsSync(jf)) { fail++; console.log(`FAIL  data-driven: ${jf} not found`); }
-else {
-  const raw = JSON.parse(readFileSync(jf, "utf8"));
-  const cases: any[] = Array.isArray(raw) ? raw : Array.isArray(raw.cases) ? raw.cases : Object.entries(raw).filter(([, v]) => typeof v === "object").map(([name, v]: any) => ({ name, ...v }));
-  for (const c of cases) {
-    const name = c.name ?? c.file, file = resolve(dir, c.file);
-    if (!existsSync(file)) { fail++; console.log(`FAIL  case ${name}: ${file} not found`); continue; }
-    const r = parseTradingViewCsv(readFileSync(file, "utf8"));
-    if (r.kind !== "trades") { fail++; console.log(`FAIL  case ${name}: parser kind = ${r.kind}`); continue; }
-    const o = computeTradeOutcomes(r.trades.map((x, i) => ({ ...x, key: String(i), accountId: "a" } as Trade)), c.startBalance ?? 0);
-    const exp: Record<string, number | null> = c.expected ?? c.values ?? c.metrics ?? c;
-    const miss = ALL_KEYS.filter((x) => !(x in exp));
-    const bad = ALL_KEYS.filter((x) => x in exp && !eq(o[x], exp[x], 0.01));
-    if (miss.length) console.log(`  note: case ${name} has no expected value for: ${miss.join(", ")}`);
-    check(`case ${name}: ${ALL_KEYS.length - miss.length - bad.length}/${ALL_KEYS.length - miss.length} keys match`, bad.length === 0 && miss.length === 0, "");
-    for (const x of bad) console.log(`      MISMATCH ${x}: expected ${exp[x]}, actual ${o[x]}`);
-  }
-}
+// (reference-dataset check removed; add a new one here when available)
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

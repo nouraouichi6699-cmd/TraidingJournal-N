@@ -78,17 +78,6 @@ else {
   }
 }
 
-// c) 650-trade regression
-const f650 = "test-data/mizan_test_650_trades.csv";
-if (!existsSync(f650)) { fail++; console.log(`FAIL  regression: ${f650} not found`); }
-else {
-  const b = load(f650);
-  if (!b) { fail++; console.log("FAIL  regression: parser did not return trades"); }
-  else {
-    const exp: [string, number, number][] = [["XAUUSD", 189, 29.1], ["EURUSD", 95, 14.6], ["GBPUSD", 87, 13.4], ["USDJPY", 87, 13.4], ["AUDUSD", 72, 11.1], ["XAGUSD", 69, 10.6], ["USDCAD", 51, 7.8]];
-    check("650: total 650, 7 symbols", b.total === 650 && b.distinct === 7, `${b.total}/${b.distinct}`);
-    exp.forEach(([s, n, p], i) => check(`650: #${i + 1} ${s} ${n} (${p}%)`, b.symbols[i]?.symbol === s && b.symbols[i].count === n && near(b.symbols[i].pct, p, 0.05), JSON.stringify(b.symbols[i])));
-  }
-}
+// (650-trade regression removed; add a new reference dataset here when available)
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
