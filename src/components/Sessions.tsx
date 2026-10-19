@@ -54,8 +54,9 @@ export default function Sessions({ t }: { t: (k: Key) => string }) {
   const showAll = pinned || hover;
   const mmss = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 
-  const chip = (r: (typeof rows)[number]) => (
+  const chip = (r: (typeof rows)[number], i: number) => (
     <div key={r.z.key} className="flex items-center gap-1.5">
+      {i > 0 && <span className="h-3.5 w-px bg-border" aria-hidden />}
       <img src={r.z.flag} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />
       <span className="text-sm font-semibold">{r.name}</span>
       <span className="tnum text-sm font-semibold text-icon">{r.c.text}</span>
@@ -69,9 +70,8 @@ export default function Sessions({ t }: { t: (k: Key) => string }) {
         aria-expanded={showAll}
         aria-label={t("sessAll")}
         onClick={() => setPinned(!pinned)}
-        className={`flex items-center gap-3 rounded-xl border bg-surface px-3 py-1.5 ${
-          soonRow ? "sess-soon border-icon" : openRows.length ? "border-icon" : "border-border"
-        }`}
+        className={`flex items-center gap-3 rounded-xl border bg-surface px-3 py-1.5 ${soonRow ? "sess-soon border-icon" : openRows.length ? "border-icon" : "border-border"
+          }`}
       >
         <Clock size={18} strokeWidth={1.9} className="shrink-0 text-icon" aria-hidden />
         {soonRow ? (

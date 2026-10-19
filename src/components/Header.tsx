@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check } from "lucide-react";
+import { Eye, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import Brand from "./Brand";
 import Dropdown from "./Dropdown";
@@ -38,7 +38,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
   }, []);
   const toggleFull = () => {
     if (document.fullscreenElement) document.exitFullscreen?.();
-    else document.documentElement.requestFullscreen?.().catch(() => {});
+    else document.documentElement.requestFullscreen?.().catch(() => { });
   };
 
   const tabs = [
@@ -65,16 +65,18 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
                 <span className="hidden 2xl:inline">{label}</span>
               </button>
             ))}
-            <button type="button" className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5">
-              {t("boards")}
-              <ChevronDown size={14} className="text-icon" />
-            </button>
-            <button type="button" aria-label={t("addBoard")} className="icon-btn !h-8 !w-8">
-              <Plus size={16} className="text-icon" />
-            </button>
-            <button type="button" aria-label={t("editBoards")} aria-pressed={dash.editing} onClick={() => { onDashboard(); dash.toggle(); }} className={`icon-btn !h-8 !w-8 ${dash.editing ? "!bg-primary" : ""}`}>
-              <Pencil size={15} className={dash.editing ? "text-on-primary" : "text-icon"} />
-            </button>
+            <div className="flex items-center gap-0.5 rounded-lg border border-border bg-bg/40 p-0.5">
+              <button type="button" className="flex items-center gap-2 rounded-md px-2.5 py-1 text-sm font-medium hover:bg-primary-tint">
+                {t("boards")}
+                <ChevronDown size={14} className="text-icon" />
+              </button>
+              <button type="button" aria-label={t("addBoard")} className="icon-btn !h-7 !w-7">
+                <Plus size={15} className="text-icon" />
+              </button>
+              <button type="button" aria-label={t("editBoards")} aria-pressed={dash.editing} onClick={() => { onDashboard(); dash.toggle(); }} className={`icon-btn !h-7 !w-7 ${dash.editing ? "!bg-primary" : ""}`}>
+                <Pencil size={14} className={dash.editing ? "text-on-primary" : "text-icon"} />
+              </button>
+            </div>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           </div>
 
@@ -108,27 +110,32 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             {(close) => <NotificationsPanel t={t} lang={lang} interests={interests} onNews={onNews} onCalendar={onCalendar} close={close} />}
           </Dropdown>
 
-          <button type="button" aria-label={t("fullscreen")} title={t("fullscreen")} onClick={toggleFull} className="icon-btn hidden sm:inline-flex">
-            {full ? <Minimize2 {...ic} /> : <Maximize2 {...ic} />}
-          </button>
-
-          <Dropdown label={t("theme")} trigger={<Palette {...ic} />}>
-            {(close) =>
-              (Object.keys(themeNames) as Theme[]).map((th) => (
-                <button key={th} role="menuitemradio" aria-checked={theme === th} onClick={() => { onTheme(th); close(); }} className="menu-item">
-                  <span className="flex-1 text-start">{themeNames[th][lang]}</span>
-                  {theme === th && <Check size={16} className="text-icon" />}
+          <Dropdown label={t("settings")} trigger={<MoreHorizontal {...ic} />}>
+            {(close) => (
+              <>
+                <button type="button" onClick={() => { toggleFull(); close(); }} className="menu-item">
+                  {full ? <Minimize2 size={16} className="text-icon" /> : <Maximize2 size={16} className="text-icon" />}
+                  <span className="flex-1 text-start">{t("fullscreen")}</span>
                 </button>
-              ))
-            }
+                <button type="button" className="menu-item">
+                  <Settings size={16} className="text-icon" />
+                  <span className="flex-1 text-start">{t("settings")}</span>
+                </button>
+                <div className="my-1 h-px bg-border" aria-hidden />
+                <p className="px-2 pb-1 pt-1 text-xs font-semibold text-muted">{t("theme")}</p>
+                {(Object.keys(themeNames) as Theme[]).map((th) => (
+                  <button key={th} role="menuitemradio" aria-checked={theme === th} onClick={() => { onTheme(th); close(); }} className="menu-item">
+                    <Palette size={16} className="text-icon" />
+                    <span className="flex-1 text-start">{themeNames[th][lang]}</span>
+                    {theme === th && <Check size={16} className="text-icon" />}
+                  </button>
+                ))}
+              </>
+            )}
           </Dropdown>
 
-          <button type="button" aria-label={t("profile")} title={t("profile")} onClick={onProfile} className="icon-btn overflow-hidden rounded-full border border-icon/60">
+          <button type="button" aria-label={t("profile")} title={t("profile")} onClick={onProfile} className="icon-btn overflow-hidden rounded-full border-2 border-primary" style={{ boxShadow: "0 0 10px 0 color-mix(in srgb, var(--primary) 45%, transparent)" }}>
             {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : <User {...ic} />}
-          </button>
-
-          <button type="button" aria-label={t("settings")} title={t("settings")} className="icon-btn">
-            <Settings {...ic} />
           </button>
         </div>
       </div>
