@@ -1,6 +1,6 @@
 // Trade outcomes report (50 metrics). Pure TypeScript. Percentages are in percent units (36.46 = 36.46%).
 import type { Trade } from "../types";
-import { cents, tradeCore } from "./stats";
+import { cents, tradeCore, ticketOf } from "./stats";
 
 export const GROUPS = {
   tradeResults: ["totalTrades", "winningTrades", "losingTrades", "breakevenTrades", "winRate", "lossRate", "breakevenRate", "dailyWinRate", "winningDays", "losingDays", "breakevenDays"],
@@ -41,7 +41,7 @@ const closeKey = (t: Trade) => t.exitTime || t.entryTime || "";
 
 export function computeTradeOutcomes(trades: Trade[], startBalance: number): TradeOutcomes {
   const closed = trades.filter((t) => t.status === "closed" && t.pnl != null)
-    .sort((a, b) => closeKey(a).localeCompare(closeKey(b)) || a.no - b.no);
+    .sort((a, b) => closeKey(a).localeCompare(closeKey(b)) || ticketOf(a) - ticketOf(b));
   const p = (t: Trade) => t.pnl as number;
   const core = tradeCore(closed);
   const n = core.n;
@@ -95,7 +95,7 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
     averageWinningTrade: core.avgWin, medianWinningTrade: median(winP), averageLosingTrade: core.avgLoss, medianLosingTrade: median(lossP),
     largestWinningTrade: core.best, largestLosingTrade: core.worst,
 
-    winRateAfterWin: ratio(aw.same, aw.d), winRateAfterLoss: ratio(al.same, al.d), avgPnlAfterWin: mean(aw.next), avgPnlAfterLoss: mean(al.next),
+    winRateAfterWin: ratio(aw.same, aw.d), winRateAfterLoss: ratio(al.d - al.same, al.d), avgPnlAfterWin: mean(aw.next), avgPnlAfterLoss: mean(al.next),
     alternationRate: S.length >= 2 ? (alt / (S.length - 1)) * 100 : null, outcomeRuns: runs.length, runsZScore: z,
     longestTradesWithoutWin: longest((v) => v <= 0), longestTradesWithoutLoss: longest((v) => v >= 0),
 
@@ -115,7 +115,7 @@ export interface RecentTrade { key: string; date: string; symbol: string; pnl: n
 /** The last `k` closed trades (close time, then ticket), oldest first. */
 export function recentOutcomes(trades: Trade[], k = 60): RecentTrade[] {
   return trades.filter((t) => t.status === "closed" && t.pnl != null)
-    .sort((a, b) => closeKey(a).localeCompare(closeKey(b)) || a.no - b.no)
+    .sort((a, b) => closeKey(a).localeCompare(closeKey(b)) || ticketOf(a) - ticketOf(b))
     .slice(-k)
     .map((t) => { const c = cents(t.pnl as number); return { key: t.key, date: closeKey(t).replace("T", " "), symbol: t.symbol, pnl: t.pnl as number, kind: c > 0 ? "win" : c < 0 ? "loss" : "be" }; });
 }

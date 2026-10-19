@@ -42,6 +42,12 @@ export interface Overview {
 const fin = (v: number | null): number | null => (v != null && Number.isFinite(v) ? v : null);
 const ms = (s: string | null) => { const v = s ? Date.parse(s) : NaN; return Number.isFinite(v) ? v : null; };
 
+/** Ticket used to order trades closed in the same minute: the numeric id after "account:" in the key, else the row/trade number. */
+export const ticketOf = (t: Trade): number => {
+  const id = t.key.slice(t.key.lastIndexOf(":") + 1);
+  return /^\d+$/.test(id) ? Number(id) : t.no;
+};
+
 /** P&L rounded to cents: classification (win/loss/breakeven) is done on this value. */
 export const cents = (x: number) => Math.round(x * 100) / 100;
 

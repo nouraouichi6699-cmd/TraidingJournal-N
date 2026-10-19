@@ -1,5 +1,6 @@
 // Pure dashboard analytics (no React, no storage).
 import type { Trade } from "../types";
+import { ticketOf } from "./stats";
 
 export interface SymbolRow { symbol: string; count: number; pct: number }
 export interface SymbolBreakdown { total: number; distinct: number; symbols: SymbolRow[] }
@@ -78,7 +79,7 @@ const runs = (vals: number[]): Streak => {
  */
 export function streakBreakdown(trades: Trade[]): Streaks {
   const closed = trades.filter((t) => t.status === "closed" && t.pnl != null)
-    .sort((a, b) => (a.exitTime || a.entryTime || "").localeCompare(b.exitTime || b.entryTime || "") || a.no - b.no);
+    .sort((a, b) => (a.exitTime || a.entryTime || "").localeCompare(b.exitTime || b.entryTime || "") || ticketOf(a) - ticketOf(b));
   const day = new Map<string, number>();
   for (const t of closed) { const d = (t.exitTime || t.entryTime || "").slice(0, 10); if (d) day.set(d, (day.get(d) ?? 0) + (t.pnl as number)); }
   return { trades: runs(closed.map((t) => t.pnl as number)), days: runs([...day.keys()].sort().map((d) => day.get(d) as number)) };

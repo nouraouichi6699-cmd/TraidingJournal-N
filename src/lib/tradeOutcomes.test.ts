@@ -26,7 +26,7 @@ const run = (t: Trade[], start = 1000) => computeTradeOutcomes(t, start);
 // 3 all wins
 { expectKeys("all wins [10,20,30]", run(seq([10, 20, 30])), { profitFactor: null, payoffRatio: null, maxWinStreak: 3, avgWinStreak: 3, maxConsecutiveProfit: 60, maxConsecutiveLoss: null, winRateAfterWin: 100, winRateAfterLoss: null, topTradeProfitConc: 50, topFiveProfitConc: 100, longestTradesWithoutLoss: 3, longestTradesWithoutWin: 0, maxWinDayStreak: 3 }); }
 // 4 all losses
-{ expectKeys("all losses [-10,-20]", run(seq([-10, -20])), { profitFactor: 0, winRate: 0, lossRate: 100, maxLossStreak: 2, maxConsecutiveLoss: -30, worstTradeLossConc: (20 / 30) * 100, worstFiveLossConc: 100, avgPnlAfterLoss: -20, winRateAfterLoss: 100, alternationRate: 0, runsZScore: null, averageLosingTrade: -15, largestLosingTrade: -20, largestWinningTrade: null, currentLossStreak: 2, currentLossDayStreak: 2 }); }
+{ expectKeys("all losses [-10,-20]", run(seq([-10, -20])), { profitFactor: 0, winRate: 0, lossRate: 100, maxLossStreak: 2, maxConsecutiveLoss: -30, worstTradeLossConc: (20 / 30) * 100, worstFiveLossConc: 100, avgPnlAfterLoss: -20, winRateAfterLoss: 0, alternationRate: 0, runsZScore: null, averageLosingTrade: -15, largestLosingTrade: -20, largestWinningTrade: null, currentLossStreak: 2, currentLossDayStreak: 2 }); }
 // 5 breakeven in the middle
 { expectKeys("breakeven in the middle [10,0,-5]", run(seq([10, 0, -5])), { breakevenTrades: 1, winRate: 100 / 3, breakevenRate: 100 / 3, payoffRatio: 2, breakevenWinRate: 100 / 3, winRateEdge: 0, outcomeRuns: 2, alternationRate: 100, longestTradesWithoutWin: 2, longestTradesWithoutLoss: 2, runsZScore: null, breakevenDays: 1, maxWinStreak: 1, maxLossStreak: 1 }); }
 // 6 medians
