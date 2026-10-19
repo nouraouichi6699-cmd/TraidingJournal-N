@@ -1,18 +1,25 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
 
 const groups = [
-  { id: "g1", label: { en: "Overview", ar: "نظرة عامة", fr: "Aperçu" }, items: [
-    { id: "dashboard", icon: LayoutDashboard }, { id: "journal", icon: PenLine }, { id: "charts", icon: LineChart }, { id: "reports", icon: ClipboardList },
-  ] },
-  { id: "g2", label: { en: "Manage", ar: "الإدارة", fr: "Gestion" }, items: [
-    { id: "accounts", icon: SquarePlus }, { id: "import", icon: Upload }, { id: "roadmap", icon: Route },
-  ] },
-  { id: "g3", label: { en: "Growth", ar: "التطور", fr: "Progression" }, items: [
-    { id: "strategies", icon: Target }, { id: "achievements", icon: Trophy },
-  ] },
+  {
+    id: "g1", label: { en: "Overview", ar: "نظرة عامة", fr: "Aperçu" }, items: [
+      { id: "dashboard", icon: LayoutDashboard }, { id: "journal", icon: PenLine }, { id: "charts", icon: LineChart }, { id: "reports", icon: ClipboardList },
+    ]
+  },
+  {
+    id: "g2", label: { en: "Manage", ar: "الإدارة", fr: "Gestion" }, items: [
+      { id: "accounts", icon: SquarePlus }, { id: "import", icon: Upload }, { id: "roadmap", icon: Route },
+    ]
+  },
+  {
+    id: "g3", label: { en: "Growth", ar: "التطور", fr: "Progression" }, items: [
+      { id: "strategies", icon: Target }, { id: "achievements", icon: Trophy },
+    ]
+  },
 ] as const;
 
 export type View = (typeof groups)[number]["items"][number]["id"];
@@ -26,7 +33,7 @@ interface Props {
 
 export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
   const [open, setOpen] = useState(() => { try { const v = localStorage.getItem("mizan-sidebar"); return v == null ? window.innerWidth >= 1000 : v !== "0"; } catch { return true; } });
-  const flip = () => setOpen((o) => { try { localStorage.setItem("mizan-sidebar", o ? "0" : "1"); } catch {} return !o; });
+  const flip = () => setOpen((o) => { try { localStorage.setItem("mizan-sidebar", o ? "0" : "1"); } catch { } return !o; });
 
   return (
     <nav
@@ -42,10 +49,18 @@ export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
               return (
                 <button
                   key={id} type="button" data-id={id} title={open ? undefined : t(id)} aria-label={t(id)} aria-current={on ? "page" : undefined} onClick={() => onView(id)}
-                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${open ? "" : "justify-center px-0"} ${on ? "bg-primary text-on-primary shadow-sm" : "text-text hover:bg-primary-tint"}`}
+                  className={`group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${open ? "" : "justify-center px-0"} ${on ? "text-on-primary shadow-sm" : "text-text hover:bg-primary-tint"}`}
                 >
-                  <Icon size={19} strokeWidth={1.9} className={`shrink-0 transition-transform group-hover:scale-110 ${on ? "" : "text-icon"}`} />
-                  {open && <span className="truncate">{t(id)}</span>}
+                  {on && (
+                    <motion.span
+                      layoutId="sidebar-active-pill"
+                      className="absolute inset-0 rounded-xl bg-primary"
+                      style={{ boxShadow: "0 0 18px 1px color-mix(in srgb, var(--primary) 55%, transparent)" }}
+                      transition={{ type: "spring", stiffness: 180, damping: 28, mass: 1.1 }}
+                    />
+                  )}
+                  <Icon size={19} strokeWidth={1.9} className={`relative z-10 shrink-0 transition-transform group-hover:scale-110 ${on ? "" : "text-icon"}`} />
+                  {open && <span className="relative z-10 truncate">{t(id)}</span>}
                 </button>
               );
             })}

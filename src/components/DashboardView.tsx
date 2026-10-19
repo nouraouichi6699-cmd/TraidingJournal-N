@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { GripVertical, LayoutGrid, RotateCcw, Plus, X, Check, Pencil, Info } from "lucide-react";
 import { useDashEdit } from "../useDashEdit";
 import { usePrivacy } from "../usePrivacy";
@@ -40,7 +41,7 @@ const load = (): Cell[] => {
   try {
     const v = JSON.parse(localStorage.getItem(STORE) || "null");
     if (Array.isArray(v) && v.every((c) => c && typeof c.x === "number" && DEFS.some((d) => d.id === c.id))) return settle(v);
-  } catch {}
+  } catch { }
   return flow(DEFAULT_IDS);
 };
 
@@ -77,8 +78,8 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
   const cellsRef = useRef(cells); cellsRef.current = cells;
   const L = (l: ReturnType<typeof TR>) => l[lang];
 
-  useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify(cells)); } catch {} }, [cells]);
-  useEffect(() => { try { localStorage.setItem(FILTER, JSON.stringify(filter)); } catch {} }, [filter]);
+  useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify(cells)); } catch { } }, [cells]);
+  useEffect(() => { try { localStorage.setItem(FILTER, JSON.stringify(filter)); } catch { } }, [filter]);
   useEffect(() => {
     const el = box.current; if (!el) return;
     const ro = new ResizeObserver(() => setW(el.clientWidth || 1200)); ro.observe(el); setW(el.clientWidth || 1200);
@@ -137,7 +138,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
     window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
   };
 
-  const order = narrow ? [...live].sort((a, b) => a.y - b.y || a.x - b.x) : live;
+  const order = [...live].sort((a, b) => a.y - b.y || a.x - b.x);
   const TT = {
     title: TR("Dashboard", "لوحة التحكم", "Tableau de bord"), custom: TR("Customize", "تخصيص", "Personnaliser"), done: TR("Done", "تم", "Terminé"),
     tools: TR("Analysis tools — press + to add to your dashboard", "أدوات التحليل — اضغط + لإضافتها إلى لوحتك", "Outils d'analyse — appuyez sur + pour ajouter"),
@@ -198,12 +199,13 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
       ) : (
         <div ref={box} dir="ltr" className={narrow ? "flex flex-col gap-3" : "relative"} style={{ height: narrow ? undefined : (rows + (can ? 2 : 0)) * rowH, backgroundImage: can ? "radial-gradient(circle, color-mix(in srgb,var(--text) 16%,transparent) 1px, transparent 1.5px)" : undefined, backgroundSize: can ? `${colW}px ${rowH}px` : undefined }}>
           {drag && !narrow && <div className="pointer-events-none absolute rounded-2xl border-2 border-dashed border-primary bg-primary-tint" style={{ left: drag.cell.x * colW + PAD, top: drag.cell.y * rowH + PAD, width: drag.cell.w * colW - PAD * 2, height: drag.cell.h * rowH - PAD * 2 }} />}
-          {order.map((it) => {
+          {order.map((it, i) => {
             const d = def(it.id);
             const busy = drag?.id === it.id;
             const g = busy ? drag!.px : { x: it.x * colW, y: it.y * rowH, w: it.w * colW, h: it.h * rowH };
             return (
-              <div key={it.id} onPointerDown={(e) => begin(e, it, "move")} dir={lang === "ar" ? "rtl" : "ltr"}
+              <motion.div key={it.id} onPointerDown={(e) => begin(e, it, "move")} dir={lang === "ar" ? "rtl" : "ltr"}
+                initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.4, delay: Math.min(i * 0.05, 0.4), ease: [0.22, 1, 0.36, 1] }}
                 className={narrow ? "" : "absolute"}
                 style={narrow ? { height: Math.max(it.h * rowH, 130) } : { left: g.x, top: g.y, width: g.w, height: g.h, zIndex: busy ? 50 : 1, padding: PAD, transition: busy ? "none" : "left .22s ease, top .22s ease, width .22s ease, height .22s ease" }}>
                 <div className={`group relative flex h-full flex-col rounded-2xl border p-4 ${can ? "cursor-grab select-none" : "transition hover:border-primary/50"} ${busy ? "cursor-grabbing" : ""}`}
@@ -233,7 +235,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
                     </>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

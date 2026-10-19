@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
@@ -51,55 +52,65 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
-          {view === "accounts" && (
-            <AccountsList
-              t={t}
-              accounts={accounts}
-              trades={journal.trades}
-              balances={journal.balances}
-              onRemove={(id) => {
-                remove(id);
-                journal.purgeAccount(id);
-              }}
-              onConnect={() => setConnecting(true)}
-            />
-          )}
-          {view === "profile" && (
-            <ProfileView
-              email={email}
-              key={JSON.stringify(profile)}
-              t={t}
-              lang={lang}
-              profile={profile}
-              onSave={saveProfile}
-              onDeleteAll={() => {
-                void (async () => {
-                  await haltSync(); await settingsIdle(); // no background push may re-create rows
-                  // Hard delete, children before parents (foreign keys).
-                  for (const tbl of ["trades", "balance_points", "accounts", "user_settings"]) {
-                    const { error } = await supabase.from(tbl).delete().eq("user_id", userId);
-                    // delete() reports no error when RLS matches 0 rows, so count what is left.
-                    const left = error ? null : await supabase.from(tbl).select("*", { count: "exact", head: true }).eq("user_id", userId);
-                    if (error || left?.error || left?.count) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error?.message ?? left?.error?.message ?? `${left?.count} rows left`})`); return; }
-                  }
-                  await supabase.auth.signOut();
-                  try {
-                    Object.keys(localStorage).filter((k) => k.startsWith("mizan-") && k !== "mizan-lang" && k !== "mizan-theme").forEach((k) => localStorage.removeItem(k));
-                  } catch {}
-                  location.reload();
-                })();
-              }}
-            />
-          )}
-          {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
-          {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
-          {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
-          {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
-          {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} />}
-          {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
-          {view === "import" && (
-            <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={view}
+              initial={{ opacity: 0, y: 8, filter: "blur(3px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -8, filter: "blur(3px)" }}
+              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {view === "accounts" && (
+                <AccountsList
+                  t={t}
+                  accounts={accounts}
+                  trades={journal.trades}
+                  balances={journal.balances}
+                  onRemove={(id) => {
+                    remove(id);
+                    journal.purgeAccount(id);
+                  }}
+                  onConnect={() => setConnecting(true)}
+                />
+              )}
+              {view === "profile" && (
+                <ProfileView
+                  email={email}
+                  key={JSON.stringify(profile)}
+                  t={t}
+                  lang={lang}
+                  profile={profile}
+                  onSave={saveProfile}
+                  onDeleteAll={() => {
+                    void (async () => {
+                      await haltSync(); await settingsIdle(); // no background push may re-create rows
+                      // Hard delete, children before parents (foreign keys).
+                      for (const tbl of ["trades", "balance_points", "accounts", "user_settings"]) {
+                        const { error } = await supabase.from(tbl).delete().eq("user_id", userId);
+                        // delete() reports no error when RLS matches 0 rows, so count what is left.
+                        const left = error ? null : await supabase.from(tbl).select("*", { count: "exact", head: true }).eq("user_id", userId);
+                        if (error || left?.error || left?.count) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error?.message ?? left?.error?.message ?? `${left?.count} rows left`})`); return; }
+                      }
+                      await supabase.auth.signOut();
+                      try {
+                        Object.keys(localStorage).filter((k) => k.startsWith("mizan-") && k !== "mizan-lang" && k !== "mizan-theme").forEach((k) => localStorage.removeItem(k));
+                      } catch { }
+                      location.reload();
+                    })();
+                  }}
+                />
+              )}
+              {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
+              {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
+              {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
+              {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
+              {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} />}
+              {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
+              {view === "import" && (
+                <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
       <Watermark feedback={t("feedback")} />
@@ -119,7 +130,7 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     try {
       localStorage.setItem("mizan-theme", theme);
-    } catch {}
+    } catch { }
   }, [theme]);
 
   useEffect(() => {
@@ -127,7 +138,7 @@ export default function App() {
     document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
     try {
       localStorage.setItem("mizan-lang", lang);
-    } catch {}
+    } catch { }
   }, [lang]);
 
   useEffect(() => {
