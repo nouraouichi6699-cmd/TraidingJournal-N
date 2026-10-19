@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { syncPaused } from "./rowSync";
+import { startPuller } from "./syncSchedule";
 
 // Per-key, last-write-wins sync of small user settings (profile, dashboard, charts, interests, journal columns).
 // Remote values are applied at startup (before the app mounts); local edits are pushed in the background.
@@ -98,11 +99,11 @@ export function startSettingsSync(uid: string): () => void {
     busy = true;
     try { const meta = rd<Meta>(META, {}); scan(meta); wr(META, meta); await push(uid, meta); last = r; } catch {} finally { busy = false; }
   }, 2500);
-  const onFocus = async () => {
-    if (document.visibilityState !== "visible" || busy || syncPaused() || !navigator.onLine) return;
+  // Settings are pulled on focus / reconnect only (as before), now gated to once per 15 s.
+  const puller = startPuller(async () => {
+    if (busy || syncPaused() || !navigator.onLine) return null;
     busy = true;
-    try { const meta = rd<Meta>(META, {}); scan(meta); wr(META, meta); await pull(uid, meta); if (pullOk) await reconcile(uid, meta); await push(uid, meta); } catch {} finally { busy = false; }
-  };
-  document.addEventListener("visibilitychange", onFocus);
-  return () => { window.clearInterval(id); document.removeEventListener("visibilitychange", onFocus); };
+    try { const meta = rd<Meta>(META, {}); scan(meta); wr(META, meta); await pull(uid, meta); const ok = pullOk; if (pullOk) await reconcile(uid, meta); await push(uid, meta); return { ok, changed: false }; } catch { return { ok: false, changed: false }; } finally { busy = false; }
+  }, { periodic: false, label: "settings" });
+  return () => { window.clearInterval(id); puller.stop(); };
 }

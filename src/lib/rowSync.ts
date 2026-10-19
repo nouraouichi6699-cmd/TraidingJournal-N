@@ -4,6 +4,7 @@ import type { Account, BalancePoint, Trade } from "../types";
 // Row-based, local-first sync for accounts / trades / balance points.
 // localStorage stays the instant cache; per-row metadata decides what to push and what wins on pull.
 const ACC = "mizan-accounts", JNL = "mizan-journal", META = "mizan-sync-meta", CUR = "mizan-sync-cursor", UID = "mizan-sync-uid";
+import { startPuller, type PullResult } from "./syncSchedule";
 export const PULLED = "mizan-sync-pulled";
 const DAY = 864e5;
 
@@ -190,8 +191,8 @@ export const syncPaused = () => paused;
 export const resumeSync = () => { paused = false; };
 /** Stop background sync and wait for an in-flight cycle (used before wiping cloud data). */
 export async function haltSync() { paused = true; for (let i = 0; i < 50 && running; i++) await new Promise((r) => setTimeout(r, 100)); }
-async function cycle(uid: string, first: boolean, focus = false) {
-  if (running || paused) return;
+async function cycle(uid: string, first: boolean, focus = false, doPull = true): Promise<PullResult | null> {
+  if (running || paused) return null;
   running = true;
   try {
     const meta = loadMeta();
@@ -202,9 +203,10 @@ async function cycle(uid: string, first: boolean, focus = false) {
     }
     scan(meta); wr(META, meta);
     await push(uid, meta);
-    if (!first && !focus) changed = await pull(uid, meta);
+    if (!first && !focus && doPull) changed = await pull(uid, meta);
     if (changed) window.dispatchEvent(new Event(PULLED));
-  } catch {} finally { running = false; }
+    return { ok: pullOk, changed };
+  } catch { return { ok: false, changed: false }; } finally { running = false; }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -227,14 +229,14 @@ export async function initialSync(uid: string): Promise<void> {
   await cycle(uid, true);
 }
 
-/** Background loop: push local changes quickly, pull remote changes every ~10s, on focus and on reconnect. */
+/** Background loop: pushes stay on the 2.5 s tick; pulls are scheduled by syncSchedule (30 s, paused when hidden, backoff). */
 export function startRowSync(uid: string): () => void {
   const raw = () => { try { return (localStorage.getItem(ACC) ?? "") + (localStorage.getItem(JNL) ?? ""); } catch { return ""; } };
-  let last = raw(), tick = 0;
-  const run = (focus = false) => { if (navigator.onLine) void cycle(uid, false, focus); };
-  const id = window.setInterval(() => { const r = raw(); if (r !== last || ++tick % 4 === 0) { last = r; run(); } }, 2500);
-  const vis = () => { if (document.visibilityState === "visible") run(true); };
-  const online = () => run();
-  window.addEventListener("online", online); document.addEventListener("visibilitychange", vis);
-  return () => { clearInterval(id); window.removeEventListener("online", online); document.removeEventListener("visibilitychange", vis); };
+  let last = raw();
+  const puller = startPuller((focus) => (navigator.onLine ? cycle(uid, false, focus) : Promise.resolve(null)), { label: "rows" });
+  const id = window.setInterval(() => {
+    const r = raw();
+    if (r !== last) { last = r; puller.touch(); if (navigator.onLine) void cycle(uid, false, false, false); }
+  }, 2500);
+  return () => { clearInterval(id); puller.stop(); };
 }
