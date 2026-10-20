@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { metrics } from "../lib/dashStats";
-import { Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
+import { Wallet, Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import OverviewTab from "./OverviewTab";
@@ -8,6 +8,7 @@ import TradeOutcomesTab from "./TradeOutcomesTab";
 import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
 import ExcursionTab, { EXC_TAB } from "./ExcursionTab";
 import PathTab, { PATH_TAB } from "./PathTab";
+import ReturnsTab, { RET_TAB } from "./ReturnsTab";
 import AdvancedTab, { ADV_TAB } from "./AdvancedTab";
 import PortfolioTab, { PORTFOLIO_TAB } from "./PortfolioTab";
 import { computeTradeOutcomes, recentOutcomes } from "../lib/tradeOutcomes";
@@ -83,7 +84,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const [acc, setAcc] = useState("all");
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
-  const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "benchmark", icon: <GitCompareArrows size={15} />, label: BENCH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "portfolio", icon: <Briefcase size={15} />, label: PORTFOLIO_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "advanced", icon: <FlaskConical size={15} />, label: ADV_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "path", icon: <Route size={15} />, label: PATH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "excursion", icon: <Waypoints size={15} />, label: EXC_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
+  const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "returns", icon: <Wallet size={15} />, label: RET_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "benchmark", icon: <GitCompareArrows size={15} />, label: BENCH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "portfolio", icon: <Briefcase size={15} />, label: PORTFOLIO_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "advanced", icon: <FlaskConical size={15} />, label: ADV_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "path", icon: <Route size={15} />, label: PATH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "excursion", icon: <Waypoints size={15} />, label: EXC_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
 
   const list = useMemo(() => {
     let r = acc === "all" ? trades : trades.filter((x) => x.accountId === acc);
@@ -159,6 +160,8 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
         <AdvancedTab lang={lang} />
       ) : tab === "path" ? (
         <PathTab lang={lang} />
+      ) : tab === "returns" ? (
+        <ReturnsTab lang={lang} />
       ) : tab === "excursion" ? (
         <ExcursionTab lang={lang} />
       ) : !a ? (
