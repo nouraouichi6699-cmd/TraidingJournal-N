@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { metrics } from "../lib/dashStats";
-import { Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
+import { Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import OverviewTab from "./OverviewTab";
