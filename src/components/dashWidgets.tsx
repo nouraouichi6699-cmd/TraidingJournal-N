@@ -257,15 +257,24 @@ function CalW({ c }: { c: Ctx }) {
 
 const S = (label: L, c: Ctx) => label[c.lang];
 export const DEFS: Def[] = [
-  { id: "net", icon: <DollarSign size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Net P&L", "صافي الربح والخسارة", "P&L net"), info: TR("Total profit or loss of all closed trades in the selected period.", "إجمالي ربح أو خسارة كل الصفقات المغلقة في الفترة المختارة.", "Résultat total des trades clôturés sur la période."),
-    render: (c) => <Kpi value={money(c, c.m.net)} color={c.hide ? undefined : tone(c.m.net)} sub={`${c.m.n} ${S(TR("trades", "صفقة", "trades"), c)}`} /> },
-  { id: "win", gauge: true, icon: <Percent size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trade win %", "نسبة ربح الصفقات", "Taux de trades gagnants"), info: TR("Winning trades ÷ closed trades.", "الصفقات الرابحة ÷ الصفقات المغلقة.", "Trades gagnants ÷ trades clôturés."),
-    render: (c) => c.m.winRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.winRate, 1)}%`} sub={`${c.m.wins}W · ${c.m.losses}L`} visual={<Donut pct={c.m.winRate} color={GREEN} label="" />} /> },
-  { id: "pf", gauge: true, icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Profit factor", "معامل الربح", "Facteur de profit"), info: TR("Gross profit ÷ gross loss. Above 1 means profitable.", "إجمالي الربح ÷ إجمالي الخسارة. أعلى من 1 يعني رابحًا.", "Gains bruts ÷ pertes brutes. >1 = rentable."),
-    render: (c) => c.m.pf == null ? (c.m.wins ? <Kpi value="∞" /> : <Empty lang={c.lang} />) : <Kpi value={fmt(c.m.pf)} visual={<HalfGauge v={c.m.pf} max={3} color={c.m.pf >= 1 ? GREEN : RED} />} /> },
-  { id: "day", gauge: true, icon: <CalendarDays size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Day win %", "نسبة ربح الأيام", "Jours gagnants"), info: TR("Profitable trading days ÷ all trading days.", "أيام التداول الرابحة ÷ كل أيام التداول.", "Jours gagnants ÷ jours de trading."),
-    render: (c) => c.m.dayWinRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.dayWinRate, 1)}%`} sub={`${c.m.days.length} ${S(TR("days", "يوم", "jours"), c)}`} visual={<Donut pct={c.m.dayWinRate} color={GREEN} label="" />} /> },
-  { id: "avg", icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Avg win/loss trade", "متوسط الربح/الخسارة", "Gain/perte moyen"), info: TR("Average winning trade ÷ average losing trade.", "متوسط الصفقة الرابحة ÷ متوسط الصفقة الخاسرة.", "Gain moyen ÷ perte moyenne."),
+  {
+    id: "net", icon: <DollarSign size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Net P&L", "صافي الربح والخسارة", "P&L net"), info: TR("Total profit or loss of all closed trades in the selected period.", "إجمالي ربح أو خسارة كل الصفقات المغلقة في الفترة المختارة.", "Résultat total des trades clôturés sur la période."),
+    render: (c) => <Kpi value={money(c, c.m.net)} color={c.hide ? undefined : tone(c.m.net)} sub={`${c.m.n} ${S(TR("trades", "صفقة", "trades"), c)}`} />
+  },
+  {
+    id: "win", gauge: true, icon: <Percent size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trade win %", "نسبة ربح الصفقات", "Taux de trades gagnants"), info: TR("Winning trades ÷ closed trades.", "الصفقات الرابحة ÷ الصفقات المغلقة.", "Trades gagnants ÷ trades clôturés."),
+    render: (c) => c.m.winRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.winRate, 1)}%`} sub={`${c.m.wins}W · ${c.m.losses}L`} visual={<Donut pct={c.m.winRate} color={GREEN} label="" />} />
+  },
+  {
+    id: "pf", gauge: true, icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Profit factor", "معامل الربح", "Facteur de profit"), info: TR("Gross profit ÷ gross loss. Above 1 means profitable.", "إجمالي الربح ÷ إجمالي الخسارة. أعلى من 1 يعني رابحًا.", "Gains bruts ÷ pertes brutes. >1 = rentable."),
+    render: (c) => c.m.pf == null ? (c.m.wins ? <Kpi value="∞" /> : <Empty lang={c.lang} />) : <Kpi value={fmt(c.m.pf)} visual={<HalfGauge v={c.m.pf} max={3} color={c.m.pf >= 1 ? GREEN : RED} />} />
+  },
+  {
+    id: "day", gauge: true, icon: <CalendarDays size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Day win %", "نسبة ربح الأيام", "Jours gagnants"), info: TR("Profitable trading days ÷ all trading days.", "أيام التداول الرابحة ÷ كل أيام التداول.", "Jours gagnants ÷ jours de trading."),
+    render: (c) => c.m.dayWinRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.dayWinRate, 1)}%`} sub={`${c.m.days.length} ${S(TR("days", "يوم", "jours"), c)}`} visual={<Donut pct={c.m.dayWinRate} color={GREEN} label="" />} />
+  },
+  {
+    id: "avg", icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Avg win/loss trade", "متوسط الربح/الخسارة", "Gain/perte moyen"), info: TR("Average winning trade ÷ average losing trade.", "متوسط الصفقة الرابحة ÷ متوسط الصفقة الخاسرة.", "Gain moyen ÷ perte moyenne."),
     render: (c) => {
       if (!c.m.wins && !c.m.losses) return <Empty lang={c.lang} />;
       const t = c.m.avgWin + c.m.avgLoss || 1;
@@ -276,17 +285,22 @@ export const DEFS: Def[] = [
           <div className="tnum flex justify-between text-[11px]"><span style={{ color: GREEN }}>{money(c, c.m.avgWin)}</span><span style={{ color: RED }}>{c.hide ? "••••" : `-${fmt(c.m.avgLoss)}`}</span></div>
         </div>
       );
-    } },
+    }
+  },
   { id: "score", icon: <Target size={14} />, min: { w: 3, h: 3 }, size: { w: 3, h: 4 }, name: TR("Mizan score", "درجة ميزان", "Score Mizan"), info: TR("0–100 from six metrics: win %, profit factor, avg win/loss, recovery factor, max drawdown and weekly consistency. Needs 5+ closed trades.", "من 0 إلى 100 من ستة مقاييس: نسبة الربح، معامل الربح، ربح/خسارة، عامل التعافي، أقصى سحب، واتساق الأسابيع. يلزم 5 صفقات مغلقة على الأقل.", "0–100 selon six mesures. Au moins 5 trades clôturés."), render: (c) => <ScoreW c={c} /> },
   { id: "cum", icon: <LineChart size={14} />, min: { w: 3, h: 3 }, size: { w: 5, h: 4 }, name: TR("Daily net cumulative P&L", "الربح التراكمي اليومي", "P&L cumulé quotidien"), info: TR("Running total of your daily net P&L.", "المجموع التراكمي لصافي ربحك اليومي.", "Cumul de votre P&L net quotidien."), render: (c) => <CumW c={c} /> },
   { id: "daily", icon: <BarChart3 size={14} />, min: { w: 3, h: 3 }, size: { w: 4, h: 4 }, name: TR("Net daily P&L", "صافي الربح اليومي", "P&L net quotidien"), info: TR("Net result of each trading day (last 60 days).", "نتيجة كل يوم تداول (آخر 60 يومًا).", "Résultat net par jour (60 derniers jours)."), render: (c) => <DailyW c={c} /> },
   { id: "trades", icon: <ListOrdered size={14} />, min: { w: 4, h: 3 }, size: { w: 7, h: 5 }, name: TR("Trades", "الصفقات", "Trades"), info: TR("Your latest closed trades and open positions.", "آخر صفقاتك المغلقة ومراكزك المفتوحة.", "Derniers trades clôturés et positions ouvertes."), render: (c) => <TradesW c={c} /> },
   { id: "cal", icon: <CalendarRange size={14} />, min: { w: 4, h: 4 }, size: { w: 5, h: 5 }, name: TR("P&L calendar", "تقويم الأرباح", "Calendrier P&L"), info: TR("Daily net P&L with weekly totals.", "صافي الربح اليومي مع مجاميع الأسابيع.", "P&L quotidien et totaux hebdomadaires."), render: (c) => <CalW c={c} /> },
   { id: "count", icon: <Hash size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trades", "عدد الصفقات", "Trades"), info: TR("Total trades in the selected period.", "إجمالي الصفقات في الفترة المختارة.", "Total des trades sur la période."), render: (c) => <Kpi value={String(c.trades.length)} sub={`${c.trades.length - c.closed.length} ${S(TR("open", "مفتوحة", "ouverts"), c)}`} /> },
-  { id: "best", icon: <Trophy size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Best & worst trade", "أفضل وأسوأ صفقة", "Meilleur & pire trade"), info: TR("Your biggest win and biggest loss.", "أكبر ربح وأكبر خسارة.", "Plus gros gain et plus grosse perte."),
-    render: (c) => { if (!c.closed.length) return <Empty lang={c.lang} />; const p = c.closed.map((t) => t.pnl as number); return <div className="flex h-full flex-col justify-center gap-1"><div className="tnum font-heading font-bold" style={{ color: GREEN, fontSize: "clamp(1.1rem,min(24cqh,11cqw),2.4rem)" }}>{money(c, Math.max(...p))}</div><div className="tnum font-heading font-bold" style={{ color: RED, fontSize: "clamp(1.1rem,min(24cqh,11cqw),2.4rem)" }}>{money(c, Math.min(...p))}</div></div>; } },
-  { id: "dir", icon: <Layers size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Long vs short", "شراء مقابل بيع", "Long vs short"), info: TR("Direction split of your trades.", "توزيع اتجاه صفقاتك.", "Répartition des directions."),
-    render: (c) => { const a = computeActivity(c.trades); if (!a) return <Empty lang={c.lang} />; return <div className="flex h-full flex-col justify-center gap-2"><div dir="ltr" className="flex h-3 overflow-hidden rounded-full bg-border"><div style={{ width: `${(a.long / a.trades) * 100}%`, background: GREEN }} /><div style={{ width: `${(a.short / a.trades) * 100}%`, background: RED }} /></div><div className="tnum flex justify-between text-sm"><span style={{ color: GREEN }}>{a.long}</span><span style={{ color: RED }}>{a.short}</span></div></div>; } },
+  {
+    id: "best", icon: <Trophy size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Best & worst trade", "أفضل وأسوأ صفقة", "Meilleur & pire trade"), info: TR("Your biggest win and biggest loss.", "أكبر ربح وأكبر خسارة.", "Plus gros gain et plus grosse perte."),
+    render: (c) => { if (!c.closed.length) return <Empty lang={c.lang} />; const p = c.closed.map((t) => t.pnl as number); return <div className="flex h-full flex-col justify-center gap-1"><div className="tnum font-heading font-bold" style={{ color: GREEN, fontSize: "clamp(1.1rem,min(24cqh,11cqw),2.4rem)" }}>{money(c, Math.max(...p))}</div><div className="tnum font-heading font-bold" style={{ color: RED, fontSize: "clamp(1.1rem,min(24cqh,11cqw),2.4rem)" }}>{money(c, Math.min(...p))}</div></div>; }
+  },
+  {
+    id: "dir", icon: <Layers size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Long vs short", "شراء مقابل بيع", "Long vs short"), info: TR("Direction split of your trades.", "توزيع اتجاه صفقاتك.", "Répartition des directions."),
+    render: (c) => { const a = computeActivity(c.trades); if (!a) return <Empty lang={c.lang} />; return <div className="flex h-full flex-col justify-center gap-2"><div dir="ltr" className="flex h-3 overflow-hidden rounded-full bg-border"><div style={{ width: `${(a.long / a.trades) * 100}%`, background: GREEN }} /><div style={{ width: `${(a.short / a.trades) * 100}%`, background: RED }} /></div><div className="tnum flex justify-between text-sm"><span style={{ color: GREEN }}>{a.long}</span><span style={{ color: RED }}>{a.short}</span></div></div>; }
+  },
   { id: "freq", icon: <Repeat size={14} />, min: { w: 2, h: 2 }, size: { w: 2, h: 2 }, name: TR("Trades per day", "الصفقات في اليوم", "Trades par jour"), info: TR("Average trades per trading day.", "متوسط الصفقات في يوم التداول.", "Moyenne par jour de trading."), render: (c) => { const a = computeActivity(c.trades); return a ? <Kpi value={fmt(a.perDay)} sub={`${a.tradingDays} ${S(TR("days", "يوم", "jours"), c)}`} /> : <Empty lang={c.lang} />; } },
   { id: "sym", icon: <PieChart size={14} />, min: { w: 3, h: 4 }, size: { w: 4, h: 5 }, name: symL("title"), info: symL("info"), render: (c) => <SymbolsWidget c={c} /> },
   { id: "year", icon: <Grid3x3 size={14} />, min: { w: 6, h: 3 }, size: { w: 12, h: 4 }, name: symL("yTitle"), info: symL("yInfo"), render: (c) => <YearlyWidget c={c} /> },

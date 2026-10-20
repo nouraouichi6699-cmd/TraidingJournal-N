@@ -32,7 +32,7 @@ export function ViewHeader({ title, sub, badge, view, onView, gridLabel, listLab
         <span className="rounded-full border border-border bg-primary-tint px-3 py-1 text-xs font-semibold text-primary">{badge}</span>
         <div className="inline-flex gap-1 rounded-xl border border-border bg-surface p-1">
           {([["grid", <LayoutGrid size={15} key="g" />, gridLabel], ["list", <List size={15} key="l" />, listLabel]] as const).map(([k, ic, lb]) => (
-            <button key={k} title={lb} aria-label={lb} aria-pressed={view === k} onClick={() => onView(k)} className={`rounded-lg p-1.5 transition ${view === k ? "bg-primary text-on-primary" : "text-muted hover:text-text"}`}>{ic}</button>
+            <button key={k} title={lb} aria-label={lb} aria-pressed={view === k} onClick={() => onView(k)} className={`rounded-lg p-1.5 transition ${view === k ? "bg-primary-tint text-primary" : "text-muted hover:text-text"}`}>{ic}</button>
           ))}
         </div>
       </div>

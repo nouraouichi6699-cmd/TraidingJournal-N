@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --card-bg: linear-gradient(155deg, #0d2142, color-mix(in srgb, #0d2142 90%, var(--primary) 10%));
-  --gauge-bg: #0d2142;
+  --card-bg: #081a3a;
+  --gauge-bg: var(--card-bg);
   --gauge-track: #1c3263;
   --gauge-arc: #ffc107;
   --gauge-glow: drop-shadow(0 0 5px rgba(255, 193, 7, .55));
-  --bg: #050d1f;
-  --surface: #0d2142;
+  --bg: #061126;
+  --surface: #0b1c3d;
   --border: #1d3466;
   --text: #ffffff;
   --muted: #a9b8d6;
@@ -84,6 +84,7 @@
   box-sizing: border-box;
 }
 
+
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
@@ -91,10 +92,6 @@ html {
 
 body {
   background-color: var(--bg);
-  background-image:
-    radial-gradient(ellipse 70% 45% at 15% -8%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 70%),
-    radial-gradient(ellipse 55% 40% at 100% 0%, color-mix(in srgb, #1b3a8a 22%, transparent), transparent 70%);
-  background-attachment: fixed;
   color: var(--text);
   font-family: "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif;
   font-feature-settings: "cv11", "ss01";

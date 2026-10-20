@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { metrics } from "../lib/dashStats";
-import { Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
+import { LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
-import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
-import ExcursionTab, { EXC_TAB } from "./ExcursionTab";
-import AdvancedTab, { ADV_TAB } from "./AdvancedTab";
-import PortfolioTab, { PORTFOLIO_TAB } from "./PortfolioTab";
 import { computeTradeOutcomes, recentOutcomes } from "../lib/tradeOutcomes";
 import { toT } from "../i18n";
 import { ovT } from "../i18n";
@@ -82,7 +78,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const [acc, setAcc] = useState("all");
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
-  const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "benchmark", icon: <GitCompareArrows size={15} />, label: BENCH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "portfolio", icon: <Briefcase size={15} />, label: PORTFOLIO_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "advanced", icon: <FlaskConical size={15} />, label: ADV_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "excursion", icon: <Waypoints size={15} />, label: EXC_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
+  const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
 
   const list = useMemo(() => {
     let r = acc === "all" ? trades : trades.filter((x) => x.accountId === acc);
@@ -134,7 +130,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       <div className="flex justify-center">
         <div className="inline-flex gap-1 rounded-2xl border border-border bg-surface p-1">
           {TABS.map((x) => (
-            <button key={x.id} onClick={() => setTab(x.id)} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === x.id ? "bg-primary text-on-primary shadow" : "text-muted hover:text-text"}`}>{x.icon}{x.label}</button>
+            <button key={x.id} onClick={() => setTab(x.id)} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === x.id ? "bg-primary-tint text-primary border border-primary/50 shadow-sm" : "text-muted hover:text-text"}`}>{x.icon}{x.label}</button>
           ))}
         </div>
       </div>
@@ -150,14 +146,6 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
         <OverviewTab lang={lang} o={ov} />
       ) : tab === "outcomes" ? (
         <TradeOutcomesTab lang={lang} o={outcomes} recent={recent} onImport={onImport} />
-      ) : tab === "benchmark" ? (
-        <BenchmarkTab lang={lang} />
-      ) : tab === "portfolio" ? (
-        <PortfolioTab lang={lang} />
-      ) : tab === "advanced" ? (
-        <AdvancedTab lang={lang} />
-      ) : tab === "excursion" ? (
-        <ExcursionTab lang={lang} />
       ) : !a ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{L(TX.empty)}</div>
       ) : (
