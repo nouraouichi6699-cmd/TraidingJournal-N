@@ -34,7 +34,7 @@ export function useSize<T extends HTMLElement>() {
 
 const Empty = ({ lang }: { lang: Lang }) => <div className="grid h-full place-items-center text-center text-xs text-muted">{TR("No data yet", "لا توجد بيانات بعد", "Pas encore de données")[lang]}</div>;
 const Hidden = () => <div className="grid h-full place-items-center text-xl tracking-widest text-muted">••••</div>;
-const big = (extra?: string) => ({ fontSize: "clamp(1.4rem,min(30cqh,14cqw),3.4rem)", lineHeight: 1, ...(extra ? { color: extra } : {}) });
+const big = (extra?: string, withVisual = false) => ({ fontSize: withVisual ? "clamp(1rem,min(30cqh,11cqw),3.4rem)" : "clamp(1.1rem,min(30cqh,14cqw),3.4rem)", lineHeight: 1, whiteSpace: "nowrap" as const, ...(extra ? { color: extra } : {}) });
 
 export function Donut({ pct, label }: { pct: number; color?: string; label: string }) {
   const r = 40, c = 2 * Math.PI * r;
@@ -61,11 +61,11 @@ export function HalfGauge({ v, max }: { v: number; max: number; color?: string }
 function Kpi({ value, color, sub, visual }: { value: string; color?: string; sub?: string; visual?: ReactNode }) {
   return (
     <div className="flex h-full items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="tnum truncate font-heading font-bold" style={big(color)}>{value}</div>
+      <div className="min-w-0 shrink-0">
+        <div className="tnum font-heading font-bold" style={big(color, !!visual)}>{value}</div>
         {sub && <div className="mt-1.5 truncate text-muted" style={{ fontSize: "clamp(.65rem,7cqh,.85rem)" }}>{sub}</div>}
       </div>
-      {visual && <div className="h-full min-w-0 shrink-0" style={{ width: "min(44%,100cqh)" }}>{visual}</div>}
+      {visual && <div className="kpi-visual h-full min-w-0 shrink-0" style={{ width: "min(40%,100cqh)" }}>{visual}</div>}
     </div>
   );
 }

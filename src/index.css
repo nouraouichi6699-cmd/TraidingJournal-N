@@ -557,3 +557,5 @@ h6 {
     animation: none;
   }
 }
+/* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
+@container (max-width: 140px) { .kpi-visual { display: none; } }

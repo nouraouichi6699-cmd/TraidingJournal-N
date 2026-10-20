@@ -217,7 +217,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
                   }}>
                   <div className="mb-2 flex shrink-0 items-center gap-2 text-xs font-semibold text-primary">
                     {can && <GripVertical size={14} className="text-icon" />}
-                    <span className="truncate">{L(d.name)}</span>
+                    <span className="line-clamp-2 leading-tight" title={L(d.name)}>{L(d.name)}</span>
                     <span className="relative" onPointerDown={(e) => e.stopPropagation()}>
                       <Info size={13} className="peer cursor-help opacity-70 hover:opacity-100" />
                       <span className="pointer-events-none absolute start-0 top-5 z-30 hidden w-56 rounded-lg border border-border bg-bg p-2 text-[11px] font-normal leading-snug shadow-xl peer-hover:block">{L(d.info)}</span>
