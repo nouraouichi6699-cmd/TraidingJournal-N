@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart, FileSpreadsheet, CalendarRange, ArrowRight, SlidersHorizontal, Info, TrendingUp, TrendingDown, CalendarDays, Activity, BarChart3, Ruler, Grid3x3, Flame, FlaskConical, ShieldCheck, Dices, Scale, type LucideIcon } from "lucide-react";
 import RangePicker from "./RangePicker";
@@ -585,7 +585,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   const colorOf = (id: string) => st.colors[id] ?? (id === ALL ? PALETTE[0] : PALETTE[(1 + Math.max(0, items.indexOf(id) - 1)) % PALETTE.length]);
   const stored = byAcc ? st.selectedAcc : st.selected;
   const valid = stored.filter((id) => items.includes(id));
-  const chosen = valid.length ? valid : [ALL];
+  // Menu order, not click order: "All (combined)" first when selected (it drives the answer and what-if), then the list order.
+  const chosen = valid.length ? items.filter((id) => valid.includes(id)) : [ALL];
   const setChosen = (next: string[]) => save(byAcc ? { selectedAcc: next } : { selected: next });
 
   // Visible window: preset ranges end now; a custom range has both ends (inclusive days, UTC like the rest of the chart).
@@ -624,9 +625,14 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   const dayFmt = useMemo(() => new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }), [lang]);
 
   const startSum = accsInView.reduce((a, x) => a + (x.startBalance || 0), 0);
+  // Results per analysis, kept until the data changes: going back to an analysis already seen is instant.
+  const seriesCache = useMemo(() => new Map<string, Series[]>(), [scope, balances, flows, accounts, startSum]);
   const rawSeries: Series[] = useMemo(() => {
-    return chosen
-      .map((id): Series => {
+    const key = JSON.stringify([metric, chosen, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.prop, st.propDays, cutoff, until, acc, byAcc, lang, hideMoney, currency]);
+    const hit = seriesCache.get(key);
+    if (hit) return hit;
+    const out = chosen
+      .map((id, idx): Series => {
         const list = scope
           .filter((x) => id === ALL || (byAcc ? x.accountId === id : x.symbol === id))
           .sort((a, b) => ts(a.exitTime) - ts(b.exitTime));
@@ -669,7 +675,9 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
           return { id, name, color, pts: line(sim.p50), bars: [], stats, base, band: { lo: line(sim.p5), hi: line(sim.p95) }, mc: sim };
         }
         if (metric === "whatif") {
-          const wi = applyWhatIf(shown, st.whatIf), ws = labStats(wi), as = labStats(shown);
+          const as = labStats(shown);
+          if (idx > 0) return { id, name, color, pts: cumCurve(shown), bars: [], stats: { ...stats, maxDD: as.maxDD }, base }; // only the first curve is compared
+          const wi = applyWhatIf(shown, st.whatIf), ws = labStats(wi);
           return { id, name, color, pts: cumCurve(shown), bars: [], stats: { ...stats, maxDD: as.maxDD }, base, twin: { pts: cumCurve(wi), stats: { net: ws.net, n: ws.n, winRate: ws.winRate, pf: ws.pf, maxDD: ws.maxDD } }, ideas: findRules(shown) };
         }
         if (metric === "heat") return { id, name, color, pts: [], bars: [], stats, base, heat: heatmap(shown) };
@@ -768,8 +776,20 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         return { id, name, color, pts, bars: [], stats, base, dd, ddText, ddSub, marks, prop, propNote, guides, alerts, odds };
       })
       .filter((s) => (metric === "heat" ? (s.heat ?? []).some((r) => r.some((c) => c.n > 0)) : metric === "periods" || metric === "dist" || metric === "rmult" || metric === "tilt" ? s.bars.some((b) => b.n > 0) : s.pts.length > 1));
+    // Several curves over time: all start where the earliest starts and end where the latest ends, flat outside their own
+    // trades (no P&L yet / no more trades), so every line leaves from the same point (0, or the starting balance).
+    if ((metric === "profit" || metric === "drawdown" || balanceLike) && out.length > 1) {
+      const t0 = Math.min(...out.map((s) => s.pts[0].t)), t1 = Math.max(...out.map((s) => s.pts[s.pts.length - 1].t));
+      for (const s of out) {
+        const first = s.pts[0], last = s.pts[s.pts.length - 1];
+        s.pts = [...(first.t > t0 ? [{ t: t0, v: first.v }] : []), ...s.pts, ...(last.t < t1 ? [{ t: t1, v: last.v }] : [])];
+      }
+    }
+    if (seriesCache.size > 40) seriesCache.delete(seriesCache.keys().next().value as string);
+    seriesCache.set(key, out);
+    return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.prop, st.propDays, cutoff, until, balances, flows, acc, byAcc, lang, accounts, startSum, hideMoney, currency]);
+  }, [seriesCache, scope, chosen.join("|"), metric, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.prop, st.propDays, cutoff, until, balances, flows, acc, byAcc, lang, accounts, startSum, hideMoney, currency]);
 
   // $ / % : percent is relative to the starting balance (balance view: change since the start). Rolling / distribution / simulation have their own units.
   const unitless = metric === "rolling" || metric === "dist" || metric === "mc" || metric === "heat" || metric === "rmult" || metric === "tilt" || metric === "size";
@@ -912,6 +932,11 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
     : undefined;
   const showDD = st.showDD && (metric === "profit" || metric === "balance");
   const [picking, setPicking] = useState(false);
+  // Switching analysis: the menu answers at once, the new analysis renders in a transition (the old one stays usable).
+  const [pending, startTransition] = useTransition();
+  const [navTo, setNavTo] = useState<Metric | null>(null);
+  useEffect(() => setNavTo(null), [st.metric, open]);
+  const go = (m: Metric) => { setNavTo(m); startTransition(() => save({ metric: m })); };
   const todayKey = new Date().toISOString().slice(0, 10);
 
   const seg = (on: boolean) => `px-3 py-1.5 transition-colors ${on ? "bg-primary text-on-primary" : "hover:text-icon"}`;
@@ -957,7 +982,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   const modeSwitch = ( // symbols on the left, accounts on the right, whatever the language (same as the launchers)
     <div className={group} role="group" aria-label={t("charts")} dir="ltr">
       {([["symbol", CandlestickChart, "chBySymbol"], ["account", Wallet, "chByAccount"]] as const).map(([m, Icon, k]) => (
-        <button key={m} type="button" aria-pressed={mode === m} onClick={() => setOpen(m)} className={`flex items-center gap-2 ${seg(mode === m)}`}><Icon size={15} strokeWidth={1.9} />{t(k)}</button>
+        <button key={m} type="button" aria-pressed={mode === m} onClick={() => startTransition(() => setOpen(m))} className={`flex items-center gap-2 ${seg(mode === m)}`}><Icon size={15} strokeWidth={1.9} />{t(k)}</button>
       ))}
     </div>
   );
@@ -1011,11 +1036,11 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
     </>
   );
   const navButton = (m: Metric, chip: boolean) => {
-    const Icon = ICON[m], on = metric === m;
+    const Icon = ICON[m], on = (navTo ?? metric) === m;
     return chip ? (
-      <button key={m} type="button" aria-current={on ? "true" : undefined} onClick={() => save({ metric: m })} className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${on ? "border-icon bg-primary-tint font-semibold" : "border-border text-muted hover:text-text"}`}><Icon size={14} strokeWidth={1.9} className={on ? "text-icon" : ""} />{label(m)}</button>
+      <button key={m} type="button" aria-current={on ? "true" : undefined} onClick={() => go(m)} className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${on ? "border-icon bg-primary-tint font-semibold" : "border-border text-muted hover:text-text"}`}><Icon size={14} strokeWidth={1.9} className={on ? "text-icon" : ""} />{label(m)}</button>
     ) : (
-      <button key={m} type="button" aria-current={on ? "true" : undefined} title={t(QUESTION[m])} onClick={() => save({ metric: m })} className={`relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-sm transition-colors ${on ? "bg-primary-tint font-semibold text-text" : "text-muted hover:bg-primary-tint hover:text-text"}`}>
+      <button key={m} type="button" aria-current={on ? "true" : undefined} title={t(QUESTION[m])} onClick={() => go(m)} className={`relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-sm transition-colors ${on ? "bg-primary-tint font-semibold text-text" : "text-muted hover:bg-primary-tint hover:text-text"}`}>
         {on && <span aria-hidden className="absolute inset-y-2 start-0 w-[3px] rounded-full bg-icon" />}
         <Icon size={16} strokeWidth={1.9} className={on ? "text-icon" : ""} />{label(m)}
       </button>
@@ -1060,7 +1085,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         </>
       )}
       {metric === "whatif" && (
-        <Dropdown label={t("chRules")} panelClass="w-80 max-h-[70vh] overflow-auto" bare trigger={<span className={`${pill} ${activeRules ? "!border-icon" : ""}`}><SlidersHorizontal size={14} className="text-icon" />{t("chRules")}{activeRules > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-on-primary tnum">{activeRules}</span>}<ChevronDown size={14} /></span>}>
+        <Dropdown label={t("chRules")} align="start" panelClass="w-80 max-h-[70vh] overflow-auto" bare trigger={<span className={`${pill} ${activeRules ? "!border-icon" : ""}`}><SlidersHorizontal size={14} className="text-icon" />{t("chRules")}{activeRules > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-on-primary tnum">{activeRules}</span>}<ChevronDown size={14} /></span>}>
           {() => <WhatIfPanel rules={st.whatIf} onChange={(whatIf) => save({ whatIf })} symbols={symbols} t={t} weekdays={WD} currency={currency} />}
         </Dropdown>
       )}
@@ -1079,7 +1104,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         </label>
       )}
       {metric === "prop" && (
-        <Dropdown label={t("chProp")} panelClass="w-72" bare trigger={<span className={pill}><SlidersHorizontal size={14} className="text-icon" />{t("chProp")}<ChevronDown size={14} /></span>}>
+        <Dropdown label={t("chProp")} align="start" panelClass="w-72" bare trigger={<span className={pill}><SlidersHorizontal size={14} className="text-icon" />{t("chProp")}<ChevronDown size={14} /></span>}>
           {() => (
             <div className="flex flex-col gap-2 p-1.5 text-sm">
               {([["dailyLossPct", "chPropDaily"], ["maxDDPct", "chPropMax"], ["targetPct", "chPropTarget"]] as const).map(([k, lbl]) => (
@@ -1146,12 +1171,12 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
           {rail}
           <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-5">
             {chips}
-            <div className="rounded-2xl border border-border bg-surface p-4 sm:p-6">
+            <div className={`rounded-2xl border border-border bg-surface p-4 transition-opacity duration-150 sm:p-6 ${pending ? "opacity-60" : ""}`} aria-busy={pending}>
               <h3 className="font-heading text-2xl font-bold">{label(metric)}</h3>
               <p className="mt-1 text-sm text-muted">{t(QUESTION[metric])}</p>
 
               {head && !propPick && (
-                <div className="mt-5 flex flex-wrap items-end gap-x-12 gap-y-4">
+                <div key={metric} className="ch-fade mt-5 flex flex-wrap items-end gap-x-12 gap-y-4">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                       {series.length > 1 && metric !== "whatif" && <span className="flex items-center gap-1.5 font-semibold text-text" dir="ltr"><span className="h-2 w-2 rounded-full" style={{ background: head.color }} />{head.name}</span>}

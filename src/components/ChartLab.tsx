@@ -82,13 +82,13 @@ export function Heatmap({ cells, mode, money, weekdays, t, rtl }: { cells: HeatC
   return (
     <div dir="ltr">
       <div className="overflow-x-auto pb-1">
-        <div className="grid min-w-[640px] gap-[3px]" style={{ gridTemplateColumns: "44px repeat(24, minmax(0, 1fr))" }} onMouseLeave={() => setHover(null)}>
+        <div className="grid min-w-[640px] gap-[3px]" style={{ gridTemplateColumns: "44px repeat(24, minmax(0, 1fr))" }} onMouseLeave={() => setHover(null)} role="img" aria-label={t("chHeat")}>
           <span />
           {Array.from({ length: 24 }, (_, h) => <span key={h} className="text-center text-[10px] text-muted tnum">{h % 3 === 0 ? String(h).padStart(2, "0") : ""}</span>)}
           {cells.map((row, d) => [
             <span key={`l${d}`} className="flex items-center text-xs font-semibold text-muted">{weekdays[d]}</span>,
             ...row.map((c, h) => (
-              <div key={`${d}-${h}`} role="img" aria-label={info(d, h)} title={info(d, h)} onMouseEnter={() => setHover({ d, h })}
+              <div key={`${d}-${h}`} aria-hidden onMouseEnter={() => setHover({ d, h })}
                 className="h-8 rounded-md transition-transform hover:scale-110 sm:h-9" style={{ background: bg(c), outline: hover?.d === d && hover?.h === h ? "2px solid var(--text)" : undefined }} />
             )),
           ])}

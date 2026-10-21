@@ -6,9 +6,10 @@ interface Props {
   children: (close: () => void) => ReactNode;
   panelClass?: string;
   bare?: boolean; // trigger brings its own styling (no square icon button)
+  align?: "start" | "end"; // panel edge lined up with the trigger (start: opens towards the end side)
 }
 
-export default function Dropdown({ label, trigger, children, panelClass = "min-w-[170px]", bare = false }: Props) {
+export default function Dropdown({ label, trigger, children, panelClass = "min-w-[170px]", bare = false, align = "end" }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,7 +42,7 @@ export default function Dropdown({ label, trigger, children, panelClass = "min-w
       {open && (
         <div
           role="menu"
-          className={`absolute end-0 top-full z-50 mt-2 ${panelClass} rounded-xl border border-border bg-surface p-1.5 shadow-xl`}
+          className={`absolute ${align === "start" ? "start-0" : "end-0"} top-full z-50 mt-2 ${panelClass} rounded-xl border border-border bg-surface p-1.5 shadow-xl`}
         >
           {children(() => setOpen(false))}
         </div>

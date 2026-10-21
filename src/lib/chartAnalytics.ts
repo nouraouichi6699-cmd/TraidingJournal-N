@@ -65,7 +65,7 @@ export function rollingSeries(trades: { t: number; pnl: number }[], n: number, k
 
 export interface Bin { lo: number; hi: number; count: number; edge?: "under" | "over" }
 
-const pctile = (sorted: number[], p: number) => {
+const pctile = (sorted: ArrayLike<number>, p: number) => {
   if (!sorted.length) return NaN;
   const k = (sorted.length - 1) * p, f = Math.floor(k), c = Math.ceil(k);
   return f === c ? sorted[f] : sorted[f] + (sorted[c] - sorted[f]) * (k - f);
@@ -122,23 +122,27 @@ export function monteCarlo(pnls: number[], o: { paths?: number; horizon?: number
   const paths = o.paths ?? 1000, horizon = Math.max(1, o.horizon ?? pool.length), r = rng(o.seed ?? 42);
   const points = Math.max(2, Math.min(o.points ?? 120, horizon));
   const steps = Array.from({ length: points }, (_, i) => Math.max(1, Math.round(((i + 1) * horizon) / points)));
-  const at: number[][] = steps.map(() => []), finals: number[] = [], dds: number[] = [];
+  // Typed arrays sorted once each (numeric sort, no comparator): the same percentiles, many times faster.
+  const at = steps.map(() => new Float64Array(paths)), finals = new Float64Array(paths), dds = new Float64Array(paths);
   for (let p = 0; p < paths; p++) {
     let cum = 0, peak = 0, dd = 0, s = 0;
     for (let k = 1; k <= horizon; k++) {
       cum += pool[Math.floor(r() * pool.length)];
       if (cum > peak) peak = cum; else if (peak - cum > dd) dd = peak - cum;
-      while (s < steps.length && steps[s] === k) at[s++].push(cum);
+      while (s < steps.length && steps[s] === k) at[s++][p] = cum;
     }
-    finals.push(cum); dds.push(dd);
+    finals[p] = cum; dds[p] = dd;
   }
-  const q = (a: number[], p: number) => pctile([...a].sort((x, y) => x - y), p);
+  for (const a of at) a.sort();
+  let wins = 0;
+  for (const x of finals) if (x > 0) wins++;
+  finals.sort(); dds.sort();
   return {
     paths, horizon, steps,
-    p5: at.map((a) => q(a, 0.05)), p50: at.map((a) => q(a, 0.5)), p95: at.map((a) => q(a, 0.95)),
-    probProfit: (finals.filter((x) => x > 0).length / paths) * 100,
-    finalP5: q(finals, 0.05), finalP50: q(finals, 0.5), finalP95: q(finals, 0.95),
-    ddMedian: q(dds, 0.5), ddP95: q(dds, 0.95),
+    p5: at.map((a) => pctile(a, 0.05)), p50: at.map((a) => pctile(a, 0.5)), p95: at.map((a) => pctile(a, 0.95)),
+    probProfit: (wins / paths) * 100,
+    finalP5: pctile(finals, 0.05), finalP50: pctile(finals, 0.5), finalP95: pctile(finals, 0.95),
+    ddMedian: pctile(dds, 0.5), ddP95: pctile(dds, 0.95),
   };
 }
 
