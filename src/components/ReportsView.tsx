@@ -5,6 +5,7 @@ import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import { computeReturnsCapital } from "../lib/returnsCapital";
 import type { CashFlow } from "../lib/cashflow";
+import { commonCurrency } from "../lib/money";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
 import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
@@ -113,6 +114,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
     const c = d.toISOString().slice(0, 10);
     return { before: accFlows.filter((f) => f.t < c), period: accFlows.filter((f) => f.t >= c) };
   }, [accFlows, per]);
+  const currency = useMemo(() => commonCurrency(acc === "all" ? accounts : accounts.filter((x) => x.id === acc)), [accounts, acc]); // null when currencies are mixed
   const rc = useMemo(() => computeReturnsCapital(list, before, startBal, flowSplit), [list, before, startBal, flowSplit]);
   const outcomes = useMemo(() => computeTradeOutcomes(list, startBal), [list, startBal]);
   const recent = useMemo(() => recentOutcomes(list, 60), [list]);
@@ -166,9 +168,9 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       </div>
 
       {tab === "overview" ? (
-        <OverviewTab lang={lang} o={ov} />
+        <OverviewTab lang={lang} o={ov} currency={currency} />
       ) : tab === "outcomes" ? (
-        <TradeOutcomesTab lang={lang} o={outcomes} recent={recent} onImport={onImport} />
+        <TradeOutcomesTab lang={lang} o={outcomes} recent={recent} onImport={onImport} currency={currency} />
       ) : tab === "benchmark" ? (
         <BenchmarkTab lang={lang} />
       ) : tab === "portfolio" ? (
@@ -178,9 +180,9 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       ) : tab === "path" ? (
         <PathTab lang={lang} />
       ) : tab === "daybyday" ? (
-        <DayByDayTab lang={lang} trades={list} onImport={onImport} />
+        <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} />
       ) : tab === "returns" ? (
-        <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accounts : accounts.filter((x) => x.id === acc)} flows={accFlows} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} />
+        <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accounts : accounts.filter((x) => x.id === acc)} flows={accFlows} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} currency={currency} />
       ) : !a ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{L(TX.empty)}</div>
       ) : (

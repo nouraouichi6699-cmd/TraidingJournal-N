@@ -4,6 +4,7 @@ import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
 import { usePrivacy } from "../usePrivacy";
 import { fmt, computeStats } from "../lib/stats";
+import { commonCurrency, currencySuffix, fmtMoney } from "../lib/money";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
@@ -297,7 +298,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
         {ticks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.9 : 0.35} />
-            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : hide ? "•••" : `${v < 0 ? "-" : ""}${cur}${fmt(Math.abs(v), dec)}`}</text>
+            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : hide ? "•••" : `${v < 0 ? "-" : ""}${fmt(Math.abs(v), dec)}${cur}`}</text>
           </g>
         ))}
 
@@ -331,7 +332,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
             {series.map((s, k) => {
               const last = drawn[k][drawn[k].length - 1];
               const lv = s.pts[s.pts.length - 1].v;
-              const text = pct ? `${lv > 0 ? "+" : ""}${fmt(lv, 1)}%` : hide ? "•••" : `${lv < 0 ? "-" : ""}${cur}${fmt(Math.abs(lv), 0)}`;
+              const text = pct ? `${lv > 0 ? "+" : ""}${fmt(lv, 1)}%` : hide ? "•••" : `${lv < 0 ? "-" : ""}${fmt(Math.abs(lv), 0)}${cur}`;
               const bw = text.length * 7.2 + 16;
               return (
                 <g key={`e${s.id}`}>
@@ -428,9 +429,9 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
   const closed = useMemo(() => trades.filter((x) => x.status === "closed" && x.pnl != null && !isNaN(ts(x.exitTime))), [trades]);
   const scope = useMemo(() => (byAcc || acc === "all" ? closed : closed.filter((x) => x.accountId === acc)), [closed, acc, byAcc]);
   const accsInView = byAcc || acc === "all" ? accounts : accounts.filter((a) => a.id === acc);
-  const currency = accsInView[0]?.currency ?? "USD";
+  const currency = commonCurrency(accsInView); // null when the accounts in view use different currencies
   const { hidden: hideMoney } = usePrivacy();
-  const moneyBase = (n: number) => hideMoney ? "••••" : `${n < 0 ? "-" : ""}${currency === "USD" ? "$" : ""}${fmt(Math.abs(n))}${currency === "USD" ? "" : ` ${currency}`}`;
+  const moneyBase = (n: number) => hideMoney ? "••••" : fmtMoney(n, { currency }); // summary: whole units, currency after the number
 
   const symbols = useMemo(() => [...new Set(scope.map((x) => x.symbol))].sort(), [scope]);
   const items = byAcc ? [ALL, ...accounts.map((a) => a.id)] : [ALL, ...symbols];
@@ -710,14 +711,14 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
                 <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
                   <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
                     <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{money(value(s))}</span></p>
-                  <Chart series={[s]} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
+                  <Chart series={[s]} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth} kind={isBars ? "bars" : lineKind} t={t} />
                   <StatsRow s={s} money={moneyBase} t={t} />
                 </div>
               ))}
             </div>
           ) : (
             <div className="mt-4">
-              <Chart series={series} lang={lang} money={money} cur={currency === "USD" ? "$" : ""} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
+              <Chart series={series} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth} kind={lineKind} t={t} />
               <div className="mt-3 flex flex-col gap-2">
                 {series.map((s) => (
                   <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border px-3 py-2" dir="ltr">

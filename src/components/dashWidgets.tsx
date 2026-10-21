@@ -6,6 +6,7 @@ import StreakWidget from "./StreakWidget";
 import { symL } from "../i18n";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import { dayKey, type Metrics } from "../lib/dashStats";
 import type { Lang, Trade } from "../types";
 
@@ -13,11 +14,12 @@ type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 export const GREEN = "#12d65f", RED = "#ff3b4f";
 
-export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number }
+export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number; cur: string | null } // cur: shared account currency (null = mixed)
 export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; gauge?: boolean; render: (c: Ctx) => ReactNode }
 
 const tone = (n: number) => (n > 0 ? GREEN : n < 0 ? RED : "var(--text)");
-export const money = (c: Ctx, n: number, sign = true) => (c.hide ? "••••" : `${sign && n > 0 ? "+" : ""}${fmt(n)}`);
+/** Summary money (whole units); pass cents=true for trade-level rows. */
+export const money = (c: Ctx, n: number, sign = true, cents = false) => (c.hide ? "••••" : fmtMoney(n, { sign, cents, currency: c.cur }));
 const compact = (n: number) => { const a = Math.abs(n); return (n < 0 ? "-" : "") + (a >= 1000 ? (a / 1000).toFixed(a >= 10000 ? 0 : 1) + "k" : a.toFixed(0)); };
 
 export function useSize<T extends HTMLElement>() {
@@ -140,7 +142,7 @@ function CumW({ c }: { c: Ctx }) {
           {sel && hv != null && <g><line x1={X(hv)} x2={X(hv)} y1={padT} y2={h - padB} stroke="var(--primary)" strokeOpacity=".6" /><circle cx={X(hv)} cy={Y(sel.v)} r="4" fill={col} stroke="var(--bg)" strokeWidth="2" /></g>}
         </svg>
       )}
-      {sel && hv != null && <div className="tnum pointer-events-none absolute top-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] shadow" style={{ left: Math.min(Math.max(X(hv) - 40, 0), w - 90) }}><div className="text-muted">{sel.d}</div><div className="font-semibold" style={{ color: tone(sel.v) }}>{fmt(sel.v)}</div></div>}
+      {sel && hv != null && <div className="tnum pointer-events-none absolute top-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] shadow" style={{ left: Math.min(Math.max(X(hv) - 40, 0), w - 90) }}><div className="text-muted">{sel.d}</div><div className="font-semibold" style={{ color: tone(sel.v) }}>{money(c, sel.v, false)}</div></div>}
     </div>
   );
 }
@@ -168,7 +170,7 @@ function DailyW({ c }: { c: Ctx }) {
           <text x={w - padR} y={h - 4} textAnchor="end" fontSize="10" fill="var(--muted)">{days[days.length - 1].d.slice(5)}</text>
         </svg>
       )}
-      {hv != null && days[hv] && <div className="tnum pointer-events-none absolute top-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] shadow" style={{ left: Math.min(Math.max(padL + hv * slot - 30, 0), w - 90) }}><div className="text-muted">{days[hv].d} · {days[hv].n}</div><div className="font-semibold" style={{ color: tone(days[hv].pnl) }}>{fmt(days[hv].pnl)}</div></div>}
+      {hv != null && days[hv] && <div className="tnum pointer-events-none absolute top-1 rounded-md border border-border bg-bg px-2 py-1 text-[11px] shadow" style={{ left: Math.min(Math.max(padL + hv * slot - 30, 0), w - 90) }}><div className="text-muted">{days[hv].d} · {days[hv].n}</div><div className="font-semibold" style={{ color: tone(days[hv].pnl) }}>{money(c, days[hv].pnl, false)}</div></div>}
     </div>
   );
 }
@@ -194,7 +196,7 @@ function TradesW({ c }: { c: Ctx }) {
                   <td className="tnum py-1.5 text-muted">{dayKey(t) || "—"}</td>
                   <td className="font-medium">{t.symbol}</td>
                   <td style={{ color: t.side === "long" ? GREEN : RED }}>{t.side === "long" ? TR("Long", "شراء", "Long")[c.lang] : TR("Short", "بيع", "Short")[c.lang]}</td>
-                  <td className="tnum text-end font-semibold" style={{ color: t.pnl == null || c.hide ? undefined : tone(t.pnl) }}>{t.pnl == null ? "—" : money(c, t.pnl)}</td>
+                  <td className="tnum text-end font-semibold" style={{ color: t.pnl == null || c.hide ? undefined : tone(t.pnl) }}>{t.pnl == null ? "—" : money(c, t.pnl, true, true)}</td>
                 </tr>
               ))}
             </tbody>
@@ -282,7 +284,7 @@ export const DEFS: Def[] = [
         <div className="flex h-full flex-col justify-center gap-1.5">
           <div className="tnum font-heading font-bold" style={{ fontSize: "clamp(1.2rem,min(24cqh,12cqw),2.6rem)", lineHeight: 1 }}>{c.m.ratio == null ? "∞" : fmt(c.m.ratio)}</div>
           <div dir="ltr" className="flex h-2.5 overflow-hidden rounded-full bg-border"><div style={{ width: `${(c.m.avgWin / t) * 100}%`, background: GREEN }} /><div style={{ width: `${(c.m.avgLoss / t) * 100}%`, background: RED }} /></div>
-          <div className="tnum flex justify-between text-[11px]"><span style={{ color: GREEN }}>{money(c, c.m.avgWin)}</span><span style={{ color: RED }}>{c.hide ? "••••" : `-${fmt(c.m.avgLoss)}`}</span></div>
+          <div className="tnum flex justify-between text-[11px]"><span style={{ color: GREEN }}>{money(c, c.m.avgWin)}</span><span style={{ color: RED }}>{money(c, -c.m.avgLoss, false)}</span></div>
         </div>
       );
     }

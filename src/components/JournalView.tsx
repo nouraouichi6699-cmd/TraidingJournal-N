@@ -3,6 +3,7 @@ import SymbolIcon from "./SymbolIcon";
 import Private from "./Private";
 import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import { fmt } from "../lib/stats";
+import { commonCurrency, fmtMoney } from "../lib/money";
 import { pipsOf, weekOfMonth } from "../lib/pips";
 import Dropdown from "./Dropdown";
 import type { Key } from "../i18n";
@@ -46,6 +47,9 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
     try { localStorage.setItem(COLS_KEY, JSON.stringify(next)); } catch {}
   };
   const show = (c: Numeric) => !hidden.includes(c);
+  const curOf = useMemo(() => new Map(accounts.map((a) => [a.id, a.currency])), [accounts]);
+  // Trade rows keep cents; month totals are summaries (whole units). Mixed currencies get no symbol.
+  const groupCur = (list: Trade[]) => commonCurrency([...new Set(list.map((x) => x.accountId))].map((id) => ({ currency: curOf.get(id) ?? "" })));
 
   const rows = useMemo(
     () =>
@@ -105,7 +109,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                     {show("exit") && <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>}
                     {show("size") && <td className="px-4 py-3 tnum" dir="ltr"><Private hint={t("privacyReveal")}>{x.qty.toLocaleString("en-US")}</Private></td>}
                     {show("pips") && <td className={`px-4 py-3 tnum font-semibold ${tone(pips)}`} dir="ltr">{pips == null ? "—" : signed(pips, 1)}</td>}
-                    {show("pnl") && <td className={`px-4 py-3 tnum font-semibold ${tone(x.pnl)}`} dir="ltr">{x.pnl == null ? "—" : <Private hint={t("privacyReveal")}>{signed(x.pnl)}</Private>}</td>}
+                    {show("pnl") && <td className={`px-4 py-3 tnum font-semibold ${tone(x.pnl)}`} dir="ltr">{x.pnl == null ? "—" : <Private hint={t("privacyReveal")}>{fmtMoney(x.pnl, { cents: true, sign: true, currency: curOf.get(x.accountId) })}</Private>}</td>}
                     <td className="px-4 py-3">
                       {wk ? (<>{t(WEEK_KEYS[Math.min(wk.week, 6) - 1])}<span className="block text-xs text-muted">{monthName(wk.month)}</span></>) : "—"}
                     </td>
@@ -180,7 +184,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                         <button type="button" aria-expanded={open} onClick={() => setOpenMonths(open ? openMonths.filter((m) => m !== ym) : [...openMonths, ym])} className="flex w-full items-center gap-3 px-3 py-2.5 text-start text-sm">
                           <span className="flex-1 font-semibold">{monthName(ym)}</span>
                           <span className="text-xs text-muted">{list.length} {t("monthTrades")}</span>
-                          {show("pnl") && <span className={`tnum font-semibold ${tone(total)}`} dir="ltr"><Private hint={t("privacyReveal")}>{signed(total)}</Private></span>}
+                          {show("pnl") && <span className={`tnum font-semibold ${tone(total)}`} dir="ltr"><Private hint={t("privacyReveal")}>{fmtMoney(total, { sign: true, currency: groupCur(list) })}</Private></span>}
                           <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180" : ""}`} />
                         </button>
                         {open && <div className="border-t border-border">{renderTable(list)}</div>}

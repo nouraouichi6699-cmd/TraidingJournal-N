@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dayList, dayStats, dayTrades, type DayStats } from "../lib/dayByDay";
 import { fmt, fmtHold } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
 import { cardBg } from "./metricUi";
@@ -24,7 +25,7 @@ const X = {
 };
 const asDate = (s: string | null) => { if (!s) return null; const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z"); return Number.isNaN(d.getTime()) ? null : d; };
 
-export default function DayByDayTab({ lang, trades, onImport }: { lang: Lang; trades: Trade[]; onImport?: () => void }) {
+export default function DayByDayTab({ lang, trades, onImport, currency = null }: { lang: Lang; trades: Trade[]; onImport?: () => void; currency?: string | null }) {
   const k = i(lang), T = (x: L) => x[k];
   const { hidden } = usePrivacy();
   const days = useMemo(() => dayList(trades), [trades]);
@@ -36,7 +37,7 @@ export default function DayByDayTab({ lang, trades, onImport }: { lang: Lang; tr
   const activeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [day]);
 
-  const money = (v: number | null, sign = true) => (v == null ? "—" : hidden ? "••••" : `${sign && v > 0 ? "+" : ""}${fmt(v)}`);
+  const money = (v: number | null, sign = true, cents = false) => (v == null ? "—" : hidden ? "••••" : fmtMoney(v, { sign, cents, currency })); // summaries whole, trade rows with cents
   const tone = (v: number | null) => (hidden || v == null || v === 0 ? undefined : v > 0 ? GREEN : RED);
   const monthFmt = new Intl.DateTimeFormat(lang, { month: "long", year: "numeric", timeZone: "UTC" });
   const dt = new Intl.DateTimeFormat(lang === "ar" ? "ar" : lang, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
@@ -119,7 +120,7 @@ export default function DayByDayTab({ lang, trades, onImport }: { lang: Lang; tr
                             <td className="px-4 py-3 text-xs">{when(r.entryTime)}</td>
                             <td className="px-4 py-3 text-xs">{when(r.exitTime)}</td>
                             <td className="tnum px-4 py-3">{fmt(r.qty)}</td>
-                            <td className="tnum px-4 py-3 font-semibold" style={{ color: tone(r.pnl) }}>{money(r.pnl as number, false)}</td>
+                            <td className="tnum px-4 py-3 font-semibold" style={{ color: tone(r.pnl) }}>{money(r.pnl as number, false, true)}</td>
                           </tr>
                         );
                       })}

@@ -3,6 +3,7 @@ import { BarChart3, ShieldAlert, Target, TrendingUp, Wallet } from "lucide-react
 import { MetricSection, ViewHeader, cardBg, type Item } from "./metricUi";
 import { ovT } from "../i18n";
 import { fmt, fmtHold } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import type { Overview } from "../lib/stats";
 import { usePrivacy } from "../usePrivacy";
 import { Donut, GREEN, HalfGauge, RED } from "./dashWidgets";
@@ -12,7 +13,7 @@ type M = { id: string; v: number | null; kind: "money" | "pct" | "num" | "int" |
 
 const WHY: Record<string, string> = { equity: "wEquity", cashflow: "wCashflow", days: "wDays", start: "wStart", balance: "wBalance", stored: "wStored" };
 
-export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
+export default function OverviewTab({ lang, o, currency = null }: { lang: Lang; o: Overview; currency?: string | null }) {
   const T = ovT(lang);
   const { hidden } = usePrivacy();
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -22,7 +23,7 @@ export default function OverviewTab({ lang, o }: { lang: Lang; o: Overview }) {
     if (!ok(m.v)) return "-";
     if (m.hide && hidden) return "••••";
     switch (m.kind) {
-      case "money": return `${m.sign && m.v > 0 ? "+" : ""}${fmt(m.v)}`;
+      case "money": return fmtMoney(m.v, { sign: m.sign, currency }); // summary: whole units
       case "pct": return `${m.sign && m.v > 0 ? "+" : ""}${fmt(m.v)}%`;
       case "int": return String(Math.round(m.v));
       case "lots": return `${fmt(m.v)} ${T("lots")}`;

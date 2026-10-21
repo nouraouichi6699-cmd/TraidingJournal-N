@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Banknote, CalendarCheck, TrendingUp } from "lucide-react";
 import { fmt } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import type { ReturnsCapital, RcWhy } from "../lib/returnsCapital";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
@@ -110,7 +111,7 @@ const WHY: Record<RcWhy, L> = {
 };
 const POLICY: L = ["Only days, weeks and months with at least one closed trade count. Day = close date.", "تُحتسب فقط الأيام والأسابيع والأشهر التي فيها صفقة مغلقة واحدة على الأقل. اليوم = تاريخ الإغلاق.", "Seuls les jours/semaines/mois avec un trade clôturé comptent. Jour = date de clôture."];
 
-export default function ReturnsTab({ lang, rc, accounts = [], flows = [], onAddFlow, onRemoveFlow }: { lang: Lang; rc: ReturnsCapital; accounts?: Account[]; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }) {
+export default function ReturnsTab({ lang, rc, accounts = [], flows = [], onAddFlow, onRemoveFlow, currency = null }: { lang: Lang; rc: ReturnsCapital; currency?: string | null; accounts?: Account[]; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }) {
   const k = i(lang), T = (x: L) => x[k];
   const { hidden } = usePrivacy();
   const [view, setView] = useState<View>("grid");
@@ -119,7 +120,7 @@ export default function ReturnsTab({ lang, rc, accounts = [], flows = [], onAddF
     const why = (rc.why[id] ?? (spec ? undefined : "noCash")) as RcWhy | undefined;
     if (v == null) return { id, label: T(l), tip: T(tip), value: "-", reason: why ? T(WHY[why]) : undefined };
     const [, kind, signed] = spec;
-    const value = kind === "int" ? String(Math.round(v)) : kind === "pct" ? `${signed && v > 0 ? "+" : ""}${fmt(v)}%` : hidden ? "••••" : `${signed && v > 0 ? "+" : ""}${fmt(v)}`;
+    const value = kind === "int" ? String(Math.round(v)) : kind === "pct" ? `${signed && v > 0 ? "+" : ""}${fmt(v)}%` : hidden ? "••••" : fmtMoney(v, { sign: signed, currency }); // summary: whole units
     return { id, label: T(l), tip: T(tip), value, color: signed && !hidden && kind !== "int" && v !== 0 ? (v > 0 ? GREEN : RED) : undefined };
   });
   const n = S1.length + S2.length + S3.length;

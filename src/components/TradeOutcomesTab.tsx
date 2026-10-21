@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { BarChart3, Flame, Layers, Target } from "lucide-react";
 import { toT } from "../i18n";
 import { fmt } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import { GROUPS, type OutcomeKey, type RecentTrade, type TradeOutcomes } from "../lib/tradeOutcomes";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
@@ -30,14 +31,14 @@ const SECTION_META: { g: keyof typeof GROUPS; id: string; icon: JSX.Element }[] 
   { g: "dependence", id: "s3", icon: <Layers size={18} /> }, { g: "streaks", id: "s4", icon: <Flame size={18} /> },
 ];
 
-export default function TradeOutcomesTab({ lang, o, recent, onImport }: { lang: Lang; o: TradeOutcomes; recent: RecentTrade[]; onImport?: () => void }) {
+export default function TradeOutcomesTab({ lang, o, recent, onImport, currency = null }: { lang: Lang; o: TradeOutcomes; recent: RecentTrade[]; onImport?: () => void; currency?: string | null }) {
   const T = toT(lang);
   const { hidden } = usePrivacy();
   const [view, setView] = useState<View>("grid");
   const [active, setActive] = useState<number | null>(null);
 
   const items = useMemo(() => {
-    const money = (v: number) => (hidden ? "••••" : `${v > 0 ? "+" : ""}${fmt(v)}`);
+    const money = (v: number) => (hidden ? "••••" : fmtMoney(v, { sign: true, currency })); // summary: whole units
     const one = (k: OutcomeKey): Item => {
       const v = o[k], kind = kindOf(k);
       let value = "-", color: string | undefined, bar: number | null = null;
@@ -92,11 +93,11 @@ export default function TradeOutcomesTab({ lang, o, recent, onImport }: { lang: 
       <div className="mb-1.5 text-[11px] font-semibold text-muted">{T("strip")}</div>
       <div dir="ltr" role="group" tabIndex={0} aria-label={T("strip")} onKeyDown={onKey} onBlur={() => setActive(null)} className="flex flex-wrap gap-1 rounded-lg p-1 outline-none focus-visible:ring-1 focus-visible:ring-[var(--primary)]">
         {recent.map((r, i) => (
-          <span key={r.key + i} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)} aria-hidden="true" title={`${r.date} · ${r.symbol} · ${hidden ? "••••" : fmt(r.pnl)}`}
+          <span key={r.key + i} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)} aria-hidden="true" title={`${r.date} · ${r.symbol} · ${hidden ? "••••" : fmtMoney(r.pnl, { cents: true, sign: true, currency })}`}
             className="h-3 w-3 rounded-full transition" style={{ background: dotColor(r.kind), transform: active === i ? "scale(1.5)" : undefined, outline: active === i ? "2px solid var(--text)" : undefined }} />
         ))}
       </div>
-      <div className="tnum mt-1 h-4 text-[11px] text-muted" aria-live="polite" dir="ltr">{cur ? `${cur.date} · ${cur.symbol} · ${hidden ? "••••" : `${cur.pnl > 0 ? "+" : ""}${fmt(cur.pnl)}`}` : ""}</div>
+      <div className="tnum mt-1 h-4 text-[11px] text-muted" aria-live="polite" dir="ltr">{cur ? `${cur.date} · ${cur.symbol} · ${hidden ? "••••" : fmtMoney(cur.pnl, { cents: true, sign: true, currency })}` : ""}</div>
     </div>
   );
 

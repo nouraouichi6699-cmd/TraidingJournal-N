@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { yearlyBreakdown, type Cell } from "../lib/dashAnalytics";
 import { fmt } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import { symL } from "../i18n";
 import { GREEN, RED, type Ctx } from "./dashWidgets";
 
@@ -12,7 +13,7 @@ export default function YearlyWidget({ c }: { c: Ctx }) {
   if (!rows.length) return <div className="grid h-full place-items-center text-center text-xs text-muted">{({ en: "No data yet", ar: "لا توجد بيانات بعد", fr: "Pas encore de données" })[c.lang]}</div>;
   const trades = ({ en: "trades", ar: "صفقة", fr: "trades" })[c.lang];
   const pct = mode === "pct";
-  const num = (x: Cell) => pct ? (x.pct == null ? "-" : Math.abs(x.pct) < 0.05 ? "0.0%" : `${x.pct > 0 ? "+" : ""}${fmt(x.pct, 1)}%`) : c.hide ? "••••" : Math.round(x.net) === 0 ? "0" : `${x.net > 0 ? "+" : ""}${fmt(x.net, 0)}`;
+  const num = (x: Cell) => pct ? (x.pct == null ? "-" : Math.abs(x.pct) < 0.05 ? "0.0%" : `${x.pct > 0 ? "+" : ""}${fmt(x.pct, 1)}%`) : c.hide ? "••••" : fmtMoney(x.net, { sign: true, currency: c.cur });
 
   const cell = (x: Cell | null, key: string) => {
     if (!x) return <div key={key} className="grid place-items-center rounded-lg border border-border text-muted" style={{ minHeight: "2.6rem", opacity: 0.55 }}>-</div>;

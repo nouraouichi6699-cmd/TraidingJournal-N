@@ -7,6 +7,7 @@ import { metrics } from "../lib/dashStats";
 import { dayKey } from "../lib/dashStats";
 import { DEFS, DEFAULT_IDS, TR, RED, type Ctx } from "./dashWidgets";
 import type { Key } from "../i18n";
+import { commonCurrency } from "../lib/money";
 import type { Account, Lang, Trade } from "../types";
 
 interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[] }
@@ -92,7 +93,7 @@ export default function DashboardView({ lang, accounts, trades: all }: Props) {
     const from = fromKey(filter.range);
     return all.filter((t) => (acc === "all" || t.accountId === acc) && (!from || (dayKey(t) || "9") >= from));
   }, [all, acc, filter.range]);
-  const c: Ctx = useMemo(() => { const closed = trades.filter((x) => x.status === "closed" && x.pnl != null); return { trades, closed, m: metrics(closed), hide: hidden, lang, start: accounts.filter((a) => acc === "all" || a.id === acc).reduce((x, a) => x + (a.startBalance || 0), 0) }; }, [trades, hidden, lang, accounts, acc]);
+  const c: Ctx = useMemo(() => { const closed = trades.filter((x) => x.status === "closed" && x.pnl != null); return { trades, closed, m: metrics(closed), hide: hidden, lang, start: accounts.filter((a) => acc === "all" || a.id === acc).reduce((x, a) => x + (a.startBalance || 0), 0), cur: commonCurrency(accounts.filter((a) => acc === "all" || a.id === acc)) }; }, [trades, hidden, lang, accounts, acc]);
 
   const narrow = W < 640;
   const can = editing && !narrow;

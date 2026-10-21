@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { CashFlow, CashFlowType } from "../lib/cashflow";
 import { signed } from "../lib/cashflow";
-import { fmt } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
 import type { Account, Lang } from "../types";
@@ -71,7 +71,7 @@ export default function CashFlowPanel({ lang, accounts, flows, onAdd, onRemove }
                   <td className="tnum py-1.5 pe-3 text-xs text-muted" dir="ltr">{f.t.slice(0, 10)}</td>
                   {accounts.length > 1 && <td className="py-1.5 pe-3 text-xs">{name(f.accountId)}</td>}
                   <td className="py-1.5 pe-3">{T(X[f.type])}</td>
-                  <td className="tnum py-1.5 pe-3 text-end font-semibold" style={{ color: hidden ? undefined : v > 0 ? GREEN : RED }}><span dir="ltr">{hidden ? "••••" : `${v > 0 ? "+" : ""}${fmt(v)} ${cur(f.accountId)}`}</span></td>
+                  <td className="tnum py-1.5 pe-3 text-end font-semibold" style={{ color: hidden ? undefined : v > 0 ? GREEN : RED }}><span dir="ltr">{hidden ? "••••" : fmtMoney(v, { cents: true, sign: true, currency: cur(f.accountId) })}</span></td>
                   <td className="w-8 py-1.5 text-end">{onRemove && <button type="button" aria-label={T(X.remove)} title={T(X.remove)} onClick={() => window.confirm(T(X.del)) && onRemove(f.id)} className="text-muted hover:text-[var(--text)]"><Trash2 size={14} /></button>}</td>
                 </tr>
               ); })}

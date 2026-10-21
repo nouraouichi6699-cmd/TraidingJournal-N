@@ -2,7 +2,8 @@ import { CandlestickChart, Server, Trash2, SquarePlus } from "lucide-react";
 import Private from "./Private";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Trade } from "../types";
-import { computeStats, fmt } from "../lib/stats";
+import { computeStats } from "../lib/stats";
+import { fmtMoney } from "../lib/money";
 
 interface Props {
   t: (k: Key) => string;
@@ -72,14 +73,14 @@ export default function AccountsList({ t, accounts, onRemove, onConnect, trades,
                 </button>
               </div>
               <p className="tnum text-2xl font-semibold" dir="ltr">
-                <Private hint={t("privacyReveal")}>{fmt(current)} <span className="text-sm text-muted">{a.currency}</span></Private>
+                <Private hint={t("privacyReveal")}>{fmtMoney(current, { currency: a.currency })}</Private>
               </p>
               <Sparkline points={bal} />
               {st.count > 0 ? (
                 <dl className="grid grid-cols-3 gap-2 text-xs">
                   <div><dt className="text-muted">{t("tradesCount")}</dt><dd className="tnum font-semibold" dir="ltr">{st.count}</dd></div>
                   <div><dt className="text-muted">{t("winRate")}</dt><dd className="tnum font-semibold" dir="ltr">{st.winRate != null ? `${st.winRate.toFixed(0)}%` : "—"}</dd></div>
-                  <div><dt className="text-muted">{t("netPnl")}</dt><dd className={`tnum font-semibold ${st.net >= 0 ? "text-profit" : "text-loss"}`} dir="ltr"><Private hint={t("privacyReveal")}>{st.net > 0 ? "+" : ""}{fmt(st.net)}</Private></dd></div>
+                  <div><dt className="text-muted">{t("netPnl")}</dt><dd className={`tnum font-semibold ${st.net >= 0 ? "text-profit" : "text-loss"}`} dir="ltr"><Private hint={t("privacyReveal")}>{fmtMoney(st.net, { sign: true, currency: a.currency })}</Private></dd></div>
                 </dl>
               ) : (
                 <p className="text-xs text-muted">
