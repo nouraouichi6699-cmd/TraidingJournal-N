@@ -4,8 +4,9 @@ import { Wallet, Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, La
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import { computeReturnsCapital } from "../lib/returnsCapital";
-import type { CashFlow } from "../lib/cashflow";
+import { signed, type CashFlow } from "../lib/cashflow";
 import { commonCurrency } from "../lib/money";
+import { currentBalance } from "../lib/balance";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
 import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
@@ -89,15 +90,16 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const L = (k: L) => k[lang];
   const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "returns", icon: <Wallet size={15} />, label: RET_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "benchmark", icon: <GitCompareArrows size={15} />, label: BENCH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "portfolio", icon: <Briefcase size={15} />, label: PORTFOLIO_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "advanced", icon: <FlaskConical size={15} />, label: ADV_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "path", icon: <Route size={15} />, label: PATH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "daybyday", icon: <CalendarDays size={15} />, label: DAY_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
 
+  // Period start (YYYY-MM-DD), "" for all time. One cut-off for trades, cash flows and balance history.
+  const cut = useMemo(() => {
+    if (per === "all") return "";
+    const d = new Date(); d.setMonth(d.getMonth() - (per === "p1" ? 1 : per === "p3" ? 3 : 12));
+    return d.toISOString().slice(0, 10);
+  }, [per]);
   const list = useMemo(() => {
-    let r = acc === "all" ? trades : trades.filter((x) => x.accountId === acc);
-    if (per !== "all") {
-      const d = new Date(); d.setMonth(d.getMonth() - (per === "p1" ? 1 : per === "p3" ? 3 : 12));
-      const c = d.toISOString().slice(0, 10);
-      r = r.filter((x) => (x.entryTime || "") >= c);
-    }
-    return r;
-  }, [trades, acc, per]);
+    const r = acc === "all" ? trades : trades.filter((x) => x.accountId === acc);
+    return cut ? r.filter((x) => (x.exitTime || x.entryTime || "").slice(0, 10) >= cut) : r; // realised P&L belongs to its close date, as on the Dashboard and Charts
+  }, [trades, acc, cut]);
   // Trades of the selected accounts that fall before the selected period (needed for the period's starting balance).
   const before = useMemo(() => {
     if (per === "all") return [] as Trade[];
@@ -108,17 +110,26 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
   // Cash flows of the selected accounts, split at the same period cut-off as the trades (flow date >= cut-off = in period).
   const accFlows = useMemo(() => flows.filter((f) => acc === "all" || f.accountId === acc), [flows, acc]);
-  const flowSplit = useMemo(() => {
-    if (per === "all") return { before: [] as CashFlow[], period: accFlows };
-    const d = new Date(); d.setMonth(d.getMonth() - (per === "p1" ? 1 : per === "p3" ? 3 : 12));
-    const c = d.toISOString().slice(0, 10);
-    return { before: accFlows.filter((f) => f.t < c), period: accFlows.filter((f) => f.t >= c) };
-  }, [accFlows, per]);
+  const flowSplit = useMemo(() => (cut ? { before: accFlows.filter((f) => f.t < cut), period: accFlows.filter((f) => f.t >= cut) } : { before: [] as CashFlow[], period: accFlows }), [accFlows, cut]);
   const currency = useMemo(() => commonCurrency(acc === "all" ? accounts : accounts.filter((x) => x.id === acc)), [accounts, acc]); // null when currencies are mixed
-  const rc = useMemo(() => computeReturnsCapital(list, before, startBal, flowSplit), [list, before, startBal, flowSplit]);
-  const outcomes = useMemo(() => computeTradeOutcomes(list, startBal), [list, startBal]);
+  // Current balance: the same per-account figure as the Accounts cards (imported history first, else ledger); unknown without a start balance or history.
+  const currentNow = useMemo(() => {
+    const sel = acc === "all" ? accounts : accounts.filter((x) => x.id === acc);
+    if (!sel.length || !sel.every((a) => a.startBalance > 0 || (balances[a.id]?.length ?? 0) > 0)) return null;
+    return sel.reduce((s, a) => s + currentBalance(a, trades, balances[a.id] ?? [], flows), 0);
+  }, [accounts, acc, trades, balances, flows]);
+  const rc = useMemo(() => computeReturnsCapital(list, before, startBal, flowSplit, currentNow), [list, before, startBal, flowSplit, currentNow]);
+  // For a period, every %-of-balance figure (total return, drawdown, Sharpe, expectancy %) is measured against the balance at
+  // the START of the period (initial + earlier realised P&L + earlier cash flows), not against the account's initial balance.
+  const periodAccounts = useMemo(() => {
+    const sel = acc === "all" ? accounts : accounts.filter((x) => x.id === acc);
+    if (!cut) return sel;
+    return sel.map((a) => ({ ...a, startBalance: a.startBalance + before.filter((x) => x.accountId === a.id && x.status === "closed" && x.pnl != null).reduce((s, x) => s + (x.pnl as number), 0) + flowSplit.before.filter((f) => f.accountId === a.id).reduce((s, f) => s + signed(f), 0) }));
+  }, [accounts, acc, cut, before, flowSplit]);
+  const periodStart = useMemo(() => periodAccounts.reduce((s, a) => s + (a.startBalance || 0), 0), [periodAccounts]);
+  const outcomes = useMemo(() => computeTradeOutcomes(list, periodStart), [list, periodStart]);
   const recent = useMemo(() => recentOutcomes(list, 60), [list]);
-  const ov = useMemo(() => computeOverview(list, acc === "all" ? accounts : accounts.filter((x) => x.id === acc), balances, ""), [list, accounts, balances, acc]);
+  const ov = useMemo(() => computeOverview(list, periodAccounts, balances, cut), [list, periodAccounts, balances, cut]);
 
   // Dev-only consistency check against the Dashboard maths.
   useEffect(() => {

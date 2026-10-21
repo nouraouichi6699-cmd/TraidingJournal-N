@@ -1,0 +1,33 @@
+import { balanceSeries, currentBalance } from "./balance";
+import type { CashFlow } from "./cashflow";
+import type { Account, Trade } from "../types";
+let pass = 0, fail = 0;
+const near = (a: number, b: number) => Math.abs(a - b) <= 0.01;
+const t = (name: string, got: number, exp: number) => { const ok = near(got, exp); ok ? pass++ : fail++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : `  got ${got}, expected ${exp}`}`); };
+const is = (name: string, c: boolean, d = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"}  ${name}${c ? "" : "  " + d}`); };
+const A: Account = { id: "a", platform: "tradingview", name: "A", currency: "USD", startBalance: 10000 } as Account;
+let n = 0;
+const T = (exit: string | null, pnl: number | null, acc = "a"): Trade => ({ key: `${acc}:${++n}`, accountId: acc, no: n, symbol: "X", side: "long", qty: 1, entryTime: exit ? exit.slice(0, 10) + "T08:00" : "2026-10-01T08:00", entryPrice: 1, exitTime: exit, exitPrice: 1, pnl, returnPct: null, commission: 0, status: exit && pnl != null ? "closed" : "open" } as Trade);
+const F = (t: string, type: CashFlow["type"], amount: number, acc = "a"): CashFlow => ({ id: String(++n), accountId: acc, t, type, amount });
+
+console.log("-- Ledger (no imported balance history): the reported bug");
+const csv = [T("2026-09-01T10:00", 7000), T("2026-09-02T10:00", -1000)];
+t("10,000 start + 6,000 net P&L = 16,000 (was shown as 10,000)", currentBalance(A, csv), 16000);
+t("recorded deposit and withdrawal move the balance", currentBalance(A, csv, [], [F("2026-09-05 00:00:00", "deposit", 5000), F("2026-09-06T00:00", "withdrawal", 2000)]), 19000);
+t("open trades do not move the balance", currentBalance(A, [...csv, T(null, null)]), 16000);
+t("other accounts' trades and flows are ignored", currentBalance(A, [...csv, T("2026-09-03T10:00", 999, "b")], [], [F("2026-09-04T00:00", "deposit", 50, "b")]), 16000);
+t("nothing recorded: starting balance", currentBalance(A, []), 10000);
+const s = balanceSeries(A, csv, [], [F("2026-09-02 00:00:00", "deposit", 500)]);
+is("series starts at the starting balance before the first event", s[0].v === 10000 && s[0].t <= "2026-09-01T10:00", JSON.stringify(s[0]));
+is("series is in time order with the flow before the same-day trade", s.map((p) => p.v).join() === "10000,17000,17500,16500", s.map((p) => p.v).join());
+
+console.log("-- Imported balance history (MT5 report)");
+const pts = [{ t: "2026-09-01T09:00", balance: 100000 }, { t: "2026-09-10T12:00", balance: 99927.97 }];
+const before = [T("2026-09-10T12:00", 18.16), T("2026-09-05T10:00", -90.19)];
+t("latest snapshot wins; trades already inside it are not added again", currentBalance(A, before, pts), 99927.97);
+t("trade closed after the last snapshot is added", currentBalance(A, [...before, T("2026-09-11T10:00", 50)], pts), 99977.97);
+t("flow before the last snapshot is not counted twice", currentBalance(A, before, pts, [F("2026-09-01 00:00:00", "deposit", 100000)]), 99927.97);
+t("flow after the last snapshot is added", currentBalance(A, before, pts, [F("2026-09-12 00:00:00", "withdrawal", 927.97)]), 99000);
+t("snapshots out of order are sorted first", currentBalance(A, [], [pts[1], pts[0]]), 99927.97);
+is("series keeps every snapshot", balanceSeries(A, before, pts).length === 2);
+console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

@@ -5,6 +5,8 @@ import SymbolIcon from "./SymbolIcon";
 import { usePrivacy } from "../usePrivacy";
 import { fmt, computeStats } from "../lib/stats";
 import { commonCurrency, currencySuffix, fmtMoney } from "../lib/money";
+import { balanceSeries } from "../lib/balance";
+import type { CashFlow } from "../lib/cashflow";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
@@ -14,6 +16,7 @@ interface Props {
   accounts: Account[];
   trades: Trade[];
   balances: Record<string, BalancePoint[]>;
+  flows?: CashFlow[];
 }
 
 const STORE = "mizan-charts";
@@ -401,7 +404,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
 
 const weekStart = (t0: number) => { const d = new Date(t0); const wd = (d.getUTCDay() + 6) % 7; return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - wd); };
 
-export default function ChartsView({ t, lang, accounts, trades, balances }: Props) {
+export default function ChartsView({ t, lang, accounts, trades, balances, flows = [] }: Props) {
   const [st, setSt] = useState<Saved>(load);
   const [open, setOpen] = useState<Mode | null>(null); // only one analysis is ever open
   const [acc, setAcc] = useState("all");
@@ -463,15 +466,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
     return { key, label };
   };
 
-  // Balance curve of one account: real history if imported, else start balance + cumulative P&L.
-  const accountBalance = (a: Account): Pt[] => {
-    const real = balances[a.id];
-    if (real && real.length > 1) return real.map((p) => ({ t: ts(p.t), v: p.balance })).filter((p) => !isNaN(p.t)).sort((x, y) => x.t - y.t);
-    const list = closed.filter((x) => x.accountId === a.id).sort((x, y) => ts(x.exitTime) - ts(y.exitTime));
-    if (!list.length) return [];
-    let run = a.startBalance || 0;
-    return [{ t: ts(list[0].entryTime ?? list[0].exitTime) || ts(list[0].exitTime), v: run }, ...list.map((x) => ({ t: ts(x.exitTime), v: (run += x.pnl as number) }))];
-  };
+  // Balance curve of one account (same source as the account card): imported history + later trades/flows, else start balance + P&L + cash flows.
+  const accountBalance = (a: Account): Pt[] => balanceSeries(a, closed, balances[a.id] ?? [], flows).map((p) => ({ t: ts(p.t), v: p.v })).filter((p) => !isNaN(p.t));
 
   const startSum = accsInView.reduce((a, x) => a + (x.startBalance || 0), 0);
   const rawSeries: Series[] = useMemo(() => {
@@ -526,7 +522,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances }: Prop
       })
       .filter((s) => (metric === "periods" ? s.bars.length > 0 : s.pts.length > 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, cutoff, balances, acc, byAcc, lang, accounts, startSum]);
+  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, cutoff, balances, flows, acc, byAcc, lang, accounts, startSum]);
 
   // $ / % : percent is relative to the starting balance (balance view: change since the start)
   const canPct = rawSeries.length > 0 && rawSeries.every((x) => x.base > 0);

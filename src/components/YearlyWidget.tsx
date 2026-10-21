@@ -6,7 +6,7 @@ import { symL } from "../i18n";
 import { GREEN, RED, type Ctx } from "./dashWidgets";
 
 export default function YearlyWidget({ c }: { c: Ctx }) {
-  const rows = useMemo(() => yearlyBreakdown(c.closed, c.start), [c.closed, c.start]);
+  const rows = useMemo(() => yearlyBreakdown(c.closed, c.start, { all: c.allClosed, flows: c.flows, from: c.from }), [c.closed, c.start, c.allClosed, c.flows, c.from]);
   const [mode, setMode] = useState<"usd" | "pct">(() => { try { return localStorage.getItem("mizan-yearly-mode") === "pct" ? "pct" : "usd"; } catch { return "usd"; } });
   const pick = (m: "usd" | "pct") => { setMode(m); try { localStorage.setItem("mizan-yearly-mode", m); } catch {} };
   const months = useMemo(() => Array.from({ length: 12 }, (_, i) => new Intl.DateTimeFormat(c.lang, { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, i, 1)))), [c.lang]);

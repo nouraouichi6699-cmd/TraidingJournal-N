@@ -4,6 +4,8 @@ import type { Key } from "../i18n";
 import type { Account, BalancePoint, Trade } from "../types";
 import { computeStats } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
+import { balanceSeries } from "../lib/balance";
+import type { CashFlow } from "../lib/cashflow";
 
 interface Props {
   t: (k: Key) => string;
@@ -12,6 +14,7 @@ interface Props {
   onConnect: () => void;
   trades: Trade[];
   balances: Record<string, BalancePoint[]>;
+  flows?: CashFlow[];
 }
 
 function Sparkline({ points }: { points: BalancePoint[] }) {
@@ -26,7 +29,7 @@ function Sparkline({ points }: { points: BalancePoint[] }) {
   );
 }
 
-export default function AccountsList({ t, accounts, onRemove, onConnect, trades, balances }: Props) {
+export default function AccountsList({ t, accounts, onRemove, onConnect, trades, balances, flows = [] }: Props) {
   if (accounts.length === 0) {
     return (
       <section className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
@@ -56,8 +59,10 @@ export default function AccountsList({ t, accounts, onRemove, onConnect, trades,
           const Icon = a.platform === "mt5" ? Server : CandlestickChart;
           const mine = trades.filter((x) => x.accountId === a.id);
           const st = computeStats(mine);
-          const bal = balances[a.id] ?? [];
-          const current = bal.length ? bal[bal.length - 1].balance : a.startBalance;
+          // Imported balance history when there is one, else starting balance + realised P&L + recorded cash flows.
+          const series = balanceSeries(a, mine, balances[a.id] ?? [], flows);
+          const current = series.length ? series[series.length - 1].v : a.startBalance;
+          const bal = series.map((p) => ({ t: p.t, balance: p.v }));
           return (
             <li key={a.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
               <div className="flex items-start justify-between gap-3">

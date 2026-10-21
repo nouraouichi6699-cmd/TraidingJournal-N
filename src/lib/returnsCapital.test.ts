@@ -52,6 +52,8 @@ const dd = computeReturnsCapital([T("2025-05-05 09:00", "2025-05-05 10:00", 300)
 t("highest balance is a peak, not the final balance", dd.highBal, 1300); t("ending balance after drawdown", dd.endBal, 800);
 const neg = computeReturnsCapital([T("2025-05-05 09:00", "2025-05-05 10:00", -1000), T("2025-05-06 09:00", "2025-05-06 10:00", 50)], [], 1000);
 is("non-positive balance never divides: returns skip that day", neg.avgDailyRet !== null && Number.isFinite(neg.avgDailyRet as number) && Math.abs((neg.avgDailyRet as number) + 100) < 0.01, String(neg.avgDailyRet));
+t("current balance from the accounts' history overrides the ledger", computeReturnsCapital(period, before, 10000, undefined, 99927.97).currentBal, 99927.97);
+is("unknown current balance stays unknown (no fallback)", (() => { const x = computeReturnsCapital(period, before, 10000, undefined, null); return x.currentBal === null && x.why.cur === "noStart"; })());
 const fee = computeReturnsCapital([T("2025-05-05 09:00", "2025-05-05 10:00", 98, -2)], [], 1000);
 t("net P&L is not reduced again by the commission field", fee.net, 98);
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

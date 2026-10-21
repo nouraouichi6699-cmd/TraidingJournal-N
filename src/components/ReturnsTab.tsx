@@ -51,7 +51,7 @@ const S1: M[] = [
 const S2: M[] = [
   ["init", ["Initial balance", "الرصيد الأولي", "Solde initial"], ["Balance when the account was opened.", "الرصيد عند فتح الحساب.", "Solde à l'ouverture du compte."]],
   ["start", ["Starting balance", "رصيد البداية", "Solde de départ"], ["Balance at the start of the selected period.", "الرصيد في بداية الفترة المختارة.", "Solde au début de la période."]],
-  ["cur", ["Current balance", "الرصيد الحالي", "Solde actuel"], ["Latest account balance.", "آخر رصيد للحساب.", "Dernier solde du compte."]],
+  ["cur", ["Current balance", "الرصيد الحالي", "Solde actuel"], ["Latest balance, not limited to the period: imported balance history plus later trades and cash flows, otherwise initial balance + all P&L + cash flows.", "آخر رصيد، غير مقيّد بالفترة: سجل الرصيد المستورد ثم الصفقات والتدفقات اللاحقة، وإلا الرصيد الأولي + كل الأرباح + التدفقات.", "Dernier solde, hors période : historique importé puis trades et flux suivants, sinon solde initial + P&L + flux."]],
   ["end", ["Ending balance", "رصيد النهاية", "Solde final"], ["Balance at the end of the selected period.", "الرصيد في نهاية الفترة المختارة.", "Solde à la fin de la période."]],
   ["hiBal", ["Highest balance", "أعلى رصيد", "Solde le plus haut"], ["Peak balance reached.", "أعلى رصيد تم بلوغه.", "Solde maximal atteint."]],
   ["sEq", ["Starting equity", "حقوق الملكية في البداية", "Equity de départ"], ["Equity at the start of the period.", "حقوق الملكية في بداية الفترة.", "Equity au début de la période."]],

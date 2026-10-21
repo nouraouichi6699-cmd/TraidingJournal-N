@@ -37,7 +37,7 @@ export default function CashFlowPanel({ lang, accounts, flows, onAdd, onRemove }
     const v = Number(amount.replace(",", "."));
     if (!acc || !date || !Number.isFinite(v) || v === 0 || (type !== "adjustment" && v < 0)) { setErr(true); return; }
     setErr(false);
-    onAdd?.({ accountId: acc, t: `${date} 00:00:00`, type, amount: v }); // start of the day: same convention as the return calculations
+    onAdd?.({ accountId: acc, t: `${date}T00:00`, type, amount: v }); // start of the day, same timestamp format as trades and balance points
     setAmount("");
   };
   const list = [...flows].sort((a, b) => b.t.localeCompare(a.t));

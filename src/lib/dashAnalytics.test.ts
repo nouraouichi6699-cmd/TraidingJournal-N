@@ -41,7 +41,18 @@ const sig = (b: ReturnType<typeof symbolBreakdown>) => b.symbols.map((x) => `${x
   check("yearly %: Jan 2026 = 60/995 (balance at month start)", Math.abs((p[0].months[0]?.pct ?? 0) - (60 / 995) * 100) < 1e-9);
   check("yearly %: Mar 2026 = 10/1055", Math.abs((p[0].months[2]?.pct ?? 0) - (10 / 1055) * 100) < 1e-9);
   check("yearly %: YTD 2026 = 70/995", Math.abs((p[0].ytd.pct ?? 0) - (70 / 995) * 100) < 1e-9);
-  check("yearly %: no start balance -> null", yearlyBreakdown([mk(5, "2026-01-05")], 0)[0].ytd.pct === null); }
+  check("yearly %: no start balance -> null", yearlyBreakdown([mk(5, "2026-01-05")], 0)[0].ytd.pct === null);
+  // Dashboard range filter: only March is shown, but its base must include the earlier P&L (1000 - 5 + 60 = 1055).
+  const all = [mk(100, "2026-01-05"), mk(-40, "2026-01-20"), mk(10, "2026-03-01"), mk(-5, "2025-12-31")];
+  const f = yearlyBreakdown(all.filter((x) => x.exitTime >= "2026-03-01"), 1000, { all, from: "2026-03-01" });
+  check("yearly % with a range filter uses the real balance (10/1055, not 10/1000)", Math.abs((f[0].months[2]?.pct ?? 0) - (10 / 1055) * 100) < 1e-9 && Math.abs((f[0].ytd.pct ?? 0) - (10 / 1055) * 100) < 1e-9);
+  // Recorded cash flows: a 1000 deposit on Feb 10 is in the base of March and of Feb's own bucket, not of January.
+  const dep = [{ id: "d", accountId: "a", t: "2026-02-10T00:00", type: "deposit" as const, amount: 1000 }];
+  const g = yearlyBreakdown(all, 1000, { flows: dep });
+  check("yearly %: deposit not in January's base (60/995)", Math.abs((g[0].months[0]?.pct ?? 0) - (60 / 995) * 100) < 1e-9);
+  check("yearly %: deposit in March's base (10/2055)", Math.abs((g[0].months[2]?.pct ?? 0) - (10 / 2055) * 100) < 1e-9);
+  check("yearly %: deposit lands at the start of the year bucket (70/1995)", Math.abs((g[0].ytd.pct ?? 0) - (70 / 1995) * 100) < 1e-9);
+  check("yearly: net P&L never includes deposits", g[0].ytd.net === 70); }
 
 // streaks
 { const mk = (pnl: number, d: string, h = "10", st: "closed" | "open" = "closed") => ({ ...T("A", st, pnl), exitTime: `${d}T${h}:00`, entryTime: `${d}T09:00` });

@@ -59,7 +59,7 @@ function returns(b: [string, number][], start: number, fl: { d: string; v: numbe
  * @param before  trades of the same accounts that fall BEFORE the period (for the starting balance)
  * @param initial sum of the accounts' initial balances
  */
-export function computeReturnsCapital(period: Trade[], before: Trade[], initial: number, flows: { before: CashFlow[]; period: CashFlow[] } = { before: [], period: [] }): ReturnsCapital {
+export function computeReturnsCapital(period: Trade[], before: Trade[], initial: number, flows: { before: CashFlow[]; period: CashFlow[] } = { before: [], period: [] }, current?: number | null): ReturnsCapital {
   const closed = period.filter(closedOnly), prior = before.filter(closedOnly);
   const n = closed.length, why: ReturnsCapital["why"] = { sEq: "noEquity", cEq: "noEquity", eEq: "noEquity", hiEq: "noEquity" };
   // Cash-flow metrics exist only once at least one flow has been recorded; an empty ledger means "unknown", not "zero".
@@ -91,6 +91,7 @@ export function computeReturnsCapital(period: Trade[], before: Trade[], initial:
   if (!n) for (const k of ["net", "gross", "loss", "avgDailyPnl", "medDailyPnl", "bestDay", "profitDays", "avgWinDay"]) why[k] = "noTrades";
   if (n && !hasInit) for (const k of ["totalReturn", "avgDailyRet", "avgWeeklyRet", "avgMonthlyRet", "initial", "startBal", "currentBal", "endBal", "highBal", "posRetDays"]) why[k] = "noStart";
   if (n && dv.length < 2) why.sdDailyPnl = "fewDays";
+  if (current === null) why.cur = "noStart";
   if (n && !winD.length) { why.avgWinDay = "noWins"; why.bigWinShare = "noWins"; }
   if (n && !lossD.length) { why.avgLossDay = "noLosses"; why.bigLossShare = "noLosses"; }
 
@@ -115,7 +116,8 @@ export function computeReturnsCapital(period: Trade[], before: Trade[], initial:
     bestWeek: wv.length ? Math.max(...wv) : null, worstWeek: wv.length ? Math.min(...wv) : null,
     bestMonth: mv.length ? Math.max(...mv) : null, worstMonth: mv.length ? Math.min(...mv) : null,
     twr, ann, netDep: ft?.netDep ?? null, totDep: ft?.totDep ?? null, totWd: ft?.totWd ?? null, netFlow: ft?.netFlow ?? null, credits: ft?.credits ?? null, depN: ft?.depN ?? null, wdN: ft?.wdN ?? null, credN: ft?.credN ?? null, avgDep: ft?.avgDep ?? null, avgWd: ft?.avgWd ?? null,
-    initial: hasInit ? initial : null, startBal, currentBal: allNet, endBal: startBal != null ? startBal + (n ? cents(core.net) : 0) + flowSum(flows.period) : null,
+    // currentBal: `current` comes from the accounts' balance history when the caller has it (null = unknown).
+    initial: hasInit ? initial : null, startBal, currentBal: current === undefined ? allNet : current, endBal: startBal != null ? startBal + (n ? cents(core.net) : 0) + flowSum(flows.period) : null,
     highBal: high,
     profitDays: n ? winD.length : null, profitDayPct: dv.length ? (winD.length / dv.length) * 100 : null, tradeWinRate: core.winRate,
     profitWeeks: n ? wv.filter((v) => v > 0).length : null, profitMonths: n ? mv.filter((v) => v > 0).length : null,

@@ -1,6 +1,7 @@
 // Pure dashboard analytics (no React, no storage).
 import type { Trade } from "../types";
 import { ticketOf } from "./stats";
+import { signed, type CashFlow } from "./cashflow";
 
 export interface SymbolRow { symbol: string; count: number; pct: number }
 export interface SymbolBreakdown { total: number; distinct: number; symbols: SymbolRow[] }
@@ -34,10 +35,11 @@ export interface YearRow { year: number; months: (Cell | null)[]; ytd: Cell }
 
 /**
  * Net P&L, trade count and return % per month for each year (newest year first). Closed trades only; month = close date.
- * Month % = month net / balance at the start of that month (start + prior P&L); YTD % = year net / balance at the start of the year.
- * pct is null when that balance is not positive.
+ * Month % = month net / balance at the start of that month; YTD % = year net / balance at the start of the year (or of `from`).
+ * The base balance = start + P&L of ALL earlier trades (`all`, not just the shown ones) + recorded cash flows up to the end
+ * of the period (flows are assumed to land at the start of the period, as in Returns & capital). pct is null when it is not positive.
  */
-export function yearlyBreakdown(trades: Trade[], start = 0): YearRow[] {
+export function yearlyBreakdown(trades: Trade[], start = 0, opts: { all?: Trade[]; flows?: CashFlow[]; from?: string } = {}): YearRow[] {
   const ys = new Map<number, YearRow>();
   for (const t of trades) {
     if (t.status !== "closed" || t.pnl == null) continue;
@@ -49,11 +51,19 @@ export function yearlyBreakdown(trades: Trade[], start = 0): YearRow[] {
     ys.set(y, row);
   }
   const asc = [...ys.values()].sort((a, b) => a.year - b.year);
-  let run = start;
+  const all = (opts.all ?? trades).filter((t) => t.status === "closed" && t.pnl != null).map((t) => ({ d: (t.exitTime || t.entryTime || "").slice(0, 10), v: t.pnl as number }));
+  const fl = (opts.flows ?? []).map((f) => ({ d: f.t.slice(0, 10), v: signed(f) }));
+  const from = opts.from ?? "";
+  // Balance at the start of [ps, pe]: start + P&L closed before ps + flows dated up to pe.
+  const base = (ps: string, pe: string) => start + all.reduce((s, x) => (x.d < ps ? s + x.v : s), 0) + fl.reduce((s, x) => (x.d <= pe ? s + x.v : s), 0);
+  const pctOf = (net: number, b: number) => (b > 0 ? (net / b) * 100 : null);
   for (const r of asc) {
-    const yStart = run;
-    r.months.forEach((c) => { if (c) { c.pct = run > 0 ? (c.net / run) * 100 : null; run += c.net; } });
-    r.ytd.pct = yStart > 0 ? (r.ytd.net / yStart) * 100 : null;
+    r.months.forEach((c, m) => {
+      if (!c) return;
+      const mm = `${r.year}-${String(m + 1).padStart(2, "0")}`;
+      c.pct = pctOf(c.net, base(from > `${mm}-01` ? from : `${mm}-01`, `${mm}-31`));
+    });
+    r.ytd.pct = pctOf(r.ytd.net, base(from > `${r.year}-01-01` ? from : `${r.year}-01-01`, `${r.year}-12-31`));
   }
   return asc.reverse();
 }

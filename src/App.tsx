@@ -66,6 +66,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
                   accounts={accounts}
                   trades={journal.trades}
                   balances={journal.balances}
+                  flows={journal.flows}
                   onRemove={(id) => {
                     remove(id);
                     journal.purgeAccount(id);
@@ -102,8 +103,8 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               )}
               {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
               {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
-              {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} />}
-              {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
+              {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />}
+              {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} />}
               {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
               {view === "import" && (
