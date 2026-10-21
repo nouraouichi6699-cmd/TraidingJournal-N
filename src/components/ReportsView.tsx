@@ -6,7 +6,7 @@ import { computeOverview } from "../lib/stats";
 import { computeReturnsCapital } from "../lib/returnsCapital";
 import { signed, type CashFlow } from "../lib/cashflow";
 import { commonCurrency } from "../lib/money";
-import { currentBalance } from "../lib/balance";
+import { currentBalance, ledgerReconciles } from "../lib/balance";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
 import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
@@ -110,8 +110,12 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
   // Cash flows of the selected accounts, split at the same period cut-off as the trades (flow date >= cut-off = in period).
   const accFlows = useMemo(() => flows.filter((f) => acc === "all" || f.accountId === acc), [flows, acc]);
-  // The deposit/withdrawal ledger is complete when every selected account has an imported broker balance history.
-  const cashKnown = useMemo(() => accFlows.length > 0 || (accounts.filter((x) => acc === "all" || x.id === acc).length > 0 && accounts.filter((x) => acc === "all" || x.id === acc).every((a) => (balances[a.id]?.length ?? 0) > 0)), [accFlows, accounts, acc, balances]);
+  // The deposit/withdrawal ledger is known when, for every selected account, either its imported balance history reconciles
+  // with start + P&L + recorded flows (nothing missing, so zeros are real), or it has no history and some flows were recorded.
+  const cashKnown = useMemo(() => {
+    const sel = accounts.filter((x) => acc === "all" || x.id === acc);
+    return sel.length > 0 && sel.every((a) => { const r = ledgerReconciles(a, trades, balances[a.id] ?? [], flows); return r ?? flows.some((f) => f.accountId === a.id); });
+  }, [accounts, acc, trades, balances, flows]);
   const flowSplit = useMemo(() => ({ ...(cut ? { before: accFlows.filter((f) => f.t < cut), period: accFlows.filter((f) => f.t >= cut) } : { before: [] as CashFlow[], period: accFlows }), known: cashKnown }), [accFlows, cut, cashKnown]);
   const currency = useMemo(() => commonCurrency(acc === "all" ? accounts : accounts.filter((x) => x.id === acc)), [accounts, acc]); // null when currencies are mixed
   // Current balance: the same per-account figure as the Accounts cards (imported history first, else ledger); unknown without a start balance or history.
@@ -131,7 +135,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const periodStart = useMemo(() => periodAccounts.reduce((s, a) => s + (a.startBalance || 0), 0), [periodAccounts]);
   const outcomes = useMemo(() => computeTradeOutcomes(list, periodStart), [list, periodStart]);
   const recent = useMemo(() => recentOutcomes(list, 60), [list]);
-  const ov = useMemo(() => computeOverview(list, periodAccounts, balances, cut), [list, periodAccounts, balances, cut]);
+  const ov = useMemo(() => computeOverview(list, periodAccounts, balances, cut, flowSplit.period), [list, periodAccounts, balances, cut, flowSplit]);
 
   // Dev-only consistency check against the Dashboard maths.
   useEffect(() => {
@@ -181,7 +185,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       </div>
 
       {tab === "overview" ? (
-        <OverviewTab lang={lang} o={ov} currency={currency} />
+        <OverviewTab lang={lang} o={ov} currency={currency} twr={rc.twr} />
       ) : tab === "outcomes" ? (
         <TradeOutcomesTab lang={lang} o={outcomes} recent={recent} onImport={onImport} currency={currency} />
       ) : tab === "benchmark" ? (

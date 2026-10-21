@@ -1,4 +1,4 @@
-import { balanceSeries, currentBalance } from "./balance";
+import { balanceSeries, currentBalance, ledgerReconciles } from "./balance";
 import type { CashFlow } from "./cashflow";
 import type { Account, Trade } from "../types";
 let pass = 0, fail = 0;
@@ -30,4 +30,12 @@ t("flow before the last snapshot is not counted twice", currentBalance(A, before
 t("flow after the last snapshot is added", currentBalance(A, before, pts, [F("2026-09-12 00:00:00", "withdrawal", 927.97)]), 99000);
 t("snapshots out of order are sorted first", currentBalance(A, [], [pts[1], pts[0]]), 99927.97);
 is("series keeps every snapshot", balanceSeries(A, before, pts).length === 2);
+console.log("-- Ledger check against the imported history");
+const M: Account = { ...A, id: "m", startBalance: 100000 } as Account;
+const mt = [T("2026-09-02T10:00", 18.16, "m"), T("2026-09-05T10:00", -90.19, "m")];
+const hist = [{ t: "2026-09-01T09:00", balance: 100000 }, { t: "2026-09-10T12:00", balance: 98927.97 }];
+is("unrecorded withdrawal: the ledger does not reconcile (deposits are unknown, not zero)", ledgerReconciles(M, mt, hist) === false);
+is("once the withdrawal is recorded it reconciles", ledgerReconciles(M, mt, hist, [F("2026-09-08T09:00", "withdrawal", 1000, "m")]) === true);
+is("flows after the last snapshot are not part of the check", ledgerReconciles(M, mt, hist, [F("2026-09-08T09:00", "withdrawal", 1000, "m"), F("2026-09-20T00:00", "deposit", 7, "m")]) === true);
+is("no imported history: nothing to check", ledgerReconciles(M, mt, []) === null);
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

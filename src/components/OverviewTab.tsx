@@ -13,7 +13,7 @@ type M = { id: string; v: number | null; kind: "money" | "pct" | "num" | "int" |
 
 const WHY: Record<string, string> = { equity: "wEquity", cashflow: "wCashflow", days: "wDays", start: "wStart", balance: "wBalance", stored: "wStored" };
 
-export default function OverviewTab({ lang, o, currency = null }: { lang: Lang; o: Overview; currency?: string | null }) {
+export default function OverviewTab({ lang, o, currency = null, twr = null }: { lang: Lang; o: Overview; currency?: string | null; twr?: number | null }) {
   const T = ovT(lang);
   const { hidden } = usePrivacy();
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -38,7 +38,7 @@ export default function OverviewTab({ lang, o, currency = null }: { lang: Lang; 
     { id: "s1", icon: <Wallet size={18} />, items: [
       { id: "net", v: o.net, kind: "money", sign: true, hide: true, tone: true },
       { id: "totalReturn", v: o.totalReturn, kind: "pct", sign: true, tone: true },
-      { id: "twr", v: null, kind: "pct" },
+      { id: "twr", v: twr, kind: "pct", sign: true }, // same engine as Returns & capital (needs a deposit/withdrawal ledger)
       { id: "avgDaily", v: o.avgDaily, kind: "money", sign: true, hide: true, tone: true },
       { id: "avgTrade", v: o.avgTrade, kind: "money", sign: true, hide: true, tone: true },
       { id: "best", v: o.best, kind: "money", sign: true, hide: true, tone: true },

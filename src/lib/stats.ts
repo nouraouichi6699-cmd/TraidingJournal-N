@@ -28,6 +28,7 @@ export const fmt = (n: number, digits = 2) =>
 // ---------- Overview report (32 metrics) ----------
 import { computeActivity } from "./activity";
 import type { Account, BalancePoint } from "../types";
+import { signed, type CashFlow } from "./cashflow";
 
 export type Why = "equity" | "cashflow" | "days" | "start" | "balance" | "stored";
 export interface Overview {
@@ -69,21 +70,55 @@ export function tradeCore(closed: Trade[]) {
   };
 }
 
-/** Balance curve: real balance points when there are enough, otherwise start balance + cumulative closed P&L. */
-function curve(closed: Trade[], ids: string[], accounts: Account[], balances: Record<string, BalancePoint[]>, from: string): { t: number; v: number }[] & { base?: number } {
-  const ev = ids.flatMap((id) => (balances[id] ?? []).filter((p) => !from || p.t >= from).map((p) => ({ id, t: ms(p.t), v: p.balance }))).filter((e): e is { id: string; t: number; v: number } => e.t != null).sort((a, b) => a.t - b.t);
+/** Comparable timestamp ("YYYY-MM-DD 00:00:00" and "YYYY-MM-DDTHH:MM" -> "YYYY-MM-DDTHH:MM"). */
+const norm = (s: string) => s.trim().replace(" ", "T").slice(0, 16);
+type CPt = { t: number; v: number; f: number }; // time, balance, external cash flow that happened at this point
+
+/**
+ * Balance curve: real balance points when there are enough, otherwise start balance + cumulative closed P&L (+ recorded cash flows).
+ * `f` carries the deposits/withdrawals inside each step so drawdowns can ignore them. In the snapshot curve a flow is attached to
+ * the account's first snapshot at or after it (imported MT5 flows share the deal's timestamp).
+ */
+function curve(closed: Trade[], ids: string[], accounts: Account[], balances: Record<string, BalancePoint[]>, from: string, flows: CashFlow[] = []): CPt[] & { base?: number } {
+  const fl = flows.filter((x) => ids.includes(x.accountId) && x.t && Number.isFinite(x.amount) && x.amount !== 0 && (!from || x.t >= from));
+  const ev = ids.flatMap((id) => (balances[id] ?? []).filter((p) => !from || p.t >= from).map((p) => ({ id, s: norm(p.t), t: ms(p.t), v: p.balance }))).filter((e): e is { id: string; s: string; t: number; v: number } => e.t != null).sort((a, b) => a.t - b.t);
   if (ev.length >= 2) {
+    const fAt = new Map<(typeof ev)[number], number>();
+    for (const x of fl) { const k = norm(x.t), hit = ev.find((e) => e.id === x.accountId && e.s >= k); if (hit) fAt.set(hit, (fAt.get(hit) ?? 0) + signed(x)); }
     const last: Record<string, number> = {};
-    return ev.map((e) => { last[e.id] = e.v; return { t: e.t, v: Object.values(last).reduce((s, x) => s + x, 0) }; });
+    return ev.map((e) => { last[e.id] = e.v; return { t: e.t, v: Object.values(last).reduce((s, x) => s + x, 0), f: fAt.get(e) ?? 0 }; });
   }
   let run = accounts.filter((a) => ids.includes(a.id)).reduce((s, a) => s + a.startBalance, 0);
-  const out = [] as ({ t: number; v: number }[] & { base?: number });
+  const out = [] as (CPt[] & { base?: number });
   out.base = run; // start balance counts as the first peak for drawdown depth
-  for (const x of [...closed].sort((a, b) => (a.exitTime ?? "").localeCompare(b.exitTime ?? ""))) { const t = ms(x.exitTime); if (t != null) out.push({ t, v: (run += x.pnl as number) }); }
+  const steps = [
+    ...closed.map((x) => ({ k: x.exitTime ?? "", t: ms(x.exitTime), d: x.pnl as number, f: 0, o: 1 })),
+    ...fl.map((x) => ({ k: norm(x.t), t: ms(x.t), d: signed(x), f: signed(x), o: 0 })), // a flow comes before a trade at the same time
+  ].sort((a, b) => a.k.localeCompare(b.k) || a.o - b.o);
+  for (const x of steps) if (x.t != null) out.push({ t: x.t, v: (run += x.d), f: x.f });
   return out;
 }
 
-export function computeOverview(trades: Trade[], accounts: Account[], balances: Record<string, BalancePoint[]>, from = ""): Overview {
+/**
+ * Drawdown views of a curve that contains cash flows: `pct` is a time-weighted index (each step's return excludes the flow),
+ * so a withdrawal is not a loss and a deposit is not a gain; `amt` is balance minus cumulative flows (money lost to trading).
+ * Without flows both are the curve itself, so results are unchanged.
+ */
+function drawdownViews(cv: CPt[] & { base?: number }): { pct: { t: number; v: number }[]; pctBase?: number; amt: { t: number; v: number }[]; amtBase?: number } {
+  if (!cv.some((p) => p.f !== 0)) return { pct: cv, pctBase: cv.base, amt: cv, amtBase: cv.base };
+  const pct: { t: number; v: number }[] = [], amt: { t: number; v: number }[] = [];
+  let prev = cv.base ?? cv[0]?.v ?? 0, idx = 1, cum = 0;
+  cv.forEach((p, i) => {
+    if (i === 0 && cv.base == null) { pct.push({ t: p.t, v: 1 }); amt.push({ t: p.t, v: p.v }); prev = p.v; return; }
+    cum += p.f;
+    if (prev > 0) idx *= 1 + (p.v - prev - p.f) / prev;
+    prev = p.v;
+    pct.push({ t: p.t, v: idx }); amt.push({ t: p.t, v: p.v - cum });
+  });
+  return { pct, pctBase: cv.base != null ? 1 : undefined, amt, amtBase: cv.base };
+}
+
+export function computeOverview(trades: Trade[], accounts: Account[], balances: Record<string, BalancePoint[]>, from = "", flows: CashFlow[] = []): Overview {
   const closed = trades.filter((t) => t.status === "closed" && t.pnl != null);
   const core = tradeCore(closed);
   const s = { net: core.net, winRate: core.winRate };
@@ -100,19 +135,22 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
   const totalReturn = n && start > 0 ? s.net / start : null; // fraction; exposed x100
   if (n && totalReturn == null) why.totalReturn = "start";
 
-  // Drawdown family (balance based).
-  const cv = n ? curve(closed, ids, accounts, balances, from) : [];
+  // Drawdown family (balance based; recorded deposits/withdrawals are neither gains nor drawdowns).
+  const cv = n ? curve(closed, ids, accounts, balances, from, flows) : [];
+  const dv = drawdownViews(cv as CPt[] & { base?: number });
   let inDD = false;
   let peak = -Infinity, peakT = 0, under = 0, lastT = 0;
-  for (const pt of cv) {
+  for (const pt of dv.pct) {
     lastT = pt.t;
     if (pt.v >= peak) { if (peak > -Infinity && pt.t > peakT && inDD) under = Math.max(under, pt.t - peakT); inDD = false; peak = pt.v; peakT = pt.t; }
     else inDD = true;
   }
   if (inDD) under = Math.max(under, lastT - peakT); // drawdown still open: counts until the last trade
   // Drawdown depth: standard definition, the start balance is the first peak (when the curve is built from P&L).
-  let dPeak = cv.base != null && cv.base > 0 ? cv.base : -Infinity, maxAmt = 0, maxPct = 0;
-  for (const pt of cv) { if (pt.v >= dPeak) dPeak = pt.v; else { maxAmt = Math.max(maxAmt, dPeak - pt.v); if (dPeak > 0) maxPct = Math.max(maxPct, (dPeak - pt.v) / dPeak); } }
+  let dPeak = dv.pctBase != null && dv.pctBase > 0 ? dv.pctBase : -Infinity, maxAmt = 0, maxPct = 0;
+  for (const pt of dv.pct) { if (pt.v >= dPeak) dPeak = pt.v; else if (dPeak > 0) maxPct = Math.max(maxPct, (dPeak - pt.v) / dPeak); }
+  let aPeak = dv.amtBase != null && dv.amtBase > 0 ? dv.amtBase : -Infinity;
+  for (const pt of dv.amt) { if (pt.v >= aPeak) aPeak = pt.v; else maxAmt = Math.max(maxAmt, aPeak - pt.v); }
   const haveCurve = cv.length >= 2;
   const maxBalDD = haveCurve && (start > 0 || peak > 0) ? maxPct * 100 : null;
   if (n && maxBalDD == null) why.maxBalDD = "balance";
@@ -129,10 +167,14 @@ export function computeOverview(trades: Trade[], accounts: Account[], balances: 
     const byDay: Record<string, number> = {};
     for (const t of closed) { const d = (t.exitTime ?? t.entryTime ?? "").slice(0, 10); if (d) byDay[d] = (byDay[d] ?? 0) + p(t); }
     const keys = Object.keys(byDay).sort();
-    let bal = start; const r: number[] = [];
+    // Recorded cash flows land at the start of their day (as in Returns & capital); flows before the first trading day are added first.
+    const flowDay: Record<string, number> = {};
+    for (const x of flows) if (ids.includes(x.accountId) && x.t && (!from || x.t >= from)) flowDay[x.t.slice(0, 10)] = (flowDay[x.t.slice(0, 10)] ?? 0) + signed(x);
+    let bal = start + Object.entries(flowDay).reduce((s, [d, v]) => (d < keys[0] ? s + v : s), 0); const r: number[] = [];
     const u = (d: string) => Date.parse(d + "T00:00:00Z");
     for (let t = u(keys[0]); t <= u(keys[keys.length - 1]); t += 864e5) {
       const d = new Date(t).toISOString().slice(0, 10), wd = new Date(t).getUTCDay(), pl = byDay[d] ?? 0;
+      bal += flowDay[d] ?? 0;
       if (wd === 0 || wd === 6) { if (pl === 0) continue; } // weekend: only if it has trades
       if (bal > 0) r.push(pl / bal);
       bal += pl;

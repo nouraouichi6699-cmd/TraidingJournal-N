@@ -37,3 +37,17 @@ export function currentBalance(a: Account, trades: Trade[], points: BalancePoint
   const s = balanceSeries(a, trades, points, flows);
   return s.length ? s[s.length - 1].v : a.startBalance || 0;
 }
+
+/**
+ * True when the account's ledger (starting balance + realised P&L + recorded cash flows) reproduces its imported balance
+ * history at the last snapshot, i.e. no deposit/withdrawal is missing. Null when there is no imported history to check against.
+ * Used to decide whether "0 deposits" is a real zero or just unknown (e.g. an MT5 report imported before cash flows were read).
+ */
+export function ledgerReconciles(a: Account, trades: Trade[], points: BalancePoint[] = [], flows: CashFlow[] = []): boolean | null {
+  const snaps = points.filter((p) => p.t && Number.isFinite(p.balance)).map((p) => ({ t: norm(p.t), v: p.balance })).sort((x, y) => x.t.localeCompare(y.t));
+  if (!snaps.length) return null;
+  const last = snaps[snaps.length - 1];
+  const pnl = trades.filter((t) => t.accountId === a.id && t.status === "closed" && t.pnl != null && closeOf(t) && closeOf(t) <= last.t).reduce((s, t) => s + (t.pnl as number), 0);
+  const fl = flows.filter((f) => f.accountId === a.id && f.t && norm(f.t) <= last.t).reduce((s, f) => s + signed(f), 0);
+  return Math.abs((a.startBalance || 0) + pnl + fl - last.v) <= Math.max(0.5, Math.abs(last.v) * 1e-4);
+}

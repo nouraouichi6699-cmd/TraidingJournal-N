@@ -3,7 +3,7 @@ import { parseTradingViewCsv } from "./tradingview";
 import { planLedger } from "./importLedger";
 import { newFlows, type CashFlow } from "./cashflow";
 import { computeReturnsCapital } from "./returnsCapital";
-import { currentBalance } from "./balance";
+import { currentBalance, ledgerReconciles } from "./balance";
 import type { Account, Trade } from "../types";
 let pass = 0, fail = 0;
 const near = (a: number | null | undefined, b: number | null) => (a == null || b == null ? a === b : Math.abs(a - b) <= 0.01);
@@ -53,6 +53,8 @@ t("current balance from the ledger alone (no history)", currentBalance(A, trades
 t("net profit is trading only", rc.net, 382);
 t("net deposits 2000 - 1000", rc.netDep, 1000);
 t("credits and adjustments (fee)", rc.credits, -10);
+is("imported ledger reconciles with the report's balance history (zeros are real)", ledgerReconciles(A, trades, r.points, flows) === true);
+is("the old import (start = first deposit, no flows) does not reconcile", ledgerReconciles(A, trades, r.points, []) === false);
 
 console.log("-- Import plan");
 const p1 = planLedger(5000, null, r);
