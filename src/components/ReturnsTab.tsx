@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { Banknote, CalendarCheck, TrendingUp } from "lucide-react";
+import { fmt } from "../lib/stats";
+import type { ReturnsCapital, RcWhy } from "../lib/returnsCapital";
+import { usePrivacy } from "../usePrivacy";
+import { GREEN, RED } from "./dashWidgets";
 import { MetricSection, ViewHeader, type Item, type View } from "./metricUi";
 import type { Lang } from "../types";
 
@@ -75,15 +79,45 @@ const S3: M[] = [
   ["bigLoss", ["Largest losing day contribution", "مساهمة أكبر يوم خاسر", "Contribution du plus gros jour perdant"], ["Share of total loss from the worst day.", "حصة أسوأ يوم من إجمالي الخسارة.", "Part de la perte totale du pire jour."]],
 ];
 
-export default function ReturnsTab({ lang }: { lang: Lang }) {
+type Kind = "money" | "pct" | "int";
+/** metric id -> [ReturnsCapital field, kind, signed]. Ids missing here have no stored data (equity, deposits, withdrawals, credits). */
+const MAP: Record<string, [keyof ReturnsCapital, Kind, boolean]> = {
+  net: ["net", "money", true], gp: ["gross", "money", false], gl: ["loss", "money", true], tr: ["totalReturn", "pct", true],
+  adr: ["avgDailyRet", "pct", true], awr: ["avgWeeklyRet", "pct", true], amr: ["avgMonthlyRet", "pct", true],
+  adp: ["avgDailyPnl", "money", true], mdp: ["medDailyPnl", "money", true], sdp: ["sdDailyPnl", "money", false], awp: ["avgWeeklyPnl", "money", true], amp: ["avgMonthlyPnl", "money", true],
+  bd: ["bestDay", "money", true], wd: ["worstDay", "money", true], bw: ["bestWeek", "money", true], ww: ["worstWeek", "money", true], bm: ["bestMonth", "money", true], wm: ["worstMonth", "money", true],
+  init: ["initial", "money", false], start: ["startBal", "money", false], cur: ["currentBal", "money", false], end: ["endBal", "money", false], hiBal: ["highBal", "money", false],
+  pDays: ["profitDays", "int", false], pDayPct: ["profitDayPct", "pct", false], dWin: ["tradeWinRate", "pct", false], pWeeks: ["profitWeeks", "int", false], pMonths: ["profitMonths", "int", false], posRet: ["posRetDays", "int", false],
+  avgWinDay: ["avgWinDay", "money", true], avgLossDay: ["avgLossDay", "money", true], bigWin: ["bigWinShare", "pct", false], bigLoss: ["bigLossShare", "pct", false],
+};
+const WHY: Record<RcWhy, L> = {
+  noTrades: ["No closed trades in this period.", "لا توجد صفقات مغلقة في هذه الفترة.", "Aucun trade clôturé sur la période."],
+  noStart: ["Insufficient data: needs a positive starting balance on the account.", "بيانات غير كافية: يلزم رصيد ابتدائي موجب للحساب.", "Données insuffisantes : solde initial positif requis."],
+  noCash: ["Insufficient data: deposits, withdrawals and credits are not recorded.", "بيانات غير كافية: الإيداعات والسحوبات والائتمانات غير مسجّلة.", "Données insuffisantes : dépôts, retraits et crédits non enregistrés."],
+  noEquity: ["Insufficient data: equity history / open-position P&L is not stored.", "بيانات غير كافية: سجل حقوق الملكية وأرباح الصفقات المفتوحة غير محفوظ.", "Données insuffisantes : historique d'equity non stocké."],
+  fewDays: ["Needs at least 2 trading days.", "يلزم يومان تداول على الأقل.", "Au moins 2 jours de trading requis."],
+  noWins: ["No profitable days in this period.", "لا توجد أيام رابحة في هذه الفترة.", "Aucun jour gagnant sur la période."],
+  noLosses: ["No losing days in this period.", "لا توجد أيام خاسرة في هذه الفترة.", "Aucun jour perdant sur la période."],
+};
+const POLICY: L = ["Only days, weeks and months with at least one closed trade count. Day = close date.", "تُحتسب فقط الأيام والأسابيع والأشهر التي فيها صفقة مغلقة واحدة على الأقل. اليوم = تاريخ الإغلاق.", "Seuls les jours/semaines/mois avec un trade clôturé comptent. Jour = date de clôture."];
+
+export default function ReturnsTab({ lang, rc, onImport }: { lang: Lang; rc: ReturnsCapital; onImport?: () => void }) {
   const k = i(lang), T = (x: L) => x[k];
+  const { hidden } = usePrivacy();
   const [view, setView] = useState<View>("grid");
-  const items = (m: M[]): Item[] => m.map(([id, l, tip]) => ({ id, label: T(l), tip: T(tip), value: T(TXT.soon), color: "var(--primary)", reason: T(TXT.tipSoon) }));
+  const items = (m: M[]): Item[] => m.map(([id, l, tip]) => {
+    const spec = MAP[id], v = spec ? (rc[spec[0]] as number | null) : null;
+    const why = (rc.why[id] ?? (spec ? undefined : "noCash")) as RcWhy | undefined;
+    if (v == null) return { id, label: T(l), tip: T(tip), value: "-", reason: why ? T(WHY[why]) : undefined };
+    const [, kind, signed] = spec;
+    const value = kind === "int" ? String(Math.round(v)) : kind === "pct" ? `${signed && v > 0 ? "+" : ""}${fmt(v)}%` : hidden ? "••••" : `${signed && v > 0 ? "+" : ""}${fmt(v)}`;
+    return { id, label: T(l), tip: T(tip), value, color: signed && !hidden && kind !== "int" && v !== 0 ? (v > 0 ? GREEN : RED) : undefined };
+  });
   const n = S1.length + S2.length + S3.length;
   const sec = [[<TrendingUp size={18} />, TXT.s1, TXT.s1d, S1], [<Banknote size={18} />, TXT.s2, TXT.s2d, S2], [<CalendarCheck size={18} />, TXT.s3, TXT.s3d, S3]] as const;
   return (
     <div className="space-y-5">
-      <ViewHeader title={T(RET_TAB)} sub={T(TXT.sub)} badge={`${n} ${lang === "ar" ? "مقياس" : lang === "fr" ? "métriques" : "metrics"}`} view={view} onView={setView} gridLabel={lang === "ar" ? "عرض شبكي" : lang === "fr" ? "Vue grille" : "Grid view"} listLabel={lang === "ar" ? "عرض قائمة" : lang === "fr" ? "Vue liste" : "List view"} />
+      <ViewHeader title={T(RET_TAB)} sub={`${T(TXT.sub)} ${T(POLICY)}`} badge={`${n} ${lang === "ar" ? "مقياس" : lang === "fr" ? "métriques" : "metrics"}`} view={view} onView={setView} gridLabel={lang === "ar" ? "عرض شبكي" : lang === "fr" ? "Vue grille" : "Grid view"} listLabel={lang === "ar" ? "عرض قائمة" : lang === "fr" ? "Vue liste" : "List view"} />
       {sec.map(([icon, t, d, m]) => <MetricSection key={t[0]} icon={icon} title={T(t)} subtitle={T(d)} view={view} items={items(m as M[])} />)}
     </div>
   );

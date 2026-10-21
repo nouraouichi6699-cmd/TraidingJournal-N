@@ -3,6 +3,7 @@ import { metrics } from "../lib/dashStats";
 import { Wallet, Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
+import { computeReturnsCapital } from "../lib/returnsCapital";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
 import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
@@ -95,8 +96,15 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
     }
     return r;
   }, [trades, acc, per]);
+  // Trades of the selected accounts that fall before the selected period (needed for the period's starting balance).
+  const before = useMemo(() => {
+    if (per === "all") return [] as Trade[];
+    const inList = new Set(list.map((x) => x.key));
+    return (acc === "all" ? trades : trades.filter((x) => x.accountId === acc)).filter((x) => !inList.has(x.key));
+  }, [trades, list, acc, per]);
   const a = useMemo(() => computeActivity(list), [list]);
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
+  const rc = useMemo(() => computeReturnsCapital(list, before, startBal), [list, before, startBal]);
   const outcomes = useMemo(() => computeTradeOutcomes(list, startBal), [list, startBal]);
   const recent = useMemo(() => recentOutcomes(list, 60), [list]);
   const ov = useMemo(() => computeOverview(list, acc === "all" ? accounts : accounts.filter((x) => x.id === acc), balances, ""), [list, accounts, balances, acc]);
@@ -163,7 +171,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       ) : tab === "daybyday" ? (
         <DayByDayTab lang={lang} trades={list} onImport={onImport} />
       ) : tab === "returns" ? (
-        <ReturnsTab lang={lang} />
+        <ReturnsTab lang={lang} rc={rc} onImport={onImport} />
       ) : !a ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{L(TX.empty)}</div>
       ) : (
