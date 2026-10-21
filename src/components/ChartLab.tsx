@@ -94,7 +94,7 @@ export function Heatmap({ cells, mode, money, weekdays, t, rtl }: { cells: HeatC
           ])}
         </div>
       </div>
-      <p className="mt-2 h-4 text-xs text-muted tnum" dir={rtl ? "rtl" : undefined} aria-live="polite">{hover ? info(hover.d, hover.h) : t("chHeatHint")}</p>
+      <p className="mt-2 h-4 text-xs text-muted tnum" dir={rtl ? "rtl" : undefined} aria-live="polite">{hover ? info(hover.d, hover.h) : t("chHeatHover")}</p>
     </div>
   );
 }
@@ -112,7 +112,7 @@ export function GoldenRules({ ideas, base, current, onApply, t, money, weekdays,
   };
   const plus = (n: number) => `${n > 0 ? "+" : ""}${money(n)}`;
   return (
-    <div className="mt-4 rounded-xl border border-border p-3">
+    <div className="rounded-xl border border-border bg-bg/40 p-3">
       <p className="flex items-center gap-2 text-sm font-bold"><Sparkles size={15} className="text-icon" />{t("chGolden")}</p>
       <p className="mb-1 text-xs text-muted">{t("chGoldenHint")}</p>
       {ideas.length === 0 && <p className="py-2 text-xs text-muted">{t("chNoRule")}</p>}

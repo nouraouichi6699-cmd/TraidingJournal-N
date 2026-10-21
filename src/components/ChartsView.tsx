@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart, FileSpreadsheet, CalendarRange, ArrowRight, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart, FileSpreadsheet, CalendarRange, ArrowRight, SlidersHorizontal, Info, TrendingUp, TrendingDown, CalendarDays, Activity, BarChart3, Ruler, Grid3x3, Flame, FlaskConical, ShieldCheck, Dices, Scale, type LucideIcon } from "lucide-react";
 import RangePicker from "./RangePicker";
 import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
@@ -33,8 +33,18 @@ const RED = "#f87171";
 const PALETTE = ["#f5b83d", "#22c55e", "#60a5fa", "#f472b6", "#a78bfa", "#fb923c", "#2dd4bf", "#f87171"];
 const RANGES = ["all", "1M", "3M", "6M", "YTD", "1Y", "custom"] as const;
 type Range = (typeof RANGES)[number];
-type Metric = "profit" | "balance" | "drawdown" | "periods" | "rolling" | "dist" | "mc" | "whatif" | "heat" | "rmult" | "tilt" | "size";
-const MORE: Metric[] = ["rolling", "dist", "mc", "whatif", "heat", "rmult", "tilt", "size"]; // analyses behind the "More" menu
+type Metric = "profit" | "balance" | "drawdown" | "periods" | "rolling" | "dist" | "mc" | "whatif" | "heat" | "rmult" | "tilt" | "size" | "prop";
+type Fact = { label: string; value: string; tone?: "pos" | "neg" };
+const LABEL: Record<Metric, Key> = { profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods", rolling: "chRolling", dist: "chDist", mc: "chMC", whatif: "chWhatIf", heat: "chHeat", rmult: "chRmult", tilt: "chTilt", size: "chSize", prop: "chPropNav" };
+const QUESTION: Record<Metric, Key> = { profit: "chQprofit", balance: "chQbalance", drawdown: "chQdrawdown", periods: "chQperiods", rolling: "chQrolling", dist: "chQdist", mc: "chQmc", whatif: "chQwhatif", heat: "chQheat", rmult: "chQrmult", tilt: "chQtilt", size: "chQsize", prop: "chQprop" };
+const ICON: Record<Metric, LucideIcon> = { profit: TrendingUp, balance: Wallet, drawdown: TrendingDown, periods: CalendarDays, rolling: Activity, dist: BarChart3, rmult: Ruler, heat: Grid3x3, tilt: Flame, whatif: FlaskConical, prop: ShieldCheck, mc: Dices, size: Scale };
+// Analyses grouped by the kind of question they answer.
+const GROUPS: { key: Key; items: Metric[] }[] = [
+  { key: "chGrpPerf", items: ["profit", "balance", "drawdown", "periods"] },
+  { key: "chGrpStats", items: ["rolling", "dist", "rmult", "heat"] },
+  { key: "chGrpBehavior", items: ["tilt", "whatif"] },
+  { key: "chGrpRisk", items: ["prop", "mc", "size"] },
+];
 type Mode = "symbol" | "account";
 type Bucket = "day" | "week" | "month" | "session" | "weekday" | "hour" | "side";
 type Pt = { t: number; v: number };
@@ -43,16 +53,16 @@ type Mark = { t: number; kind: CashFlow["type"]; title: string };
 type Stats = { net: number; n: number; winRate: number | null; pf: number | null; maxDD?: number };
 type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[]; stats: Stats; base: number; dd?: DdWindow | null; ddText?: string; ddSub?: string; marks?: Mark[]; band?: { lo: Pt[]; hi: Pt[] }; mc?: McResult | null; median?: number; guides?: { pts: Pt[]; color: string; label: string }[]; prop?: PropResult | null; propNote?: { text: string; tone: "ok" | "bad" | "info" }; alerts?: { t: number; title: string }[];
   twin?: { pts: Pt[]; stats: Stats }; heat?: HeatCell[][]; rInfo?: { n: number; total: number; avg: number | null; avgWin: number | null; avgLoss: number | null }; tilt?: { normal: { n: number; net: number }; after: { n: number; net: number } };
-  ideas?: RuleIdea[]; odds?: PropOdds | null; size?: Sizing };
+  ideas?: RuleIdea[]; odds?: PropOdds | null; size?: Sizing; dInfo?: { avgWin: number | null; avgLoss: number | null } };
 
 interface Saved {
   metric: Metric; selected: string[]; selectedAcc: string[]; colors: Record<string, string>;
   range: Range; split: boolean; smooth: boolean; bucket: Bucket; unit: "money" | "pct"; v?: number;
   roll: RollKind; rollN: number; showDD: boolean; from?: string; to?: string;
-  whatIf: WhatIfRules; tiltMin: number; heatVal: "net" | "win" | "n"; propOn: boolean; prop: PropRules; propDays: number;
+  whatIf: WhatIfRules; tiltMin: number; heatVal: "net" | "win" | "n"; prop: PropRules; propDays: number;
 }
 const defaults: Saved = { metric: "profit", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day", unit: "money", roll: "win", rollN: 20, showDD: true,
-  whatIf: {}, tiltMin: 30, heatVal: "net", propOn: false, prop: { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false }, propDays: 0 };
+  whatIf: {}, tiltMin: 30, heatVal: "net", prop: { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false }, propDays: 0 };
 const load = (): Saved => {
   try {
     const p = JSON.parse(localStorage.getItem(STORE) ?? "{}");
@@ -261,7 +271,9 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
     new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(t0));
   const fmtBadge = (t0: number) => xFmt ? xFmt(t0) :
     spanMs >= 75 * DAY ? fmtTick(t0) : new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", ...(spanMs < 30 * DAY ? { hour: "2-digit", minute: "2-digit" } : {}), timeZone: "UTC" }).format(new Date(t0));
-  const xTicks = Array.from({ length: 7 }, (_, i) => ({ t: xMin + ((xMax - xMin) * i) / 6, i })).filter((tk, k, arr) => k === 0 || fmtTick(tk.t) !== fmtTick(arr[k - 1].t));
+  const tickEnd = xFmt ? xMax : Math.min(xMax, xLast); // dates: labels stop at the last point, the open space on the right is not the future
+  const nTicks = Math.max(2, Math.min(6, Math.floor((X(tickEnd) - X(xMin)) / 95) + 1)); // about one label per 95 px
+  const xTicks = Array.from({ length: nTicks }, (_, i) => ({ t: xMin + ((tickEnd - xMin) * i) / (nTicks - 1), i })).filter((tk, k, arr) => k === 0 || fmtTick(tk.t) !== fmtTick(arr[k - 1].t));
   const zeroY = Y(0);
 
   // ----- hover (snaps to the nearest real data point, only over the drawn data) -----
@@ -360,7 +372,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
         ))}
 
         {!bars && xTicks.map((tk) => (
-          <text key={tk.i} x={X(tk.t)} y={height - 9} fontSize="11.5" fill="var(--muted)" textAnchor={tk.i === 0 ? "start" : tk.i === 6 ? "end" : "middle"}>{fmtTick(tk.t)}</text>
+          <text key={tk.i} x={X(tk.t)} y={height - 9} fontSize="11.5" fill="var(--muted)" textAnchor={tk.i === 0 ? "start" : tk.i === nTicks - 1 ? "end" : "middle"}>{fmtTick(tk.t)}</text>
         ))}
         {bars && barList.map((b, i) => (i % Math.max(1, Math.ceil(barList.length / 8)) === 0 ? (
           <text key={b.key} x={padL + (i + 0.5) * step} y={height - 9} fontSize="11.5" fill="var(--muted)" textAnchor="middle">{b.label}</text>
@@ -416,7 +428,9 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
               if (!d || !(single || focusId === s.id)) return null;
               const px = X(d.peakT), tx = X(d.troughT), rx = X(d.recoverT ?? xLast);
               const py = Y(lerpAt(drawn[k], d.peakT)), ty = Y(lerpAt(drawn[k], d.troughT));
-              const right = tx > w - 230, lx = right ? tx - 10 : tx + 10, ly = Math.min(ty + 20, height - padB - 38);
+              // Label on the side of the trough with more room; on a narrow chart only what fits (the answer above repeats it).
+              const leftRoom = tx - padL, rightRoom = w - padR - tx, right = rightRoom < 230 && leftRoom > rightRoom, room = right ? leftRoom : rightRoom;
+              const lx = right ? tx - 10 : tx + 10, ly = Math.min(ty + 20, height - padB - 38);
               // Words follow the page direction, numbers stay left-to-right; anchors keep the block on the chosen side of the trough.
               const rtl = lang === "ar", wordAnchor = right ? (rtl ? "start" : "end") : (rtl ? "end" : "start"), numAnchor = right ? "end" : "start";
               return (
@@ -426,9 +440,9 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
                   <line x1={tx} x2={tx} y1={py} y2={ty} stroke={RED} strokeOpacity="0.75" strokeDasharray="2 3" />
                   <circle cx={px} cy={py} r="3.5" fill={RED} />
                   <circle cx={tx} cy={ty} r="4.5" fill={RED} stroke="var(--surface)" strokeWidth="2" />
-                  <text x={lx} y={ly} textAnchor={wordAnchor} direction={rtl ? "rtl" : "ltr"} fontSize="11" fontWeight="700" fill={RED}>{t("chMaxDD")}</text>
-                  <text x={lx} y={ly + 15} textAnchor={numAnchor} direction="ltr" fontSize="12" fontWeight="700" fill={RED} className="tnum">{s.ddText}</text>
-                  {s.ddSub && <text x={lx} y={ly + 30} textAnchor={wordAnchor} direction={rtl ? "rtl" : "ltr"} fontSize="10.5" fill="var(--muted)">{s.ddSub}</text>}
+                  {room >= 130 && <text x={lx} y={ly} textAnchor={wordAnchor} direction={rtl ? "rtl" : "ltr"} fontSize="11" fontWeight="700" fill={RED}>{t("chMaxDD")}</text>}
+                  {room >= 130 && <text x={lx} y={ly + 15} textAnchor={numAnchor} direction="ltr" fontSize="12" fontWeight="700" fill={RED} className="tnum">{s.ddText}</text>}
+                  {s.ddSub && room >= 270 && <text x={lx} y={ly + 30} textAnchor={wordAnchor} direction={rtl ? "rtl" : "ltr"} fontSize="10.5" fill="var(--muted)">{s.ddSub}</text>}
                 </g>
               );
             })}
@@ -556,7 +570,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
 
   const mode: Mode = open ?? "symbol";
   const byAcc = mode === "account";
-  const metric: Metric = !byAcc && st.metric === "balance" ? "profit" : st.metric; // balance only makes sense per account
+  const metric: Metric = !byAcc && (st.metric === "balance" || st.metric === "prop") ? "profit" : st.metric; // balance and prop rules only make sense per account
+  const balanceLike = metric === "balance" || metric === "prop"; // both draw the balance curve
   const closed = useMemo(() => trades.filter((x) => x.status === "closed" && x.pnl != null && !isNaN(ts(x.exitTime))), [trades]);
   const scope = useMemo(() => (byAcc || acc === "all" ? closed : closed.filter((x) => x.accountId === acc)), [closed, acc, byAcc]);
   const accsInView = byAcc || acc === "all" ? accounts : accounts.filter((a) => a.id === acc);
@@ -644,7 +659,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
           }));
           const sorted = shown.map((x) => x.pnl as number).sort((a, b) => a - b);
           const median = sorted.length ? (sorted.length % 2 ? sorted[sorted.length >> 1] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : 0;
-          return { id, name, color, pts: [], bars, stats, base, median };
+          const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+          return { id, name, color, pts: [], bars, stats, base, median, dInfo: { avgWin: avg(sorted.filter((v) => Math.round(v * 100) > 0)), avgLoss: avg(sorted.filter((v) => Math.round(v * 100) < 0)) } };
         }
         if (metric === "mc") {
           const sim = monteCarlo(shown.map((x) => x.pnl as number), { paths: 1000, horizon: Math.min(500, Math.max(shown.length, 20)), seed: 42 });
@@ -693,7 +709,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         let pts: Pt[] = [];
         if (metric === "rolling") {
           pts = rollingSeries(list.map((x) => ({ t: ts(x.exitTime), pnl: x.pnl as number })), st.rollN, st.roll).filter((p) => inRange(p.t)); // windows reach back before the range start
-        } else if (metric === "balance") {
+        } else if (balanceLike) {
           if (id === ALL) {
             const curves = accounts.map(accountBalance).filter((c) => c.length);
             const times = [...new Set(curves.flatMap((c) => c.map((p) => p.t)))].sort((a, b) => a - b);
@@ -718,7 +734,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         if (until != null) pts = pts.filter((p) => p.t <= until);
 
         // Deposits / withdrawals of the accounts behind this curve (balance view only).
-        const sFlows = metric === "balance" ? flows.filter((f) => (byAcc && id !== ALL ? f.accountId === id : accsInView.some((a) => a.id === f.accountId)) && Number.isFinite(f.amount) && f.amount !== 0) : [];
+        const sFlows = balanceLike ? flows.filter((f) => (byAcc && id !== ALL ? f.accountId === id : accsInView.some((a) => a.id === f.accountId)) && Number.isFinite(f.amount) && f.amount !== 0) : [];
         const marks: Mark[] = sFlows.map((f) => ({ t: flowT(f), kind: f.type, title: `${flowLabel(f.type)} ${hideMoney ? "••••" : fmtMoney(signed(f), { cents: true, sign: true, currency })} · ${dayFmt.format(new Date(flowT(f)))}` }))
           .filter((m) => !isNaN(m.t) && pts.length > 0 && m.t >= pts[0].t && m.t <= pts[pts.length - 1].t);
 
@@ -735,7 +751,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         }
         // Prop-firm rules on the balance curve: max-loss floor, profit target, days that broke the daily loss limit.
         let prop: PropResult | null = null, guides: Series["guides"], alerts: Series["alerts"], propNote: Series["propNote"], odds: PropOdds | null = null;
-        if (metric === "balance" && st.propOn && pts.length > 1 && (id !== ALL || accsInView.length === 1)) { // a prop firm judges each account on its own
+        if (metric === "prop" && pts.length > 1 && (id !== ALL || accsInView.length === 1)) { // a prop firm judges each account on its own
           prop = propCheck(pts, shown, base, st.prop);
           if (prop) {
             guides = [
@@ -753,7 +769,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
       })
       .filter((s) => (metric === "heat" ? (s.heat ?? []).some((r) => r.some((c) => c.n > 0)) : metric === "periods" || metric === "dist" || metric === "rmult" || metric === "tilt" ? s.bars.some((b) => b.n > 0) : s.pts.length > 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.propOn, st.prop, st.propDays, cutoff, until, balances, flows, acc, byAcc, lang, accounts, startSum, hideMoney, currency]);
+  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.prop, st.propDays, cutoff, until, balances, flows, acc, byAcc, lang, accounts, startSum, hideMoney, currency]);
 
   // $ / % : percent is relative to the starting balance (balance view: change since the start). Rolling / distribution / simulation have their own units.
   const unitless = metric === "rolling" || metric === "dist" || metric === "mc" || metric === "heat" || metric === "rmult" || metric === "tilt" || metric === "size";
@@ -765,7 +781,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
       ? [{ ...rawSeries[0], name: `${rawSeries[0].name} · ${t("chActual")}` }, { ...rawSeries[0], id: `${rawSeries[0].id}:wi`, name: `${rawSeries[0].name} · ${t("chWhatIf")}`, color: rawSeries[0].color === "#a78bfa" ? "#60a5fa" : "#a78bfa", pts: rawSeries[0].twin.pts, stats: rawSeries[0].twin.stats, twin: undefined }].filter((x) => x.pts.length > 1)
       : rawSeries;
     if (!pctMode) return src;
-    const f = (x: Series, v: number) => (metric === "balance" ? ((v - x.base) / x.base) * 100 : (v / x.base) * 100);
+    const f = (x: Series, v: number) => (balanceLike ? ((v - x.base) / x.base) * 100 : (v / x.base) * 100);
     return src.map((x) => ({ ...x, pts: x.pts.map((p) => ({ t: p.t, v: f(x, p.v) })), bars: x.bars.map((b) => ({ ...b, v: f(x, b.v) })), guides: x.guides?.map((g) => ({ ...g, pts: g.pts.map((p) => ({ t: p.t, v: f(x, p.v) })) })) }));
   }, [rawSeries, pctMode, metric, lang]); // eslint-disable-line react-hooks/exhaustive-deps
   const rollFmt = st.roll === "win" ? (n: number) => `${fmt(n, 1)}%` : st.roll === "pf" ? (n: number) => fmt(n, 2) : moneyBase;
@@ -773,75 +789,122 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   const growthFmt = (n: number) => `${n > 0 ? "+" : ""}${fmt(n, Math.abs(n) >= 100 ? 0 : 1)}%`;
   const money = metric === "rolling" ? rollFmt : metric === "rmult" ? rFmt : metric === "size" ? growthFmt : pctMode ? (n: number) => `${n > 0 ? "+" : ""}${fmt(n)}%` : moneyBase;
 
-  // ----- headline -----
+  // ----- the answer: what the big number is, a few labelled facts, how to read the chart -----
   const head = series[0];
   const startAll = startSum;
-  let headVal = 0, pct: number | null = null, sub = "";
+  const bidi = (x: string) => (lang === "ar" ? ltrNumbers(x) : x); // Arabic text with numbers: keep "59$" in reading order
+  const signedMoney = (n: number) => (hideMoney ? "••••" : fmtMoney(n, { sign: true, currency }));
+  const hh = (h: number) => `${String(h).padStart(2, "0")}h`;
+  let headVal = 0, pct: number | null = null, answer: string | null = null, caption = "", hint = "";
+  let facts: Fact[] = [];
   if (head) {
     if (metric === "periods") {
       headVal = head.bars.reduce((a, b) => a + b.v, 0);
-      const pos = head.bars.filter((b) => b.v > 0).length;
-      sub = `${pos}/${head.bars.length} ${t("chPosPeriods")}`;
       pct = startAll ? (headVal / startAll) * 100 : null;
+      const best = head.bars.reduce((a, b) => (b.v > a.v ? b : a), head.bars[0]), worst = head.bars.reduce((a, b) => (b.v < a.v ? b : a), head.bars[0]);
+      caption = t("chCapPeriods");
+      facts = [{ label: t("chFPosPeriods"), value: `${head.bars.filter((b) => b.v > 0).length}/${head.bars.length}` },
+        ...(best && best.v > 0 ? [{ label: t("chFBestPeriod"), value: `${best.label}  ${money(best.v)}`, tone: "pos" as const }] : []),
+        ...(worst && worst.v < 0 ? [{ label: t("chFWorstPeriod"), value: `${worst.label}  ${money(worst.v)}`, tone: "neg" as const }] : [])];
+      hint = t("chHintPeriods");
     } else if (metric === "dist") {
       headVal = head.median ?? 0;
-      sub = `${t("chMedianTrade")} · ${head.stats.n} ${t("monthTrades")} · ${head.stats.winRate == null ? "—" : `${fmt(head.stats.winRate, 1)}%`} ${t("chWinners")}`;
+      caption = t("chMedianTrade");
+      facts = [{ label: t("chFWinners"), value: head.stats.winRate == null ? "—" : `${fmt(head.stats.winRate, 1)}%` },
+        { label: t("chFAvgWin"), value: head.dInfo?.avgWin == null ? "—" : moneyBase(head.dInfo.avgWin), tone: "pos" },
+        { label: t("chFAvgLoss"), value: head.dInfo?.avgLoss == null ? "—" : moneyBase(head.dInfo.avgLoss), tone: "neg" }];
+      hint = t("chHintDist");
     } else if (metric === "mc") {
       const m = head.mc;
       headVal = m?.finalP50 ?? 0;
       pct = startAll && m ? (headVal / startAll) * 100 : null;
-      if (m) sub = `${m.horizon} ${t("chMcNext")} · ${t("chMcProb")} ${fmt(m.probProfit, 0)}% · ${t("chMcBand")} ${money(m.finalP5)} … ${money(m.finalP95)} · ${t("chMcDD")} ${money(m.ddMedian)} · ${t("chMcDD95")} ${money(m.ddP95)}`;
+      caption = t("chCapMC").replace("{x}", String(m?.horizon ?? 0));
+      if (m) facts = [{ label: t("chMcProb"), value: `${fmt(m.probProfit, 0)}%` }, { label: t("chMcBand"), value: `${money(m.finalP5)} … ${money(m.finalP95)}` },
+        { label: t("chMcDD"), value: money(-m.ddMedian), tone: "neg" }, { label: t("chMcDD95"), value: money(-m.ddP95), tone: "neg" }];
+      hint = t("chMcNote");
     } else if (metric === "whatif") {
-      // Summary in money even when the lines are in % (stats are never converted); no what-if line = the rules removed every trade.
-      const act = rawSeries[0], w = act.twin?.stats, plus = (n: number) => (hideMoney ? "••••" : fmtMoney(n, { sign: true, currency }));
+      // Facts in money even when the lines are in % (stats are never converted); no what-if line = the rules removed every trade.
+      const act = rawSeries[0], w = act.twin?.stats, d = (w?.net ?? 0) - act.stats.net;
       headVal = series[1]?.pts[series[1].pts.length - 1]?.v ?? 0;
-      sub = `${plus((w?.net ?? 0) - act.stats.net)} ${t("chVsActual")} · ${t("chActual")} ${moneyBase(act.stats.net)} · ${t("chMaxDD")} ${moneyBase(-(w?.maxDD ?? 0))} / ${moneyBase(-(act.stats.maxDD ?? 0))} · ${t("chWhatIfHint")}`;
+      caption = t("chCapWhatIf");
+      facts = [{ label: t("chFVsActual"), value: signedMoney(d), tone: d > 0.005 ? "pos" : d < -0.005 ? "neg" : undefined }, { label: t("chFActual"), value: moneyBase(act.stats.net) },
+        { label: t("chFDDRules"), value: `${moneyBase(-(w?.maxDD ?? 0))} / ${moneyBase(-(act.stats.maxDD ?? 0))}` }, { label: t("chFKept"), value: `${w?.n ?? 0}/${act.stats.n}` }];
+      hint = t("chWhatIfHint");
     } else if (metric === "heat") {
       const cells = (head.heat ?? []).flatMap((r, d) => r.map((c, h) => ({ ...c, d, h }))).filter((c) => c.n > 0);
       const best = cells.reduce((a, c) => (c.net > a.net ? c : a), cells[0]), worst = cells.reduce((a, c) => (c.net < a.net ? c : a), cells[0]);
       headVal = best?.net ?? 0;
-      if (best && worst) sub = `${t("chBest")}: ${WD[best.d]} ${String(best.h).padStart(2, "0")}h ${money(best.net)} · ${t("chWorst")}: ${WD[worst.d]} ${String(worst.h).padStart(2, "0")}h ${money(worst.net)} · ${t("chHeatHint")}`;
+      caption = best ? t("chCapHeat").replace("{x}", `${WD[best.d]} ${hh(best.h)}`) : "";
+      if (worst) facts = [{ label: t("chFWorstSlot"), value: `${WD[worst.d]} ${hh(worst.h)}  ${money(worst.net)}`, tone: worst.net < 0 ? "neg" : undefined }];
+      hint = t("chHeatHint");
     } else if (metric === "rmult") {
       const r = head.rInfo;
       headVal = r?.avg ?? 0;
-      if (r) sub = `${t("chRAvg")} · ${r.n}/${r.total} ${t("chWithSL")} · ${t("chAvgWin")} ${r.avgWin == null ? "—" : rFmt(r.avgWin)} · ${t("chAvgLoss")} ${r.avgLoss == null ? "—" : rFmt(r.avgLoss)} · ${t("chRHint")}`;
+      caption = t("chCapRmult");
+      if (r) facts = [{ label: t("chFWithSL"), value: `${r.n}/${r.total}` }, { label: t("chFAvgWin"), value: r.avgWin == null ? "—" : rFmt(r.avgWin), tone: "pos" },
+        { label: t("chFAvgLoss"), value: r.avgLoss == null ? "—" : rFmt(r.avgLoss), tone: "neg" }];
+      hint = t("chRHint");
     } else if (metric === "tilt") {
-      const x = head.tilt;
-      headVal = x && x.after.n ? x.after.net / x.after.n : 0;
-      if (x) sub = `${t("chTiltAfter")} · ${t("chAvg")} ${x.after.n ? moneyBase(x.after.net / x.after.n) : "—"} (${x.after.n} ${t("monthTrades")}) · ${t("chTiltNormal")} ${t("chAvg")} ${x.normal.n ? moneyBase(x.normal.net / x.normal.n) : "—"} · ${t("chTiltHint")}`;
+      const x = head.tilt, after = x && x.after.n ? x.after.net / x.after.n : null, other = x && x.normal.n ? x.normal.net / x.normal.n : null;
+      headVal = after ?? 0;
+      caption = t("chCapTilt");
+      if (x) facts = [{ label: t("chFAfterLoss"), value: String(x.after.n) }, { label: t("chFNormalAvg"), value: other == null ? "—" : moneyBase(other) },
+        ...(after != null && other != null ? [{ label: t("chFDiff"), value: signedMoney(after - other), tone: after < other ? "neg" as const : "pos" as const }] : [])];
+      hint = t("chTiltHint");
     } else if (metric === "size") {
       const z = head.size;
       headVal = z ? z.half.f * 100 : 0;
-      if (z) sub = z.kelly > 0
-        ? `${t("chHalfKelly")} (${t("chSuggested")}) · ${t("chKelly")} ${fmt(z.kelly * 100, 2)}%${z.capped ? ` (${t("chKellyCap")})` : ""}${z.current ? ` · ${t("chYourRisk")} ≈ ${fmt(z.current.f * 100, 2)}%` : ""} · ${z.n} ${t("chWithSL")} · ${t("chSizeHint")}`
-        : `${t("chNoEdge")} · ${z.n} ${t("chWithSL")}`;
+      answer = `${fmt(headVal, 2)}%`;
+      caption = z && z.kelly > 0 ? t("chCapSize") : t("chNoEdge");
+      if (z) facts = [...(z.kelly > 0 ? [{ label: t("chFKelly"), value: `${fmt(z.kelly * 100, 2)}%${z.capped ? ` (${t("chKellyCap")})` : ""}` }] : []),
+        ...(z.current ? [{ label: t("chFYourRisk"), value: `≈ ${fmt(z.current.f * 100, 2)}%` }] : []), { label: t("chFWithSL"), value: String(z.n) }];
+      hint = t("chSizeHint");
     } else if (metric === "rolling") {
-      headVal = head.pts[head.pts.length - 1].v;
-      sub = `${t("chWindow")} ${st.rollN} ${t("monthTrades")} · ${t("chRollHint")}`;
+      const vs = head.pts.map((p) => p.v);
+      headVal = vs[vs.length - 1];
+      caption = t("chCapRolling").replace("{x}", String(st.rollN));
+      facts = [{ label: t("chFLowest"), value: money(Math.min(...vs)) }, { label: t("chFHighest"), value: money(Math.max(...vs)) }];
+      hint = t("chRollHint");
     } else if (metric === "drawdown") {
       headVal = Math.min(...head.pts.map((p) => p.v));
       pct = startAll ? (headVal / startAll) * 100 : null;
+      caption = t("chCapDrawdown");
+      const now = head.pts[head.pts.length - 1].v;
+      facts = [{ label: t("chFCurrentDD"), value: money(now), tone: now < -0.005 ? "neg" : undefined }];
+      hint = t("chHintDrawdown");
+    } else if (metric === "prop") {
+      const o = head.odds, note = head.propNote;
+      headVal = o?.pass ?? 0;
+      answer = o ? `${fmt(o.pass, 0)}%` : "—";
+      caption = note || o ? t("chPropOdds") : t("chPropPick");
+      facts = [...(note ? [{ label: t("chFStatus"), value: note.text, tone: note.tone === "ok" ? "pos" as const : note.tone === "bad" ? "neg" as const : undefined }] : []),
+        ...(o ? [{ label: t("chFFail"), value: `${fmt(o.fail, 0)}%` }, ...(o.open >= 0.5 ? [{ label: t("chFOpen"), value: `${fmt(o.open, 0)}%` }] : []), ...(o.medianDays != null ? [{ label: t("chFMedianDays"), value: `${o.medianDays} ${t("chTradingDays")}` }] : [])] : []),
+        ...(note || o ? [{ label: t("chCapBalance"), value: moneyBase(rawSeries[0]?.pts[rawSeries[0].pts.length - 1]?.v ?? 0) }] : [])];
+      hint = `${t("chPropHint")} ${t("chPropOddsHint")}`;
     } else {
       headVal = head.pts[head.pts.length - 1].v;
       const first = head.pts[0].v;
       pct = metric === "balance" ? (first ? ((headVal - first) / Math.abs(first)) * 100 : null) : startAll ? (headVal / startAll) * 100 : null;
-      if (metric === "balance" && st.propOn) sub = [head.propNote?.text ?? (series.some((x) => x.propNote) ? "" : t("chPropPick")), head.odds ? oddsLine(head.odds, t) : ""].filter(Boolean).join(" · ");
+      caption = t(metric === "balance" ? "chCapBalance" : "chCapProfit");
+      facts = [...(metric === "balance" ? [{ label: t("chFStart"), value: moneyBase(rawSeries[0]?.pts[0]?.v ?? 0) }] : [{ label: t("chFAvgTrade"), value: head.stats.n ? moneyBase(head.stats.net / head.stats.n) : "—" }]),
+        ...(head.ddText ? [{ label: t("chMaxDD"), value: head.ddText, tone: "neg" as const }] : [])];
+      hint = t(metric === "balance" ? "chHintBalance" : "chHintProfit");
     }
   }
-  const label = (m: Metric) => t(({ profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods", rolling: "chRolling", dist: "chDist", mc: "chMC", whatif: "chWhatIf", heat: "chHeat", rmult: "chRmult", tilt: "chTilt", size: "chSize" } as const)[m]);
+  if (answer == null) answer = money(headVal);
+  const label = (m: Metric) => t(LABEL[m]);
   const lineKind = metric === "drawdown" ? "dd" : "line";
   const isBars = metric === "periods" || metric === "dist" || metric === "rmult" || metric === "tilt";
   const split = (st.split || isBars) && metric !== "whatif"; // what-if compares two lines on one chart
   const toggle = (id: string) => setChosen(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
   const value = (s: Series) => (metric === "size" ? (s.size?.half.f ?? 0) * 100 : metric === "dist" ? s.median ?? 0 : metric === "rmult" ? s.rInfo?.avg ?? 0 : metric === "tilt" ? (s.tilt && s.tilt.after.n ? s.tilt.after.net / s.tilt.after.n : 0) : isBars ? s.bars.reduce((a, b) => a + b.v, 0) : metric === "mc" ? s.mc?.finalP50 ?? 0 : metric === "drawdown" ? Math.min(...s.pts.map((p) => p.v)) : s.pts[s.pts.length - 1]?.v ?? 0);
   const valueText = (s: Series) => (metric === "size" ? `${fmt(value(s), 2)}%` : money(value(s))); // position size: the suggested risk, not a growth
-  const metrics: Metric[] = byAcc ? ["profit", "balance", "drawdown", "periods"] : ["profit", "drawdown", "periods"];
-  // Chart options per metric: units, reference line, x axis (Monte Carlo runs on trade numbers, not dates).
+  // Chart options per metric: units, reference line, x axis (Monte Carlo runs on trade numbers, position size on risk %).
   const chartOpts = metric === "rolling"
     ? { axisFmt: st.roll === "win" ? (v: number, d: number) => `${fmt(v, d)}%` : st.roll === "pf" ? (v: number, d: number) => fmt(v, Math.max(d, 1)) : undefined, badgeFmt: rollFmt, refLine: st.roll === "win" ? 50 : st.roll === "pf" ? 1 : 0, fromStart: false }
     : metric === "dist" || metric === "rmult" ? { axisFmt: (v: number) => fmt(v, 0) }
     : metric === "mc" ? { xFmt: (x: number) => `${t("chTradeNo")}${Math.round(x)}`, fill: true, fromStart: false }
-    : metric === "size" ? { xFmt: (x: number) => `${fmt(x, 2)}%`, axisFmt: (v: number, d: number) => `${fmt(v, d)}%`, badgeFmt: growthFmt, fill: true, fromStart: false, refLine: 0, noEnd: true, csvX: ["risk_pct", (x: number) => x.toFixed(3)] as [string, (x: number) => string] }
+    : metric === "size" ? { xFmt: (x: number) => `${fmt(x, 2)}%`, axisFmt: (v: number, d: number) => `${fmt(v, d)}%`, fill: true, fromStart: false, refLine: 0, noEnd: true, csvX: ["risk_pct", (x: number) => x.toFixed(3)] as [string, (x: number) => string] }
     : {};
   if (st.range === "custom" && metric !== "mc") Object.assign(chartOpts, { fill: true }); // a closed custom range ends at its last day: no open space with dates beyond it
   const openDay = onOpenDay && !["dist", "mc", "heat", "rmult", "tilt", "size"].includes(metric) && (metric !== "periods" || st.bucket === "day")
@@ -854,282 +917,356 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   const seg = (on: boolean) => `px-3 py-1.5 transition-colors ${on ? "bg-primary text-on-primary" : "hover:text-icon"}`;
   const group = "flex overflow-hidden rounded-lg border border-border text-sm font-semibold";
   const pill = "flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold transition-colors hover:border-icon";
-  const chartH = Math.max(320, vh - 400);
-  const oneH = Math.max(320, vh - 440);
-  const cardH = Math.max(240, Math.min(300, (vh - 360) / 2));
+  const sel = "field !min-h-0 !w-auto !py-1.5 text-sm";
+  const ctl = "flex items-center gap-2 text-sm";
+  const chartH = Math.max(300, vh - 470);
+  const oneH = Math.max(300, vh - 500);
+  const cardH = Math.max(240, Math.min(300, (vh - 400) / 2));
 
-  const launch = (m: Mode, Icon: typeof Wallet, title: string, hint: string) => {
-    const on = open === m;
+  // Entry cards: what each workspace holds. Symbol analytics sits on the left, account analytics on the right (regardless of text direction).
+  const entry = (m: Mode, Icon: typeof Wallet, title: string, hint: string) => {
+    const count = GROUPS.reduce((n, g) => n + g.items.filter((x) => m === "account" || (x !== "balance" && x !== "prop")).length, 0);
     return (
-      <button
-        type="button"
-        aria-pressed={on}
-        onClick={() => setOpen(on ? null : m)}
-        className={`flex items-center gap-3 rounded-2xl border px-5 py-3 text-start transition-colors ${on ? "border-icon bg-primary-tint" : "border-border bg-surface hover:border-icon"}`}
-      >
-        <Icon size={22} className="text-icon" strokeWidth={1.8} />
-        <span>
-          <span className="block font-heading text-base font-bold">{title}</span>
-          <span className="block text-xs text-muted">{hint}</span>
+      <button type="button" onClick={() => setOpen(m)} dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6 text-start transition-colors hover:border-icon">
+        <span className="flex items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary-tint"><Icon size={22} className="text-icon" strokeWidth={1.8} /></span>
+          <span><span className="block font-heading text-lg font-bold">{title}</span><span className="block text-sm text-muted">{hint}</span></span>
         </span>
+        <span className="flex flex-wrap gap-1.5">{GROUPS.map((g) => <span key={g.key} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted">{t(g.key)}</span>)}</span>
+        <span className="text-sm font-semibold text-icon">{bidi(`${count} ${t("chAnalysesCount")}`)}</span>
       </button>
     );
   };
-
-  // Symbol analytics sits at the top-left, account analytics at the top-right (regardless of text direction).
   const switcher = (
-    <div className="flex items-center justify-between gap-3" dir="ltr">
-      {launch("symbol", CandlestickChart, t("chSymAnalytics"), t("chSymHint"))}
-      {launch("account", Wallet, t("chAccAnalytics"), t("chAccHint"))}
+    <div className="grid gap-4 md:grid-cols-2" dir="ltr">
+      {entry("symbol", CandlestickChart, t("chSymAnalytics"), t("chSymHint"))}
+      {entry("account", Wallet, t("chAccAnalytics"), t("chAccHint"))}
     </div>
   );
 
-  if (!open) {
-    return (
-      <section className="flex flex-col gap-4">
-        {switcher}
-        <p className="rounded-2xl border border-dashed border-border py-20 text-center text-sm text-muted">{t("chPick")}</p>
-      </section>
+  const pageHead = (
+    <div>
+      <h1 className="font-heading text-lg font-semibold">{t("charts")}</h1>
+      <p className="text-sm text-muted">{t("chLanding")}</p>
+    </div>
+  );
+  if (!open) return <section className="flex flex-col gap-4">{pageHead}{switcher}</section>;
+
+  // ----- workspace: global scope in the top bar, analyses grouped in a rail, one analysis at a time -----
+  const available = (items: Metric[]) => items.filter((m) => byAcc || (m !== "balance" && m !== "prop")); // balance and prop rules need accounts
+  const modeSwitch = ( // symbols on the left, accounts on the right, whatever the language (same as the launchers)
+    <div className={group} role="group" aria-label={t("charts")} dir="ltr">
+      {([["symbol", CandlestickChart, "chBySymbol"], ["account", Wallet, "chByAccount"]] as const).map(([m, Icon, k]) => (
+        <button key={m} type="button" aria-pressed={mode === m} onClick={() => setOpen(m)} className={`flex items-center gap-2 ${seg(mode === m)}`}><Icon size={15} strokeWidth={1.9} />{t(k)}</button>
+      ))}
+    </div>
+  );
+  const scopeControls = (
+    <>
+      {!byAcc && accounts.length > 1 && (
+        <select className={sel} value={acc} onChange={(e) => setAcc(e.target.value)} aria-label={t("pickAccount")}>
+          <option value="all">{t("allAccounts")}</option>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      )}
+      <Dropdown
+        label={t(byAcc ? "chByAccount" : "chSymbols")}
+        panelClass="w-72 max-h-80 overflow-auto"
+        bare
+        trigger={<span className={pill}><span className="flex -space-x-1">{chosen.slice(0, 4).map((id) => <span key={id} className="h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: colorOf(id) }} />)}</span><span className="max-w-[160px] truncate">{chosen.length === 1 ? nameOf(chosen[0]) : `${chosen.length}/${items.length}`}</span><ChevronDown size={14} /></span>}
+      >
+        {() => (
+          <div className="flex flex-col gap-0.5">
+            <button type="button" role="menuitemcheckbox" aria-checked={chosen.length === items.length} onClick={() => setChosen(chosen.length === items.length ? [ALL] : items)} className="menu-item border-b border-border pb-2 font-bold">
+              <input type="checkbox" readOnly checked={chosen.length === items.length} className="accent-[var(--primary)]" />
+              <span className="flex-1 text-start">{t("chSelectAll")}<span className="block text-xs font-normal text-muted">{chosen.length}/{items.length}</span></span>
+            </button>
+            {items.map((id) => (
+              <div key={id} className="menu-item">
+                <input type="checkbox" checked={chosen.includes(id)} onChange={() => toggle(id)} aria-label={nameOf(id)} className="accent-[var(--primary)]" />
+                <span className="flex flex-1 items-center gap-2 text-start" dir="ltr">{id === ALL ? <span className="font-bold">{t("chAll")}</span> : (<>{!byAcc && <SymbolIcon symbol={id} />}{nameOf(id)}</>)}</span>
+                <label title={t("chColor")} className="relative h-5 w-5 cursor-pointer overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-110">
+                  <span className="absolute inset-0" style={{ background: colorOf(id) }} />
+                  <input type="color" value={colorOf(id)} onChange={(e) => save({ colors: { ...st.colors, [id]: e.target.value } })} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" aria-label={t("chColor")} />
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+      </Dropdown>
+      <select className={sel} value={st.range} aria-label={t("chRange")} onChange={(e) => {
+        const r = e.target.value as Range;
+        if (r !== "custom") return save({ range: r });
+        const from = st.from ?? new Date(Date.now() - 30 * DAY).toISOString().slice(0, 10), to = st.to ?? todayKey;
+        save({ range: r, from, to }); setPicking(true);
+      }}>
+        {RANGES.map((r) => <option key={r} value={r}>{r === "all" ? t("chRangeAll") : r === "custom" ? t("chCustom") : r}</option>)}
+      </select>
+      {st.range === "custom" && st.from && st.to && (
+        <div className="relative">
+          <button type="button" onClick={() => setPicking(!picking)} aria-expanded={picking} className={pill}><CalendarRange size={14} className="text-icon" /><span className="tnum" dir="ltr">{st.from} → {st.to}</span></button>
+          {picking && <RangePicker lang={lang} value={{ from: st.from, to: st.to }} today={todayKey} onChange={(v) => save({ from: v.from, to: v.to })} onClose={() => setPicking(false)} labels={{ cancel: t("chCancel"), apply: t("chApply") }} />}
+        </div>
+      )}
+    </>
+  );
+  const navButton = (m: Metric, chip: boolean) => {
+    const Icon = ICON[m], on = metric === m;
+    return chip ? (
+      <button key={m} type="button" aria-current={on ? "true" : undefined} onClick={() => save({ metric: m })} className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${on ? "border-icon bg-primary-tint font-semibold" : "border-border text-muted hover:text-text"}`}><Icon size={14} strokeWidth={1.9} className={on ? "text-icon" : ""} />{label(m)}</button>
+    ) : (
+      <button key={m} type="button" aria-current={on ? "true" : undefined} title={t(QUESTION[m])} onClick={() => save({ metric: m })} className={`relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-sm transition-colors ${on ? "bg-primary-tint font-semibold text-text" : "text-muted hover:bg-primary-tint hover:text-text"}`}>
+        {on && <span aria-hidden className="absolute inset-y-2 start-0 w-[3px] rounded-full bg-icon" />}
+        <Icon size={16} strokeWidth={1.9} className={on ? "text-icon" : ""} />{label(m)}
+      </button>
     );
-  }
+  };
+  const rail = (
+    <nav aria-label={t("chAnalyses")} className="hidden w-56 shrink-0 overflow-y-auto border-e border-border px-3 py-4 lg:block">
+      {GROUPS.map((g) => (
+        <div key={g.key} className="mb-4">
+          <p className="px-3 pb-1.5 text-xs font-semibold text-muted">{t(g.key)}</p>
+          {available(g.items).map((m) => navButton(m, false))}
+        </div>
+      ))}
+    </nav>
+  );
+  const chips = (
+    <nav aria-label={t("chAnalyses")} className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:hidden">
+      {GROUPS.flatMap((g, i) => [...(i ? [<span key={`sep${i}`} aria-hidden className="my-1.5 w-px shrink-0 bg-border" />] : []), ...available(g.items).map((m) => navButton(m, true))])}
+    </nav>
+  );
+
+  const activeRules = Object.values(st.whatIf).filter((v) => (Array.isArray(v) ? v.length : v)).length;
+  const local = (
+    <>
+      {metric === "periods" && (
+        <label className={ctl}><span className="text-muted">{t("chGroupBy")}</span>
+          <select className={sel} value={st.bucket} onChange={(e) => save({ bucket: e.target.value as Bucket })}>
+            {(["day", "week", "month", "session", "weekday", "hour", "side"] as const).map((b) => <option key={b} value={b}>{t(({ day: "chBucketDay", week: "chBucketWeek", month: "chBucketMonth", session: "chBucketSession", weekday: "chBucketWeekday", hour: "chBucketHour", side: "chBucketSide" } as const)[b])}</option>)}
+          </select>
+        </label>
+      )}
+      {metric === "rolling" && (
+        <>
+          <label className={ctl}><span className="text-muted">{t("chMeasure")}</span>
+            <select className={sel} value={st.roll} onChange={(e) => save({ roll: e.target.value as RollKind })}>
+              {(["win", "pf", "exp"] as const).map((k) => <option key={k} value={k}>{t(({ win: "chRollWin", pf: "chRollPF", exp: "chRollExp" } as const)[k])}</option>)}
+            </select>
+          </label>
+          <select className={sel} value={st.rollN} onChange={(e) => save({ rollN: Number(e.target.value) })} aria-label={t("chWindow")}>
+            {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{t("chWindow")} {n} {t("monthTrades")}</option>)}
+          </select>
+        </>
+      )}
+      {metric === "whatif" && (
+        <Dropdown label={t("chRules")} panelClass="w-80 max-h-[70vh] overflow-auto" bare trigger={<span className={`${pill} ${activeRules ? "!border-icon" : ""}`}><SlidersHorizontal size={14} className="text-icon" />{t("chRules")}{activeRules > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-on-primary tnum">{activeRules}</span>}<ChevronDown size={14} /></span>}>
+          {() => <WhatIfPanel rules={st.whatIf} onChange={(whatIf) => save({ whatIf })} symbols={symbols} t={t} weekdays={WD} currency={currency} />}
+        </Dropdown>
+      )}
+      {metric === "tilt" && (
+        <label className={ctl}><span className="text-muted">{t("chOpenedWithin")}</span>
+          <select className={sel} value={st.tiltMin} onChange={(e) => save({ tiltMin: Number(e.target.value) })}>
+            {[10, 30, 60, 120].map((n) => <option key={n} value={n}>{n} {t("chMinutes")}</option>)}
+          </select>
+        </label>
+      )}
+      {metric === "heat" && (
+        <label className={ctl}><span className="text-muted">{t("chColourBy")}</span>
+          <select className={sel} value={st.heatVal} onChange={(e) => save({ heatVal: e.target.value as Saved["heatVal"] })}>
+            {(["net", "win", "n"] as const).map((k) => <option key={k} value={k}>{t(({ net: "chHeatNet", win: "chHeatWin", n: "chHeatN" } as const)[k])}</option>)}
+          </select>
+        </label>
+      )}
+      {metric === "prop" && (
+        <Dropdown label={t("chProp")} panelClass="w-72" bare trigger={<span className={pill}><SlidersHorizontal size={14} className="text-icon" />{t("chProp")}<ChevronDown size={14} /></span>}>
+          {() => (
+            <div className="flex flex-col gap-2 p-1.5 text-sm">
+              {([["dailyLossPct", "chPropDaily"], ["maxDDPct", "chPropMax"], ["targetPct", "chPropTarget"]] as const).map(([k, lbl]) => (
+                <label key={k} className="flex items-center justify-between gap-3">
+                  <span>{t(lbl)}</span>
+                  <span className="flex items-center gap-1" dir="ltr"><input type="number" min={0} max={100} step={0.5} value={st.prop[k]} onChange={(e) => save({ prop: { ...st.prop, [k]: Math.max(0, Number(e.target.value) || 0) } })} className="field !w-20 !py-1 text-end tnum" />%</span>
+                </label>
+              ))}
+              <label className="flex items-center gap-2"><input type="checkbox" checked={st.prop.trailing} onChange={(e) => save({ prop: { ...st.prop, trailing: e.target.checked } })} className="accent-[var(--primary)]" />{t("chPropTrailing")}</label>
+              <label className="flex items-center justify-between gap-3"><span>{t("chPropDays")}</span><input type="number" min={0} max={250} step={1} value={st.propDays} onChange={(e) => save({ propDays: Math.max(0, Math.min(250, Math.round(Number(e.target.value) || 0))) })} className="field !w-20 !py-1 text-end tnum" /></label>
+            </div>
+          )}
+        </Dropdown>
+      )}
+    </>
+  );
+  const canSplit = series.length > 1 && !isBars && metric !== "whatif" && metric !== "heat";
+  const canSmooth = !isBars && !["drawdown", "mc", "size", "heat"].includes(metric);
+  const canDD = metric === "profit" || metric === "balance";
+  const display = (canSplit || canSmooth || canDD) && (
+    <Dropdown label={t("chDisplay")} panelClass="w-64" bare trigger={<span className={pill}>{t("chDisplay")}<ChevronDown size={14} /></span>}>
+      {() => (
+        <div className="flex flex-col gap-3 p-2 text-sm">
+          {canSplit && (
+            <div><p className="mb-1.5 text-xs font-semibold text-muted">{t("chLayout")}</p>
+              <div className={group} role="group">{[false, true].map((sp) => <button key={String(sp)} type="button" aria-pressed={st.split === sp} onClick={() => save({ split: sp })} className={`flex-1 ${seg(st.split === sp)}`}>{t(sp ? "chSplit" : "chOverlay")}</button>)}</div>
+            </div>
+          )}
+          {canSmooth && (
+            <div><p className="mb-1.5 text-xs font-semibold text-muted">{t("chLineStyle")}</p>
+              <div className={group} role="group">{[true, false].map((sm) => <button key={String(sm)} type="button" aria-pressed={st.smooth === sm} onClick={() => save({ smooth: sm })} className={`flex-1 ${seg(st.smooth === sm)}`}>{t(sm ? "chSmooth" : "chStep")}</button>)}</div>
+            </div>
+          )}
+          {canDD && <label className="flex items-center gap-2"><input type="checkbox" checked={st.showDD} onChange={(e) => save({ showDD: e.target.checked })} className="accent-[var(--primary)]" />{t("chShowDDL")}</label>}
+        </div>
+      )}
+    </Dropdown>
+  );
+  const units = !unitless && (
+    <div className={group} role="group" title={canPct ? undefined : t("chNeedStart")}>
+      {(["money", "pct"] as const).map((u) => (
+        <button key={u} type="button" disabled={u === "pct" && !canPct} aria-pressed={(u === "pct") === pctMode} onClick={() => save({ unit: u })} className={`${seg((u === "pct") === pctMode)} disabled:cursor-not-allowed disabled:opacity-40`}>{u === "money" ? (currency === "USD" ? "$" : currency ?? "$") : "%"}</button>
+      ))}
+    </div>
+  );
+  const hasLocal = ["periods", "rolling", "whatif", "tilt", "heat", "prop"].includes(metric);
+  const propPick = metric === "prop" && series.length > 0 && !series.some((x) => x.propNote || x.odds); // combined accounts: ask for one
+  const noData = metric === "size" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNeed20SL" : metric === "rmult" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNoSL" : "chNoData";
 
   return (
     <>
       {/* placeholder keeps the page layout while the analysis covers the screen */}
-      <section className="flex flex-col gap-4">{switcher}</section>
+      <section className="flex flex-col gap-4">{pageHead}{switcher}</section>
       {/* Portal: the animated page wrapper (transform/filter) would otherwise become the overlay's containing block and clip it. */}
-      {createPortal(<div className="fixed inset-0 z-[60] flex flex-col gap-4 overflow-auto bg-bg p-5" role="dialog" aria-label={t(byAcc ? "chAccAnalytics" : "chSymAnalytics")}>
-        <div className="flex items-center gap-3" dir="ltr">
-          <div className="flex flex-1 items-center justify-between gap-3">
-            {launch("symbol", CandlestickChart, t("chSymAnalytics"), t("chSymHint"))}
-            {launch("account", Wallet, t("chAccAnalytics"), t("chAccHint"))}
-          </div>
-          <button type="button" onClick={() => setOpen(null)} className="icon-btn" aria-label={t("chClose")} title={t("chClose")}><X size={20} className="text-icon" /></button>
-        </div>
+      {createPortal(<div className="fixed inset-0 z-[60] flex flex-col bg-bg" role="dialog" aria-label={t("charts")}>
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
+          <h2 className="font-heading text-lg font-bold">{t("charts")}</h2>
+          {modeSwitch}
+          <div className="order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:ms-auto sm:w-auto">{scopeControls}</div>
+          <button type="button" onClick={() => setOpen(null)} className="icon-btn ms-auto sm:ms-0" aria-label={t("chClose")} title={t("chClose")}><X size={20} className="text-icon" /></button>
+        </header>
 
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="flex flex-wrap items-start gap-3">
-            <div className="me-auto">
-              <div className="flex items-center gap-2 text-sm text-muted">
-                {label(metric)}
-                {pct != null && head && !pctMode && (
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>
-                )}
-              </div>
-              <p className={`w-fit font-heading text-3xl font-bold tnum ${metric === "drawdown" && headVal < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{metric === "size" ? `${fmt(headVal, 2)}%` : money(headVal)}</p>
-              {sub && <p className="text-xs text-muted">{lang === "ar" ? ltrNumbers(sub) : sub}</p>}
-            </div>
+        <div className="flex min-h-0 flex-1">
+          {rail}
+          <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-5">
+            {chips}
+            <div className="rounded-2xl border border-border bg-surface p-4 sm:p-6">
+              <h3 className="font-heading text-2xl font-bold">{label(metric)}</h3>
+              <p className="mt-1 text-sm text-muted">{t(QUESTION[metric])}</p>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {!byAcc && accounts.length > 1 && (
-                <select className="field !w-auto" value={acc} onChange={(e) => setAcc(e.target.value)} aria-label={t("pickAccount")}>
-                  <option value="all">{t("allAccounts")}</option>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              )}
-              <div className={group} role="group">
-                {metrics.map((m) => (
-                  <button key={m} type="button" aria-pressed={metric === m} onClick={() => save({ metric: m })} className={seg(metric === m)}>{label(m)}</button>
-                ))}
-              </div>
-              <Dropdown
-                label={t("chMore")}
-                panelClass="w-60"
-                bare
-                trigger={<span className={`${pill} ${MORE.includes(metric) ? "!border-icon !bg-primary !text-on-primary" : ""}`}>{MORE.includes(metric) ? label(metric) : t("chMore")}<ChevronDown size={14} /></span>}
-              >
-                {(close) => (
-                  <div className="flex flex-col gap-0.5">
-                    {MORE.map((m) => (
-                      <button key={m} type="button" role="menuitemradio" aria-checked={metric === m} onClick={() => { save({ metric: m }); close(); }} className="menu-item">
-                        <span className="flex-1 text-start">{label(m)}</span>{metric === m && <span className="text-icon">✓</span>}
-                      </button>
-                    ))}
+              {head && !propPick && (
+                <div className="mt-5 flex flex-wrap items-end gap-x-12 gap-y-4">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                      {series.length > 1 && metric !== "whatif" && <span className="flex items-center gap-1.5 font-semibold text-text" dir="ltr"><span className="h-2 w-2 rounded-full" style={{ background: head.color }} />{head.name}</span>}
+                      <span>{bidi(caption)}</span>
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-baseline gap-3">
+                      <span className={`font-heading text-4xl font-bold tnum ${headVal < 0 && metric !== "size" && metric !== "prop" ? "text-[#f87171]" : ""}`} dir="ltr">{answer}</span>
+                      {pct != null && !pctMode && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>}
+                    </p>
                   </div>
-                )}
-              </Dropdown>
-              {metric === "whatif" && (
-                <Dropdown label={t("chRules")} panelClass="w-80 max-h-[70vh] overflow-auto" bare trigger={<span className={`${pill} ${Object.values(st.whatIf).some((v) => (Array.isArray(v) ? v.length : v)) ? "!border-icon" : ""}`}>{t("chRules")}<ChevronDown size={14} /></span>}>
-                  {() => <WhatIfPanel rules={st.whatIf} onChange={(whatIf) => save({ whatIf })} symbols={symbols} t={t} weekdays={WD} currency={currency} />}
-                </Dropdown>
-              )}
-              {metric === "tilt" && (
-                <select className="field !w-auto" value={st.tiltMin} onChange={(e) => save({ tiltMin: Number(e.target.value) })} aria-label={t("chTilt")}>
-                  {[10, 30, 60, 120].map((n) => <option key={n} value={n}>≤ {n} {t("chMinutes")}</option>)}
-                </select>
-              )}
-              {metric === "heat" && (
-                <select className="field !w-auto" value={st.heatVal} onChange={(e) => save({ heatVal: e.target.value as Saved["heatVal"] })} aria-label={t("chHeat")}>
-                  {(["net", "win", "n"] as const).map((k) => <option key={k} value={k}>{t(({ net: "chHeatNet", win: "chHeatWin", n: "chHeatN" } as const)[k])}</option>)}
-                </select>
-              )}
-              {metric === "balance" && (
-                <>
-                  <button type="button" aria-pressed={st.propOn} onClick={() => save({ propOn: !st.propOn })} className={`${group} ${seg(st.propOn)}`}>{t("chProp")}</button>
-                  {st.propOn && (
-                    <Dropdown label={t("chProp")} panelClass="w-72" bare trigger={<span className={pill} title={t("chProp")}><SlidersHorizontal size={14} className="text-icon" /><ChevronDown size={14} /></span>}>
-                      {() => (
-                        <div className="flex flex-col gap-2 p-1.5 text-sm">
-                          {([["dailyLossPct", "chPropDaily"], ["maxDDPct", "chPropMax"], ["targetPct", "chPropTarget"]] as const).map(([k, lbl]) => (
-                            <label key={k} className="flex items-center justify-between gap-3">
-                              <span>{t(lbl)}</span>
-                              <span className="flex items-center gap-1" dir="ltr"><input type="number" min={0} max={100} step={0.5} value={st.prop[k]} onChange={(e) => save({ prop: { ...st.prop, [k]: Math.max(0, Number(e.target.value) || 0) } })} className="field !w-20 !py-1 text-end tnum" />%</span>
-                            </label>
-                          ))}
-                          <label className="flex items-center gap-2"><input type="checkbox" checked={st.prop.trailing} onChange={(e) => save({ prop: { ...st.prop, trailing: e.target.checked } })} className="accent-[var(--primary)]" />{t("chPropTrailing")}</label>
-                          <label className="flex items-center justify-between gap-3"><span>{t("chPropDays")}</span><input type="number" min={0} max={250} step={1} value={st.propDays} onChange={(e) => save({ propDays: Math.max(0, Math.min(250, Math.round(Number(e.target.value) || 0))) })} className="field !w-20 !py-1 text-end tnum" /></label>
-                          <p className="text-xs text-muted">{t("chPropHint")}</p>
-                          <p className="text-xs text-muted">{t("chPropOddsHint")}</p>
+                  {facts.length > 0 && (
+                    <dl className="flex flex-wrap gap-x-10 gap-y-3 pb-1">
+                      {facts.map((f) => (
+                        <div key={f.label} className="min-w-0">
+                          <dt className="text-xs text-muted">{f.label}</dt>
+                          <dd className="mt-0.5 text-sm font-semibold" style={f.tone ? { color: f.tone === "pos" ? GREEN : RED } : undefined}>{bidi(f.value)}</dd>
                         </div>
-                      )}
-                    </Dropdown>
-                  )}
-                </>
-              )}
-              {metric === "rolling" && (
-                <>
-                  <select className="field !w-auto" value={st.roll} onChange={(e) => save({ roll: e.target.value as RollKind })} aria-label={t("chRolling")}>
-                    {(["win", "pf", "exp"] as const).map((k) => <option key={k} value={k}>{t(({ win: "chRollWin", pf: "chRollPF", exp: "chRollExp" } as const)[k])}</option>)}
-                  </select>
-                  <select className="field !w-auto" value={st.rollN} onChange={(e) => save({ rollN: Number(e.target.value) })} aria-label={t("chWindow")}>
-                    {[10, 20, 50, 100].map((n) => <option key={n} value={n}>{t("chWindow")} {n}</option>)}
-                  </select>
-                </>
-              )}
-              {(metric === "profit" || metric === "balance") && (
-                <button type="button" aria-pressed={st.showDD} onClick={() => save({ showDD: !st.showDD })} className={`${group} ${seg(st.showDD)}`}>{t("chShowDD")}</button>
-              )}
-              {metric === "periods" ? (
-                <select className="field !w-auto" value={st.bucket} onChange={(e) => save({ bucket: e.target.value as Bucket })} aria-label={t("chPeriods")}>
-                  {(["day", "week", "month", "session", "weekday", "hour", "side"] as const).map((b) => <option key={b} value={b}>{t(({ day: "chBucketDay", week: "chBucketWeek", month: "chBucketMonth", session: "chBucketSession", weekday: "chBucketWeekday", hour: "chBucketHour", side: "chBucketSide" } as const)[b])}</option>)}
-                </select>
-              ) : isBars || metric === "heat" ? null : (
-                <>
-                  {metric !== "whatif" && <div className={group} role="group">
-                    {[false, true].map((sp) => (
-                      <button key={String(sp)} type="button" aria-pressed={st.split === sp} onClick={() => save({ split: sp })} className={seg(st.split === sp)}>{t(sp ? "chSplit" : "chOverlay")}</button>
-                    ))}
-                  </div>}
-                  {metric !== "drawdown" && metric !== "mc" && metric !== "size" && (
-                    <div className={group} role="group">
-                      {[true, false].map((sm) => (
-                        <button key={String(sm)} type="button" aria-pressed={st.smooth === sm} onClick={() => save({ smooth: sm })} className={seg(st.smooth === sm)}>{t(sm ? "chSmooth" : "chStep")}</button>
                       ))}
-                    </div>
+                    </dl>
                   )}
-                </>
+                </div>
               )}
 
-              <Dropdown
-                label={t(byAcc ? "chByAccount" : "chSymbols")}
-                panelClass="w-72 max-h-80 overflow-auto"
-                bare
-                trigger={<span className={pill}><span className="flex -space-x-1">{chosen.slice(0, 4).map((id) => <span key={id} className="h-2.5 w-2.5 rounded-full ring-2 ring-surface" style={{ background: colorOf(id) }} />)}</span>{chosen.length}/{items.length}<ChevronDown size={14} /></span>}
-              >
-                {() => (
-                  <div className="flex flex-col gap-0.5">
-                    <button type="button" role="menuitemcheckbox" aria-checked={chosen.length === items.length} onClick={() => setChosen(chosen.length === items.length ? [ALL] : items)} className="menu-item border-b border-border pb-2 font-bold">
-                      <input type="checkbox" readOnly checked={chosen.length === items.length} className="accent-[var(--primary)]" />
-                      <span className="flex-1 text-start">{t("chSelectAll")}<span className="block text-xs font-normal text-muted">{chosen.length}/{items.length}</span></span>
-                    </button>
-                    {items.map((id) => (
-                      <div key={id} className="menu-item">
-                        <input type="checkbox" checked={chosen.includes(id)} onChange={() => toggle(id)} aria-label={nameOf(id)} className="accent-[var(--primary)]" />
-                        <span className="flex flex-1 items-center gap-2 text-start" dir="ltr">{id === ALL ? <span className="font-bold">{t("chAll")}</span> : (<>{!byAcc && <SymbolIcon symbol={id} />}{nameOf(id)}</>)}</span>
-                        <label title={t("chColor")} className="relative h-5 w-5 cursor-pointer overflow-hidden rounded-full ring-2 ring-border transition-transform hover:scale-110">
-                          <span className="absolute inset-0" style={{ background: colorOf(id) }} />
-                          <input type="color" value={colorOf(id)} onChange={(e) => save({ colors: { ...st.colors, [id]: e.target.value } })} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" aria-label={t("chColor")} />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Dropdown>
+              {(hasLocal || units || display) && (
+                <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                  {local}
+                  {!propPick && <div className="ms-auto flex flex-wrap items-center gap-2">{units}{display}</div>}
+                </div>
+              )}
 
-              {!unitless && (
-                <div className={group} role="group" title={canPct ? undefined : t("chNeedStart")}>
-                  {(["money", "pct"] as const).map((u) => (
-                    <button key={u} type="button" disabled={u === "pct" && !canPct} aria-pressed={(u === "pct") === pctMode} onClick={() => save({ unit: u })} className={`${seg((u === "pct") === pctMode)} disabled:cursor-not-allowed disabled:opacity-40`}>{u === "money" ? (currency === "USD" ? "$" : currency ?? "$") : "%"}</button>
+              {series.length === 0 ? (
+                <p className="py-24 text-center text-sm text-muted">{t(noData)}</p>
+              ) : propPick ? (
+                <div className="flex flex-col items-center gap-4 py-16 text-center">
+                  <ShieldCheck size={36} strokeWidth={1.5} className="text-icon" />
+                  <p className="max-w-md text-sm text-muted">{t("chPropPick")}</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {accounts.map((a) => <button key={a.id} type="button" onClick={() => setChosen([a.id])} className={pill}><span className="h-2.5 w-2.5 rounded-full" style={{ background: colorOf(a.id) }} />{a.name}</button>)}
+                  </div>
+                </div>
+              ) : metric === "heat" ? (
+                <div className="mt-4 flex flex-col gap-6">
+                  {series.map((s) => (
+                    <div key={s.id}>
+                      {series.length > 1 && <p className="mb-2 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</p>}
+                      <Heatmap cells={s.heat ?? []} mode={st.heatVal} money={moneyBase} weekdays={WD} t={t} rtl={lang === "ar"} />
+                      <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} />
+                    </div>
                   ))}
                 </div>
-              )}
-              <select className="field !w-auto" value={st.range} aria-label={t("chRange")} onChange={(e) => {
-                const r = e.target.value as Range;
-                if (r !== "custom") return save({ range: r });
-                const from = st.from ?? new Date(Date.now() - 30 * DAY).toISOString().slice(0, 10), to = st.to ?? todayKey;
-                save({ range: r, from, to }); setPicking(true);
-              }}>
-                {RANGES.map((r) => <option key={r} value={r}>{r === "all" ? t("chRangeAll") : r === "custom" ? t("chCustom") : r}</option>)}
-              </select>
-              {st.range === "custom" && st.from && st.to && (
-                <div className="relative">
-                  <button type="button" onClick={() => setPicking(!picking)} aria-expanded={picking} className={pill}><CalendarRange size={14} className="text-icon" /><span className="tnum" dir="ltr">{st.from} → {st.to}</span></button>
-                  {picking && <RangePicker lang={lang} value={{ from: st.from, to: st.to }} today={todayKey} onChange={(v) => save({ from: v.from, to: v.to })} onClose={() => setPicking(false)} labels={{ cancel: t("chCancel"), apply: t("chApply") }} />}
+              ) : split ? (
+                <div className={`mt-4 grid gap-4 ${series.length > 1 ? "lg:grid-cols-2" : ""}`}>
+                  {series.map((s) => (
+                    <div key={s.id} className={series.length > 1 ? "rounded-xl border border-border p-3" : ""}>
+                      {series.length > 1 && (
+                        <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
+                          <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{valueText(s)}</span></p>
+                      )}
+                      <Chart series={[s]} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth && metric !== "mc" && metric !== "size"} kind={isBars ? "bars" : lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
+                      <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} />
+                      {s.size && s.size.kelly > 0 && <SizeTable z={s.size} t={t} rtl={lang === "ar"} />}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4">
+                  {metric === "whatif" && rawSeries[0] && (
+                    <div className="mb-4"><GoldenRules ideas={rawSeries[0].ideas ?? []} base={rawSeries[0].stats.maxDD ?? 0} current={st.whatIf} onApply={(whatIf) => save({ whatIf })} t={t} money={moneyBase} weekdays={WD} rtl={lang === "ar"} /></div>
+                  )}
+                  <Chart series={series} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth && metric !== "mc" && metric !== "size"} kind={lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
+                  {series.length > 1 ? (
+                    <div className="mt-3 flex flex-col">
+                      {series.map((s) => (
+                        <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border py-2.5" dir="ltr">
+                          <span className="flex min-w-[130px] items-center gap-2 text-sm font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</span>
+                          <span className="tnum text-sm font-bold" style={{ color: s.color }}>{valueText(s)}</span>
+                          <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} inline />
+                          {s.size && s.size.kelly > 0 && <div className="w-full"><SizeTable z={s.size} t={t} rtl={lang === "ar"} /></div>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <StatsRow s={series[0]} money={moneyBase} t={t} rtl={lang === "ar"} extra={false} />
+                      {series[0].size && series[0].size.kelly > 0 && <SizeTable z={series[0].size} t={t} rtl={lang === "ar"} />}
+                    </>
+                  )}
                 </div>
               )}
-            </div>
-          </div>
 
-          {metric === "mc" && series.length > 0 && <p className="mt-3 text-xs text-muted">{t("chMcNote")}</p>}
-          {series.length === 0 ? (
-            <p className="py-24 text-center text-sm text-muted">{t(metric === "size" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNeed20SL" : metric === "rmult" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNoSL" : "chNoData")}</p>
-          ) : metric === "heat" ? (
-            <div className="mt-4 flex flex-col gap-4">
-              {series.map((s) => (
-                <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</p>
-                  <Heatmap cells={s.heat ?? []} mode={st.heatVal} money={moneyBase} weekdays={WD} t={t} rtl={lang === "ar"} />
-                  <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} />
-                </div>
-              ))}
-            </div>
-          ) : split ? (
-            <div className={`mt-4 grid gap-4 ${series.length > 1 ? "lg:grid-cols-2" : ""}`}>
-              {series.map((s) => (
-                <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
-                  <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
-                    <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{valueText(s)}</span></p>
-                  <Chart series={[s]} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth && metric !== "mc" && metric !== "size"} kind={isBars ? "bars" : lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
-                  <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} />
-                  {s.size && s.size.kelly > 0 && <SizeTable z={s.size} t={t} rtl={lang === "ar"} />}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-4">
-              <Chart series={series} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth && metric !== "mc" && metric !== "size"} kind={lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
-              <div className="mt-3 flex flex-col gap-2">
-                {series.map((s) => (
-                  <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border px-3 py-2" dir="ltr">
-                    <span className="flex min-w-[130px] items-center gap-2 text-sm font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</span>
-                    <span className="tnum text-sm font-bold" style={{ color: s.color }}>{valueText(s)}</span>
-                    <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} inline />
-                    {s.size && s.size.kelly > 0 && <div className="w-full"><SizeTable z={s.size} t={t} rtl={lang === "ar"} /></div>}
-                  </div>
-                ))}
-              </div>
-              {metric === "whatif" && rawSeries[0] && (
-                <GoldenRules ideas={rawSeries[0].ideas ?? []} base={rawSeries[0].stats.maxDD ?? 0} current={st.whatIf} onApply={(whatIf) => save({ whatIf })} t={t} money={moneyBase} weekdays={WD} rtl={lang === "ar"} />
+              {hint && (
+                <details className="group mt-6 border-t border-border pt-3 text-sm">
+                  <summary className="flex w-fit cursor-pointer list-none items-center gap-2 font-semibold text-muted hover:text-text [&::-webkit-details-marker]:hidden"><Info size={15} className="text-icon" />{t("chHowRead")}<ChevronDown size={14} className="transition-transform group-open:rotate-180" /></summary>
+                  <p className="mt-2 max-w-[75ch] leading-relaxed text-muted">{bidi(hint)}</p>
+                </details>
               )}
             </div>
-          )}
+          </main>
         </div>
       </div>, document.body)}
     </>
   );
 }
 
-function StatsRow({ s, money, t, inline, rtl }: { s: Series; money: (n: number) => string; t: (k: Key) => string; inline?: boolean; rtl?: boolean }) {
+function StatsRow({ s, money, t, inline, rtl, extra = true }: { s: Series; money: (n: number) => string; t: (k: Key) => string; inline?: boolean; rtl?: boolean; extra?: boolean }) {
   const chip = "flex items-baseline gap-1.5 text-xs";
   return (
     <div className={`flex flex-wrap gap-x-4 gap-y-1 ${inline ? "" : "mt-2 border-t border-border pt-2"}`} dir="ltr">
       <span className={chip}><span className="text-muted">{t("pnl")}</span><span className="tnum font-semibold" style={{ color: s.stats.net >= 0 ? GREEN : RED }}>{money(s.stats.net)}</span></span>
-      <span className={chip}><span className="text-muted">{t("monthTrades")}</span><span className="tnum font-semibold">{s.stats.n}</span></span>
+      <span className={chip}><span className="text-muted">{t("chFTrades")}</span><span className="tnum font-semibold">{s.stats.n}</span></span>
       <span className={chip}><span className="text-muted">{t("chWinRate")}</span><span className="tnum font-semibold">{s.stats.winRate == null ? "—" : `${fmt(s.stats.winRate, 1)}%`}</span></span>
       <span className={chip}><span className="text-muted">{t("chPF")}</span><span className="tnum font-semibold">{s.stats.pf == null ? "—" : fmt(s.stats.pf)}</span></span>
       {s.stats.maxDD != null && <span className={chip}><span className="text-muted">{t("chMaxDD")}</span><span className="tnum font-semibold" style={{ color: RED }}>{money(-s.stats.maxDD)}</span></span>}
-      {s.odds && <span className={chip}><span dir={rtl ? "rtl" : undefined} className="text-muted">{rtl ? ltrNumbers(oddsLine(s.odds, t)) : oddsLine(s.odds, t)}</span></span>}
-      {s.propNote && <span className={`${chip} font-semibold`} style={{ color: s.propNote.tone === "ok" ? GREEN : s.propNote.tone === "bad" ? RED : undefined }}><span dir={rtl ? "rtl" : undefined}>{t("chProp")}: {rtl ? ltrNumbers(s.propNote.text) : s.propNote.text}</span></span>}
+      {extra && s.odds && <span className={chip}><span dir={rtl ? "rtl" : undefined} className="text-muted">{rtl ? ltrNumbers(oddsLine(s.odds, t)) : oddsLine(s.odds, t)}</span></span>}
+      {extra && s.propNote && <span className={`${chip} font-semibold`} style={{ color: s.propNote.tone === "ok" ? GREEN : s.propNote.tone === "bad" ? RED : undefined }}><span dir={rtl ? "rtl" : undefined}>{t("chProp")}: {rtl ? ltrNumbers(s.propNote.text) : s.propNote.text}</span></span>}
     </div>
   );
 }
