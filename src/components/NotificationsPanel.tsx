@@ -1,4 +1,4 @@
-import { Newspaper, CalendarDays, X, CheckCheck, Heart, BellRing } from "lucide-react";
+import { Newspaper, CalendarDays, X, CheckCheck, Heart, BellRing, TrendingDown } from "lucide-react";
 import type { Interests, Notice } from "../useInterests";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -9,6 +9,7 @@ interface Props {
   interests: Interests;
   onNews: () => void;
   onCalendar: () => void;
+  onCharts?: () => void;
   close: () => void;
 }
 
@@ -18,14 +19,14 @@ function label(k: string, t: (k: Key) => string) {
   return k.slice(3).replace("|", " · ");
 }
 
-export default function NotificationsPanel({ t, lang, interests, onNews, onCalendar, close }: Props) {
+export default function NotificationsPanel({ t, lang, interests, onNews, onCalendar, onCharts, close }: Props) {
   const { notices, keys, unread } = interests;
   const when = (n: Notice) =>
     new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(n.time));
 
   const go = (n: Notice) => {
     interests.markRead(n.id);
-    (n.kind === "news" ? onNews : onCalendar)();
+    (n.kind === "news" ? onNews : n.kind === "edge" ? onCharts ?? onCalendar : onCalendar)();
     close();
   };
   const section = (kind: Notice["kind"], title: Key, Icon: typeof Newspaper) => {
@@ -66,6 +67,7 @@ export default function NotificationsPanel({ t, lang, interests, onNews, onCalen
             <p>{t("notifEmpty")}</p>
           </div>
         )}
+        {section("edge", "notifEdgeTitle", TrendingDown)}
         {section("event", "notifEvents", CalendarDays)}
         {section("news", "notifNews", Newspaper)}
       </div>

@@ -22,12 +22,13 @@ interface Props {
   onNews: () => void;
   onCalendar: () => void;
   onDashboard: () => void;
+  onCharts?: () => void;
   interests: Interests;
 }
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, onDashboard, interests }: Props) {
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, onDashboard, onCharts, interests }: Props) {
   const privacy = usePrivacy();
   const dash = useDashEdit();
   const [full, setFull] = useState(!!document.fullscreenElement);
@@ -107,7 +108,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
               </span>
             }
           >
-            {(close) => <NotificationsPanel t={t} lang={lang} interests={interests} onNews={onNews} onCalendar={onCalendar} close={close} />}
+            {(close) => <NotificationsPanel t={t} lang={lang} interests={interests} onNews={onNews} onCalendar={onCalendar} onCharts={onCharts} close={close} />}
           </Dropdown>
 
           <Dropdown label={t("settings")} trigger={<MoreHorizontal {...ic} />}>

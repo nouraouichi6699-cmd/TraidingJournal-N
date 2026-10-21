@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
@@ -6,6 +6,8 @@ import AuthView from "./components/AuthView";
 import { initialSync, startRowSync, haltSync, resumeSync } from "./lib/rowSync";
 import { initialSettingsSync, startSettingsSync, settingsIdle } from "./lib/settingsSync";
 import { useInterests } from "./useInterests";
+import { edgeAlerts } from "./lib/tradeLab";
+import { fmtMoney, ltrNumbers } from "./lib/money";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
@@ -39,9 +41,16 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const t = makeT(lang);
   useEffect(() => startRowSync(userId), [userId]);
   useEffect(() => startSettingsSync(userId), [userId]);
-  const interests = useInterests();
   const { accounts, add, remove, resolveMt5, setStartBalance } = useAccounts();
   const journal = useJournal();
+  // Edge alerts: accounts whose expectancy over the last 20 trades turned negative ring the bell (one notice per losing run).
+  const edge = useMemo(() => edgeAlerts(journal.trades, 20).map((a) => {
+    const acc = accounts.find((x) => x.id === a.accountId);
+    const sub = `${t("notifEdgeSub")} ${fmtMoney(a.exp, { cents: true, currency: acc?.currency })} · ${t("chRollWin")} ${Math.round(a.winRate)}%`;
+    // Trade times are wall times (read as UTC): shift so the panel shows them as written in the file.
+    return { id: `e:${a.accountId}:${a.key}`, kind: "edge" as const, title: `${t("notifEdge")} · ${acc?.name ?? ""}`, sub: lang === "ar" ? ltrNumbers(sub) : sub, time: a.t + new Date(a.t).getTimezoneOffset() * 60e3, soon: false };
+  }), [journal.trades, accounts, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  const interests = useInterests(edge);
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View | "profile" | "news" | "calendar">("dashboard");
   // One-shot deep link into Reports (e.g. Charts -> "Open this day" -> Day by Day), consumed when Reports mounts.
@@ -50,7 +59,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} interests={interests} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">

@@ -6,7 +6,7 @@ const KEY = "mizan-interests";
 interface Store { keys: string[]; read: string[]; lead: number }
 export interface NewsLike { id: string; title: string; sources: string[]; category: string; date: string; impact?: { assets: { sym: string }[] } }
 export interface EventLike { id: string; time: string; currency: string; title: string }
-export interface Notice { id: string; kind: "news" | "event"; title: string; sub: string; time: number; soon: boolean; unread: boolean }
+export interface Notice { id: string; kind: "news" | "event" | "edge"; title: string; sub: string; time: number; soon: boolean; unread: boolean }
 
 const load = (): Store => {
   try {
@@ -29,7 +29,8 @@ const newsMatches = (n: NewsLike, keys: string[]) =>
   keys.some((k) => (k.startsWith("asset:") ? !!n.impact?.assets?.some((a) => `asset:${a.sym}` === k) : k === `cat:${n.category}`));
 const evMatches = (e: EventLike, keys: string[]) => keys.some((k) => k.startsWith("ev:") && k.toLowerCase() === evKey(e).toLowerCase());
 
-export function useInterests() {
+/** `extra`: notices computed elsewhere (trading edge alerts); they share the read / unread state and the bell. Pass a memoized array. */
+export function useInterests(extra: Omit<Notice, "unread">[] = []) {
   const [store, setStore] = useState<Store>(load);
   const [news, setNews] = useState<NewsLike[]>([]);
   const [events, setEvents] = useState<EventLike[]>([]);
@@ -81,8 +82,10 @@ export function useInterests() {
       const id = `c:${e.id}${soon ? ":soon" : ""}`;
       out.push({ id, kind: "event", title: `${e.currency} · ${e.title}`, sub: "", time: t, soon, unread: !read.has(id) });
     }
-    return out.sort((a, b) => (a.kind === b.kind ? (a.kind === "event" ? a.time - b.time : b.time - a.time) : a.kind === "event" ? -1 : 1));
-  }, [news, events, store, now]);
+    for (const x of extra) out.push({ ...x, unread: !read.has(x.id) });
+    const rank = { edge: 0, event: 1, news: 2 } as const; // trading alerts first, then upcoming events, then news
+    return out.sort((a, b) => (a.kind === b.kind ? (a.kind === "event" ? a.time - b.time : b.time - a.time) : rank[a.kind] - rank[b.kind]));
+  }, [news, events, store, now, extra]);
 
   const unread = notices.filter((n) => n.unread).length;
 

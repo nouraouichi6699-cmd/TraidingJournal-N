@@ -88,7 +88,7 @@ export function histogram(values: number[], target = 20): Bin[] {
   const step = niceStep((hi - lo) / target);
   const first = Math.floor(lo / step) * step, last = Math.ceil(hi / step) * step;
   const bins: Bin[] = [];
-  for (let x = first; x < last - 1e-9; x += step) bins.push({ lo: Math.round(x * 1e6) / 1e6, hi: Math.round((x + step) * 1e6) / 1e6, count: 0 });
+  for (let x = first; x < last - 1e-9; x += step) bins.push({ lo: Math.round(x * 1e6) / 1e6 || 0, hi: Math.round((x + step) * 1e6) / 1e6 || 0, count: 0 }); // || 0: no -0 edge (would read "-0.0")
   const under: Bin = { lo: v[0], hi: first, count: 0, edge: "under" }, over: Bin = { lo: last, hi: v[v.length - 1], count: 0, edge: "over" };
   for (const x of v) {
     if (x < first) under.count++;

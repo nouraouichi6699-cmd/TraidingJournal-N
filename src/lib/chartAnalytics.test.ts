@@ -50,6 +50,7 @@ console.log("-- Histogram");
   is("outliers go to end bins", h[0].edge === "under" && h[h.length - 1].edge === "over" && h[0].count === 1 && h[h.length - 1].count === 1, JSON.stringify(h.map((b) => [b.lo, b.hi, b.count, b.edge])));
   is("all 202 counted", h.reduce((s, b) => s + b.count, 0) === 202);
 }
+{ const h = histogram([-1.2, -1.05, 0.5, 2.7], 20); is("no -0 bin edge (a label would read -0.0)", h.every((b) => !Object.is(b.lo, -0) && !Object.is(b.hi, -0)), JSON.stringify(h.map((b) => [b.lo, b.hi]))); }
 is("same value everywhere: one bin", histogram([7, 7, 7]).length === 1);
 is("empty: no bins", histogram([]).length === 0);
 
