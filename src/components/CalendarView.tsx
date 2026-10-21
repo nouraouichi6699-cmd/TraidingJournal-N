@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Search, SlidersHorizontal, Bell, BellRing, Heart, Download, RefreshCw, X, CalendarDays, CalendarOff, Mic, ArrowUp, ArrowDown, Equal,
 } from "lucide-react";
@@ -415,11 +416,12 @@ export default function CalendarView({ t, lang, interests }: { t: (k: Key) => st
       )}
       <p className="text-xs text-muted">{t("calNote")}</p>
 
-      {toast && (
+      {toast && createPortal(
         <div role="status" className="news-panel fixed bottom-6 end-6 z-50 flex items-center gap-3 rounded-xl border border-icon bg-surface px-4 py-3 text-sm shadow-2xl">
           <BellRing size={16} className="text-icon" />{toast}
           <button type="button" aria-label="close" onClick={() => setToast(null)}><X size={14} className="text-muted" /></button>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   );

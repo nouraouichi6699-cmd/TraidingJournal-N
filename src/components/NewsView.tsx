@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Search, RefreshCw, ExternalLink, ShieldCheck, Bitcoin, Globe2, Landmark, DollarSign, ChevronLeft, ChevronRight, X,
   ArrowUp, ArrowDown, Equal, Coins, Droplet, Euro, PoundSterling, JapaneseYen, CircleDollarSign, Siren,
@@ -265,7 +266,7 @@ export default function NewsView({ t, lang, interests }: { t: (k: Key) => string
       {open !== null && items[open] && (() => {
         const i = items[open];
         const level = i.impact?.level ?? "low";
-        return (
+        return createPortal( // outside the animated page wrapper, so the overlay really covers the screen
           <div className="news-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setOpen(null)} role="dialog" aria-modal="true">
             <div className="news-panel relative flex max-h-full w-full max-w-2xl items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button type="button" aria-label="previous" disabled={open === 0} onClick={() => go(-1)} className="icon-btn shrink-0 border border-border bg-surface disabled:opacity-30 directional-icon">
@@ -308,7 +309,7 @@ export default function NewsView({ t, lang, interests }: { t: (k: Key) => string
               </button>
             </div>
           </div>
-        );
+        , document.body);
       })()}
       <p className="text-xs text-muted">{t("newsDisclaimer")}</p>
     </section>

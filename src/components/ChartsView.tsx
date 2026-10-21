@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart } from "lucide-react";
 import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
@@ -611,7 +612,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
     <>
       {/* placeholder keeps the page layout while the analysis covers the screen */}
       <section className="flex flex-col gap-4">{switcher}</section>
-      <div className="fixed inset-0 z-[60] flex flex-col gap-4 overflow-auto bg-bg p-5" role="dialog" aria-label={t(byAcc ? "chAccAnalytics" : "chSymAnalytics")}>
+      {/* Portal: the animated page wrapper (transform/filter) would otherwise become the overlay's containing block and clip it. */}
+      {createPortal(<div className="fixed inset-0 z-[60] flex flex-col gap-4 overflow-auto bg-bg p-5" role="dialog" aria-label={t(byAcc ? "chAccAnalytics" : "chSymAnalytics")}>
         <div className="flex items-center gap-3" dir="ltr">
           <div className="flex flex-1 items-center justify-between gap-3">
             {launch("symbol", CandlestickChart, t("chSymAnalytics"), t("chSymHint"))}
@@ -731,7 +733,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
             </div>
           )}
         </div>
-      </div>
+      </div>, document.body)}
     </>
   );
 }
