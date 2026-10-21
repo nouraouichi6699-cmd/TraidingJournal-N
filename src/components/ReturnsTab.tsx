@@ -86,6 +86,9 @@ const MAP: Record<string, [keyof ReturnsCapital, Kind, boolean]> = {
   adr: ["avgDailyRet", "pct", true], awr: ["avgWeeklyRet", "pct", true], amr: ["avgMonthlyRet", "pct", true],
   adp: ["avgDailyPnl", "money", true], mdp: ["medDailyPnl", "money", true], sdp: ["sdDailyPnl", "money", false], awp: ["avgWeeklyPnl", "money", true], amp: ["avgMonthlyPnl", "money", true],
   bd: ["bestDay", "money", true], wd: ["worstDay", "money", true], bw: ["bestWeek", "money", true], ww: ["worstWeek", "money", true], bm: ["bestMonth", "money", true], wm: ["worstMonth", "money", true],
+  twr: ["twr", "pct", true], ann: ["ann", "pct", true],
+  netDep: ["netDep", "money", true], totDep: ["totDep", "money", false], totWd: ["totWd", "money", false], netFlow: ["netFlow", "money", true], credits: ["credits", "money", true],
+  depN: ["depN", "int", false], wdN: ["wdN", "int", false], credN: ["credN", "int", false], avgDep: ["avgDep", "money", false], avgWd: ["avgWd", "money", false],
   init: ["initial", "money", false], start: ["startBal", "money", false], cur: ["currentBal", "money", false], end: ["endBal", "money", false], hiBal: ["highBal", "money", false],
   pDays: ["profitDays", "int", false], pDayPct: ["profitDayPct", "pct", false], dWin: ["tradeWinRate", "pct", false], pWeeks: ["profitWeeks", "int", false], pMonths: ["profitMonths", "int", false], posRet: ["posRetDays", "int", false],
   avgWinDay: ["avgWinDay", "money", true], avgLossDay: ["avgLossDay", "money", true], bigWin: ["bigWinShare", "pct", false], bigLoss: ["bigLossShare", "pct", false],
@@ -97,6 +100,10 @@ const WHY: Record<RcWhy, L> = {
   noEquity: ["Insufficient data: equity history / open-position P&L is not stored.", "بيانات غير كافية: سجل حقوق الملكية وأرباح الصفقات المفتوحة غير محفوظ.", "Données insuffisantes : historique d'equity non stocké."],
   fewDays: ["Needs at least 2 trading days.", "يلزم يومان تداول على الأقل.", "Au moins 2 jours de trading requis."],
   noWins: ["No profitable days in this period.", "لا توجد أيام رابحة في هذه الفترة.", "Aucun jour gagnant sur la période."],
+  noDeposits: ["No deposits recorded in this period.", "لا توجد إيداعات مسجّلة في هذه الفترة.", "Aucun dépôt enregistré sur la période."],
+  noWithdrawals: ["No withdrawals recorded in this period.", "لا توجد سحوبات مسجّلة في هذه الفترة.", "Aucun retrait enregistré sur la période."],
+  shortPeriod: ["Annualising needs at least 30 days; shorter spans give misleading figures.", "التحويل السنوي يحتاج 30 يوماً على الأقل؛ الفترات الأقصر تعطي أرقاماً مضلّلة.", "L'annualisation exige au moins 30 jours."],
+  twrStart: ["Not defined: the account value was zero/negative or the total return was -100%.", "غير معرّف: كانت قيمة الحساب صفراً أو سالبة أو العائد -100%.", "Non défini : valeur du compte nulle/négative ou rendement de -100 %."],
   noLosses: ["No losing days in this period.", "لا توجد أيام خاسرة في هذه الفترة.", "Aucun jour perdant sur la période."],
 };
 const POLICY: L = ["Only days, weeks and months with at least one closed trade count. Day = close date.", "تُحتسب فقط الأيام والأسابيع والأشهر التي فيها صفقة مغلقة واحدة على الأقل. اليوم = تاريخ الإغلاق.", "Seuls les jours/semaines/mois avec un trade clôturé comptent. Jour = date de clôture."];

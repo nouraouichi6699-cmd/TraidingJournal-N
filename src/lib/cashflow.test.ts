@@ -1,0 +1,48 @@
+import { annualise, flowTotals, timeWeightedReturn, type CashFlow } from "./cashflow";
+import { computeReturnsCapital } from "./returnsCapital";
+import type { Trade } from "../types";
+let pass = 0, fail = 0;
+const near = (a: number | null, b: number | null) => (a == null || b == null ? a === b : Math.abs(a - b) <= 0.01);
+const t = (name: string, got: number | null, exp: number | null) => { const ok = near(got, exp); ok ? pass++ : fail++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : `  got ${got}, expected ${exp}`}`); };
+const is = (name: string, c: boolean, d = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"}  ${name}${c ? "" : "  " + d}`); };
+let id = 0;
+const T = (day: string, pnl: number): Trade => ({ key: `a:${++id}`, accountId: "a", no: id, symbol: "X", side: "long", qty: 1, entryTime: `${day} 10:00`, entryPrice: 1, exitTime: `${day} 12:00`, exitPrice: 1, pnl, returnPct: null, commission: 0, status: "closed" } as Trade);
+const F = (day: string, type: CashFlow["type"], amount: number): CashFlow => ({ id: String(++id), accountId: "a", t: `${day} 09:00`, type, amount });
+
+// Ledger: initial 10 000. Trades +1000 (Jan 5), +1500 (Jan 15), -750 (Feb 5), +500 (Mar 5).
+// Flows: deposit 5000 (Jan 10), credit 100 (Jan 20), adjustment -50 (Jan 25), withdrawal 2000 (Feb 10).
+const trades = [T("2025-01-05", 1000), T("2025-01-15", 1500), T("2025-02-05", -750), T("2025-03-05", 500)];
+const flows = [F("2025-01-10", "deposit", 5000), F("2025-01-20", "credit", 100), F("2025-01-25", "adjustment", -50), F("2025-02-10", "withdrawal", 2000)];
+const r = computeReturnsCapital(trades, [], 10000, { before: [], period: flows });
+console.log("-- Flow totals");
+t("total deposits", r.totDep, 5000); t("total withdrawals", r.totWd, 2000); t("net deposits", r.netDep, 3000);
+t("credits and adjustments (100 - 50)", r.credits, 50); t("net external cash flow (5000 - 2000 + 100)", r.netFlow, 3100);
+t("deposit count", r.depN, 1); t("withdrawal count", r.wdN, 1); t("credit/adjustment count", r.credN, 2); t("average deposit", r.avgDep, 5000); t("average withdrawal", r.avgWd, 2000);
+console.log("-- Balance reconciliation (ending = start + P&L + flows, fees not double counted)");
+t("net profit is trading P&L only", r.net, 2250); t("starting balance", r.startBal, 10000);
+t("ending balance = 10000 + 2250 + 3050", r.endBal, 15300); t("current balance", r.currentBal, 15300); t("highest balance (after the Jan 20 credit)", r.highBal, 17600);
+console.log("-- Time-weighted return");
+t("TWR % (1.1 x 1.09375 x 0.954545 x 1.033784 - 1)", r.twr, 18.7236);
+t("annualised % over 60 days", r.ann, 184.0756);
+is("a deposit does not inflate TWR (same trades, no flows would give a different number)", Math.abs((r.twr as number) - (r.totalReturn as number)) > 1, `${r.twr} vs ${r.totalReturn}`);
+t("deposit-only sanity: +10% then deposit 100% then 0% = +10%", timeWeightedReturn(1000, [{ t: "2025-01-01 10:00", pnl: 100 }], [F("2025-01-02", "deposit", 1100)]), 10);
+t("withdrawal only: -50% loss then withdraw half stays -50%", timeWeightedReturn(1000, [{ t: "2025-01-01 10:00", pnl: -500 }], [F("2025-01-02", "withdrawal", 250)]), -50);
+is("start value <= 0 -> null", timeWeightedReturn(0, [], []) === null);
+is("annualise: < 30 days -> null, total loss -> null", annualise(5, 10) === null && annualise(-100, 90) === null);
+console.log("-- Returns with flows");
+const gap = computeReturnsCapital([T("2025-04-01", 1000), T("2025-04-03", 1500)], [], 10000, { before: [], period: [F("2025-04-02", "deposit", 5000)] });
+t("avg daily return counts a deposit on a day without trades (10% and 9.375%)", gap.avgDailyRet, 9.6875);
+t("net profit unaffected by the deposit", gap.net, 2500);
+console.log("-- Ledger rules");
+const pre = computeReturnsCapital([T("2025-05-01", 100)], [T("2025-04-01", 500)], 10000, { before: [F("2025-04-02", "deposit", 1000)], period: [] });
+t("starting balance includes earlier P&L and earlier flows", pre.startBal, 11500); t("period flow totals count only in-period flows", pre.totDep, 0);
+const none = computeReturnsCapital(trades, [], 10000);
+is("empty ledger = unknown, not zero", none.netDep === null && none.twr === null && none.why.netDep === "noCash" && none.why.twr === "noCash");
+const dep = computeReturnsCapital(trades, [], 10000, { before: [], period: [F("2025-01-10", "deposit", 5000)] });
+is("no withdrawals recorded: count 0, average unavailable with a reason", dep.wdN === 0 && dep.avgWd === null && dep.why.avgWd === "noWithdrawals" && dep.totWd === 0);
+const short = computeReturnsCapital([T("2025-01-05", 100)], [], 1000, { before: [], period: [F("2025-01-06", "deposit", 10)] });
+is("short period: TWR available, annualised withheld", short.twr !== null && short.ann === null && short.why.ann === "shortPeriod");
+const bad = flowTotals([F("2025-01-01", "deposit", NaN), F("2025-01-01", "deposit", 0), F("2025-01-02", "deposit", 40)]);
+is("invalid / zero flows are ignored", bad.depN === 1 && bad.totDep === 40);
+is("withdrawal stored as a negative number is still a withdrawal", flowTotals([F("2025-01-01", "withdrawal", -300)]).totWd === 300);
+console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

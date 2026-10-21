@@ -1,5 +1,6 @@
 import type { Trade } from "../types";
 import { cents, tradeCore } from "./stats";
+import { annualise, flowTotals, signed, timeWeightedReturn, type CashFlow } from "./cashflow";
 
 /**
  * Returns & Capital metrics. Conventions (all documented in the UI tooltips):
@@ -11,13 +12,14 @@ import { cents, tradeCore } from "./stats";
  *    No deposit/withdrawal records exist, so external cash flows are not modelled: TWR, equity and cash-flow metrics are unavailable.
  *  - Standard deviation is the sample deviation (n - 1).
  */
-export type RcWhy = "noTrades" | "noStart" | "noCash" | "noEquity" | "fewDays" | "noWins" | "noLosses";
+export type RcWhy = "noTrades" | "noStart" | "noCash" | "noEquity" | "fewDays" | "noWins" | "noLosses" | "noDeposits" | "noWithdrawals" | "shortPeriod" | "twrStart";
 export interface ReturnsCapital {
   n: number; days: number; weeks: number; months: number;
   net: number | null; gross: number | null; loss: number | null; totalReturn: number | null;
   avgDailyRet: number | null; avgWeeklyRet: number | null; avgMonthlyRet: number | null;
   avgDailyPnl: number | null; medDailyPnl: number | null; sdDailyPnl: number | null; avgWeeklyPnl: number | null; avgMonthlyPnl: number | null;
   bestDay: number | null; worstDay: number | null; bestWeek: number | null; worstWeek: number | null; bestMonth: number | null; worstMonth: number | null;
+  twr: number | null; ann: number | null; netDep: number | null; totDep: number | null; totWd: number | null; netFlow: number | null; credits: number | null; depN: number | null; wdN: number | null; credN: number | null; avgDep: number | null; avgWd: number | null;
   initial: number | null; startBal: number | null; currentBal: number | null; endBal: number | null; highBal: number | null;
   profitDays: number | null; profitDayPct: number | null; tradeWinRate: number | null; profitWeeks: number | null; profitMonths: number | null; posRetDays: number | null;
   avgWinDay: number | null; avgLossDay: number | null; bigWinShare: number | null; bigLossShare: number | null;
@@ -41,9 +43,14 @@ function bucket(closed: Trade[], key: (t: Trade) => string): [string, number][] 
   return [...m].map(([k, v]) => [k, cents(v)] as [string, number]).sort((a, b) => a[0].localeCompare(b[0]));
 }
 /** Return of each bucket = P&L / balance at the start of the bucket; buckets with a non-positive balance are skipped. */
-function returns(b: [string, number][], start: number): number[] {
-  const r: number[] = []; let bal = start;
-  for (const [, pl] of b) { if (bal > 0) r.push((pl / bal) * 100); bal += pl; }
+function returns(b: [string, number][], start: number, fl: { d: string; v: number }[] = [], keyOf: (d: string) => string = (d) => d): number[] {
+  const r: number[] = []; let bal = start, prev = "";
+  for (const [k, pl] of b) {
+    for (const f of fl) { const fk = keyOf(f.d); if (fk > prev && fk <= k) bal += f.v; } // external flows land at the start of their bucket, even buckets without trades
+    prev = k;
+    if (bal > 0) r.push((pl / bal) * 100);
+    bal += pl;
+  }
   return r;
 }
 
@@ -52,12 +59,19 @@ function returns(b: [string, number][], start: number): number[] {
  * @param before  trades of the same accounts that fall BEFORE the period (for the starting balance)
  * @param initial sum of the accounts' initial balances
  */
-export function computeReturnsCapital(period: Trade[], before: Trade[], initial: number): ReturnsCapital {
+export function computeReturnsCapital(period: Trade[], before: Trade[], initial: number, flows: { before: CashFlow[]; period: CashFlow[] } = { before: [], period: [] }): ReturnsCapital {
   const closed = period.filter(closedOnly), prior = before.filter(closedOnly);
-  const n = closed.length, why: ReturnsCapital["why"] = { twr: "noCash", ann: "noCash", sEq: "noEquity", cEq: "noEquity", eEq: "noEquity", hiEq: "noEquity" };
-  for (const id of ["netDep", "totDep", "totWd", "netFlow", "credits", "depN", "wdN", "credN", "avgDep", "avgWd"]) why[id] = "noCash";
+  const n = closed.length, why: ReturnsCapital["why"] = { sEq: "noEquity", cEq: "noEquity", eEq: "noEquity", hiEq: "noEquity" };
+  // Cash-flow metrics exist only once at least one flow has been recorded; an empty ledger means "unknown", not "zero".
+  const cashKnown = flows.before.length + flows.period.length > 0;
+  const ft = cashKnown ? flowTotals(flows.period) : null;
+  for (const id of ["twr", "ann", "netDep", "totDep", "totWd", "netFlow", "credits", "depN", "wdN", "credN", "avgDep", "avgWd"]) if (!cashKnown) why[id] = "noCash";
+  if (ft && ft.avgDep == null) why.avgDep = "noDeposits";
+  if (ft && ft.avgWd == null) why.avgWd = "noWithdrawals";
+  const flowSum = (a: CashFlow[]) => a.reduce((x, f) => x + signed(f), 0);
   const hasInit = initial > 0;
-  const startBal = hasInit ? initial + cents(sum(prior.map((t) => t.pnl as number))) : null;
+  const startBal = hasInit ? initial + cents(sum(prior.map((t) => t.pnl as number))) + flowSum(flows.before) : null;
+  const fl = flows.period.map((f) => ({ d: f.t.slice(0, 10), v: signed(f) }));
   const core = tradeCore(closed);
   const days = bucket(closed, dayOf), weeks = bucket(closed, (t) => weekOf(dayOf(t)).slice(0, 10)), months = bucket(closed, (t) => monthOf(dayOf(t)));
   const dv = days.map((d) => d[1]), wv = weeks.map((d) => d[1]), mv = months.map((d) => d[1]);
@@ -65,12 +79,12 @@ export function computeReturnsCapital(period: Trade[], before: Trade[], initial:
 
   // Balance curve from the ledger: start balance, then each closed trade in close order.
   let high: number | null = null;
-  if (startBal != null && n) { let b = startBal; high = b; for (const t of [...closed].sort((a, c) => closeKey(a).localeCompare(closeKey(c)))) { b += t.pnl as number; if (b > high) high = b; } }
-  const allNet = hasInit ? initial + cents(sum([...prior, ...closed].map((t) => t.pnl as number))) : null;
+  if (startBal != null && n) { const ev = [...closed.map((t) => ({ k: closeKey(t), v: t.pnl as number, o: 1 })), ...flows.period.map((f) => ({ k: f.t, v: signed(f), o: 0 }))].sort((a, c) => a.k.localeCompare(c.k) || a.o - c.o); let b = startBal; high = b; for (const e of ev) { b += e.v; if (b > high) high = b; } }
+  const allNet = hasInit ? initial + cents(sum([...prior, ...closed].map((t) => t.pnl as number))) + flowSum(flows.before) + flowSum(flows.period) : null;
 
   const winD = dv.filter((v) => v > 0), lossD = dv.filter((v) => v < 0);
   const posSum = sum(winD), negSum = Math.abs(sum(lossD));
-  const rDay = startBal != null ? returns(days, startBal) : [], rWeek = startBal != null ? returns(weeks, startBal) : [], rMonth = startBal != null ? returns(months, startBal) : [];
+  const rDay = startBal != null ? returns(days, startBal, fl) : [], rWeek = startBal != null ? returns(weeks, startBal, fl, weekOf) : [], rMonth = startBal != null ? returns(months, startBal, fl, monthOf) : [];
   const m = mean(dv);
   const sd = dv.length >= 2 && m != null ? Math.sqrt(dv.reduce((s, x) => s + (x - m) ** 2, 0) / (dv.length - 1)) : null;
 
@@ -79,6 +93,17 @@ export function computeReturnsCapital(period: Trade[], before: Trade[], initial:
   if (n && dv.length < 2) why.sdDailyPnl = "fewDays";
   if (n && !winD.length) { why.avgWinDay = "noWins"; why.bigWinShare = "noWins"; }
   if (n && !lossD.length) { why.avgLossDay = "noLosses"; why.bigLossShare = "noLosses"; }
+
+  // Time-weighted return and its annualised form (balance based, external flows neutralised).
+  let twr: number | null = null, ann: number | null = null;
+  if (cashKnown) {
+    twr = n && startBal != null ? fin(timeWeightedReturn(startBal, closed.map((t) => ({ t: closeKey(t), pnl: t.pnl as number })), flows.period)) : null;
+    if (n && twr == null) why.twr = startBal == null ? "noStart" : "twrStart";
+    const stamps = [...closed.map(closeKey), ...flows.period.map((f) => f.t)].filter(Boolean).sort();
+    const span = stamps.length ? (Date.parse(stamps[stamps.length - 1].slice(0, 10)) - Date.parse(stamps[0].slice(0, 10))) / 864e5 + 1 : 0;
+    ann = annualise(twr, span);
+    if (n && twr != null && ann == null) why.ann = twr <= -100 ? "twrStart" : "shortPeriod";
+  }
 
   return {
     n, days: days.length, weeks: weeks.length, months: months.length,
@@ -89,7 +114,8 @@ export function computeReturnsCapital(period: Trade[], before: Trade[], initial:
     bestDay: dv.length ? Math.max(...dv) : null, worstDay: dv.length ? Math.min(...dv) : null,
     bestWeek: wv.length ? Math.max(...wv) : null, worstWeek: wv.length ? Math.min(...wv) : null,
     bestMonth: mv.length ? Math.max(...mv) : null, worstMonth: mv.length ? Math.min(...mv) : null,
-    initial: hasInit ? initial : null, startBal, currentBal: allNet, endBal: startBal != null && n ? startBal + cents(core.net) : startBal,
+    twr, ann, netDep: ft?.netDep ?? null, totDep: ft?.totDep ?? null, totWd: ft?.totWd ?? null, netFlow: ft?.netFlow ?? null, credits: ft?.credits ?? null, depN: ft?.depN ?? null, wdN: ft?.wdN ?? null, credN: ft?.credN ?? null, avgDep: ft?.avgDep ?? null, avgWd: ft?.avgWd ?? null,
+    initial: hasInit ? initial : null, startBal, currentBal: allNet, endBal: startBal != null ? startBal + (n ? cents(core.net) : 0) + flowSum(flows.period) : null,
     highBal: high,
     profitDays: n ? winD.length : null, profitDayPct: dv.length ? (winD.length / dv.length) * 100 : null, tradeWinRate: core.winRate,
     profitWeeks: n ? wv.filter((v) => v > 0).length : null, profitMonths: n ? mv.filter((v) => v > 0).length : null,
