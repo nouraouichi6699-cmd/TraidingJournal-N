@@ -5,7 +5,9 @@ import type { ReturnsCapital, RcWhy } from "../lib/returnsCapital";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
 import { MetricSection, ViewHeader, type Item, type View } from "./metricUi";
-import type { Lang } from "../types";
+import type { Account, Lang } from "../types";
+import type { CashFlow } from "../lib/cashflow";
+import CashFlowPanel from "./CashFlowPanel";
 
 type L = [string, string, string]; // en, ar, fr
 type M = [string, L, L]; // id, label, tip
@@ -108,7 +110,7 @@ const WHY: Record<RcWhy, L> = {
 };
 const POLICY: L = ["Only days, weeks and months with at least one closed trade count. Day = close date.", "تُحتسب فقط الأيام والأسابيع والأشهر التي فيها صفقة مغلقة واحدة على الأقل. اليوم = تاريخ الإغلاق.", "Seuls les jours/semaines/mois avec un trade clôturé comptent. Jour = date de clôture."];
 
-export default function ReturnsTab({ lang, rc, onImport }: { lang: Lang; rc: ReturnsCapital; onImport?: () => void }) {
+export default function ReturnsTab({ lang, rc, accounts = [], flows = [], onAddFlow, onRemoveFlow }: { lang: Lang; rc: ReturnsCapital; accounts?: Account[]; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }) {
   const k = i(lang), T = (x: L) => x[k];
   const { hidden } = usePrivacy();
   const [view, setView] = useState<View>("grid");
@@ -125,7 +127,7 @@ export default function ReturnsTab({ lang, rc, onImport }: { lang: Lang; rc: Ret
   return (
     <div className="space-y-5">
       <ViewHeader title={T(RET_TAB)} sub={`${T(TXT.sub)} ${T(POLICY)}`} badge={`${n} ${lang === "ar" ? "مقياس" : lang === "fr" ? "métriques" : "metrics"}`} view={view} onView={setView} gridLabel={lang === "ar" ? "عرض شبكي" : lang === "fr" ? "Vue grille" : "Grid view"} listLabel={lang === "ar" ? "عرض قائمة" : lang === "fr" ? "Vue liste" : "List view"} />
-      {sec.map(([icon, t, d, m]) => <MetricSection key={t[0]} icon={icon} title={T(t)} subtitle={T(d)} view={view} items={items(m as M[])} />)}
+      {sec.map(([icon, t, d, m]) => <MetricSection key={t[0]} icon={icon} title={T(t)} subtitle={T(d)} view={view} items={items(m as M[])} top={t === TXT.s2 ? <CashFlowPanel lang={lang} accounts={accounts} flows={flows} onAdd={onAddFlow} onRemove={onRemoveFlow} /> : undefined} />)}
     </div>
   );
 }

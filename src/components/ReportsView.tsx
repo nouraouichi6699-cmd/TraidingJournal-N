@@ -4,6 +4,7 @@ import { Wallet, Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, La
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import { computeReturnsCapital } from "../lib/returnsCapital";
+import type { CashFlow } from "../lib/cashflow";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
 import BenchmarkTab, { BENCH_TAB } from "./BenchmarkTab";
@@ -18,7 +19,7 @@ import { ovT } from "../i18n";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
-interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; onImport?: () => void }
+interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; onImport?: () => void; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }
 type L = Record<Lang, string>;
 const X = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 
@@ -80,7 +81,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   return <div className="rounded-2xl border border-border bg-surface p-5"><div className="mb-4 font-heading text-sm font-semibold text-text">{title}</div>{children}</div>;
 }
 
-export default function ReportsView({ t, lang, accounts, trades, balances, onImport }: Props) {
+export default function ReportsView({ t, lang, accounts, trades, balances, onImport, flows = [], onAddFlow, onRemoveFlow }: Props) {
   const [tab, setTab] = useState("overview");
   const [acc, setAcc] = useState("all");
   const [per, setPer] = useState("all");
@@ -104,7 +105,15 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   }, [trades, list, acc, per]);
   const a = useMemo(() => computeActivity(list), [list]);
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
-  const rc = useMemo(() => computeReturnsCapital(list, before, startBal), [list, before, startBal]);
+  // Cash flows of the selected accounts, split at the same period cut-off as the trades (flow date >= cut-off = in period).
+  const accFlows = useMemo(() => flows.filter((f) => acc === "all" || f.accountId === acc), [flows, acc]);
+  const flowSplit = useMemo(() => {
+    if (per === "all") return { before: [] as CashFlow[], period: accFlows };
+    const d = new Date(); d.setMonth(d.getMonth() - (per === "p1" ? 1 : per === "p3" ? 3 : 12));
+    const c = d.toISOString().slice(0, 10);
+    return { before: accFlows.filter((f) => f.t < c), period: accFlows.filter((f) => f.t >= c) };
+  }, [accFlows, per]);
+  const rc = useMemo(() => computeReturnsCapital(list, before, startBal, flowSplit), [list, before, startBal, flowSplit]);
   const outcomes = useMemo(() => computeTradeOutcomes(list, startBal), [list, startBal]);
   const recent = useMemo(() => recentOutcomes(list, 60), [list]);
   const ov = useMemo(() => computeOverview(list, acc === "all" ? accounts : accounts.filter((x) => x.id === acc), balances, ""), [list, accounts, balances, acc]);
@@ -171,7 +180,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       ) : tab === "daybyday" ? (
         <DayByDayTab lang={lang} trades={list} onImport={onImport} />
       ) : tab === "returns" ? (
-        <ReturnsTab lang={lang} rc={rc} onImport={onImport} />
+        <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accounts : accounts.filter((x) => x.id === acc)} flows={accFlows} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} />
       ) : !a ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{L(TX.empty)}</div>
       ) : (

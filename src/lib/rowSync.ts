@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import type { Account, BalancePoint, Trade } from "../types";
+import type { CashFlow } from "./cashflow";
 
 // Row-based, local-first sync for accounts / trades / balance points.
 // localStorage stays the instant cache; per-row metadata decides what to push and what wins on pull.
@@ -8,18 +9,18 @@ import { startPuller, type PullResult } from "./syncSchedule";
 export const PULLED = "mizan-sync-pulled";
 const DAY = 864e5;
 
-type Tbl = "accounts" | "trades" | "balance_points";
+type Tbl = "accounts" | "trades" | "balance_points" | "cash_flows";
 type Row = Record<string, unknown>;
 type M = { u: number; d: number; h: string; p: 0 | 1 }; // updated ms, deleted ms, hash, pending push
 type Meta = Record<Tbl, Record<string, M>>;
-type Journal = { trades: Trade[]; balances: Record<string, BalancePoint[]> };
+type Journal = { trades: Trade[]; balances: Record<string, BalancePoint[]>; flows?: CashFlow[] };
 
 const rd = <T,>(k: string, f: T): T => { try { return JSON.parse(localStorage.getItem(k) ?? "null") ?? f; } catch { return f; } };
 const wr = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const hash = (r: Row) => JSON.stringify(r, (_, v) => (v === undefined ? null : v));
 const local = () => {
   const j = rd<Journal>(JNL, { trades: [], balances: {} });
-  return { accounts: rd<Account[]>(ACC, []), trades: j.trades ?? [], balances: j.balances ?? {} };
+  return { accounts: rd<Account[]>(ACC, []), trades: j.trades ?? [], balances: j.balances ?? {}, flows: j.flows ?? [] };
 };
 
 const n = (v: unknown) => (v == null ? null : Number(v));
@@ -28,18 +29,23 @@ const accFrom = (r: Row): Account => ({ id: r.id as string, platform: r.platform
 const trTo = (t: Trade): Row => ({ key: t.key, account_id: t.accountId, no: t.no, symbol: t.symbol, side: t.side, qty: t.qty, entry_time: t.entryTime, entry_price: t.entryPrice, exit_time: t.exitTime, exit_price: t.exitPrice, pnl: t.pnl, return_pct: t.returnPct, commission: t.commission, sl: t.sl ?? null, tp: t.tp ?? null, status: t.status });
 const trFrom = (r: Row): Trade => ({ key: r.key as string, accountId: r.account_id as string, no: Number(r.no), symbol: r.symbol as string, side: r.side as Trade["side"], qty: Number(r.qty), entryTime: r.entry_time as string | null, entryPrice: Number(r.entry_price), exitTime: r.exit_time as string | null, exitPrice: n(r.exit_price), pnl: n(r.pnl), returnPct: n(r.return_pct), commission: Number(r.commission), sl: n(r.sl), tp: n(r.tp), status: r.status as Trade["status"] });
 const bpTo = (a: string, p: BalancePoint): Row => ({ account_id: a, t: p.t, balance: p.balance });
+const cfTo = (f: CashFlow): Row => ({ id: f.id, account_id: f.accountId, t: f.t, type: f.type, amount: f.amount });
+const cfFrom = (r: Row): CashFlow => ({ id: r.id as string, accountId: r.account_id as string, t: r.t as string, type: r.type as CashFlow["type"], amount: Number(r.amount) });
+/** cash_flows is optional until its migration has been run: a missing table must not break the other tables' sync. */
+const missing = (t: Tbl, e: { code?: string; message?: string } | null) => t === "cash_flows" && !!e && (e.code === "42P01" || e.code === "PGRST205" || /does not exist|schema cache/i.test(e.message ?? ""));
 
-const TBLS: Tbl[] = ["accounts", "trades", "balance_points"]; // push order matters (foreign keys)
-const CONFLICT: Record<Tbl, string> = { accounts: "id", trades: "user_id,key", balance_points: "user_id,account_id,t" };
-const idOf = (t: Tbl, r: Row) => (t === "accounts" ? (r.id as string) : t === "trades" ? (r.key as string) : `${r.account_id}|${r.t}`);
+const TBLS: Tbl[] = ["accounts", "trades", "balance_points", "cash_flows"]; // push order matters (foreign keys)
+const CONFLICT: Record<Tbl, string> = { accounts: "id", trades: "user_id,key", balance_points: "user_id,account_id,t", cash_flows: "id" };
+const idOf = (t: Tbl, r: Row) => (t === "accounts" || t === "cash_flows" ? (r.id as string) : t === "trades" ? (r.key as string) : `${r.account_id}|${r.t}`);
 const list = (t: Tbl): [string, Row][] => {
   const l = local();
   if (t === "accounts") return l.accounts.map((a) => [a.id, accTo(a)]);
   if (t === "trades") return l.trades.map((x) => [x.key, trTo(x)]);
+  if (t === "cash_flows") return l.flows.map((f) => [f.id, cfTo(f)]);
   return Object.entries(l.balances).flatMap(([a, ps]) => ps.map((p): [string, Row] => [`${a}|${p.t}`, bpTo(a, p)]));
 };
 
-const emptyMeta = (): Meta => ({ accounts: {}, trades: {}, balance_points: {} });
+const emptyMeta = (): Meta => ({ accounts: {}, trades: {}, balance_points: {}, cash_flows: {} });
 const loadMeta = (): Meta => ({ ...emptyMeta(), ...rd<Partial<Meta>>(META, {}) });
 
 /** Detect local changes (edits, inserts, deletes) since the last scan and mark them pending. */
@@ -66,6 +72,7 @@ function applyRemote(t: Tbl, rows: Row[], meta: Meta): boolean {
   const accs = new Map(l.accounts.map((a) => [a.id, a]));
   const trs = new Map(l.trades.map((x) => [x.key, x]));
   const bps = new Map(Object.entries(l.balances).flatMap(([a, ps]) => ps.map((p): [string, [string, BalancePoint]] => [`${a}|${p.t}`, [a, p]])));
+  const cfs = new Map(l.flows.map((f) => [f.id, f]));
   const alive = new Set(l.accounts.map((a) => a.id));
   let changed = false;
   for (const r of rows) {
@@ -76,6 +83,7 @@ function applyRemote(t: Tbl, rows: Row[], meta: Meta): boolean {
     let h = "";
     if (t === "accounts") { if (del) accs.delete(id); else { const a = accFrom(r); accs.set(id, a); h = hash(accTo(a)); } }
     else if (t === "trades") { if (del) trs.delete(id); else { const x = trFrom(r); trs.set(id, x); h = hash(trTo(x)); } }
+    else if (t === "cash_flows") { if (del) cfs.delete(id); else { const f = cfFrom(r); cfs.set(id, f); h = hash(cfTo(f)); } }
     else if (del) bps.delete(id); else { const p = { t: r.t as string, balance: Number(r.balance) }; bps.set(id, [r.account_id as string, p]); h = hash(bpTo(r.account_id as string, p)); }
     meta[t][id] = { u, d: del ? u : 0, h, p: 0 };
     changed = true;
@@ -86,7 +94,7 @@ function applyRemote(t: Tbl, rows: Row[], meta: Meta): boolean {
     const balances: Record<string, BalancePoint[]> = {};
     for (const [a, p] of bps.values()) (balances[a] ||= []).push(p);
     for (const a of Object.keys(balances)) balances[a].sort((x, y) => x.t.localeCompare(y.t));
-    wr(JNL, { trades: [...trs.values()], balances });
+    wr(JNL, { trades: [...trs.values()], balances, flows: [...cfs.values()] });
   }
   return true;
 }
@@ -102,7 +110,7 @@ async function pull(uid: string, meta: Meta): Promise<boolean> {
       let q = supabase.from(t).select("*").eq("user_id", uid).order("synced_at", { ascending: true }).limit(1000);
       if (since) q = q.gt("synced_at", since);
       const { data, error } = await q;
-      if (error) return any;
+      if (error) { if (missing(t, error)) break; return any; }
       const rows = (data ?? []) as Row[];
       if (rows.length) {
         if (applyRemote(t, rows, meta)) any = true;
@@ -127,7 +135,7 @@ async function push(uid: string, meta: Meta): Promise<void> {
       const chunk = ups.slice(i, i + 500);
       const payload = chunk.map(([id, m]) => ({ user_id: uid, ...live.get(id)!, updated_at: new Date(m.u).toISOString(), deleted_at: null }));
       const { error } = await supabase.from(t).upsert(payload, { onConflict: CONFLICT[t] });
-      if (error) return;
+      if (error) { if (!missing(t, error)) return; break; } // missing table: keep rows pending until the migration runs
       for (const [id] of chunk) meta[t][id].p = 0;
     }
     // Tombstones: soft-delete by key, grouped by deletion time (rows are gone locally).
@@ -139,7 +147,7 @@ async function push(uid: string, meta: Meta): Promise<void> {
       for (let i = 0; i < ids.length; i += 100) {
         const chunk = ids.slice(i, i + 100);
         let q = supabase.from(t).update(stamp).eq("user_id", uid);
-        if (t === "accounts") q = q.in("id", chunk);
+        if (t === "accounts" || t === "cash_flows") q = q.in("id", chunk);
         else if (t === "trades") q = q.in("key", chunk);
         else {
           const byAcc = new Map<string, string[]>();
@@ -149,7 +157,7 @@ async function push(uid: string, meta: Meta): Promise<void> {
           continue;
         }
         const { error } = await q;
-        if (error) return;
+        if (error) { if (missing(t, error)) break; return; }
         for (const id of chunk) meta[t][id].p = 0;
       }
     }
@@ -160,29 +168,31 @@ async function push(uid: string, meta: Meta): Promise<void> {
 // Reconcile: drop local rows that were synced before but no longer exist in the cloud (hard-deleted elsewhere).
 // Rows pending push (offline edits, new rows) are never removed. Any request error aborts without removing anything.
 let lastRec = 0;
-const RCOLS: Record<Tbl, string> = { accounts: "id", trades: "key", balance_points: "id,account_id,t" };
-const ROWID: Record<Tbl, string> = { accounts: "id", trades: "key", balance_points: "id" };
+const RCOLS: Record<Tbl, string> = { accounts: "id", trades: "key", balance_points: "id,account_id,t", cash_flows: "id" };
+const ROWID: Record<Tbl, string> = { accounts: "id", trades: "key", balance_points: "id", cash_flows: "id" };
 async function reconcile(uid: string, meta: Meta): Promise<boolean> {
   if (Date.now() - lastRec < 60000) return false;
-  const remote: Record<Tbl, Set<string>> = { accounts: new Set(), trades: new Set(), balance_points: new Set() };
+  const remote: Record<Tbl, Set<string> | null> = { accounts: new Set(), trades: new Set(), balance_points: new Set(), cash_flows: new Set() };
   for (const t of TBLS) {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from(t).select(RCOLS[t]).eq("user_id", uid).is("deleted_at", null).order(ROWID[t]).range(from, from + 999);
+      if (missing(t, error)) { remote[t] = null; break; } // table not created yet: nothing to reconcile there
       if (error || !data) return false;
-      for (const r of data as unknown as Row[]) remote[t].add(idOf(t, r));
+      for (const r of data as unknown as Row[]) remote[t]!.add(idOf(t, r));
       if (data.length < 1000) break;
     }
   }
   lastRec = Date.now();
-  const gone = (t: Tbl, id: string) => { const m = meta[t][id]; return !!m && !m.p && !m.d && !remote[t].has(id); };
+  const gone = (t: Tbl, id: string) => { const m = meta[t][id], set = remote[t]; return !!set && !!m && !m.p && !m.d && !set.has(id); };
   const l = local();
   const accounts = l.accounts.filter((a) => !gone("accounts", a.id));
   const trades = l.trades.filter((x) => !gone("trades", x.key));
   const balances: Record<string, BalancePoint[]> = {};
   for (const [a, ps] of Object.entries(l.balances)) { const keep = ps.filter((p) => !gone("balance_points", `${a}|${p.t}`)); if (keep.length) balances[a] = keep; }
-  const changed = accounts.length !== l.accounts.length || trades.length !== l.trades.length || JSON.stringify(balances) !== JSON.stringify(l.balances);
+  const flows = l.flows.filter((f) => !gone("cash_flows", f.id));
+  const changed = accounts.length !== l.accounts.length || trades.length !== l.trades.length || flows.length !== l.flows.length || JSON.stringify(balances) !== JSON.stringify(l.balances);
   for (const t of TBLS) for (const id of Object.keys(meta[t])) if (gone(t, id)) delete meta[t][id];
-  if (changed) { wr(ACC, accounts); wr(JNL, { trades, balances }); wr(META, meta); }
+  if (changed) { wr(ACC, accounts); wr(JNL, { trades, balances, flows }); wr(META, meta); }
   return changed;
 }
 
@@ -219,6 +229,7 @@ function fixIds() {
   wr(JNL, {
     trades: l.trades.map((t) => { const nid = map.get(t.accountId); return nid ? { ...t, accountId: nid, key: nid + t.key.slice(t.accountId.length) } : t; }),
     balances: Object.fromEntries(Object.entries(l.balances).map(([a, v]) => [map.get(a) ?? a, v])),
+    flows: l.flows.map((f) => (map.has(f.accountId) ? { ...f, accountId: map.get(f.accountId)! } : f)),
   });
 }
 

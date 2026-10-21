@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { PULLED } from "./lib/rowSync";
 import type { BalancePoint, Trade } from "./types";
 import type { ParsedTrade } from "./lib/tradingview";
+import type { CashFlow } from "./lib/cashflow";
 
 interface Store {
   trades: Trade[];
   balances: Record<string, BalancePoint[]>;
+  flows?: CashFlow[]; // deposits / withdrawals / credits / adjustments
 }
 
 const KEY = "mizan-journal";
@@ -71,8 +73,11 @@ export function useJournal() {
   const purgeAccount = (accountId: string) => {
     const cur = ref.current;
     const { [accountId]: _drop, ...balances } = cur.balances;
-    commit({ trades: cur.trades.filter((t) => t.accountId !== accountId), balances });
+    commit({ trades: cur.trades.filter((t) => t.accountId !== accountId), balances, flows: (cur.flows ?? []).filter((f) => f.accountId !== accountId) });
   };
 
-  return { trades: store.trades, balances: store.balances, importTrades, importBalance, purgeAccount };
+  const addFlow = (f: Omit<CashFlow, "id">) => { const cur = ref.current; commit({ ...cur, flows: [...(cur.flows ?? []), { ...f, id: crypto.randomUUID() }] }); };
+  const removeFlow = (id: string) => { const cur = ref.current; commit({ ...cur, flows: (cur.flows ?? []).filter((f) => f.id !== id) }); };
+
+  return { trades: store.trades, balances: store.balances, flows: store.flows ?? [], importTrades, importBalance, purgeAccount, addFlow, removeFlow };
 }
