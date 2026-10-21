@@ -21,7 +21,7 @@ import { ovT } from "../i18n";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
-interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; onImport?: () => void; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }
+interface Props { nav?: { tab: string; day?: string; acc?: string | null } | null; onNavDone?: () => void; t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; onImport?: () => void; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }
 type L = Record<Lang, string>;
 const X = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 
@@ -83,9 +83,11 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   return <div className="rounded-2xl border border-border bg-surface p-5"><div className="mb-4 font-heading text-sm font-semibold text-text">{title}</div>{children}</div>;
 }
 
-export default function ReportsView({ t, lang, accounts, trades, balances, onImport, flows = [], onAddFlow, onRemoveFlow }: Props) {
-  const [tab, setTab] = useState("overview");
-  const [acc, setAcc] = useState("all");
+export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades, balances, onImport, flows = [], onAddFlow, onRemoveFlow }: Props) {
+  const [tab, setTab] = useState(nav?.tab ?? "overview");
+  const [acc, setAcc] = useState(nav?.acc && accounts.some((a) => a.id === nav.acc) ? nav.acc : "all");
+  const [focusDay] = useState(nav?.day); // deep link from Charts ("Open this day")
+  useEffect(() => { if (nav) onNavDone?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
   const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "returns", icon: <Wallet size={15} />, label: RET_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "benchmark", icon: <GitCompareArrows size={15} />, label: BENCH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "portfolio", icon: <Briefcase size={15} />, label: PORTFOLIO_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "advanced", icon: <FlaskConical size={15} />, label: ADV_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "path", icon: <Route size={15} />, label: PATH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "daybyday", icon: <CalendarDays size={15} />, label: DAY_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
@@ -197,7 +199,7 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
       ) : tab === "path" ? (
         <PathTab lang={lang} />
       ) : tab === "daybyday" ? (
-        <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} />
+        <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} focusDay={focusDay} />
       ) : tab === "returns" ? (
         <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accounts : accounts.filter((x) => x.id === acc)} flows={accFlows} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} currency={currency} />
       ) : !a ? (

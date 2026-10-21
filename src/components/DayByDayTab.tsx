@@ -25,11 +25,11 @@ const X = {
 };
 const asDate = (s: string | null) => { if (!s) return null; const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z"); return Number.isNaN(d.getTime()) ? null : d; };
 
-export default function DayByDayTab({ lang, trades, onImport, currency = null }: { lang: Lang; trades: Trade[]; onImport?: () => void; currency?: string | null }) {
+export default function DayByDayTab({ lang, trades, onImport, currency = null, focusDay }: { lang: Lang; trades: Trade[]; onImport?: () => void; currency?: string | null; focusDay?: string }) {
   const k = i(lang), T = (x: L) => x[k];
   const { hidden } = usePrivacy();
   const days = useMemo(() => dayList(trades), [trades]);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(focusDay ?? null);
   const [tab, setTab] = useState<"overview" | "notes" | "trades">("trades");
   const day = days.find((d) => d.day === sel)?.day ?? days[0]?.day ?? null; // falls back to the newest day when the filter hides the selection
   const rows = useMemo(() => (day ? dayTrades(trades, day) : []), [trades, day]);

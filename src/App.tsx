@@ -44,6 +44,8 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View | "profile" | "news" | "calendar">("dashboard");
+  // One-shot deep link into Reports (e.g. Charts -> "Open this day" -> Day by Day), consumed when Reports mounts.
+  const [reportsNav, setReportsNav] = useState<{ tab: string; day?: string; acc?: string | null } | null>(null);
   const { profile, save: saveProfile } = useProfile();
 
   return (
@@ -103,9 +105,9 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               )}
               {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
               {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
-              {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />}
+              {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} />}
               {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} />}
-              {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
+              {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
               {view === "import" && (
                 <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
