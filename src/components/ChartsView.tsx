@@ -183,8 +183,8 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
   const gid = useRef(`g${Math.random().toString(36).slice(2, 7)}`).current;
 
   const bars = kind === "bars";
-  const padL = 62, padR = 18, padT = 16, padB = 32;
-  const iw = w - padL - padR, ih = height - padT - padB;
+  const padR = 18, padT = 16, padB = 32;
+  const ih = height - padT - padB;
 
   // ----- scales -----
   const all = series.flatMap((s) => s.pts);
@@ -204,6 +204,10 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
   yMax += span * (kind === "dd" ? 0.04 : 0.14);
   const { ticks, step: tickStep } = niceTicks(yMin, yMax);
   const dec = tickStep >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(tickStep)));
+  const tickLabel = (v: number) => (pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : hide ? "•••" : `${v < 0 ? "-" : ""}${fmt(Math.abs(v), dec)}${cur}`);
+  // Left margin fits the longest Y label (large balances like "140,000$" were cut off at a fixed 62px).
+  const padL = Math.max(62, Math.ceil(Math.max(...ticks.map((v) => tickLabel(v).length)) * 7.2) + 20);
+  const iw = w - padL - padR;
   const xEnd = xMax;
   const X = (t0: number) => padL + ((t0 - xMin) / (xEnd - xMin || 1)) * iw;
   const Y = (v: number) => padT + (1 - (v - yMin) / (yMax - yMin || 1)) * ih;
@@ -301,7 +305,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
         {ticks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={w - padR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" strokeOpacity={v === 0 ? 0.9 : 0.35} />
-            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{pct ? `${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}%` : hide ? "•••" : `${v < 0 ? "-" : ""}${fmt(Math.abs(v), dec)}${cur}`}</text>
+            <text x={padL - 12} y={Y(v) + 4} fontSize="11.5" fill="var(--muted)" textAnchor="end" className="tnum">{tickLabel(v)}</text>
           </g>
         ))}
 
