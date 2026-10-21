@@ -110,7 +110,9 @@ export default function ReportsView({ t, lang, accounts, trades, balances, onImp
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
   // Cash flows of the selected accounts, split at the same period cut-off as the trades (flow date >= cut-off = in period).
   const accFlows = useMemo(() => flows.filter((f) => acc === "all" || f.accountId === acc), [flows, acc]);
-  const flowSplit = useMemo(() => (cut ? { before: accFlows.filter((f) => f.t < cut), period: accFlows.filter((f) => f.t >= cut) } : { before: [] as CashFlow[], period: accFlows }), [accFlows, cut]);
+  // The deposit/withdrawal ledger is complete when every selected account has an imported broker balance history.
+  const cashKnown = useMemo(() => accFlows.length > 0 || (accounts.filter((x) => acc === "all" || x.id === acc).length > 0 && accounts.filter((x) => acc === "all" || x.id === acc).every((a) => (balances[a.id]?.length ?? 0) > 0)), [accFlows, accounts, acc, balances]);
+  const flowSplit = useMemo(() => ({ ...(cut ? { before: accFlows.filter((f) => f.t < cut), period: accFlows.filter((f) => f.t >= cut) } : { before: [] as CashFlow[], period: accFlows }), known: cashKnown }), [accFlows, cut, cashKnown]);
   const currency = useMemo(() => commonCurrency(acc === "all" ? accounts : accounts.filter((x) => x.id === acc)), [accounts, acc]); // null when currencies are mixed
   // Current balance: the same per-account figure as the Accounts cards (imported history first, else ledger); unknown without a start balance or history.
   const currentNow = useMemo(() => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CandlestickChart, Server, X, ShieldAlert } from "lucide-react";
+import { CandlestickChart, Server, X, ShieldAlert, TriangleAlert } from "lucide-react";
 import type { Key } from "../i18n";
 import type { Account, Platform } from "../types";
 
@@ -35,7 +35,9 @@ export default function ConnectAccountModal({ t, onClose, onCreate }: Props) {
 
   const bal = Number(balance.replace(",", "."));
   const nameErr = !name.trim();
-  const balErr = balance.trim() === "" ? "required" : !Number.isFinite(bal) || bal < 0 ? "invalidNumber" : null;
+  // Optional: empty = taken from the first import that contains the balance history (MT5 report / TradingView balance export).
+  const manual = balance.trim() !== "";
+  const balErr = manual && (!Number.isFinite(bal) || bal < 0) ? "invalidNumber" : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +47,7 @@ export default function ConnectAccountModal({ t, onClose, onCreate }: Props) {
       platform,
       name: name.trim(),
       currency,
-      startBalance: bal,
+      startBalance: manual ? bal : 0,
       ...(platform === "mt5" && login.trim() ? { login: login.trim() } : {}),
       ...(platform === "mt5" && server.trim() ? { server: server.trim() } : {}),
     });
@@ -102,7 +104,7 @@ export default function ConnectAccountModal({ t, onClose, onCreate }: Props) {
 
             <div className="grid grid-cols-[1fr_120px] gap-3">
               <Field
-                label={t("startBalance")}
+                label={t("startBalanceOpt")}
                 error={submitted && balErr ? t(balErr as Key) : null}
               >
                 <input
@@ -121,6 +123,15 @@ export default function ConnectAccountModal({ t, onClose, onCreate }: Props) {
                 </select>
               </Field>
             </div>
+
+            {manual ? (
+              <p role="alert" className="-mt-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "color-mix(in srgb, #f59e0b 45%, var(--border))", background: "color-mix(in srgb, #f59e0b 10%, transparent)" }}>
+                <TriangleAlert size={14} className="mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
+                {t("startBalanceWarn")}
+              </p>
+            ) : (
+              <p className="-mt-2 text-xs text-muted">{t("startBalanceAuto")}</p>
+            )}
 
             {platform === "mt5" && (
               <div className="grid gap-3 sm:grid-cols-2">

@@ -6,12 +6,15 @@ import type { Key } from "../i18n";
 import type { Account } from "../types";
 import type { useJournal } from "../useJournal";
 import type { useAccounts } from "../useAccounts";
+import { planLedger, type FileLedger } from "../lib/importLedger";
+import { fmtMoney } from "../lib/money";
 
 interface Props {
   t: (k: Key) => string;
   accounts: Account[];
   journal: ReturnType<typeof useJournal>;
   resolveMt5: ReturnType<typeof useAccounts>["resolveMt5"];
+  setStartBalance: ReturnType<typeof useAccounts>["setStartBalance"];
   onConnect: () => void;
 }
 
@@ -22,7 +25,7 @@ interface Line {
   details?: string[];
 }
 
-export default function ImportView({ t, accounts, journal, resolveMt5, onConnect }: Props) {
+export default function ImportView({ t, accounts, journal, resolveMt5, setStartBalance, onConnect }: Props) {
   const [accountId, setAccountId] = useState<string>("");
   const [lines, setLines] = useState<Line[]>([]);
   const [over, setOver] = useState(false);
@@ -39,6 +42,17 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
     return { text: r.added === 0 && r.updated === 0 ? `${title} — ${t("impNothingNew")}` : title, details };
   };
 
+  /** Start balance + cash flows of an imported file (rules in lib/importLedger.ts); returns the summary lines. */
+  const applyLedger = (acc: Account, earliest: string | null, l: FileLedger, created = false) => {
+    const plan = planLedger(acc.startBalance, earliest, l);
+    if (plan.start != null) setStartBalance(acc.id, plan.start);
+    const fl = journal.importFlows(acc.id, plan.flows);
+    return [
+      ...(plan.start != null || (created && plan.reaches) ? [`${t("impStart")} ${fmtMoney(l.startBalance as number, { cents: true, currency: acc.currency })}`] : []), // only when it changes
+      ...(fl.added > 0 ? [`${fl.added} ${t("impFlows")}`] : []),
+    ];
+  };
+
   const handle = async (files: FileList | File[]) => {
     const out: Line[] = [];
     // Process sequentially: each import builds on the latest stored data
@@ -51,13 +65,12 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
             continue;
           }
           const { account, created } = resolveMt5({ ...rep, preferId: selected?.platform === "mt5" ? selected.id : undefined });
+          const earliest = journal.earliestTrade(account.id); // before this file's trades are stored
           const r = journal.importTrades(account.id, rep.trades);
           const b = journal.importBalance(account.id, rep.points);
-          out.push({
-            name: f.name,
-            ok: true,
-            ...summary(`${t("kindMt5")} → ${account.name}${created ? ` (${t("accCreated")})` : ""}`, r, b.added),
-          });
+          const ledger = applyLedger(account, earliest, rep, created);
+          const s = summary(`${t("kindMt5")} → ${account.name}${created ? ` (${t("accCreated")})` : ""}`, r, b.added);
+          out.push({ name: f.name, ok: true, text: s.text, details: [...s.details, ...ledger] });
           continue;
         }
         const txt = await f.text();
@@ -75,13 +88,15 @@ export default function ImportView({ t, accounts, journal, resolveMt5, onConnect
           const r = journal.importTrades(selected!.id, res.trades);
           out.push({ name: f.name, ok: true, ...summary(t("kindTrades"), r) });
         } else {
+          const earliest = journal.earliestTrade(selected!.id);
           const r = journal.importBalance(selected!.id, res.points);
           const old = res.points.length - r.added;
+          const ledger = applyLedger(selected!, earliest, res);
           out.push({
             name: f.name,
             ok: true,
             text: t("kindBalance"),
-            details: [`${r.added} ${t("impPtsNew")}`, ...(old > 0 ? [`${old} ${t("impPtsOld")}`] : [])],
+            details: [`${r.added} ${t("impPtsNew")}`, ...(old > 0 ? [`${old} ${t("impPtsOld")}`] : []), ...ledger],
           });
         }
       } catch (e) {

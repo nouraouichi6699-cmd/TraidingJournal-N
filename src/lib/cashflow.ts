@@ -51,3 +51,37 @@ export function annualise(twrPct: number | null, days: number, minDays = 30): nu
   const v = (Math.pow(1 + twrPct / 100, 365 / days) - 1) * 100;
   return Number.isFinite(v) ? v : null;
 }
+
+/** A balance operation read from a broker file (deposit, withdrawal, credit, fee/correction). */
+export interface ImportedFlow { t: string; type: CashFlowType; amount: number }
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+const CREDIT = /credit|crédit|kredit|ائتمان|اعتماد/i;
+const COST = /commission|charge|fee|frais|correction|bonus|interest|intérêt|dividend|agent|عمولة|رسوم|تصحيح|فائدة|مكافأة/i;
+/**
+ * Broker balance operation -> cash flow, from its type text (any language) and signed amount.
+ * Credits are external money; fees, corrections, bonuses and interest are adjustments (they move the balance, not external money).
+ */
+export function classifyFlow(type: string, amount: number): { type: CashFlowType; amount: number } {
+  if (CREDIT.test(type)) return amount > 0 ? { type: "credit", amount: r2(amount) } : { type: "adjustment", amount: r2(amount) };
+  if (COST.test(type)) return { type: "adjustment", amount: r2(amount) };
+  return amount > 0 ? { type: "deposit", amount: r2(amount) } : { type: "withdrawal", amount: r2(-amount) };
+}
+
+/**
+ * New cash flows for an account, skipping any already recorded for the same account, day, type and amount
+ * (an earlier import of the same file, or the same deposit typed by hand).
+ */
+export function newFlows(existing: CashFlow[], accountId: string, incoming: ImportedFlow[], makeId: () => string = () => crypto.randomUUID()): CashFlow[] {
+  const key = (t: string, type: string, amount: number) => `${t.slice(0, 10)}|${type}|${Math.abs(amount).toFixed(2)}`;
+  const seen = new Set(existing.filter((f) => f.accountId === accountId).map((f) => key(f.t, f.type, f.amount)));
+  const out: CashFlow[] = [];
+  for (const f of incoming) {
+    if (!f.t || !Number.isFinite(f.amount) || f.amount === 0) continue;
+    const k = key(f.t, f.type, f.amount);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ ...f, accountId, id: makeId() });
+  }
+  return out;
+}

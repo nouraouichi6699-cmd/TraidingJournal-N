@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PULLED } from "./lib/rowSync";
 import type { BalancePoint, Trade } from "./types";
 import type { ParsedTrade } from "./lib/tradingview";
-import type { CashFlow } from "./lib/cashflow";
+import { newFlows, type CashFlow, type ImportedFlow } from "./lib/cashflow";
 
 interface Store {
   trades: Trade[];
@@ -76,8 +76,25 @@ export function useJournal() {
     commit({ trades: cur.trades.filter((t) => t.accountId !== accountId), balances, flows: (cur.flows ?? []).filter((f) => f.accountId !== accountId) });
   };
 
+  /**
+   * Adds cash flows read from a broker file. A flow already recorded for the same account, day, type and amount
+   * (an earlier import, or the same deposit typed by hand) is not added twice.
+   */
+  const importFlows = (accountId: string, incoming: ImportedFlow[]) => {
+    const cur = ref.current;
+    const fresh = newFlows(cur.flows ?? [], accountId, incoming);
+    if (fresh.length) commit({ ...cur, flows: [...(cur.flows ?? []), ...fresh] });
+    return { added: fresh.length };
+  };
+  /** Earliest entry/close time stored for an account (null when it has no trades yet). */
+  const earliestTrade = (accountId: string): string | null => {
+    let m: string | null = null;
+    for (const t of ref.current.trades) { if (t.accountId !== accountId) continue; const v = t.entryTime || t.exitTime; if (v && (m == null || v < m)) m = v; }
+    return m;
+  };
+
   const addFlow = (f: Omit<CashFlow, "id">) => { const cur = ref.current; commit({ ...cur, flows: [...(cur.flows ?? []), { ...f, id: crypto.randomUUID() }] }); };
   const removeFlow = (id: string) => { const cur = ref.current; commit({ ...cur, flows: (cur.flows ?? []).filter((f) => f.id !== id) }); };
 
-  return { trades: store.trades, balances: store.balances, flows: store.flows ?? [], importTrades, importBalance, purgeAccount, addFlow, removeFlow };
+  return { trades: store.trades, balances: store.balances, flows: store.flows ?? [], importTrades, importBalance, importFlows, earliestTrade, purgeAccount, addFlow, removeFlow };
 }

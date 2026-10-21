@@ -40,7 +40,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   useEffect(() => startRowSync(userId), [userId]);
   useEffect(() => startSettingsSync(userId), [userId]);
   const interests = useInterests();
-  const { accounts, add, remove, resolveMt5 } = useAccounts();
+  const { accounts, add, remove, resolveMt5, setStartBalance } = useAccounts();
   const journal = useJournal();
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View | "profile" | "news" | "calendar">("dashboard");
@@ -108,7 +108,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               {view === "reports" && <ReportsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
               {view === "import" && (
-                <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} onConnect={() => setConnecting(true)} />
+                <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
               )}
             </motion.div>
           </AnimatePresence>

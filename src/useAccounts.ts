@@ -38,6 +38,8 @@ export function useAccounts() {
   };
 
   const remove = (id: string) => commit(ref.current.filter((a) => a.id !== id));
+  /** Starting balance taken from an imported balance history (MT5 report / TradingView balance export). */
+  const setStartBalance = (id: string, startBalance: number) => commit(ref.current.map((a) => (a.id === id ? { ...a, startBalance } : a)));
 
   /**
    * Finds the MT5 account an imported report belongs to (by account number),
@@ -48,6 +50,7 @@ export function useAccounts() {
     currency: string | null;
     server: string | null;
     deposit: number | null;
+    startBalance?: number | null;
     preferId?: string;
   }): { account: Account; created: boolean } => {
     const list = ref.current;
@@ -71,12 +74,12 @@ export function useAccounts() {
       platform: "mt5",
       name: info.login ? `MT5 ${info.login}` : "MetaTrader 5",
       currency: info.currency ?? "USD",
-      startBalance: info.deposit ?? 0,
+      startBalance: info.startBalance ?? info.deposit ?? 0,
       ...(info.login ? { login: info.login } : {}),
       ...(info.server ? { server: info.server } : {}),
     });
     return { account, created: true };
   };
 
-  return { accounts, add, remove, resolveMt5 };
+  return { accounts, add, remove, resolveMt5, setStartBalance };
 }

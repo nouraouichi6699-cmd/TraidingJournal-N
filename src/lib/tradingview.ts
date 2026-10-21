@@ -1,12 +1,17 @@
 import { parseCsv, parseDate, parseNum } from "./csv";
 import type { BalancePoint } from "../types";
+import { classifyFlow, type ImportedFlow } from "./cashflow";
 
 export type ParsedTrade = Omit<import("../types").Trade, "key" | "accountId"> & { orderId?: string };
 
 export type ParseResult =
   | { kind: "trades"; trades: ParsedTrade[]; currency: string | null }
-  | { kind: "balance"; points: BalancePoint[] }
+  | { kind: "balance"; points: BalancePoint[]; startBalance: number | null; firstTrade: string | null; flows: ImportedFlow[]; preFlows: ImportedFlow[] }
   | { kind: "unknown" };
+
+/** Balance-history actions that are external money (any export language), and account resets. */
+const FLOW = /deposit|withdraw|dépôt|depot|retrait|einzahl|auszahl|depósito|retiro|إيداع|سحب|credit|crédit|ائتمان/i;
+const RESET = /reset|réinit|إعادة/i;
 
 const ENTRY = /entr|entry|enter|دخول/i;
 const EXIT = /sort|exit|close|خروج/i;
@@ -75,13 +80,29 @@ export function parseTradingViewCsv(text: string): ParseResult {
     parseNum(first[2]) != null
   ) {
     const points: BalancePoint[] = [];
-    for (const r of data) {
+    const rows2: { t: string; before: number; after: number; action: string; i: number }[] = [];
+    data.forEach((r, i) => {
       const t = parseDate(r[0]);
-      const after = parseNum(r[2]);
+      const before = parseNum(r[1]), after = parseNum(r[2]);
       if (t && after != null) points.push({ t, balance: after });
-    }
+      if (t && before != null && after != null) rows2.push({ t, before, after, action: r[5] ?? "", i });
+    });
     points.sort((a, b) => a.t.localeCompare(b.t));
-    return points.length ? { kind: "balance", points } : { kind: "unknown" };
+    // Exports are usually newest first: put them in time order (file order breaks ties, oldest row last in the file).
+    rows2.sort((a, b) => a.t.localeCompare(b.t) || b.i - a.i);
+    const isFlow = (x: (typeof rows2)[number]) => FLOW.test(x.action) || RESET.test(x.action);
+    const first = rows2.findIndex((x) => !isFlow(x));
+    const flows: ImportedFlow[] = [], preFlows: ImportedFlow[] = [];
+    let startBalance: number | null = null, firstTrade: string | null = null;
+    const asFlow = (x: (typeof rows2)[number]): ImportedFlow | null => {
+      const d = Math.round((x.after - x.before) * 100) / 100;
+      return d === 0 ? null : { t: x.t, ...classifyFlow(RESET.test(x.action) ? "reset" : x.action, d) }; // a paper-account reset is new external money
+    };
+    if (first >= 0) {
+      startBalance = rows2[first].before; firstTrade = rows2[first].t;
+      rows2.forEach((x, i) => { if (i === first || !isFlow(x)) return; const f = asFlow(x); if (f) (i < first ? preFlows : flows).push(f); });
+    } else if (rows2.length) startBalance = rows2[rows2.length - 1].after;
+    return points.length ? { kind: "balance", points, startBalance, firstTrade, flows, preFlows } : { kind: "unknown" };
   }
 
   return parseGenericTrades(header, data);

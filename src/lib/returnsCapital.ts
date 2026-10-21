@@ -59,11 +59,12 @@ function returns(b: [string, number][], start: number, fl: { d: string; v: numbe
  * @param before  trades of the same accounts that fall BEFORE the period (for the starting balance)
  * @param initial sum of the accounts' initial balances
  */
-export function computeReturnsCapital(period: Trade[], before: Trade[], initial: number, flows: { before: CashFlow[]; period: CashFlow[] } = { before: [], period: [] }, current?: number | null): ReturnsCapital {
+export function computeReturnsCapital(period: Trade[], before: Trade[], initial: number, flows: { before: CashFlow[]; period: CashFlow[]; known?: boolean } = { before: [], period: [] }, current?: number | null): ReturnsCapital {
   const closed = period.filter(closedOnly), prior = before.filter(closedOnly);
   const n = closed.length, why: ReturnsCapital["why"] = { sEq: "noEquity", cEq: "noEquity", eEq: "noEquity", hiEq: "noEquity" };
-  // Cash-flow metrics exist only once at least one flow has been recorded; an empty ledger means "unknown", not "zero".
-  const cashKnown = flows.before.length + flows.period.length > 0;
+  // Cash-flow metrics exist once at least one flow is recorded, or when the caller knows the ledger is complete
+  // (imported broker balance history): otherwise an empty ledger means "unknown", not "zero".
+  const cashKnown = flows.known ?? flows.before.length + flows.period.length > 0;
   const ft = cashKnown ? flowTotals(flows.period) : null;
   for (const id of ["twr", "ann", "netDep", "totDep", "totWd", "netFlow", "credits", "depN", "wdN", "credN", "avgDep", "avgWd"]) if (!cashKnown) why[id] = "noCash";
   if (ft && ft.avgDep == null) why.avgDep = "noDeposits";

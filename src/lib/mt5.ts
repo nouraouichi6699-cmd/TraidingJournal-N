@@ -2,15 +2,26 @@ import { readSheet } from "read-excel-file/browser";
 import { parseDate, parseNum } from "./csv";
 import type { BalancePoint } from "../types";
 import type { ParsedTrade } from "./tradingview";
+import { classifyFlow, type ImportedFlow } from "./cashflow";
 
 export interface Mt5Report {
   login: string | null;
   currency: string | null;
   server: string | null;
   deposit: number | null;
+  /** Balance just before the first trading deal of the report (deposits before it are part of it). */
+  startBalance: number | null;
+  /** Time of the first trading deal: the start balance is valid from here. */
+  firstTrade: string | null;
+  /** Balance operations AFTER the first trading deal. */
+  flows: ImportedFlow[];
+  /** Balance operations BEFORE the first trading deal (already inside startBalance). */
+  preFlows: ImportedFlow[];
   trades: ParsedTrade[];
   points: BalancePoint[];
 }
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
 
 type Cell = unknown;
 
@@ -53,8 +64,9 @@ export async function parseMt5Html(file: File): Promise<Mt5Report | null> {
   return parseMt5Rows(rows);
 }
 
-function parseMt5Rows(rows: Cell[][]): Mt5Report | null {
-  const report: Mt5Report = { login: null, currency: null, server: null, deposit: null, trades: [], points: [] };
+export function parseMt5Rows(rows: Cell[][]): Mt5Report | null {
+  const report: Mt5Report = { login: null, currency: null, server: null, deposit: null, startBalance: null, firstTrade: null, flows: [], preFlows: [], trades: [], points: [] };
+  const tx: { t: string; sym: string; type: string; money: number; profit: number; bal: number }[] = [];
 
   for (const r of rows) {
     // "111419341 (USD, MetaQuotes-Demo, demo, Hedge)"
@@ -102,8 +114,29 @@ function parseMt5Rows(rows: Cell[][]): Mt5Report | null {
       const t = when(r[0]) as string;
       if (/^balance$/i.test(text(r[3]).trim()) && report.deposit == null) report.deposit = num(r[11]);
       report.points.push({ t, balance: num(r[12]) as number });
+      const profit = num(r[11]) ?? 0;
+      tx.push({ t, sym: text(r[2]).trim(), type: text(r[3]).trim(), money: (num(r[8]) ?? 0) + (num(r[9]) ?? 0) + (num(r[10]) ?? 0) + profit, profit, bal: num(r[12]) as number });
     }
   }
+
+  // Ledger: the start balance is the balance just before the first trading deal (a deal with a symbol);
+  // non-trading deals (no symbol) are cash flows, sized by how much they moved the balance column, so the ledger
+  // reconciles with the report exactly (a credit that does not touch the balance adds nothing). Shape based: any report language.
+  const ord = tx.map((x, i) => ({ ...x, i })).sort((a, b) => a.t.localeCompare(b.t) || a.i - b.i);
+  const first = ord.findIndex((x) => x.sym !== "");
+  ord.forEach((x, k) => {
+    if (x.sym !== "") return;
+    const prev = k > 0 ? ord[k - 1].bal : x.bal - x.money;
+    const d = r2(x.bal - prev);
+    if (d === 0) return;
+    const f = { t: x.t, ...classifyFlow(x.type, d) };
+    if (first < 0 || k < first) report.preFlows.push(f); else report.flows.push(f);
+  });
+  if (first >= 0) {
+    const f = ord[first];
+    report.startBalance = r2(f.bal - f.money);
+    report.firstTrade = f.t;
+  } else if (ord.length) report.startBalance = r2(ord[ord.length - 1].bal);
 
   report.points.sort((a, b) => a.t.localeCompare(b.t));
   return report.trades.length || report.points.length ? report : null;

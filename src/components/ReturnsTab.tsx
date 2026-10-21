@@ -98,8 +98,8 @@ const MAP: Record<string, [keyof ReturnsCapital, Kind, boolean]> = {
 };
 const WHY: Record<RcWhy, L> = {
   noTrades: ["No closed trades in this period.", "لا توجد صفقات مغلقة في هذه الفترة.", "Aucun trade clôturé sur la période."],
-  noStart: ["Insufficient data: needs a positive starting balance on the account.", "بيانات غير كافية: يلزم رصيد ابتدائي موجب للحساب.", "Données insuffisantes : solde initial positif requis."],
-  noCash: ["Insufficient data: deposits, withdrawals and credits are not recorded.", "بيانات غير كافية: الإيداعات والسحوبات والائتمانات غير مسجّلة.", "Données insuffisantes : dépôts, retraits et crédits non enregistrés."],
+  noStart: ["Insufficient data: no starting balance. Import an MT5 report or a TradingView balance history (or enter it on the account).", "بيانات غير كافية: لا يوجد رصيد ابتدائي. استورد تقرير MT5 أو سجل رصيد TradingView (أو أدخله في الحساب).", "Données insuffisantes : pas de solde initial. Importez un rapport MT5 ou l'historique de solde TradingView."],
+  noCash: ["Insufficient data: no deposits/withdrawals recorded yet. They are read from MT5 reports and TradingView balance history, or can be added above.", "بيانات غير كافية: لا توجد إيداعات/سحوبات مسجّلة بعد. تُقرأ من تقارير MT5 وسجل رصيد TradingView، أو تُضاف من الأعلى.", "Données insuffisantes : aucun dépôt/retrait enregistré. Ils sont lus dans les rapports MT5 et l'historique TradingView, ou ajoutés ci-dessus."],
   noEquity: ["Insufficient data: equity history / open-position P&L is not stored.", "بيانات غير كافية: سجل حقوق الملكية وأرباح الصفقات المفتوحة غير محفوظ.", "Données insuffisantes : historique d'equity non stocké."],
   fewDays: ["Needs at least 2 trading days.", "يلزم يومان تداول على الأقل.", "Au moins 2 jours de trading requis."],
   noWins: ["No profitable days in this period.", "لا توجد أيام رابحة في هذه الفترة.", "Aucun jour gagnant sur la période."],
