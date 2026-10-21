@@ -4,14 +4,14 @@ import { ChevronDown, Crosshair, Download, X, Wallet, CandlestickChart, FileSpre
 import RangePicker from "./RangePicker";
 import Dropdown from "./Dropdown";
 import SymbolIcon from "./SymbolIcon";
-import { Heatmap, WhatIfPanel } from "./ChartLab";
+import { GoldenRules, Heatmap, SizeTable, WhatIfPanel, oddsLine } from "./ChartLab";
 import { usePrivacy } from "../usePrivacy";
 import { fmt, computeStats } from "../lib/stats";
 import { commonCurrency, currencySuffix, fmtMoney, ltrNumbers } from "../lib/money";
 import { balanceSeries } from "../lib/balance";
 import { signed, type CashFlow } from "../lib/cashflow";
 import { barsCsv, histogram, maxDrawdownWindow, monteCarlo, rollingSeries, seriesCsv, type DdWindow, type McResult, type RollKind } from "../lib/chartAnalytics";
-import { applyWhatIf, cumCurve, heatmap, labStats, propCheck, rMultiple, tiltSplit, type HeatCell, type PropResult, type PropRules, type WhatIfRules } from "../lib/tradeLab";
+import { applyWhatIf, cumCurve, currentRisk, findRules, heatmap, labStats, propCheck, propOdds, rMultiple, sizing, tiltSplit, type HeatCell, type PropOdds, type PropResult, type PropRules, type RuleIdea, type Sizing, type WhatIfRules } from "../lib/tradeLab";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
@@ -33,8 +33,8 @@ const RED = "#f87171";
 const PALETTE = ["#f5b83d", "#22c55e", "#60a5fa", "#f472b6", "#a78bfa", "#fb923c", "#2dd4bf", "#f87171"];
 const RANGES = ["all", "1M", "3M", "6M", "YTD", "1Y", "custom"] as const;
 type Range = (typeof RANGES)[number];
-type Metric = "profit" | "balance" | "drawdown" | "periods" | "rolling" | "dist" | "mc" | "whatif" | "heat" | "rmult" | "tilt";
-const MORE: Metric[] = ["rolling", "dist", "mc", "whatif", "heat", "rmult", "tilt"]; // analyses behind the "More" menu
+type Metric = "profit" | "balance" | "drawdown" | "periods" | "rolling" | "dist" | "mc" | "whatif" | "heat" | "rmult" | "tilt" | "size";
+const MORE: Metric[] = ["rolling", "dist", "mc", "whatif", "heat", "rmult", "tilt", "size"]; // analyses behind the "More" menu
 type Mode = "symbol" | "account";
 type Bucket = "day" | "week" | "month" | "session" | "weekday" | "hour" | "side";
 type Pt = { t: number; v: number };
@@ -42,16 +42,17 @@ type Bar = { key: string; label: string; v: number; n: number; color?: string; t
 type Mark = { t: number; kind: CashFlow["type"]; title: string };
 type Stats = { net: number; n: number; winRate: number | null; pf: number | null; maxDD?: number };
 type Series = { id: string; name: string; color: string; pts: Pt[]; bars: Bar[]; stats: Stats; base: number; dd?: DdWindow | null; ddText?: string; ddSub?: string; marks?: Mark[]; band?: { lo: Pt[]; hi: Pt[] }; mc?: McResult | null; median?: number; guides?: { pts: Pt[]; color: string; label: string }[]; prop?: PropResult | null; propNote?: { text: string; tone: "ok" | "bad" | "info" }; alerts?: { t: number; title: string }[];
-  twin?: { pts: Pt[]; stats: Stats }; heat?: HeatCell[][]; rInfo?: { n: number; total: number; avg: number | null; avgWin: number | null; avgLoss: number | null }; tilt?: { normal: { n: number; net: number }; after: { n: number; net: number } } };
+  twin?: { pts: Pt[]; stats: Stats }; heat?: HeatCell[][]; rInfo?: { n: number; total: number; avg: number | null; avgWin: number | null; avgLoss: number | null }; tilt?: { normal: { n: number; net: number }; after: { n: number; net: number } };
+  ideas?: RuleIdea[]; odds?: PropOdds | null; size?: Sizing };
 
 interface Saved {
   metric: Metric; selected: string[]; selectedAcc: string[]; colors: Record<string, string>;
   range: Range; split: boolean; smooth: boolean; bucket: Bucket; unit: "money" | "pct"; v?: number;
   roll: RollKind; rollN: number; showDD: boolean; from?: string; to?: string;
-  whatIf: WhatIfRules; tiltMin: number; heatVal: "net" | "win" | "n"; propOn: boolean; prop: PropRules;
+  whatIf: WhatIfRules; tiltMin: number; heatVal: "net" | "win" | "n"; propOn: boolean; prop: PropRules; propDays: number;
 }
 const defaults: Saved = { metric: "profit", selected: [ALL], selectedAcc: [ALL], colors: {}, range: "all", split: false, smooth: true, bucket: "day", unit: "money", roll: "win", rollN: 20, showDD: true,
-  whatIf: {}, tiltMin: 30, heatVal: "net", propOn: false, prop: { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false } };
+  whatIf: {}, tiltMin: 30, heatVal: "net", propOn: false, prop: { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false }, propDays: 0 };
 const load = (): Saved => {
   try {
     const p = JSON.parse(localStorage.getItem(STORE) ?? "{}");
@@ -147,6 +148,8 @@ interface ChartProps {
   fill?: boolean; // data spans the full width (no open space on the right)
   refLine?: number; // dashed reference level (50% win rate, profit factor 1...)
   fromStart?: boolean; // "since start" line in the tooltip
+  csvX?: [string, (x: number) => string]; // CSV x column (header, format) when x is not a time
+  noEnd?: boolean; // no end-of-line badge (the last point means nothing special, e.g. a risk curve)
   showDD?: boolean; // max-drawdown annotation (series that carry `dd`)
   onOpenDay?: (t: number, seriesId: string | null, barKey?: string) => void;
 }
@@ -187,7 +190,7 @@ function download(text: string, file: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
-function Chart({ series, lang, money, cur, pct, height, label, title, smooth, kind, t, axisFmt, badgeFmt, xFmt, fill, refLine, fromStart = true, showDD, onOpenDay }: ChartProps) {
+function Chart({ series, lang, money, cur, pct, height, label, title, smooth, kind, t, axisFmt, badgeFmt, xFmt, fill, refLine, fromStart = true, showDD, onOpenDay, csvX, noEnd }: ChartProps) {
   const bidi = (s: string) => (lang === "ar" ? ltrNumbers(s) : s); // Arabic text with numbers: keep "59$" in reading order
   const wrap = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -307,7 +310,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
           const file = `mizan-${title.toLowerCase().replace(/\W+/g, "-").replace(/^-+|-+$/g, "")}.csv`;
           if (bars) return download(barsCsv(barList.map((b) => ({ label: b.tip ?? b.label, v: b.v, n: b.n })), [t("chPeriods"), label, t("monthTrades")]), file);
           const cols = series.flatMap((s) => [{ name: s.name, pts: s.pts }, ...(s.band ? [{ name: `${s.name} 5%`, pts: s.band.lo }, { name: `${s.name} 95%`, pts: s.band.hi }] : [])]);
-          download(xFmt ? seriesCsv(cols, "trade", (x) => String(Math.round(x))) : seriesCsv(cols), file);
+          download(xFmt ? seriesCsv(cols, ...(csvX ?? ["trade", (x: number) => String(Math.round(x))])) : seriesCsv(cols), file);
         }}
         className="absolute end-10 top-0 z-10 grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface/80 opacity-0 backdrop-blur transition-opacity hover:border-icon focus:opacity-100 group-hover:opacity-100"
       >
@@ -390,7 +393,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
             {series.map((s, k) => (
               <path key={s.id} opacity={dim(s.id)} d={linePath(drawn[k])} fill="none" stroke={s.color} strokeWidth={multi ? 2 : 2.6} strokeLinecap="round" strokeLinejoin="round" />
             ))}
-            {series.map((s, k) => {
+            {!noEnd && series.map((s, k) => {
               const last = drawn[k][drawn[k].length - 1];
               const lv = s.pts[s.pts.length - 1].v;
               const text = badgeFmt ? badgeFmt(lv) : pct ? `${lv > 0 ? "+" : ""}${fmt(lv, 1)}%` : hide ? "•••" : `${lv < 0 ? "-" : ""}${fmt(Math.abs(lv), 0)}${cur}`;
@@ -500,7 +503,7 @@ function Chart({ series, lang, money, cur, pct, height, label, title, smooth, ki
             </>
           ) : (
             <>
-              <p className="mb-1 text-muted">{fmtDate(active)} · UTC{pinned != null ? " 📌" : ""}</p>
+              <p className="mb-1 text-muted">{fmtDate(active)}{xFmt ? "" : " · UTC"}{pinned != null ? " 📌" : ""}</p>
               {hoverSeries.map((s) => {
                 const v = valueAt(s.pts, active);
                 return (
@@ -651,7 +654,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         }
         if (metric === "whatif") {
           const wi = applyWhatIf(shown, st.whatIf), ws = labStats(wi), as = labStats(shown);
-          return { id, name, color, pts: cumCurve(shown), bars: [], stats: { ...stats, maxDD: as.maxDD }, base, twin: { pts: cumCurve(wi), stats: { net: ws.net, n: ws.n, winRate: ws.winRate, pf: ws.pf, maxDD: ws.maxDD } } };
+          return { id, name, color, pts: cumCurve(shown), bars: [], stats: { ...stats, maxDD: as.maxDD }, base, twin: { pts: cumCurve(wi), stats: { net: ws.net, n: ws.n, winRate: ws.winRate, pf: ws.pf, maxDD: ws.maxDD } }, ideas: findRules(shown) };
         }
         if (metric === "heat") return { id, name, color, pts: [], bars: [], stats, base, heat: heatmap(shown) };
         if (metric === "rmult") {
@@ -665,6 +668,15 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
             sub: `${b.count} ${t("chInBin")}`,
           }));
           return { id, name, color, pts: [], bars, stats, base, rInfo: { n: rs.length, total: shown.length, avg: mean(rs), avgWin: mean(rs.filter((r) => r > 0)), avgLoss: mean(rs.filter((r) => r < 0)) } };
+        }
+        if (metric === "size") {
+          // "Your risk" needs one account's balance: the account of this curve, or the only account in view (whole history).
+          const own = byAcc && id !== ALL ? accounts.find((a) => a.id === id) : accsInView.length === 1 ? accsInView[0] : undefined;
+          const sz = sizing(shown.map(rMultiple).filter((x): x is number => x != null), { current: own ? currentRisk(closed.filter((x) => x.accountId === own.id), own.startBalance) : null });
+          if (!sz) return { id, name, color, pts: [], bars: [], stats, base };
+          const stem = (f: number, c: string, lbl: string) => ({ pts: [{ t: f * 100, v: 0 }, { t: f * 100, v: lerpAt(sz.curve, f * 100) }], color: c, label: lbl }); // from 0 growth up to the curve
+          const guides = sz.kelly > 0 ? [stem(sz.quarter.f, "#60a5fa", t("chQuarterKelly")), stem(sz.half.f, GREEN, t("chHalfKelly")), stem(sz.kelly, RED, t("chKelly")), ...(sz.current ? [stem(sz.current.f, "var(--muted)", t("chYourRisk"))] : [])] : [];
+          return { id, name, color, pts: sz.curve, bars: [], stats, base, size: sz, guides };
         }
         if (metric === "tilt") {
           const g = tiltSplit(shown, st.tiltMin);
@@ -722,7 +734,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
           }
         }
         // Prop-firm rules on the balance curve: max-loss floor, profit target, days that broke the daily loss limit.
-        let prop: PropResult | null = null, guides: Series["guides"], alerts: Series["alerts"], propNote: Series["propNote"];
+        let prop: PropResult | null = null, guides: Series["guides"], alerts: Series["alerts"], propNote: Series["propNote"], odds: PropOdds | null = null;
         if (metric === "balance" && st.propOn && pts.length > 1 && (id !== ALL || accsInView.length === 1)) { // a prop firm judges each account on its own
           prop = propCheck(pts, shown, base, st.prop);
           if (prop) {
@@ -734,16 +746,17 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
             propNote = prop.status === "passed" && prop.targetT != null ? { tone: "ok", text: `${t("chPropPassed")} · ${dayFmt.format(new Date(prop.targetT))}` }
               : prop.status === "failed" && prop.failT != null ? { tone: "bad", text: `${t("chPropFailed")} ${dayFmt.format(new Date(prop.failT))} · ${t(prop.failT === prop.floorBreachT ? "chPropFloor" : "chPropDayBreach")}` }
               : { tone: "info", text: [t("chPropActive"), ...(st.prop.maxDDPct > 0 ? [`${moneyBase(prop.toFloor)} ${t("chPropToFloor")}`] : []), ...(st.prop.targetPct > 0 ? [`${moneyBase(prop.toTarget)} ${t("chPropToTarget")}`] : [])].join(" · ") };
+            odds = propOdds(shown, base, st.prop, { horizon: st.propDays || 250 }); // a new attempt, trading like in this period
           }
         }
-        return { id, name, color, pts, bars: [], stats, base, dd, ddText, ddSub, marks, prop, propNote, guides, alerts };
+        return { id, name, color, pts, bars: [], stats, base, dd, ddText, ddSub, marks, prop, propNote, guides, alerts, odds };
       })
       .filter((s) => (metric === "heat" ? (s.heat ?? []).some((r) => r.some((c) => c.n > 0)) : metric === "periods" || metric === "dist" || metric === "rmult" || metric === "tilt" ? s.bars.some((b) => b.n > 0) : s.pts.length > 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.propOn, st.prop, cutoff, until, balances, flows, acc, byAcc, lang, accounts, startSum, hideMoney, currency]);
+  }, [scope, chosen.join("|"), metric, st.colors, st.bucket, st.roll, st.rollN, st.whatIf, st.tiltMin, st.propOn, st.prop, st.propDays, cutoff, until, balances, flows, acc, byAcc, lang, accounts, startSum, hideMoney, currency]);
 
   // $ / % : percent is relative to the starting balance (balance view: change since the start). Rolling / distribution / simulation have their own units.
-  const unitless = metric === "rolling" || metric === "dist" || metric === "mc" || metric === "heat" || metric === "rmult" || metric === "tilt";
+  const unitless = metric === "rolling" || metric === "dist" || metric === "mc" || metric === "heat" || metric === "rmult" || metric === "tilt" || metric === "size";
   const canPct = !unitless && rawSeries.length > 0 && rawSeries.every((x) => x.base > 0);
   const pctMode = st.unit === "pct" && canPct;
   const series: Series[] = useMemo(() => {
@@ -757,7 +770,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   }, [rawSeries, pctMode, metric, lang]); // eslint-disable-line react-hooks/exhaustive-deps
   const rollFmt = st.roll === "win" ? (n: number) => `${fmt(n, 1)}%` : st.roll === "pf" ? (n: number) => fmt(n, 2) : moneyBase;
   const rFmt = (n: number) => `${n > 0 ? "+" : ""}${fmt(n, 2)}R`;
-  const money = metric === "rolling" ? rollFmt : metric === "rmult" ? rFmt : pctMode ? (n: number) => `${n > 0 ? "+" : ""}${fmt(n)}%` : moneyBase;
+  const growthFmt = (n: number) => `${n > 0 ? "+" : ""}${fmt(n, Math.abs(n) >= 100 ? 0 : 1)}%`;
+  const money = metric === "rolling" ? rollFmt : metric === "rmult" ? rFmt : metric === "size" ? growthFmt : pctMode ? (n: number) => `${n > 0 ? "+" : ""}${fmt(n)}%` : moneyBase;
 
   // ----- headline -----
   const head = series[0];
@@ -795,6 +809,12 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
       const x = head.tilt;
       headVal = x && x.after.n ? x.after.net / x.after.n : 0;
       if (x) sub = `${t("chTiltAfter")} · ${t("chAvg")} ${x.after.n ? moneyBase(x.after.net / x.after.n) : "—"} (${x.after.n} ${t("monthTrades")}) · ${t("chTiltNormal")} ${t("chAvg")} ${x.normal.n ? moneyBase(x.normal.net / x.normal.n) : "—"} · ${t("chTiltHint")}`;
+    } else if (metric === "size") {
+      const z = head.size;
+      headVal = z ? z.half.f * 100 : 0;
+      if (z) sub = z.kelly > 0
+        ? `${t("chHalfKelly")} (${t("chSuggested")}) · ${t("chKelly")} ${fmt(z.kelly * 100, 2)}%${z.capped ? ` (${t("chKellyCap")})` : ""}${z.current ? ` · ${t("chYourRisk")} ≈ ${fmt(z.current.f * 100, 2)}%` : ""} · ${z.n} ${t("chWithSL")} · ${t("chSizeHint")}`
+        : `${t("chNoEdge")} · ${z.n} ${t("chWithSL")}`;
     } else if (metric === "rolling") {
       headVal = head.pts[head.pts.length - 1].v;
       sub = `${t("chWindow")} ${st.rollN} ${t("monthTrades")} · ${t("chRollHint")}`;
@@ -805,24 +825,26 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
       headVal = head.pts[head.pts.length - 1].v;
       const first = head.pts[0].v;
       pct = metric === "balance" ? (first ? ((headVal - first) / Math.abs(first)) * 100 : null) : startAll ? (headVal / startAll) * 100 : null;
-      if (metric === "balance" && st.propOn) sub = head.propNote?.text ?? (series.some((x) => x.propNote) ? "" : t("chPropPick"));
+      if (metric === "balance" && st.propOn) sub = [head.propNote?.text ?? (series.some((x) => x.propNote) ? "" : t("chPropPick")), head.odds ? oddsLine(head.odds, t) : ""].filter(Boolean).join(" · ");
     }
   }
-  const label = (m: Metric) => t(({ profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods", rolling: "chRolling", dist: "chDist", mc: "chMC", whatif: "chWhatIf", heat: "chHeat", rmult: "chRmult", tilt: "chTilt" } as const)[m]);
+  const label = (m: Metric) => t(({ profit: "chProfit", balance: "chBalance", drawdown: "chDrawdown", periods: "chPeriods", rolling: "chRolling", dist: "chDist", mc: "chMC", whatif: "chWhatIf", heat: "chHeat", rmult: "chRmult", tilt: "chTilt", size: "chSize" } as const)[m]);
   const lineKind = metric === "drawdown" ? "dd" : "line";
   const isBars = metric === "periods" || metric === "dist" || metric === "rmult" || metric === "tilt";
   const split = (st.split || isBars) && metric !== "whatif"; // what-if compares two lines on one chart
   const toggle = (id: string) => setChosen(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
-  const value = (s: Series) => (metric === "dist" ? s.median ?? 0 : metric === "rmult" ? s.rInfo?.avg ?? 0 : metric === "tilt" ? (s.tilt && s.tilt.after.n ? s.tilt.after.net / s.tilt.after.n : 0) : isBars ? s.bars.reduce((a, b) => a + b.v, 0) : metric === "mc" ? s.mc?.finalP50 ?? 0 : metric === "drawdown" ? Math.min(...s.pts.map((p) => p.v)) : s.pts[s.pts.length - 1]?.v ?? 0);
+  const value = (s: Series) => (metric === "size" ? (s.size?.half.f ?? 0) * 100 : metric === "dist" ? s.median ?? 0 : metric === "rmult" ? s.rInfo?.avg ?? 0 : metric === "tilt" ? (s.tilt && s.tilt.after.n ? s.tilt.after.net / s.tilt.after.n : 0) : isBars ? s.bars.reduce((a, b) => a + b.v, 0) : metric === "mc" ? s.mc?.finalP50 ?? 0 : metric === "drawdown" ? Math.min(...s.pts.map((p) => p.v)) : s.pts[s.pts.length - 1]?.v ?? 0);
+  const valueText = (s: Series) => (metric === "size" ? `${fmt(value(s), 2)}%` : money(value(s))); // position size: the suggested risk, not a growth
   const metrics: Metric[] = byAcc ? ["profit", "balance", "drawdown", "periods"] : ["profit", "drawdown", "periods"];
   // Chart options per metric: units, reference line, x axis (Monte Carlo runs on trade numbers, not dates).
   const chartOpts = metric === "rolling"
     ? { axisFmt: st.roll === "win" ? (v: number, d: number) => `${fmt(v, d)}%` : st.roll === "pf" ? (v: number, d: number) => fmt(v, Math.max(d, 1)) : undefined, badgeFmt: rollFmt, refLine: st.roll === "win" ? 50 : st.roll === "pf" ? 1 : 0, fromStart: false }
     : metric === "dist" || metric === "rmult" ? { axisFmt: (v: number) => fmt(v, 0) }
     : metric === "mc" ? { xFmt: (x: number) => `${t("chTradeNo")}${Math.round(x)}`, fill: true, fromStart: false }
+    : metric === "size" ? { xFmt: (x: number) => `${fmt(x, 2)}%`, axisFmt: (v: number, d: number) => `${fmt(v, d)}%`, badgeFmt: growthFmt, fill: true, fromStart: false, refLine: 0, noEnd: true, csvX: ["risk_pct", (x: number) => x.toFixed(3)] as [string, (x: number) => string] }
     : {};
   if (st.range === "custom" && metric !== "mc") Object.assign(chartOpts, { fill: true }); // a closed custom range ends at its last day: no open space with dates beyond it
-  const openDay = onOpenDay && !["dist", "mc", "heat", "rmult", "tilt"].includes(metric) && (metric !== "periods" || st.bucket === "day")
+  const openDay = onOpenDay && !["dist", "mc", "heat", "rmult", "tilt", "size"].includes(metric) && (metric !== "periods" || st.bucket === "day")
     ? (tm: number, sid: string | null, barKey?: string) => onOpenDay(barKey ?? new Date(tm).toISOString().slice(0, 10), byAcc ? (sid && sid !== ALL ? sid : null) : acc !== "all" ? acc : null)
     : undefined;
   const showDD = st.showDD && (metric === "profit" || metric === "balance");
@@ -894,7 +916,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
                   <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>
                 )}
               </div>
-              <p className={`w-fit font-heading text-3xl font-bold tnum ${metric === "drawdown" && headVal < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{money(headVal)}</p>
+              <p className={`w-fit font-heading text-3xl font-bold tnum ${metric === "drawdown" && headVal < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{metric === "size" ? `${fmt(headVal, 2)}%` : money(headVal)}</p>
               {sub && <p className="text-xs text-muted">{lang === "ar" ? ltrNumbers(sub) : sub}</p>}
             </div>
 
@@ -955,7 +977,9 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
                             </label>
                           ))}
                           <label className="flex items-center gap-2"><input type="checkbox" checked={st.prop.trailing} onChange={(e) => save({ prop: { ...st.prop, trailing: e.target.checked } })} className="accent-[var(--primary)]" />{t("chPropTrailing")}</label>
+                          <label className="flex items-center justify-between gap-3"><span>{t("chPropDays")}</span><input type="number" min={0} max={250} step={1} value={st.propDays} onChange={(e) => save({ propDays: Math.max(0, Math.min(250, Math.round(Number(e.target.value) || 0))) })} className="field !w-20 !py-1 text-end tnum" /></label>
                           <p className="text-xs text-muted">{t("chPropHint")}</p>
+                          <p className="text-xs text-muted">{t("chPropOddsHint")}</p>
                         </div>
                       )}
                     </Dropdown>
@@ -986,7 +1010,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
                       <button key={String(sp)} type="button" aria-pressed={st.split === sp} onClick={() => save({ split: sp })} className={seg(st.split === sp)}>{t(sp ? "chSplit" : "chOverlay")}</button>
                     ))}
                   </div>}
-                  {metric !== "drawdown" && metric !== "mc" && (
+                  {metric !== "drawdown" && metric !== "mc" && metric !== "size" && (
                     <div className={group} role="group">
                       {[true, false].map((sm) => (
                         <button key={String(sm)} type="button" aria-pressed={st.smooth === sm} onClick={() => save({ smooth: sm })} className={seg(st.smooth === sm)}>{t(sm ? "chSmooth" : "chStep")}</button>
@@ -1048,7 +1072,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
 
           {metric === "mc" && series.length > 0 && <p className="mt-3 text-xs text-muted">{t("chMcNote")}</p>}
           {series.length === 0 ? (
-            <p className="py-24 text-center text-sm text-muted">{t(metric === "rmult" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNoSL" : "chNoData")}</p>
+            <p className="py-24 text-center text-sm text-muted">{t(metric === "size" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNeed20SL" : metric === "rmult" && scope.some((x) => inRange(ts(x.exitTime))) ? "chNoSL" : "chNoData")}</p>
           ) : metric === "heat" ? (
             <div className="mt-4 flex flex-col gap-4">
               {series.map((s) => (
@@ -1064,24 +1088,29 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
               {series.map((s) => (
                 <div key={s.id} className="rounded-xl border border-border bg-bg/40 p-3">
                   <p className="mb-1 flex items-center gap-2 text-sm font-bold" dir="ltr"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}
-                    <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{money(value(s))}</span></p>
-                  <Chart series={[s]} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth && metric !== "mc"} kind={isBars ? "bars" : lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
+                    <span className="ms-auto tnum" style={{ color: isBars ? (value(s) >= 0 ? GREEN : RED) : s.color }}>{valueText(s)}</span></p>
+                  <Chart series={[s]} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={series.length > 1 ? cardH : oneH} label={label(metric)} title={`${label(metric)} ${s.name}`} smooth={st.smooth && metric !== "mc" && metric !== "size"} kind={isBars ? "bars" : lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
                   <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} />
+                  {s.size && s.size.kelly > 0 && <SizeTable z={s.size} t={t} rtl={lang === "ar"} />}
                 </div>
               ))}
             </div>
           ) : (
             <div className="mt-4">
-              <Chart series={series} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth && metric !== "mc"} kind={lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
+              <Chart series={series} lang={lang} money={money} cur={currencySuffix(currency)} pct={pctMode} height={chartH} label={label(metric)} title={`${label(metric)} · ${series.map((s) => s.name).join(", ")}`} smooth={st.smooth && metric !== "mc" && metric !== "size"} kind={lineKind} t={t} {...chartOpts} showDD={showDD} onOpenDay={openDay} />
               <div className="mt-3 flex flex-col gap-2">
                 {series.map((s) => (
                   <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border px-3 py-2" dir="ltr">
                     <span className="flex min-w-[130px] items-center gap-2 text-sm font-bold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />{s.name}</span>
-                    <span className="tnum text-sm font-bold" style={{ color: s.color }}>{money(value(s))}</span>
+                    <span className="tnum text-sm font-bold" style={{ color: s.color }}>{valueText(s)}</span>
                     <StatsRow s={s} money={moneyBase} t={t} rtl={lang === "ar"} inline />
+                    {s.size && s.size.kelly > 0 && <div className="w-full"><SizeTable z={s.size} t={t} rtl={lang === "ar"} /></div>}
                   </div>
                 ))}
               </div>
+              {metric === "whatif" && rawSeries[0] && (
+                <GoldenRules ideas={rawSeries[0].ideas ?? []} base={rawSeries[0].stats.maxDD ?? 0} current={st.whatIf} onApply={(whatIf) => save({ whatIf })} t={t} money={moneyBase} weekdays={WD} rtl={lang === "ar"} />
+              )}
             </div>
           )}
         </div>
@@ -1099,6 +1128,7 @@ function StatsRow({ s, money, t, inline, rtl }: { s: Series; money: (n: number) 
       <span className={chip}><span className="text-muted">{t("chWinRate")}</span><span className="tnum font-semibold">{s.stats.winRate == null ? "—" : `${fmt(s.stats.winRate, 1)}%`}</span></span>
       <span className={chip}><span className="text-muted">{t("chPF")}</span><span className="tnum font-semibold">{s.stats.pf == null ? "—" : fmt(s.stats.pf)}</span></span>
       {s.stats.maxDD != null && <span className={chip}><span className="text-muted">{t("chMaxDD")}</span><span className="tnum font-semibold" style={{ color: RED }}>{money(-s.stats.maxDD)}</span></span>}
+      {s.odds && <span className={chip}><span dir={rtl ? "rtl" : undefined} className="text-muted">{rtl ? ltrNumbers(oddsLine(s.odds, t)) : oddsLine(s.odds, t)}</span></span>}
       {s.propNote && <span className={`${chip} font-semibold`} style={{ color: s.propNote.tone === "ok" ? GREEN : s.propNote.tone === "bad" ? RED : undefined }}><span dir={rtl ? "rtl" : undefined}>{t("chProp")}: {rtl ? ltrNumbers(s.propNote.text) : s.propNote.text}</span></span>}
     </div>
   );

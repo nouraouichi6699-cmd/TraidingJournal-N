@@ -6,7 +6,7 @@ const KEY = "mizan-interests";
 interface Store { keys: string[]; read: string[]; lead: number }
 export interface NewsLike { id: string; title: string; sources: string[]; category: string; date: string; impact?: { assets: { sym: string }[] } }
 export interface EventLike { id: string; time: string; currency: string; title: string }
-export interface Notice { id: string; kind: "news" | "event" | "edge"; title: string; sub: string; time: number; soon: boolean; unread: boolean }
+export interface Notice { id: string; kind: "news" | "event" | "edge" | "week"; title: string; sub: string; time: number; soon: boolean; unread: boolean }
 
 const load = (): Store => {
   try {
@@ -83,7 +83,7 @@ export function useInterests(extra: Omit<Notice, "unread">[] = []) {
       out.push({ id, kind: "event", title: `${e.currency} · ${e.title}`, sub: "", time: t, soon, unread: !read.has(id) });
     }
     for (const x of extra) out.push({ ...x, unread: !read.has(x.id) });
-    const rank = { edge: 0, event: 1, news: 2 } as const; // trading alerts first, then upcoming events, then news
+    const rank = { edge: 0, week: 1, event: 2, news: 3 } as const; // trading alerts and the weekly report first, then upcoming events, then news
     return out.sort((a, b) => (a.kind === b.kind ? (a.kind === "event" ? a.time - b.time : b.time - a.time) : rank[a.kind] - rank[b.kind]));
   }, [news, events, store, now, extra]);
 

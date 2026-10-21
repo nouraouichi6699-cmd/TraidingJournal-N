@@ -1,4 +1,4 @@
-import { Newspaper, CalendarDays, X, CheckCheck, Heart, BellRing, TrendingDown } from "lucide-react";
+import { Newspaper, CalendarDays, X, CheckCheck, Heart, BellRing, TrendingDown, CalendarCheck } from "lucide-react";
 import type { Interests, Notice } from "../useInterests";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -26,7 +26,7 @@ export default function NotificationsPanel({ t, lang, interests, onNews, onCalen
 
   const go = (n: Notice) => {
     interests.markRead(n.id);
-    (n.kind === "news" ? onNews : n.kind === "edge" ? onCharts ?? onCalendar : onCalendar)();
+    (n.kind === "news" ? onNews : n.kind === "edge" || n.kind === "week" ? onCharts ?? onCalendar : onCalendar)();
     close();
   };
   const section = (kind: Notice["kind"], title: Key, Icon: typeof Newspaper) => {
@@ -68,6 +68,7 @@ export default function NotificationsPanel({ t, lang, interests, onNews, onCalen
           </div>
         )}
         {section("edge", "notifEdgeTitle", TrendingDown)}
+        {section("week", "notifWeekTitle", CalendarCheck)}
         {section("event", "notifEvents", CalendarDays)}
         {section("news", "notifNews", Newspaper)}
       </div>

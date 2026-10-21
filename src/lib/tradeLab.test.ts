@@ -1,5 +1,5 @@
 // Run: npx tsx src/lib/tradeLab.test.ts
-import { applyWhatIf, cumCurve, edgeAlerts, heatmap, labStats, propCheck, rMultiple, tiltSplit } from "./tradeLab";
+import { applyWhatIf, cumCurve, currentRisk, edgeAlerts, findRules, heatmap, labStats, logGrowth, propCheck, propOdds, rMultiple, sizing, tiltSplit, weeklyReport } from "./tradeLab";
 import type { Trade } from "../types";
 let pass = 0, fail = 0;
 const near = (a: number | null | undefined, b: number | null, tol = 0.01) => (a == null || b == null ? a === b : Math.abs(a - b) <= tol);
@@ -80,6 +80,13 @@ console.log("-- Prop-firm rules (start 10,000: daily 5%, max 10%, target 10%)");
   is("target first: passed", ok.status === "passed" && ok.toTarget === 0);
   is("no start balance: null", propCheck(curve, [], 0, { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false }) === null);
 }
+{ // the daily limit is checked during the day: -600 then +500 (day total -100) still breaks a 500 limit
+  const x = [T("2026-01-08T08:00", "2026-01-08T09:00", -600), T("2026-01-08T10:00", "2026-01-08T11:00", 500)];
+  const r = propCheck([{ t: 0, v: 10000 }, { t: Date.parse("2026-01-08T11:00Z"), v: 9900 }], x, 10000, { dailyLossPct: 5, maxDDPct: 0, targetPct: 0, trailing: false })!;
+  is("intraday breach found", r.dailyBreaches.length === 1 && r.dailyBreaches[0].day === "2026-01-08", JSON.stringify(r.dailyBreaches));
+  t("breach shows the day's low (-600)", r.dailyBreaches[0]?.pnl, -600);
+  is("breach time = close of the trade that broke it", r.dailyBreaches[0]?.t === Date.parse("2026-01-08T09:00Z"));
+}
 
 console.log("-- Edge alerts (last 5 trades)");
 { const mk = (vals: number[], acc = "a") => vals.map((p, i) => T(`2026-02-${String(i + 1).padStart(2, "0")}T08:00`, `2026-02-${String(i + 1).padStart(2, "0")}T09:00`, p, { accountId: acc }));
@@ -92,5 +99,91 @@ console.log("-- Edge alerts (last 5 trades)");
   is("same alert while the run continues (same key)", longer[0]?.key === a[0]?.key);
   is("positive edge -> no alert", edgeAlerts(mk([5, 5, 5, 5, 5, 5]), 5).length === 0);
   is("fewer trades than the window -> no alert", edgeAlerts(mk([-5, -5]), 5).length === 0);
+}
+
+console.log("-- Golden rules");
+{ // 4 weeks: Mon-Thu +50, Fri -100 (all London, long, EURUSD)
+  const x: Trade[] = [];
+  for (const mon of ["2026-01-05", "2026-01-12", "2026-01-19", "2026-01-26"]) for (let d = 0; d < 5; d++) {
+    const day = new Date(Date.parse(`${mon}T00:00Z`) + d * 86400e3).toISOString().slice(0, 10);
+    x.push(T(`${day}T09:00`, `${day}T10:00`, d === 4 ? -100 : 50));
+  }
+  const r = findRules(x, { minRemoved: 2 });
+  is("one rule: skip Friday", r.length === 1 && r[0].kind === "weekday" && r[0].value === 4, JSON.stringify(r.map((i) => [i.kind, i.value, i.gain])));
+  t("gain +400 (four -100 Fridays)", r[0]?.gain, 400);
+  t("4 trades removed", r[0]?.removed, 4);
+  t("max drawdown 100 -> 0", r[0]?.ddChange, -100);
+  is("helps in both halves", r[0]?.both === true);
+  is("default minimum (5 trades) rejects removing only 4", findRules(x).length === 0);
+}
+{ // XAUUSD lost in the first half only: still a gain overall, but not in both halves
+  const days = ["05", "06", "07", "08", "09", "12", "13", "14", "15", "16", "19", "20"].map((d) => `2026-01-${d}`);
+  const pn = [50, -100, 50, -100, 50, -100, 50, 20, 50, 20, 50, 20];
+  const x = days.map((d, i) => T(`${d}T09:00`, `${d}T10:00`, pn[i], { symbol: i % 2 ? "XAUUSD" : "EURUSD" }));
+  const r = findRules(x);
+  const xau = r.find((i) => i.kind === "symbol" && i.value === "XAUUSD");
+  t("skip XAUUSD gains +240", xau?.gain, 240);
+  is("but only in the first half", xau?.both === false);
+  is("skipping EURUSD (the winner) is not suggested", !r.some((i) => i.kind === "symbol" && i.value === "EURUSD"));
+  is("fewer than 10 trades: nothing", findRules(x.slice(0, 9)).length === 0);
+}
+
+console.log("-- Challenge odds (start 10,000)");
+{ const mk = (p: number[]) => p.map((v, i) => { const d = new Date(Date.UTC(2026, 0, 5 + i)).toISOString().slice(0, 10); return T(`${d}T09:00`, `${d}T10:00`, v); });
+  const up = propOdds(mk(Array(10).fill(600)), 10000, { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false })!;
+  t("+600 every day: always passes", up.pass, 100); t("on day 2 (11,200)", up.medianDays, 2);
+  const down = propOdds(mk(Array(10).fill(-600)), 10000, { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false })!;
+  t("-600 every day breaks the 500 daily limit: always fails", down.fail, 100); t("never passes", down.medianDays, null);
+  const flat = propOdds(mk(Array(10).fill(300)), 10000, { dailyLossPct: 5, maxDDPct: 10, targetPct: 0, trailing: false })!;
+  t("no target, no breach: always open", flat.open, 100);
+  // +-1000 days (fair coin): pass at +1 step, fail below the 9,000 floor (2 steps down) -> gambler's ruin 2/3
+  const coin = propOdds(mk([...Array(10).fill(1000), ...Array(10).fill(-1000)]), 10000, { dailyLossPct: 0, maxDDPct: 10, targetPct: 10, trailing: false })!;
+  t("fair coin: pass ~66.7% (Monte Carlo, +-3 points)", coin.pass, 200 / 3, 3);
+  t("pass + fail + open = 100", coin.pass + coin.fail + coin.open, 100);
+  t("fewer than 10 trading days: null", propOdds(mk([1, 2, 3]), 10000, { dailyLossPct: 5, maxDDPct: 10, targetPct: 10, trailing: false }) as null, null);
+}
+
+console.log("-- Position size");
+{ const rep = (a: number[], n: number) => Array.from({ length: n }, () => a).flat();
+  t("log growth at 25% on +2R / -1R = 0.5 ln 1.125", logGrowth([2, -1], 0.25), 0.5 * Math.log(1.125), 1e-9);
+  const a = sizing(rep([2, -1], 10))!;
+  t("Kelly of +2R/-1R at 50% = 0.25", a.kelly, 0.25, 0.001);
+  t("half Kelly 0.125", a.half.f, 0.125, 0.001); t("quarter Kelly 0.0625", a.quarter.f, 0.0625, 0.001);
+  const top = a.curve.reduce((m, p) => (p.v > m.v ? p : m), a.curve[0]);
+  t("growth curve peaks at 25% risk", top.t, 25, 0.9);
+  is("more risk, deeper drawdowns (quarter < half < full)", a.quarter.ddMed < a.half.ddMed && a.half.ddMed < a.full.ddMed);
+  t("Kelly of -1R,-1R,+3R = 1/9", sizing(rep([-1, -1, 3], 7))!.kelly, 1 / 9, 0.001);
+  const z = sizing(rep([1, -1], 10))!;
+  t("no edge (mean R = 0): Kelly 0", z.kelly, 0); t("and no growth at half Kelly", z.half.growth, 0);
+  is("fewer than 20 R values: null", sizing(rep([2, -1], 9)) === null);
+  is("no losing trade: Kelly hits the 50% cap", sizing(rep([1, 2], 10))!.capped === true);
+}
+{ // each trade risks exactly 1% of the balance (stop 1 point below a 100 entry, P&L = R x risk)
+  let bal = 10000, k = 0;
+  const x = [2, -1, 1, -1, 1.5].map((r) => { const risk = bal * 0.01, p = r * risk; bal += p; k++; const d = `2026-02-0${k}`; return T(`${d}T09:00`, `${d}T10:00`, p, { entryPrice: 100, sl: 99, exitPrice: 100 + r }); });
+  t("current risk = 1% of the balance", currentRisk(x, 10000), 0.01, 1e-9);
+  t("no starting balance: null", currentRisk(x, 0), null);
+}
+
+console.log("-- Weekly report (now: Wed 2026-01-21 -> week of Mon 2026-01-12)");
+{ const x = [
+    T("2026-01-07T09:00", "2026-01-07T10:00", 70),                       // previous week
+    T("2026-01-12T09:00", "2026-01-12T10:00", -100),                     // Mon London
+    T("2026-01-12T10:10", "2026-01-12T10:30", -80),                      // 10 min after a loss
+    T("2026-01-13T14:00", "2026-01-13T15:00", 300, { symbol: "XAUUSD" }), // Tue NY
+    T("2026-01-14T14:30", "2026-01-14T15:00", 100, { symbol: "XAUUSD" }),
+    T("2026-01-15T03:00", "2026-01-15T04:00", -50, { symbol: "GBPUSD" }), // Thu Tokyo
+    T("2026-01-15T04:10", "2026-01-15T04:40", -90, { symbol: "GBPUSD" }), // 10 min after a loss
+    T("2026-01-16T09:00", "2026-01-16T09:30", 40),
+    T("2026-01-19T09:00", "2026-01-19T10:00", 500),                      // this week: not in the report
+  ];
+  const w = weeklyReport(x, Date.parse("2026-01-21T10:00Z"))!;
+  is("week of Monday 2026-01-12", w.week === "2026-01-12" && w.end === Date.parse("2026-01-18T23:59Z"), `${w.week} ${new Date(w.end).toISOString()}`);
+  t("7 trades", w.n, 7); t("net +120", w.net, 120); t("win rate 3/7", w.winRate, 300 / 7);
+  is("best hour 14h +400", w.best?.h === 14 && near(w.best.net, 400), JSON.stringify(w.best));
+  is("worst hour 04h -90", w.worst?.h === 4 && near(w.worst.net, -90), JSON.stringify(w.worst));
+  is("costliest habit: trades soon after a loss (-170, 2 trades)", w.habit?.kind === "tilt" && near(w.habit.net, -170) && w.habit.n === 2, JSON.stringify(w.habit));
+  t("previous week +70", w.prevNet, 70);
+  is("a week without trades: null", weeklyReport(x, Date.parse("2026-03-04T10:00Z")) === null);
 }
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

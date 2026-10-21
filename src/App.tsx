@@ -6,8 +6,8 @@ import AuthView from "./components/AuthView";
 import { initialSync, startRowSync, haltSync, resumeSync } from "./lib/rowSync";
 import { initialSettingsSync, startSettingsSync, settingsIdle } from "./lib/settingsSync";
 import { useInterests } from "./useInterests";
-import { edgeAlerts } from "./lib/tradeLab";
-import { fmtMoney, ltrNumbers } from "./lib/money";
+import { edgeAlerts, weeklyReport } from "./lib/tradeLab";
+import { commonCurrency, fmtMoney, ltrNumbers } from "./lib/money";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
@@ -24,7 +24,7 @@ import NewsView from "./components/NewsView";
 import ProfileView from "./components/ProfileView";
 import { useProfile } from "./useProfile";
 import { useAccounts } from "./useAccounts";
-import { makeT } from "./i18n";
+import { makeT, type Key } from "./i18n";
 import type { Lang, Theme } from "./types";
 
 const read = <T extends string>(key: string, allowed: readonly T[], fallback: T, migrate: Record<string, T> = {}): T => {
@@ -50,7 +50,19 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
     // Trade times are wall times (read as UTC): shift so the panel shows them as written in the file.
     return { id: `e:${a.accountId}:${a.key}`, kind: "edge" as const, title: `${t("notifEdge")} · ${acc?.name ?? ""}`, sub: lang === "ar" ? ltrNumbers(sub) : sub, time: a.t + new Date(a.t).getTimezoneOffset() * 60e3, soon: false };
   }), [journal.trades, accounts, lang]); // eslint-disable-line react-hooks/exhaustive-deps
-  const interests = useInterests(edge);
+  // Weekly report: the last complete week (Monday to Sunday, close time) in one notice.
+  const week = useMemo(() => {
+    const w = weeklyReport(journal.trades, Date.now() - new Date().getTimezoneOffset() * 60e3);
+    if (!w) return [];
+    const cur = commonCurrency(accounts), m = (n: number) => fmtMoney(n, { sign: true, currency: cur });
+    const df = new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", timeZone: "UTC" }), hh = (h: number) => `${String(h).padStart(2, "0")}h`;
+    const habit = w.habit ? `${t("notifWeekHabit")}: ${w.habit.kind === "tilt" ? t("chTiltAfter") : w.habit.kind === "session" ? t(w.habit.key as Key) : w.habit.key.replace(/^[^:]+:/, "")} ${m(w.habit.net)}` : "";
+    const sub = [`${m(w.net)} · ${w.n} ${t("monthTrades")} · ${t("chRollWin")} ${Math.round(w.winRate)}%`, w.best ? `${t("chBest")} ${hh(w.best.h)} ${m(w.best.net)}` : "",
+      w.worst ? `${t("chWorst")} ${hh(w.worst.h)} ${m(w.worst.net)}` : "", habit, w.prevNet != null ? `${t("notifWeekPrev")} ${m(w.prevNet)}` : ""].filter(Boolean).join(" · ");
+    return [{ id: `w:${w.week}`, kind: "week" as const, title: `${t("notifWeek")} · ${df.format(new Date(`${w.week}T00:00Z`))} – ${df.format(new Date(w.end))}`, sub: lang === "ar" ? ltrNumbers(sub) : sub, time: w.end + new Date(w.end).getTimezoneOffset() * 60e3, soon: false }];
+  }, [journal.trades, accounts, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  const trading = useMemo(() => [...edge, ...week], [edge, week]);
+  const interests = useInterests(trading);
   const [connecting, setConnecting] = useState(false);
   const [view, setView] = useState<View | "profile" | "news" | "calendar">("dashboard");
   // One-shot deep link into Reports (e.g. Charts -> "Open this day" -> Day by Day), consumed when Reports mounts.

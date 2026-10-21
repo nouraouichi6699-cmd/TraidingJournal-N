@@ -4,6 +4,14 @@ import { Check, ChevronDown } from "lucide-react";
 import { symbolBreakdown } from "../lib/dashAnalytics";
 import { symL } from "../i18n";
 import type { Ctx } from "./dashWidgets";
+import { PieChart } from "./charts/pie-chart";
+import { PieSlice } from "./charts/pie-slice";
+import { ParentSize } from "./charts/chart-parent-size";
+import type { PieData } from "./charts/pie-context";
+
+// bklit pie chart, same settings as its usage example: full pie from 12 o'clock, slices pop out on hover.
+const ENTER = { type: "tween", duration: 0.2, ease: [0.42, 0, 1, 1] } as const; // module constant: a new object would replay the enter animation
+const START = (-90 * Math.PI) / 180, END = (270 * Math.PI) / 180;
 
 // Categorical palette: Mizan gold first, no pure red/green (those mean loss/profit). Beyond the palette, lighter then darker variants.
 const BASE = ["var(--primary)", "#5b8def", "#a78bfa", "#38bdf8", "#e879f9", "#94a3b8", "#fb923c", "#818cf8"];
@@ -27,6 +35,7 @@ export default function SymbolsWidget({ c }: { c: Ctx }) {
   const chosen = names.filter((n) => !off.has(n));
   const selected = chosen.length ? chosen : names; // never empty
   const b = useMemo(() => symbolBreakdown(c.closed, selected), [c.closed, selected.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pieData = useMemo<PieData[]>(() => b.symbols.map((s) => ({ label: s.symbol, value: s.count, color: symColor(rank.get(s.symbol) ?? 0) })), [b, rank]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,17 +50,17 @@ export default function SymbolsWidget({ c }: { c: Ctx }) {
   const toggle = (n: string) => setOff((o) => { const nx = new Set(o); if (nx.has(n)) nx.delete(n); else if (names.filter((x) => !nx.has(x)).length > 1) nx.add(n); return nx; });
   const openMenu = () => { const r = btn.current!.getBoundingClientRect(); const rtl = document.dir === "rtl"; setPos({ top: r.bottom + 6, left: rtl ? Math.max(8, r.right - 208) : Math.min(r.left, window.innerWidth - 216) }); setOpen((v) => !v); };
 
-  // Donut geometry (viewBox 100): each slice is a dashed circle segment.
-  const R = 38, C = 2 * Math.PI * R, gap = b.symbols.length > 1 ? 0.8 : 0;
-  let acc = 0;
-  const slices = b.symbols.map((s) => { const len = (s.pct / 100) * C, d = { ...s, len, off: acc, color: symColor(rank.get(s.symbol) ?? 0) }; acc += len; return d; });
+  const slices = b.symbols.map((s) => ({ ...s, color: symColor(rank.get(s.symbol) ?? 0) }));
   const h = hot != null ? slices[hot] : null;
   const shown = expand ? slices : slices.slice(0, 3);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
-        <div className="tnum font-heading font-bold" style={{ fontSize: "clamp(1.1rem,6cqh,1.8rem)", lineHeight: 1 }}>{b.distinct}</div>
+        <div className="min-w-0">
+          <div className="tnum font-heading font-bold" style={{ fontSize: "clamp(1.1rem,6cqh,1.8rem)", lineHeight: 1 }}>{b.distinct}</div>
+          <div className={`mt-1 truncate text-[11px] tnum ${h ? "font-semibold" : "text-muted"}`} style={h ? { color: h.color } : undefined} aria-live="polite">{h ? `${h.symbol} · ${h.count} · ${h.pct.toFixed(1)}%` : `${b.total} ${L("trades")}`}</div>
+        </div>
         <button ref={btn} data-symbtn type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={L("pick")} onClick={openMenu} className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-text">
           <span className="h-2 w-2 rounded-full bg-primary" />{chosen.length === names.length || !chosen.length ? `${L("all")} ${names.length}` : `${chosen.length}/${names.length}`}<ChevronDown size={12} />
         </button>
@@ -65,24 +74,24 @@ export default function SymbolsWidget({ c }: { c: Ctx }) {
             </button>); })}
         </div>, document.body)}
 
-      <div className="relative min-h-0 flex-1">
-        <svg viewBox="0 0 100 100" className="absolute inset-0 mx-auto h-full w-full" role="img" aria-label={`${L("title")}: ${b.total}`}>
-          <circle cx="50" cy="50" r={R} fill="none" stroke="var(--gauge-track)" strokeWidth="12" />
-          {slices.map((s, i) => (
-            <circle key={s.symbol} cx="50" cy="50" r={R} fill="none" stroke={s.color} strokeWidth={hot === i ? 14 : 12} tabIndex={0} role="img" aria-label={`${s.symbol}: ${s.count}, ${s.pct.toFixed(1)}%`}
-              strokeDasharray={`${Math.max(0, s.len - gap)} ${C}`} strokeDashoffset={-s.off} transform="rotate(-90 50 50)" style={{ transition: "stroke-width .15s", outline: "none", cursor: "pointer" }}
-              onMouseEnter={() => setHot(i)} onMouseLeave={() => setHot(null)} onFocus={() => setHot(i)} onBlur={() => setHot(null)}><title>{`${s.symbol} · ${s.count} · ${s.pct.toFixed(1)}%`}</title></circle>
-          ))}
-        </svg>
-        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-          {h ? (<div><div className="tnum font-bold" style={{ fontSize: "clamp(.8rem,5cqh,1.2rem)", color: h.color }}>{h.symbol}</div><div className="tnum text-[11px] text-text">{h.count} · {h.pct.toFixed(1)}%</div></div>)
-            : (<div><div className="tnum font-heading font-bold" style={{ fontSize: "clamp(1.1rem,8cqh,2.2rem)", lineHeight: 1 }}>{b.total}</div><div className="mt-0.5 text-[11px] text-muted">{L("trades")}</div></div>)}
-        </div>
+      <div className="relative min-h-0 flex-1" role="img" aria-label={`${L("title")}: ${b.total} · ${slices.map((x) => `${x.symbol} ${x.pct.toFixed(1)}%`).join(", ")}`}>
+        <ParentSize debounceTime={10}>
+          {({ width, height }) => {
+            const size = Math.floor(Math.min(width, height));
+            return size < 40 ? null : (
+              <div className="grid h-full w-full place-items-center">
+                <PieChart data={pieData} size={size} padAngle={0} cornerRadius={0} hoverOffset={10} startAngle={START} endAngle={END} enterTransition={ENTER} enterStaggerScale={1} hoveredIndex={hot} onHoverChange={setHot}>
+                  {pieData.map((d, i) => <PieSlice key={d.label} index={i} hoverEffect="translate" />)}
+                </PieChart>
+              </div>
+            );
+          }}
+        </ParentSize>
       </div>
 
       <div className={`flex flex-wrap gap-x-3 gap-y-1 text-[11px] ${expand ? "max-h-[40%] overflow-auto" : ""}`}>
-        {shown.map((s) => (
-          <div key={s.symbol} className="flex min-w-0 items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.color }} /><span className="truncate font-medium text-text">{s.symbol}</span><span className="tnum text-muted">{s.count}</span><span className="tnum text-muted">{s.pct.toFixed(1)}%</span></div>
+        {shown.map((s, i) => (
+          <button key={s.symbol} type="button" onMouseEnter={() => setHot(i)} onMouseLeave={() => setHot(null)} onFocus={() => setHot(i)} onBlur={() => setHot(null)} className={`flex min-w-0 items-center gap-1.5 rounded transition-opacity ${hot != null && hot !== i ? "opacity-50" : ""}`}><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.color }} /><span className="truncate font-medium text-text">{s.symbol}</span><span className="tnum text-muted">{s.count}</span><span className="tnum text-muted">{s.pct.toFixed(1)}%</span></button>
         ))}
         {slices.length > 3 && <button type="button" onClick={() => setExpand((v) => !v)} className="font-semibold text-primary">{expand ? L("less") : `+${slices.length - 3} ${L("more")}`}</button>}
       </div>

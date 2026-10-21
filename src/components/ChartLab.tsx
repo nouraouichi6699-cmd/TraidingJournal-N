@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { HeatCell, WhatIfRules } from "../lib/tradeLab";
+import type { HeatCell, PropOdds, RuleIdea, SizeLevel, Sizing, WhatIfRules } from "../lib/tradeLab";
 import { fmt } from "../lib/stats";
+import { Sparkles } from "lucide-react";
 import { currencySuffix, ltrNumbers } from "../lib/money";
 import type { Key } from "../i18n";
 
@@ -94,6 +95,71 @@ export function Heatmap({ cells, mode, money, weekdays, t, rtl }: { cells: HeatC
         </div>
       </div>
       <p className="mt-2 h-4 text-xs text-muted tnum" dir={rtl ? "rtl" : undefined} aria-live="polite">{hover ? info(hover.d, hover.h) : t("chHeatHint")}</p>
+    </div>
+  );
+}
+
+/** Challenge odds in one line: pass / fail (/ undecided) and the median number of trading days to pass. */
+export const oddsLine = (o: PropOdds, t: (k: Key) => string) =>
+  `${t("chPropOdds")} ${fmt(o.pass, 0)}% · ${t("chPropFailOdds")} ${fmt(o.fail, 0)}%${o.open >= 0.5 ? ` · ${t("chPropOpenOdds")} ${fmt(o.open, 0)}%` : ""}${o.medianDays != null ? ` · ${t("chPropMedian")} ${o.medianDays} ${t("chTradingDays")}` : ""}`;
+
+/** Single what-if rules that would have helped, best first; Apply loads the rule into the simulator. */
+export function GoldenRules({ ideas, base, current, onApply, t, money, weekdays, rtl }: { ideas: RuleIdea[]; base: number; current: WhatIfRules; onApply: (r: WhatIfRules) => void; t: (k: Key) => string; money: (n: number) => string; weekdays: string[]; rtl?: boolean }) {
+  const norm = (r: WhatIfRules) => JSON.stringify(Object.entries(r).filter(([, v]) => (Array.isArray(v) ? v.length : v)).sort());
+  const label = (i: RuleIdea) => {
+    const x = i.kind === "weekday" ? weekdays[i.value as number] : i.kind === "session" ? t(i.value as Key) : i.kind === "symbol" ? String(i.value).replace(/^[^:]+:/, "") : i.kind === "side" ? t(i.value as Key) : String(i.value);
+    return t(i.kind === "side" ? "chRuleOnly" : i.kind === "maxPerDay" ? "chRuleMaxDay" : i.kind === "stopAfterLosses" ? "chRuleStop" : "chRuleSkip").replace("{x}", x);
+  };
+  const plus = (n: number) => `${n > 0 ? "+" : ""}${money(n)}`;
+  return (
+    <div className="mt-4 rounded-xl border border-border p-3">
+      <p className="flex items-center gap-2 text-sm font-bold"><Sparkles size={15} className="text-icon" />{t("chGolden")}</p>
+      <p className="mb-1 text-xs text-muted">{t("chGoldenHint")}</p>
+      {ideas.length === 0 && <p className="py-2 text-xs text-muted">{t("chNoRule")}</p>}
+      {ideas.map((i) => {
+        const on = norm(current) === norm(i.rule);
+        return (
+          <div key={`${i.kind}:${i.value}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border py-2 text-sm">
+            <span className="min-w-[200px] flex-1 font-semibold" dir="auto">{label(i)}</span>
+            <span className="tnum font-bold text-[#22c55e]" dir="ltr">{plus(i.gain)}</span>
+            <span className="text-xs text-muted" dir={rtl ? "rtl" : undefined}>{t("chMaxDD")} <span className="tnum" dir="ltr">{money(-base)} → {money(-(base + i.ddChange))}</span></span>
+            <span className="text-xs text-muted">{rtl ? ltrNumbers(`${i.removed} ${t("chRemoved")}`) : `${i.removed} ${t("chRemoved")}`}</span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.both ? "bg-primary-tint text-icon" : "bg-[#fb923c]/15 text-[#fb923c]"}`}>{i.both ? `✓ ${t("chBothHalves")}` : t("chOneHalf")}</span>
+            <button type="button" disabled={on} onClick={() => onApply(i.rule)} className="rounded-lg border border-border px-3 py-1 text-xs font-semibold hover:border-icon disabled:cursor-default disabled:border-icon disabled:text-icon">{on ? `✓ ${t("chApplied")}` : t("chApply")}</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Quarter / half / full Kelly (and your current risk): risk per trade, median growth and drawdowns over the simulated trades. */
+export function SizeTable({ z, t, rtl }: { z: Sizing; t: (k: Key) => string; rtl?: boolean }) {
+  const rows: [string, SizeLevel, boolean][] = [[t("chQuarterKelly"), z.quarter, false], [t("chHalfKelly"), z.half, true], [t("chKelly"), z.full, false], ...(z.current ? [[t("chYourRisk"), z.current, false] as [string, SizeLevel, boolean]] : [])];
+  const pc = (n: number, d = 1) => `${fmt(n, d)}%`;
+  const th = "px-2 py-1.5 text-start font-semibold text-muted", L = (x: string) => (rtl ? ltrNumbers(x) : x);
+  return (
+    <div className="mt-2 overflow-x-auto" dir={rtl ? "rtl" : "ltr"}>
+      <table className="w-full min-w-[520px] text-xs">
+        <thead><tr className="border-b border-border">
+          <th className={th} />
+          <th className={th}>{t("chRiskPerTrade")}</th>
+          <th className={th}>{L(t("chGrowthN").replace("{x}", String(z.horizon)))}</th>
+          <th className={th}>{t("chDDMed")}</th>
+          <th className={th}>{L(t("chDD95"))}</th>
+        </tr></thead>
+        <tbody>
+          {rows.map(([name, l, best]) => (
+            <tr key={name} className={`border-b border-border/60 ${best ? "bg-primary-tint" : ""}`}>
+              <td className="px-2 py-1.5 font-semibold">{name}{best && <span className="ms-1.5 text-icon">· {t("chSuggested")}</span>}</td>
+              <td className="px-2 py-1.5 tnum" dir="ltr">{pc(l.f * 100, 2)}</td>
+              <td className={`px-2 py-1.5 tnum ${l.growth >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{l.growth > 0 ? "+" : ""}{pc(l.growth, Math.abs(l.growth) >= 100 ? 0 : 1)}</td>
+              <td className="px-2 py-1.5 tnum text-[#f87171]" dir="ltr">-{pc(l.ddMed)}</td>
+              <td className="px-2 py-1.5 tnum text-[#f87171]" dir="ltr">-{pc(l.dd95)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
