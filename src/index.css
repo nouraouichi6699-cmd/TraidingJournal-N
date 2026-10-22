@@ -585,5 +585,25 @@ h6 {
   }
 }
 
+/* Reports › What if: result first on phones, rules beside the result on wide screens */
+.wi-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-areas: "res" "rules" "more";
+}
+
+.wi-res { grid-area: res; min-width: 0; }
+.wi-rules { grid-area: rules; min-width: 0; }
+.wi-more { grid-area: more; min-width: 0; }
+
+@media (min-width: 1024px) {
+  .wi-grid {
+    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+    grid-template-areas: "rules res" "rules more";
+    grid-template-rows: auto 1fr;
+    align-items: start;
+  }
+}
+
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
 @container (max-width: 140px) { .kpi-visual { display: none; } }

@@ -8,7 +8,7 @@ type L3 = readonly [string, string, string];
 export const LEVELS: readonly { name: L3; tabs: readonly ReportTabId[] }[] = [
   { name: ["Beginner", "مبتدئ", "Débutant"], tabs: ["overview", "daybyday", "activity"] },
   { name: ["Intermediate", "متوسط", "Intermédiaire"], tabs: ["outcomes", "returns", "benchmark"] },
-  { name: ["Pro", "محترف", "Pro"], tabs: ["portfolio", "path", "advanced"] },
+  { name: ["Pro", "محترف", "Pro"], tabs: ["portfolio", "path", "whatif", "advanced"] },
 ];
 const ORDER = LEVELS.flatMap((l) => l.tabs);
 const LIST_LABEL: L3 = ["Report sections", "أقسام التقارير", "Sections du rapport"];
@@ -42,7 +42,7 @@ function Tile({ id, label, levelId, active, intro, onSelect, onKey, setRef }: {
     <button
       ref={setRef} id={`rt-tab-${id}`} type="button" role="tab" aria-selected={active} aria-controls="rt-panel" aria-describedby={levelId} tabIndex={active ? 0 : -1}
       onClick={onSelect} onKeyDown={onKey} onPointerEnter={(e) => { if (e.pointerType !== "touch") fire(); }}
-      className={`group relative flex min-w-[92px] flex-1 flex-col items-center gap-1.5 rounded-xl px-2 pb-2 pt-2.5 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${active ? "text-primary" : "text-muted hover:text-text"}`}
+      className={`group relative flex min-w-[84px] flex-1 flex-col items-center gap-1.5 rounded-xl px-2 pb-2 pt-2.5 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${active ? "text-primary" : "text-muted hover:text-text"}`}
     >
       {active ? (
         <motion.span layoutId="rt-pill" aria-hidden="true" className="absolute inset-0 rounded-xl" style={PILL} transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34, mass: 0.9 }} />
@@ -105,11 +105,11 @@ export default function ReportTabs({ lang, tab, onTab, labels }: { lang: Lang; t
   return (
     <LayoutGroup id="reports-tabs">
       <motion.div ref={scroller} layoutScroll onScroll={measure} className="rt-tabs overflow-x-auto" style={{ maskImage: mask, WebkitMaskImage: mask }}>
-        <div role="tablist" aria-label={LIST_LABEL[li]} className="flex w-full min-w-[884px] rounded-2xl border border-border bg-surface p-1.5" style={{ boxShadow: "var(--shadow-card)" }}>
+        <div role="tablist" aria-label={LIST_LABEL[li]} className="flex w-full min-w-[900px] rounded-2xl border border-border bg-surface p-1.5" style={{ boxShadow: "var(--shadow-card)" }}>
           {LEVELS.map((lv, i) => (
             <Fragment key={i}>
               {i > 0 && <span aria-hidden="true" className="mx-1 my-2 w-px shrink-0 bg-border" />}
-              <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex min-w-0 flex-col" style={{ flex: `${lv.tabs.length} 1 0%` }}>
                 <div id={`rt-level-${i}`} className={`flex items-center gap-1.5 px-2 pb-1 pt-0.5 font-semibold transition-colors duration-300 ${lang === "ar" ? "text-[12px]" : "text-[10.5px] uppercase tracking-[0.12em]"} ${i === at ? "text-icon" : "text-muted"}`}>
                   <Meter level={i + 1} />
                   <span>{lv.name[li]}</span>

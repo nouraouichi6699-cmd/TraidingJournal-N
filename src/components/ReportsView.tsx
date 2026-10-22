@@ -16,6 +16,7 @@ import ReturnsTab, { RET_TAB } from "./ReturnsTab";
 import AdvancedTab, { ADV_TAB } from "./AdvancedTab";
 import PortfolioTab, { PORTFOLIO_TAB } from "./PortfolioTab";
 import ReportTabs from "./ReportTabs";
+import WhatIfTab, { WHATIF_TAB } from "./WhatIfTab";
 import type { ReportTabId } from "./ReportTabIcons";
 import { computeTradeOutcomes, recentOutcomes } from "../lib/tradeOutcomes";
 import { toT } from "../i18n";
@@ -93,7 +94,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
   const li = lang === "en" ? 0 : lang === "ar" ? 1 : 2;
-  const labels: Record<ReportTabId, string> = { overview: ovT(lang)("tab"), daybyday: DAY_TAB[li], activity: L(TX.tab), outcomes: toT(lang)("tab"), returns: RET_TAB[li], benchmark: BENCH_TAB[li], portfolio: PORTFOLIO_TAB[li], path: PATH_TAB[li], advanced: ADV_TAB[li] };
+  const labels: Record<ReportTabId, string> = { overview: ovT(lang)("tab"), daybyday: DAY_TAB[li], activity: L(TX.tab), outcomes: toT(lang)("tab"), returns: RET_TAB[li], benchmark: BENCH_TAB[li], portfolio: PORTFOLIO_TAB[li], path: PATH_TAB[li], whatif: WHATIF_TAB[li], advanced: ADV_TAB[li] };
 
   // Period start (YYYY-MM-DD), "" for all time. One cut-off for trades, cash flows and balance history.
   const cut = useMemo(() => {
@@ -196,6 +197,8 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
         <AdvancedTab lang={lang} trades={list} accounts={periodAccounts} flows={flowSplit.period} periodStart={periodStart} currency={currency} />
       ) : tab === "path" ? (
         <PathTab lang={lang} trades={list} accounts={periodAccounts} history={trades} currency={currency} />
+      ) : tab === "whatif" ? (
+        <WhatIfTab lang={lang} trades={list} history={trades} currency={currency} onOpen={setTab} />
       ) : tab === "daybyday" ? (
         <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} focusDay={focusDay} />
       ) : tab === "returns" ? (

@@ -10,23 +10,24 @@ export type NoPath = "noTicker" | "noData" | "tiny" | "coarse" | "short" | "gap"
 /** Why a trade could not be measured from bars of `minutes`: under 3 one-minute bars, shorter than 3 coarser bars, or prices missing for part of it. */
 const why = (s: number, e: number, minutes: number): NoPath => (e - s >= MIN_BARS * minutes * 6e4 ? "gap" : minutes <= 1 ? "tiny" : "coarse");
 export type PathSrc = "yahoo" | "csv";
-type Packed = { s: PathSrc; m: string; r: number; p: (number | null)[] } | { s: "none"; r: NoPath; at: number };
+type Packed = { s: PathSrc; m: string; r: number; p: (number | null)[]; x?: [number[], number[]] } | { s: "none"; r: NoPath; at: number };
 export type Stored = { src: PathSrc; model: string; res: number; path: Path } | { none: NoPath; at: number };
 const FIELDS = ["res", "dur", "final", "mfe", "mae", "tMfe", "tMae", "eFav", "eAdv", "sd", "below", "fav", "near", "stag", "tBe", "recMae", "cross", "area"] as const;
 const pack = (p: Path) => FIELDS.map((f) => { const v = p[f]; return v == null ? null : Number(v.toPrecision(10)); });
 const unpack = (a: (number | null)[]): Path => Object.fromEntries(FIELDS.map((f, i) => [f, a[i]])) as unknown as Path;
+const packRec = (p: Path): [number[], number[]] | undefined => (p.fx && p.ax ? [p.fx.map((v) => Number(v.toPrecision(10))), p.ax.map((v) => Number(v.toPrecision(10)))] : undefined);
 const readJson = <T,>(k: string, d: T): T => { try { return (JSON.parse(localStorage.getItem(k) ?? "null") as T) ?? d; } catch { return d; } };
 const writeJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage full: kept for this session only */ } };
 
 /** Measured paths by trade key. */
 export function readPaths(): Map<string, Stored> {
   const raw = readJson<Record<string, Packed>>(STORE, {}), out = new Map<string, Stored>();
-  for (const [k, v] of Object.entries(raw)) out.set(k, v.s === "none" ? { none: v.r, at: v.at } : { src: v.s, model: v.m, res: v.r, path: unpack(v.p) });
+  for (const [k, v] of Object.entries(raw)) out.set(k, v.s === "none" ? { none: v.r, at: v.at } : { src: v.s, model: v.m, res: v.r, path: v.x ? { ...unpack(v.p), fx: v.x[0], ax: v.x[1] } : unpack(v.p) });
   return out;
 }
 function writePaths(m: Map<string, Stored>) {
   const o: Record<string, Packed> = {};
-  for (const [k, v] of m) o[k] = "none" in v ? { s: "none", r: v.none, at: v.at } : { s: v.src, m: v.model, r: v.res, p: pack(v.path) };
+  for (const [k, v] of m) o[k] = "none" in v ? { s: "none", r: v.none, at: v.at } : { s: v.src, m: v.model, r: v.res, p: pack(v.path), x: packRec(v.path) };
   writeJson(STORE, o);
 }
 /** Forget downloaded paths (keeps paths measured from imported CSV bars). */

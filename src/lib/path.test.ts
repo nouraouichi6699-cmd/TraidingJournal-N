@@ -35,6 +35,11 @@ t("short: final", S.final, -0.4); t("short: MFE", S.mfe, 0.8); t("short: MAE", S
 t("short: early favourable", S.eFav, 0.8); t("short: early adverse", S.eAdv, 0.5); t("short: minutes below", S.below, 6); t("short: minutes in profit", S.fav, 3);
 t("short: area below", S.area, 2.65); t("short: minutes to breakeven", S.tBe, 2); t("short: recovery from MAE", S.recMae, 2); t("short: crossings", S.cross, 2);
 t("short: stagnation", S.stag, 6); t("short: near breakeven", S.near, 2); t("short: floating sd", S.sd, 0.4871971994081161);
+// running records [minute, move]: independent Python script (scratch rec_expect.py)
+const arr = (name: string, got: number[] | undefined, exp: number[]) => is(name, !!got && got.length === exp.length && got.every((v, i) => Math.abs(v - exp[i]) <= 1e-9), `got ${JSON.stringify(got)}, expected ${JSON.stringify(exp)}`);
+arr("long: records of new bests", L.fx, [0.5, 0.5, 5.5, 1.2]); arr("long: records of new worsts", L.ax, [0.5, 0.2, 1.5, 0.5, 2.5, 0.8]);
+arr("short: records of new bests", S.fx, [0.5, 0.2, 1.5, 0.5, 2.5, 0.8]); arr("short: records of new worsts", S.ax, [0.5, 0.5, 5.5, 1.2]);
+arr("exit beyond every bar high: the exit is the last record", tradePath({ side: "long", entryPrice: 100.05, exitPrice: 101.45 }, s0, e0, bars, 1)!.fx, [0.5, 0.5, 5.5, 1.2, 10, 1.4]);
 is("3 bars give a path, 2 bars do not", tradePath({ side: "long", entryPrice: 100, exitPrice: 100.2 }, s0, s0 + 3 * 6e4, bars, 1) !== null && tradePath({ side: "long", entryPrice: 100, exitPrice: 100.2 }, s0 + 30e3, s0 + 90e3, bars, 1) === null);
 is("gap in the data: no path", tradePath({ side: "long", entryPrice: 100, exitPrice: 100.4 }, s0, e0, bars.filter((_, i) => i < 3 || i > 6), 1) === null);
 is("bar lookup", barAt(bars, 1, s0 + 61e3)?.o === 100.2 && barAt(bars, 1, e0 + 6e4) === null);

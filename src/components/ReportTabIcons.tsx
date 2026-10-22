@@ -1,7 +1,7 @@
 import { useEffect, useId } from "react";
 import { motion, useAnimationControls, useReducedMotion, type Variants } from "motion/react";
 
-export type ReportTabId = "overview" | "daybyday" | "activity" | "outcomes" | "returns" | "benchmark" | "portfolio" | "path" | "advanced";
+export type ReportTabId = "overview" | "daybyday" | "activity" | "outcomes" | "returns" | "benchmark" | "portfolio" | "path" | "whatif" | "advanced";
 type Body = (p: { uid: string }) => JSX.Element;
 
 const OUT = [0.22, 1, 0.36, 1] as const; // soft ease-out
@@ -146,7 +146,24 @@ const Advanced: Body = () => (
   </>
 );
 
-const BODIES: Record<ReportTabId, Body> = { overview: Overview, daybyday: DayByDay, activity: Activity, outcomes: Outcomes, returns: Returns, benchmark: Benchmark, portfolio: Portfolio, path: TradePath, advanced: Advanced };
+// What if: the rule sliders are tried one way and the other, then settle.
+const KNOBS = [[15, 6, [0, -6, 2.5, 0]], [8, 12, [0, 7, -1.5, 0]], [13, 18, [0, -4, 3.5, 0]]] as const;
+const WhatIf: Body = () => (
+  <>
+    {KNOBS.map(([x, y, dx], i) => {
+      const go = { duration: 1, delay: i * 0.09, ease: "easeInOut" as const, times: [0, 0.38, 0.72, 1] };
+      return (
+        <g key={y}>
+          <path d={`M3 ${y}h18`} opacity={0.35} />
+          <motion.line x1={3} y1={y} y2={y} variants={{ rest: { x2: x }, play: { x2: dx.map((d) => x + d), transition: go } }} />
+          <motion.circle cx={x} cy={y} r={2.4} fill="currentColor" stroke="none" variants={{ rest: { x: 0 }, play: { x: [...dx], transition: go } }} />
+        </g>
+      );
+    })}
+  </>
+);
+
+const BODIES: Record<ReportTabId, Body> = { overview: Overview, daybyday: DayByDay, activity: Activity, outcomes: Outcomes, returns: Returns, benchmark: Benchmark, portfolio: Portfolio, path: TradePath, whatif: WhatIf, advanced: Advanced };
 
 /** Icon of a Reports section. Its motion plays each time `play` grows (hover, selection), never under reduced motion. */
 export default function TabIcon({ id, play, size = 22 }: { id: ReportTabId; play: number; size?: number }) {

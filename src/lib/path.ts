@@ -108,6 +108,9 @@ export interface Path {
   below: number; fav: number; near: number; stag: number; // minutes below / above breakeven, near it, without a new best or worst
   tBe: number | null; recMae: number | null; // minutes to first reach breakeven; from the worst point back to breakeven
   cross: number; area: number; // breakeven crossings; depth below breakeven × minutes
+  /** Running records, oldest first, as [minute, move, minute, move, ...]: each bar (or the exit) that set a new best (fx)
+   *  or worst (ax) move. They tell which of two levels was reached first. Paths measured before they existed lack them. */
+  fx?: number[]; ax?: number[];
 }
 export const MIN_BARS = 3, MIN_COVER = 0.8, EARLY = 0.25, NEAR = 0.1;
 
@@ -129,18 +132,22 @@ export function tradePath(t: Pick<Trade, "side" | "entryPrice" | "exitPrice">, s
   const final = (t.exitPrice - t.entryPrice) * dir;
   let maxFav = -Infinity, maxAdv = -Infinity, favAt = s, advAt = s, advIdx = -1, runF = 0, runA = 0, eFav = 0, eAdv = 0;
   let below = 0, fav = 0, stag = 0, area = 0;
-  const F: number[] = [], Z: number[] = [], OV: number[] = [];
+  const F: number[] = [], Z: number[] = [], OV: number[] = [], fx: number[] = [], ax: number[] = [];
   W.forEach((b, i) => {
     const a = Math.max(s, b.t), z = Math.min(e, b.t + D), ov = z - a, mid = (a + z) / 2;
     const up = dir > 0 ? b.h - ref : ref - b.l, dn = dir > 0 ? ref - b.l : b.h - ref;
     const f = i === W.length - 1 ? final : (b.c - ref) * dir;
     if (up > maxFav) { maxFav = up; favAt = mid; }
     if (dn > maxAdv) { maxAdv = dn; advAt = mid; advIdx = i; }
+    if (up > 0 && up > (fx.length ? fx[fx.length - 1] : 0)) fx.push((mid - s) / MIN, up);
+    if (dn > 0 && dn > (ax.length ? ax[ax.length - 1] : 0)) ax.push((mid - s) / MIN, dn);
     if (up > runF || dn > runA) { runF = Math.max(runF, up); runA = Math.max(runA, dn); } else stag += ov;
     if (a < s + EARLY * dur) { eFav = Math.max(eFav, up); eAdv = Math.max(eAdv, dn); }
     if (f < 0) { below += ov; area += ov * -f; } else if (f > 0) fav += ov;
     F.push(f); Z.push(z); OV.push(ov);
   });
+  if (final > 0 && final > (fx.length ? fx[fx.length - 1] : 0)) fx.push(dur / MIN, final); // the exit itself set the record
+  if (final < 0 && -final > (ax.length ? ax[ax.length - 1] : 0)) ax.push(dur / MIN, -final);
   const mfe = Math.max(0, maxFav, final), mae = Math.max(0, maxAdv, -final);
   const atExitBest = final > 0 && final >= maxFav, atExitWorst = final < 0 && -final >= maxAdv;
   const tMfe = mfe === 0 ? 0 : atExitBest ? dur : favAt - s, tMae = mae === 0 ? 0 : atExitWorst ? dur : advAt - s;
@@ -154,7 +161,7 @@ export function tradePath(t: Pick<Trade, "side" | "entryPrice" | "exitPrice">, s
   const near = F.reduce((acc, x, i) => (Math.abs(x) <= band ? acc + OV[i] : acc), 0);
   return {
     res: minutes, dur: dur / MIN, final, mfe, mae, tMfe: tMfe / MIN, tMae: tMae / MIN, eFav: Math.max(0, eFav), eAdv: Math.max(0, eAdv), sd,
-    below: below / MIN, fav: fav / MIN, near: near / MIN, stag: stag / MIN, tBe: be >= 0 ? (Z[be] - s) / MIN : null, recMae, cross, area: area / MIN,
+    below: below / MIN, fav: fav / MIN, near: near / MIN, stag: stag / MIN, tBe: be >= 0 ? (Z[be] - s) / MIN : null, recMae, cross, area: area / MIN, fx, ax,
   };
 }
 
