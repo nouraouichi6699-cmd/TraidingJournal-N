@@ -87,6 +87,28 @@ const toRules = (u: Ui): Rules => ({
 });
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
+/** Closed trades with their measured price path and money per 1.0 move (their own, else the account's point value). */
+export function inputsFor(trades: Trade[], history: Trade[]): SimInput[] {
+  const store = readPaths(), pv = pointValues(history);
+  return trades.filter((t) => t.status === "closed" && t.pnl != null && Number.isFinite(t.pnl)).map((t) => {
+    const x = store.get(t.key), path = x && "src" in x ? x.path : null;
+    const own = t.exitPrice != null && t.exitPrice !== t.entryPrice ? ((t.pnl as number) + (t.commission || 0)) / ((t.exitPrice - t.entryPrice) * (t.side === "long" ? 1 : -1)) : NaN;
+    const v = pv.get(`${t.accountId}|${t.symbol}`);
+    return { trade: t, path, k: Number.isFinite(own) && own > 0 ? own : v != null && t.qty > 0 ? v * t.qty : null };
+  });
+}
+/** Makes What if open with exactly these rules on (written where the section reads its settings). */
+export function presetWhatIf(r: Partial<Rules>) {
+  const u = fresh(r.sl?.unit ?? r.tp?.unit ?? "money");
+  const flag = (v: number | null | undefined, d: number): [boolean, number] => [v != null, v ?? d];
+  const ui: Ui = {
+    ...u, streak: flag(r.streak, 2), dayLoss: flag(r.dayLoss, u.dayLoss[1]), dayGain: flag(r.dayGain, u.dayGain[1]), maxDay: flag(r.maxDay, u.maxDay[1]),
+    skipDays: r.skipDays ?? [], hours: r.hours ? [true, r.hours[0], r.hours[1]] : u.hours, skipSymbols: r.skipSymbols ?? [], side: r.side ?? "both",
+    sl: r.sl ? [true, r.sl.v, r.sl.unit] : u.sl, tp: r.tp ? [true, r.tp.v, r.tp.unit] : u.tp,
+  };
+  try { localStorage.setItem(KEY, JSON.stringify(ui)); } catch { /* storage blocked */ }
+}
+
 function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
@@ -194,14 +216,7 @@ export default function WhatIfTab({ lang, trades, history, currency, onOpen }: {
   const unitLabel = currencySymbol(currency) || T(TXT.money);
 
   const closed = useMemo(() => trades.filter((t) => t.status === "closed" && t.pnl != null && Number.isFinite(t.pnl)), [trades]);
-  const store = useMemo(() => readPaths(), []);
-  const pv = useMemo(() => pointValues(history), [history]);
-  const inputs: SimInput[] = useMemo(() => closed.map((t) => {
-    const x = store.get(t.key), path = x && "src" in x ? x.path : null;
-    const own = t.exitPrice != null && t.exitPrice !== t.entryPrice ? ((t.pnl as number) + (t.commission || 0)) / ((t.exitPrice - t.entryPrice) * (t.side === "long" ? 1 : -1)) : NaN;
-    const v = pv.get(`${t.accountId}|${t.symbol}`);
-    return { trade: t, path, k: Number.isFinite(own) && own > 0 ? own : v != null && t.qty > 0 ? v * t.qty : null };
-  }), [closed, store, pv]);
+  const inputs = useMemo(() => inputsFor(trades, history), [trades, history]);
   const symbols = useMemo(() => { const c = new Map<string, number>(); for (const t of closed) c.set(t.symbol, (c.get(t.symbol) ?? 0) + 1); return [...c].sort((a, b) => b[1] - a[1]); }, [closed]);
 
   const defUnit: Unit = closed.length && closed.filter((t) => t.sl != null && t.sl > 0).length >= closed.length / 2 ? "R" : "money";

@@ -605,5 +605,50 @@ h6 {
   }
 }
 
+/* Advisor: cards rise in one after the other */
+@keyframes adv-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.adv-card {
+  animation: adv-in .45s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes adv-dot {
+  0%, 80%, 100% {
+    opacity: .25;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.adv-dot {
+  animation: adv-dot 1s ease-in-out infinite;
+}
+
+.adv-msg {
+  animation: adv-in .3s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adv-card,
+  .adv-dot,
+  .adv-msg {
+    animation: none;
+  }
+}
+
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
 @container (max-width: 140px) { .kpi-visual { display: none; } }

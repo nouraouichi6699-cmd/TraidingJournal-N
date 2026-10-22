@@ -16,6 +16,7 @@ import ImportView from "./components/ImportView";
 import ChartsView from "./components/ChartsView";
 import DashboardView from "./components/DashboardView";
 import ReportsView from "./components/ReportsView";
+import AdvisorView from "./components/AdvisorView";
 import JournalView from "./components/JournalView";
 import { Watermark } from "./components/Brand";
 import { useJournal } from "./useJournal";
@@ -129,6 +130,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} />}
               {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} />}
               {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
+              {view === "advisor" && <AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} />}
               {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} />}
               {view === "import" && (
                 <ImportView t={t} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
