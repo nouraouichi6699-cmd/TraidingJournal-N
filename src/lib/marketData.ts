@@ -3,6 +3,7 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { BENCHMARKS, cleanBars, parseOhlcCsv, parseYahooChart, type Bar, type Ticker } from "./benchmark";
+import { parseYahooIntraday, sortBars, type IBar } from "./path";
 
 export type Source = "stooq" | "yahoo" | "csv";
 export interface Prices { bars: Bar[]; source: Source; updated: number }
@@ -14,7 +15,7 @@ const pack = (p: Prices): Packed => ({ b: p.bars.map((x) => [x.d, x.o, x.h, x.l,
 const unpack = (p: Packed): Prices => ({ bars: p.b.map(([d, o, h, l, c]) => ({ d, o, h, l, c })), source: p.s, updated: p.u });
 const read = (k: string): Prices | null => { try { const v = JSON.parse(localStorage.getItem(k) ?? "null"); return v?.b ? unpack(v) : null; } catch { return null; } };
 const write = (k: string, p: Prices) => { try { localStorage.setItem(k, JSON.stringify(pack(p))); } catch { /* storage full: keep it for this session only */ } };
-const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+export const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** Saved choices of the tab (benchmark, custom ticker, risk-free rate, bar size). */
@@ -46,16 +47,16 @@ const covers = (bars: Bar[], from: string, to: string) => bars.length > 0 && bar
 
 // One download at a time (Yahoo limits bursts), and the same request in flight is shared.
 let queue: Promise<unknown> = Promise.resolve();
-const inflight = new Map<string, Promise<Bar[] | LoadError>>();
-function download(provider: "stooq" | "yahoo", ticker: string, from: string, to: string): Promise<Bar[] | LoadError> {
-  const id = `${provider}|${ticker}|${from}|${to}`, running = inflight.get(id);
+const inflight = new Map<string, Promise<string | LoadError>>();
+/** The provider's raw answer ("" when it has no data for the request). */
+function fetchRaw(provider: "stooq" | "yahoo", ticker: string, from: string, to: string, interval = "1d"): Promise<string | LoadError> {
+  const id = `${provider}|${ticker}|${from}|${to}|${interval}`, running = inflight.get(id);
   if (running) return running;
-  const run = async (): Promise<Bar[] | LoadError> => {
+  const run = async (): Promise<string | LoadError> => {
     try {
-      const { data, error } = await supabase.functions.invoke("market", { body: { provider, ticker, from, to } });
+      const { data, error } = await supabase.functions.invoke("market", { body: { provider, ticker, from, to, interval } });
       if (error) return error instanceof FunctionsHttpError && (error.context as Response | undefined)?.status === 404 ? "notDeployed" : "unreachable";
-      if (!data?.ok || typeof data.raw !== "string" || !data.raw) return [];
-      return provider === "yahoo" ? parseYahooChart(data.raw) : parseOhlcCsv(data.raw);
+      return data?.ok && typeof data.raw === "string" ? data.raw : "";
     } catch {
       return "unreachable";
     }
@@ -66,6 +67,44 @@ function download(provider: "stooq" | "yahoo", ticker: string, from: string, to:
   void p.finally(() => inflight.delete(id));
   return p;
 }
+const isError = (x: unknown): x is LoadError => x === "notDeployed" || x === "unreachable" || x === "noData" || x === "noTicker";
+async function download(provider: "stooq" | "yahoo", ticker: string, from: string, to: string): Promise<Bar[] | LoadError> {
+  const raw = await fetchRaw(provider, ticker, from, to);
+  if (isError(raw)) return raw;
+  return !raw ? [] : provider === "yahoo" ? parseYahooChart(raw) : parseOhlcCsv(raw);
+}
+
+// ---------- intraday bars (Reports > Trade path) ----------
+
+export type Interval = "1m" | "5m" | "60m";
+export const INTERVAL_MIN: Record<Interval, number> = { "1m": 1, "5m": 5, "60m": 60 };
+/** How many days back Yahoo serves each bar size (with a margin), and the longest span one request may ask for. */
+export const INTRADAY_DAYS: Record<Interval, number> = { "1m": 28, "5m": 58, "60m": 728 };
+const CHUNK_DAYS: Record<Interval, number> = { "1m": 6, "5m": 58, "60m": 728 };
+const intradayMemo = new Map<string, IBar[]>(); // this session only: intraday bars are too big for local storage
+
+/**
+ * Intraday bars (UTC) of a Yahoo ticker from `from` to `to` (YYYY-MM-DD), fetched in the chunks Yahoo allows, one request
+ * at a time. Kept in memory for the session.
+ */
+export async function loadIntraday(ticker: string, interval: Interval, from: string, to: string, onChunk?: () => void): Promise<IBar[] | LoadError> {
+  const out: IBar[] = [];
+  for (let a = from; a <= to; a = addDays(a, CHUNK_DAYS[interval] + 1)) {
+    const z = addDays(a, CHUNK_DAYS[interval]) < to ? addDays(a, CHUNK_DAYS[interval]) : to, key = `${ticker}|${interval}|${a}|${z}`;
+    let bars = intradayMemo.get(key);
+    if (!bars) {
+      const raw = await fetchRaw("yahoo", ticker, a, z, interval);
+      if (isError(raw)) return raw;
+      bars = raw ? parseYahooIntraday(raw) : [];
+      intradayMemo.set(key, bars);
+    }
+    onChunk?.();
+    out.push(...bars);
+  }
+  return sortBars(out);
+}
+/** Number of requests loadIntraday makes for a window (for progress). */
+export const intradayChunks = (interval: Interval, from: string, to: string) => { let n = 0; for (let a = from; a <= to; a = addDays(a, CHUNK_DAYS[interval] + 1)) n++; return n; };
 
 /**
  * Daily bars from `from` to `to` (the caller adds the look-back it needs). Order: imported CSV, cached download that covers

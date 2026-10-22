@@ -291,20 +291,8 @@ export function cellTime(s: string, time?: string): number {
  * intraday rows are merged into one bar per day (first open, highest high, lowest low, last close).
  */
 export function parseOhlcCsv(text: string): Bar[] {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) return [];
-  const sep = [",", ";", "\t"].map((s) => [s, lines[0].split(s).length] as const).sort((a, b) => b[1] - a[1])[0][0];
-  const head = lines[0].split(sep).map((h) => h.trim().replace(/^"|"$/g, "").replace(/[<>]/g, "").toLowerCase());
-  const col = (...names: string[]) => head.findIndex((h) => names.includes(h));
-  const iD = col("date", "time", "datetime", "timestamp", "date time", "day"), iT = col("time") !== iD ? col("time") : -1;
-  const iO = col("open", "o"), iH = col("high", "h"), iL = col("low", "l"), iC = col("close", "c", "last", "price", "adj close");
-  if (iD < 0 || iO < 0 || iH < 0 || iL < 0 || iC < 0) return [];
   const days = new Map<string, Bar & { first: number; last: number }>();
-  for (const line of lines.slice(1)) {
-    const c = line.split(sep);
-    const tm = cellTime(c[iD] ?? "", iT >= 0 && iT !== iD ? c[iT] : undefined);
-    const o = num(c[iO]), h = num(c[iH]), l = num(c[iL]), cl = num(c[iC]);
-    if (!Number.isFinite(tm) || ![o, h, l, cl].every((x) => Number.isFinite(x) && x > 0)) continue;
+  for (const { tm, o, h, l, c: cl } of csvRows(text)) {
     const d = new Date(tm).toISOString().slice(0, 10), x = days.get(d);
     if (!x) days.set(d, { d, o, h, l, c: cl, first: tm, last: tm });
     else {
@@ -314,6 +302,26 @@ export function parseOhlcCsv(text: string): Bar[] {
     }
   }
   return cleanBars([...days.values()].map(({ d, o, h, l, c }) => ({ d, o, h, l, c })));
+}
+
+/** Rows of a price CSV (same formats as parseOhlcCsv): time in ms (wall time read as UTC) and prices; bad rows skipped. */
+export function csvRows(text: string): { tm: number; o: number; h: number; l: number; c: number }[] {
+  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const sep = [",", ";", "\t"].map((s) => [s, lines[0].split(s).length] as const).sort((a, b) => b[1] - a[1])[0][0];
+  const head = lines[0].split(sep).map((h) => h.trim().replace(/^"|"$/g, "").replace(/[<>]/g, "").toLowerCase());
+  const col = (...names: string[]) => head.findIndex((h) => names.includes(h));
+  const iD = col("date", "time", "datetime", "timestamp", "date time", "day"), iT = col("time") !== iD ? col("time") : -1;
+  const iO = col("open", "o"), iH = col("high", "h"), iL = col("low", "l"), iC = col("close", "c", "last", "price", "adj close");
+  if (iD < 0 || iO < 0 || iH < 0 || iL < 0 || iC < 0) return [];
+  const out: { tm: number; o: number; h: number; l: number; c: number }[] = [];
+  for (const line of lines.slice(1)) {
+    const c = line.split(sep);
+    const tm = cellTime(c[iD] ?? "", iT >= 0 && iT !== iD ? c[iT] : undefined);
+    const o = num(c[iO]), h = num(c[iH]), l = num(c[iL]), cl = num(c[iC]);
+    if (Number.isFinite(tm) && [o, h, l, cl].every((x) => Number.isFinite(x) && x > 0)) out.push({ tm, o, h, l, c: cl });
+  }
+  return out;
 }
 
 // ---------- tickers ----------
