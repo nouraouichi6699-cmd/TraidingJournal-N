@@ -3,7 +3,8 @@
 // CSV download (a fallback: since 2026 Stooq often answers servers with a bot check), daily or intraday bars, only plain ticker
 // characters and ISO dates. It returns the provider's raw text and the app parses it (src/lib/benchmark.ts, covered by
 // tests). Deploy once: supabase functions deploy market
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
+// Every header the Supabase SDK may send (as @supabase/supabase-js/cors), so the browser's preflight never fails.
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-region, x-retry-count, traceparent, tracestate, baggage", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const SAFE = /^[A-Za-z0-9^=.\-]{1,24}$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Bar sizes: daily, or intraday for Reports > Trade path (Yahoo keeps 1-minute bars ~30 days, 5-minute 60 days, hourly 2 years).
 const INTERVALS = ["1d", "60m", "5m", "1m"];
