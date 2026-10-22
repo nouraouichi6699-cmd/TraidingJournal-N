@@ -103,6 +103,8 @@ export function histogram(values: number[], target = 20): Bin[] {
 export interface McResult {
   paths: number; horizon: number; steps: number[]; p5: number[]; p50: number[]; p95: number[];
   probProfit: number; finalP5: number; finalP50: number; finalP95: number; ddMedian: number; ddP95: number;
+  ruin: number | null; // % of paths whose cumulative P&L reached -ruinAt (null without ruinAt)
+  recMedian: number | null; // median trades from the deepest drawdown's trough back to its peak (null: most paths never got back)
 }
 
 /** Small seeded PRNG (mulberry32): the same trades always give the same simulation. */
@@ -115,34 +117,44 @@ export function rng(seed: number) {
  * Bootstrap simulation of the next `horizon` trades: each path draws past trade results at random (with replacement).
  * Returns the 5th / 50th / 95th percentile of cumulative P&L at `points` evenly spaced trade counts, the share of paths
  * that end in profit, and the median / 95th percentile of each path's maximum drawdown (money, from the start of the path).
+ * Also: the share of paths that lose `ruinAt` (money) at some point, and the median number of trades a path needs to climb
+ * from the bottom of its deepest drawdown back to that drawdown's peak (paths with no drawdown need 0; a path still below
+ * it at the end counts as never).
  */
-export function monteCarlo(pnls: number[], o: { paths?: number; horizon?: number; seed?: number; points?: number } = {}): McResult | null {
+export function monteCarlo(pnls: number[], o: { paths?: number; horizon?: number; seed?: number; points?: number; ruinAt?: number } = {}): McResult | null {
   const pool = pnls.filter(Number.isFinite);
   if (pool.length < 2) return null;
   const paths = o.paths ?? 1000, horizon = Math.max(1, o.horizon ?? pool.length), r = rng(o.seed ?? 42);
   const points = Math.max(2, Math.min(o.points ?? 120, horizon));
   const steps = Array.from({ length: points }, (_, i) => Math.max(1, Math.round(((i + 1) * horizon) / points)));
   // Typed arrays sorted once each (numeric sort, no comparator): the same percentiles, many times faster.
-  const at = steps.map(() => new Float64Array(paths)), finals = new Float64Array(paths), dds = new Float64Array(paths);
+  const at = steps.map(() => new Float64Array(paths)), finals = new Float64Array(paths), dds = new Float64Array(paths), recs = new Float64Array(paths);
+  const ruinAt = o.ruinAt != null && o.ruinAt > 0 ? o.ruinAt : null;
+  let ruined = 0;
   for (let p = 0; p < paths; p++) {
-    let cum = 0, peak = 0, dd = 0, s = 0;
+    let cum = 0, peak = 0, dd = 0, s = 0, low = 0, ddPeak = 0, ddLow = 0, back = 0; // back: trade at which the deepest drawdown was recovered
     for (let k = 1; k <= horizon; k++) {
       cum += pool[Math.floor(r() * pool.length)];
-      if (cum > peak) peak = cum; else if (peak - cum > dd) dd = peak - cum;
+      if (cum > peak) peak = cum; else if (peak - cum > dd) { dd = peak - cum; ddPeak = peak; ddLow = k; back = 0; }
+      if (dd > 0 && !back && cum >= ddPeak) back = k;
+      if (cum < low) low = cum;
       while (s < steps.length && steps[s] === k) at[s++][p] = cum;
     }
-    finals[p] = cum; dds[p] = dd;
+    finals[p] = cum; dds[p] = dd; recs[p] = dd === 0 ? 0 : back ? back - ddLow : Infinity;
+    if (ruinAt != null && low <= -ruinAt) ruined++;
   }
   for (const a of at) a.sort();
   let wins = 0;
   for (const x of finals) if (x > 0) wins++;
-  finals.sort(); dds.sort();
+  finals.sort(); dds.sort(); recs.sort();
+  const recMid = pctile(recs, 0.5);
   return {
     paths, horizon, steps,
     p5: at.map((a) => pctile(a, 0.05)), p50: at.map((a) => pctile(a, 0.5)), p95: at.map((a) => pctile(a, 0.95)),
     probProfit: (wins / paths) * 100,
     finalP5: pctile(finals, 0.05), finalP50: pctile(finals, 0.5), finalP95: pctile(finals, 0.95),
     ddMedian: pctile(dds, 0.5), ddP95: pctile(dds, 0.95),
+    ruin: ruinAt != null ? (ruined / paths) * 100 : null, recMedian: Number.isFinite(recMid) ? recMid : null,
   };
 }
 

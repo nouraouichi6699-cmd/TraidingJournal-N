@@ -2,7 +2,7 @@
 // "market" Supabase function (Yahoo Finance, then Stooq). Bars are stored compactly as [date, open, high, low, close].
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { cleanBars, parseOhlcCsv, parseYahooChart, type Bar, type Ticker } from "./benchmark";
+import { BENCHMARKS, cleanBars, parseOhlcCsv, parseYahooChart, type Bar, type Ticker } from "./benchmark";
 
 export type Source = "stooq" | "yahoo" | "csv";
 export interface Prices { bars: Bar[]; source: Source; updated: number }
@@ -21,6 +21,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 export interface BenchPrefs { bench: string; custom: string; rf: number; barMinutes: number }
 export const loadPrefs = (): BenchPrefs => { try { return { bench: "spx", custom: "", rf: 0, barMinutes: 60, ...JSON.parse(localStorage.getItem(PREFS) ?? "{}") }; } catch { return { bench: "spx", custom: "", rf: 0, barMinutes: 60 }; } };
 export const savePrefs = (p: BenchPrefs) => { try { localStorage.setItem(PREFS, JSON.stringify(p)); } catch { /* ignore */ } };
+
+/** The benchmark chosen on the Benchmark & Market tab: id (cache key), label and tickers. */
+export const benchOf = (p: BenchPrefs): { id: string; label: string; t: Ticker } =>
+  p.bench === "custom" ? { id: `custom:${p.custom.trim()}`, label: p.custom.trim() || "…", t: { yahoo: p.custom.trim() || null, stooq: null } } : (BENCHMARKS.find((b) => b.id === p.bench) ?? BENCHMARKS[0]);
 
 /** Ticker overrides typed by the user for symbols the app cannot map ({ symbol: Yahoo ticker }). */
 export const loadMap = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(MAP) ?? "{}") ?? {}; } catch { return {}; } };

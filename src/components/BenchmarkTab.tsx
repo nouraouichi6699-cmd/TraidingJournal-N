@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GitCompareArrows, Globe2, RefreshCw, Upload, Check, AlertTriangle } from "lucide-react";
 import { MetricSection, ViewHeader, type Item, type View } from "./metricUi";
 import { BENCHMARKS, accountDays, alignWithBenchmark, benchStats, marketContext, tickerFor, type Bar, type RegimeKey, type Ticker } from "../lib/benchmark";
-import { clearCsv, clearDownloads, importCsv, loadDaily, loadMap, loadPrefs, readCsv, saveMap, savePrefs, type LoadError, type Prices } from "../lib/marketData";
+import { benchOf, clearCsv, clearDownloads, importCsv, loadDaily, loadMap, loadPrefs, readCsv, saveMap, savePrefs, type LoadError, type Prices } from "../lib/marketData";
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import type { Lang, Trade } from "../types";
@@ -97,7 +97,7 @@ export default function BenchmarkTab({ lang, trades, start, flows, currency }: {
   const from = closed[0]?.exitTime?.slice(0, 10) ?? "", to = closed[closed.length - 1]?.exitTime?.slice(0, 10) ?? "";
   const firstEntry = closed.reduce((m, t) => { const d = (t.entryTime ?? t.exitTime ?? "").slice(0, 10); return d && d < m ? d : m; }, from);
   const symbols = useMemo(() => [...new Set(closed.map((t) => t.symbol))].sort(), [closed]);
-  const def = prefs.bench === "custom" ? { id: `custom:${prefs.custom.trim()}`, label: prefs.custom.trim() || "…", t: { yahoo: prefs.custom.trim() || null, stooq: null } as Ticker } : (BENCHMARKS.find((b) => b.id === prefs.bench) ?? BENCHMARKS[0]);
+  const def = benchOf(prefs);
   const tickerOf = (s: string): Ticker | null => (map[s] ? { yahoo: map[s], stooq: null } : tickerFor(s));
 
   useEffect(() => {
