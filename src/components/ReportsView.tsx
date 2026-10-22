@@ -171,8 +171,8 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
-      <div className="flex justify-center">
-        <div className="inline-flex gap-1 rounded-2xl border border-border bg-surface p-1">
+      <div className="flex overflow-x-auto">
+        <div className="mx-auto inline-flex gap-1 rounded-2xl border border-border bg-surface p-1">
           {TABS.map((x) => (
             <button key={x.id} onClick={() => setTab(x.id)} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === x.id ? "bg-primary-tint text-primary border border-primary/50 shadow-sm" : "text-muted hover:text-text"}`}>{x.icon}{x.label}</button>
           ))}
@@ -191,7 +191,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
       ) : tab === "outcomes" ? (
         <TradeOutcomesTab lang={lang} o={outcomes} recent={recent} onImport={onImport} currency={currency} />
       ) : tab === "benchmark" ? (
-        <BenchmarkTab lang={lang} />
+        <BenchmarkTab lang={lang} trades={list} start={periodStart} flows={flowSplit.period} currency={currency} />
       ) : tab === "portfolio" ? (
         <PortfolioTab lang={lang} />
       ) : tab === "advanced" ? (
