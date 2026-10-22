@@ -557,5 +557,33 @@ h6 {
     animation: none;
   }
 }
+/* Reports: section bar + panel entrance */
+.rt-tabs {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+@keyframes rt-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rt-panel {
+  animation: rt-in .38s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-panel {
+    animation: none;
+  }
+}
+
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
 @container (max-width: 140px) { .kpi-visual { display: none; } }

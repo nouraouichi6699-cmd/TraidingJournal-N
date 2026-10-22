@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { metrics } from "../lib/dashStats";
-import { Wallet, Route, Waypoints, FlaskConical, Briefcase, GitCompareArrows, LayoutDashboard, Activity as ActIcon, CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
+import { CalendarDays, Clock, Flame, Layers, TrendingDown, TrendingUp, Info, Scale, Repeat, BarChart3, Gauge } from "lucide-react";
 import { computeActivity } from "../lib/activity";
 import { computeOverview } from "../lib/stats";
 import { computeReturnsCapital } from "../lib/returnsCapital";
@@ -15,6 +15,8 @@ import PathTab, { PATH_TAB } from "./PathTab";
 import ReturnsTab, { RET_TAB } from "./ReturnsTab";
 import AdvancedTab, { ADV_TAB } from "./AdvancedTab";
 import PortfolioTab, { PORTFOLIO_TAB } from "./PortfolioTab";
+import ReportTabs from "./ReportTabs";
+import type { ReportTabId } from "./ReportTabIcons";
 import { computeTradeOutcomes, recentOutcomes } from "../lib/tradeOutcomes";
 import { toT } from "../i18n";
 import { ovT } from "../i18n";
@@ -90,7 +92,8 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
   useEffect(() => { if (nav) onNavDone?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
-  const TABS = [{ id: "overview", icon: <LayoutDashboard size={15} />, label: ovT(lang)("tab") }, { id: "outcomes", icon: <Scale size={15} />, label: toT(lang)("tab") }, { id: "returns", icon: <Wallet size={15} />, label: RET_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "benchmark", icon: <GitCompareArrows size={15} />, label: BENCH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "portfolio", icon: <Briefcase size={15} />, label: PORTFOLIO_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "advanced", icon: <FlaskConical size={15} />, label: ADV_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "path", icon: <Route size={15} />, label: PATH_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "daybyday", icon: <CalendarDays size={15} />, label: DAY_TAB[lang === "en" ? 0 : lang === "ar" ? 1 : 2] }, { id: "activity", icon: <ActIcon size={15} />, label: L(TX.tab) }];
+  const li = lang === "en" ? 0 : lang === "ar" ? 1 : 2;
+  const labels: Record<ReportTabId, string> = { overview: ovT(lang)("tab"), daybyday: DAY_TAB[li], activity: L(TX.tab), outcomes: toT(lang)("tab"), returns: RET_TAB[li], benchmark: BENCH_TAB[li], portfolio: PORTFOLIO_TAB[li], path: PATH_TAB[li], advanced: ADV_TAB[li] };
 
   // Period start (YYYY-MM-DD), "" for all time. One cut-off for trades, cash flows and balance history.
   const cut = useMemo(() => {
@@ -171,13 +174,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
-      <div className="flex overflow-x-auto">
-        <div className="mx-auto inline-flex gap-1 rounded-2xl border border-border bg-surface p-1">
-          {TABS.map((x) => (
-            <button key={x.id} onClick={() => setTab(x.id)} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === x.id ? "bg-primary-tint text-primary border border-primary/50 shadow-sm" : "text-muted hover:text-text"}`}>{x.icon}{x.label}</button>
-          ))}
-        </div>
-      </div>
+      <ReportTabs lang={lang} tab={tab} onTab={setTab} labels={labels} />
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         {accounts.length > 1 && (
@@ -186,6 +183,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
         <select className="field" value={per} onChange={(e) => setPer(e.target.value)}>{[{ value: "all", label: L(TX.pAll) }, { value: "p1", label: L(TX.p1) }, { value: "p3", label: L(TX.p3) }, { value: "p12", label: L(TX.p12) }].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
       </div>
 
+      <div key={tab} id="rt-panel" role="tabpanel" aria-labelledby={`rt-tab-${tab}`} className="rt-panel space-y-5">
       {tab === "overview" ? (
         <OverviewTab lang={lang} o={ov} currency={currency} twr={rc.twr} />
       ) : tab === "outcomes" ? (
@@ -227,7 +225,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+            <div className="min-w-0 lg:col-span-2">
               <Card title={L(TX.heat)}>
                 <div dir="ltr" className="overflow-x-auto pb-1">
                   <div className="flex gap-[3px]">
@@ -261,6 +259,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

@@ -90,9 +90,9 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
           })}
         </nav>
         <div className="min-w-0 flex-1 space-y-4">
-          <div role="tablist" className="inline-flex gap-1 rounded-xl border border-border p-1" style={cardBg}>
+          <div role="tablist" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border p-1" style={cardBg}>
             {TABS.map(([id, l]) => (
-              <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className="rounded-lg px-5 py-1.5 text-sm font-medium transition"
+              <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className="shrink-0 whitespace-nowrap rounded-lg px-5 py-1.5 text-sm font-medium transition"
                 style={tab === id ? { background: "color-mix(in srgb, var(--primary) 14%, transparent)", color: "var(--primary)" } : { color: "var(--muted)" }}>{T(l)}</button>
             ))}
           </div>
