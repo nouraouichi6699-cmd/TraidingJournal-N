@@ -3,10 +3,12 @@
 import type { Trade } from "../types";
 import { atrPct, tickerFor, type Bar, type Ticker } from "./benchmark";
 import { addDays, importCsv, INTERVAL_MIN, INTRADAY_DAYS, intradayChunks, loadDaily, loadIntraday, type Interval, type LoadError } from "./marketData";
-import { detectModel, modelId, parseIntradayCsv, parseModel, tradePath, wallToUtc, type Entry, type IBar, type Path, type TimeModel } from "./path";
+import { detectModel, MIN_BARS, modelId, parseIntradayCsv, parseModel, tradePath, wallToUtc, type Entry, type IBar, type Path, type TimeModel } from "./path";
 
 const STORE = "mizan-path:v1", CLOCK = "mizan-path-clock:v1", DAY = 864e5;
-export type NoPath = "noTicker" | "noData" | "short" | "clock" | "old";
+export type NoPath = "noTicker" | "noData" | "tiny" | "coarse" | "short" | "gap" | "clock" | "old"; // "short": stored before tiny / coarse were told apart
+/** Why a trade could not be measured from bars of `minutes`: under 3 one-minute bars, shorter than 3 coarser bars, or prices missing for part of it. */
+const why = (s: number, e: number, minutes: number): NoPath => (e - s >= MIN_BARS * minutes * 6e4 ? "gap" : minutes <= 1 ? "tiny" : "coarse");
 export type PathSrc = "yahoo" | "csv";
 type Packed = { s: PathSrc; m: string; r: number; p: (number | null)[] } | { s: "none"; r: NoPath; at: number };
 export type Stored = { src: PathSrc; model: string; res: number; path: Path } | { none: NoPath; at: number };
@@ -126,7 +128,7 @@ export async function measurePaths(o: { trades: Trade[]; now: number; map: Recor
     const c = clocks.find((x) => x.accountId === t.accountId)?.model;
     if (!c) { store.set(t.key, { none: "clock", at: o.now }); continue; }
     const p = tradePath(t, wallToUtc(c, s), wallToUtc(c, e), b.bars, b.minutes);
-    store.set(t.key, p ? { src: "yahoo", model: modelId(c), res: b.minutes, path: p } : { none: "short", at: o.now });
+    store.set(t.key, p ? { src: "yahoo", model: modelId(c), res: b.minutes, path: p } : { none: why(s, e, b.minutes), at: o.now });
     if (p) measured++;
   }
   writePaths(store);
@@ -148,7 +150,7 @@ export function importPathCsv(symbol: string, text: string, trades: Trade[], now
     if (s < a || e > z) continue;
     inSpan++;
     const p = tradePath(t, s, e, bars, minutes);
-    if (p) { store.set(t.key, { src: "csv", model: "0|none", res: minutes, path: p }); measured++; } else store.set(t.key, { none: "short", at: now });
+    if (p) { store.set(t.key, { src: "csv", model: "0|none", res: minutes, path: p }); measured++; } else store.set(t.key, { none: why(s, e, minutes), at: now });
   }
   writePaths(store);
   return { measured, inSpan, minutes };

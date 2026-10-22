@@ -29,6 +29,9 @@ const TXT = {
   unreachable: ["The price service could not be reached. Try again later, or import M1 bars from MT5.", "تعذّر الوصول إلى خدمة الأسعار. حاول لاحقاً أو استورد شموع M1 من MT5.", "Service de prix injoignable. Réessayez plus tard ou importez des bougies M1 de MT5."] as L,
   missing: ["Not measured: {list}.", "غير مُقاس: {list}.", "Non mesurés : {list}."] as L,
   rShort: ["{n} too short for the bars available (1-minute bars cover the last 28 days, 5-minute 58 days, hourly 2 years)", "{n} أقصر من الشموع المتاحة (شموع الدقيقة تغطي آخر 28 يوماً، و5 دقائق 58 يوماً، والساعة سنتين)", "{n} trop courts pour les bougies disponibles (1 min : 28 derniers jours, 5 min : 58 jours, horaires : 2 ans)"] as L,
+  rTiny: ["{n} under 3 minutes: too short for 1-minute prices", "{n} أقل من 3 دقائق: أقصر من أن تقيسها شموع الدقيقة", "{n} de moins de 3 minutes : trop courts pour des bougies d'une minute"] as L,
+  rCoarse: ["{n} too short for the 5-minute or hourly prices of their dates (import M1 bars from MT5 to measure them)", "{n} أقصر من شموع 5 دقائق أو الساعة المتاحة لتواريخها (استورد شموع M1 من MT5 لقياسها)", "{n} trop courts pour les bougies 5 min ou horaires de leurs dates (importez des bougies M1 de MT5 pour les mesurer)"] as L,
+  rGap: ["{n} with market prices missing for part of the trade", "{n} تنقصها أسعار السوق في جزء من مدة الصفقة", "{n} sans prix de marché pendant une partie du trade"] as L,
   rOld: ["{n} older than 2 years and shorter than a few days", "{n} أقدم من سنتين وأقصر من بضعة أيام", "{n} de plus de 2 ans et de moins de quelques jours"] as L,
   rNoTicker: ["{n} on symbols without a market ticker", "{n} على رموز بلا رمز سوق", "{n} sur des symboles sans ticker de marché"] as L,
   rNoData: ["{n} without market prices", "{n} بلا أسعار سوق", "{n} sans prix de marché"] as L,
@@ -216,7 +219,9 @@ export default function PathTab({ lang, trades, accounts, history, currency }: {
     return c;
   }, [closed, store]);
   const srcText = counts.res.size ? ` (\u2066${[...counts.res].map(([r, n]) => `${r}: ${n}`).join(", ")}\u2069)` : ""; // kept left to right in Arabic
-  const whyText = [...counts.why].map(([r, n]) => fill(r === "short" ? TXT.rShort : r === "old" ? TXT.rOld : r === "noTicker" ? TXT.rNoTicker : r === "clock" ? TXT.rClock : TXT.rNoData, { n })).join("; ");
+  const whyLabel = (r: NoPath) => ({ tiny: TXT.rTiny, coarse: TXT.rCoarse, short: TXT.rShort, gap: TXT.rGap, old: TXT.rOld, noTicker: TXT.rNoTicker, clock: TXT.rClock, noData: TXT.rNoData })[r];
+  const sep = lang === "ar" ? "؛ " : "; ";
+  const whyText = [...counts.why].map(([r, n]) => fill(whyLabel(r), { n })).join(sep);
   const nameOf = (id: string) => accounts.find((a) => a.id === id)?.name ?? id;
   const saved = readClock();
   const clockLines = (clocks.length ? clocks : Object.entries(saved.auto).filter(([id]) => accounts.some((a) => a.id === id)).map(([id, x]) => ({ accountId: id, model: parseModel(x.m), how: "saved" as const, n: x.n })))
@@ -263,6 +268,11 @@ export default function PathTab({ lang, trades, accounts, history, currency }: {
             {closed.some((t) => t.symbol === editing && (store.get(t.key) as { src?: string } | undefined)?.src === "csv") && (
               <button type="button" onClick={() => { removePathCsv(editing, history); setVersion((x) => x + 1); setReload((x) => x + 1); }} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold">{T(TXT.removeCsv)}</button>)}
           </div>
+          {(() => { // why this symbol's other trades were not measured
+            const w = new Map<NoPath, number>();
+            for (const t of closed) { if (t.symbol !== editing) continue; const x = store.get(t.key); if (x && "none" in x) w.set(x.none, (w.get(x.none) ?? 0) + 1); }
+            return w.size ? <p className="text-xs text-text">{ltrNumbers(fill(TXT.missing, { list: [...w].map(([r, n]) => fill(whyLabel(r), { n })).join(sep) }))}</p> : null;
+          })()}
           <p className="text-xs text-muted">{T(TXT.csvHint)}</p>
           {csvMsg && <p className="text-xs text-text">{ltrNumbers(csvMsg)}</p>}
         </div>
