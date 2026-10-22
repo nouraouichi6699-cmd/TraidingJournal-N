@@ -193,7 +193,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
       ) : tab === "benchmark" ? (
         <BenchmarkTab lang={lang} trades={list} start={periodStart} flows={flowSplit.period} currency={currency} />
       ) : tab === "portfolio" ? (
-        <PortfolioTab lang={lang} />
+        <PortfolioTab lang={lang} trades={list} accounts={periodAccounts} flows={flowSplit.period} history={trades} currency={currency} />
       ) : tab === "advanced" ? (
         <AdvancedTab lang={lang} />
       ) : tab === "path" ? (
