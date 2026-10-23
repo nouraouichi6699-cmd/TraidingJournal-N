@@ -214,7 +214,7 @@ export default function Mt5SyncCard({ lang, userId, account }: { lang: Lang; use
 
           <p className="mt-4 text-sm text-muted">
             {key.last ? T.last[lang].replace("{t}", ago(key.last, lang, now)) : T.first[lang]}
-            {key.login && <span dir="ltr" className="whitespace-nowrap"> · {T.login[lang].replace("{n}", key.login)}</span>}
+            {key.login && <span className="whitespace-nowrap"> · {T.login[lang].replace("{n}", key.login)}</span>}
             {status === "paused" && <span className="block text-text">{T.stale[lang]}</span>}
           </p>
 
