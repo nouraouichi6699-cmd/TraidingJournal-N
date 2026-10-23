@@ -658,3 +658,8 @@ h6 {
 .rp-in { animation: rp-in 0.22s ease-out; }
 .rp-range { accent-color: var(--icon); }
 @media (prefers-reduced-motion: reduce) { .rp-in { animation: none; } }
+
+/* Challenges */
+@keyframes ch-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.ch-card { animation: ch-in 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .ch-card { animation: none; } }

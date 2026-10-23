@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Sparkles } from "lucide-react";
+import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Sparkles, Flag } from "lucide-react";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
 
@@ -17,7 +17,7 @@ const groups = [
   },
   {
     id: "g3", label: { en: "Growth", ar: "التطور", fr: "Progression" }, items: [
-      { id: "advisor", icon: Sparkles }, { id: "strategies", icon: Target }, { id: "achievements", icon: Trophy },
+      { id: "advisor", icon: Sparkles }, { id: "challenges", icon: Flag }, { id: "strategies", icon: Target }, { id: "achievements", icon: Trophy },
     ]
   },
 ] as const;
