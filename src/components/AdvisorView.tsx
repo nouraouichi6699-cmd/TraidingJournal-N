@@ -34,13 +34,14 @@ const TXT = {
   exitsHint: X("Exit advice (stop loss, take profit) needs price paths: open Reports › Trade path once.", "نصائح الخروج (وقف الخسارة وجني الربح) تحتاج مسارات الأسعار: افتح «التقارير › مسار الصفقة» مرة واحدة.", "Les conseils de sortie (stop, take profit) demandent les parcours de prix : ouvrez une fois Rapports › Parcours du trade."),
   openPath: X("Open Trade path", "افتح «مسار الصفقة»", "Ouvrir Parcours du trade"),
   chat: X("Ask your advisor", "اسأل مستشارك", "Demandez à votre conseiller"),
-  chatSub: X("Answers by Claude, from a summary of your trades.", "يجيب Claude انطلاقاً من ملخّص صفقاتك.", "Réponses de Claude, à partir d'un résumé de vos trades."),
+  chatSub: X("Answers by a free AI (Google Gemini), from a summary of your trades.", "يجيب ذكاء اصطناعي مجاني (Google Gemini) انطلاقاً من ملخّص صفقاتك.", "Réponses d'une IA gratuite (Google Gemini), à partir d'un résumé de vos trades."),
   placeholder: X("Ask about your trading…", "اسأل عن تداولك…", "Posez une question sur votre trading…"),
   send: X("Send", "إرسال", "Envoyer"),
   restart: X("New conversation", "محادثة جديدة", "Nouvelle conversation"),
-  privacy: X("Your question and a summary of your trades (no account numbers) are sent to Claude, by Anthropic, to write the answer. This is not financial advice.", "يُرسَل سؤالك وملخّص لصفقاتك (بلا أرقام حسابات) إلى Claude من Anthropic لكتابة الجواب. هذا ليس نصيحة مالية.", "Votre question et un résumé de vos trades (sans numéros de compte) sont envoyés à Claude, d'Anthropic, pour rédiger la réponse. Ce n'est pas un conseil financier."),
-  notDeployed: X("The chat is not set up yet: deploy the \"advisor\" function in Supabase and add your Anthropic API key (ANTHROPIC_API_KEY).", "المحادثة غير مفعّلة بعد: انشر الدالة advisor في Supabase وأضف مفتاح Anthropic API باسم ANTHROPIC_API_KEY.", "Le chat n'est pas encore installé : déployez la fonction « advisor » dans Supabase et ajoutez votre clé API Anthropic (ANTHROPIC_API_KEY)."),
-  noKey: X("Add your Anthropic API key in Supabase › Edge Functions › Secrets, named ANTHROPIC_API_KEY.", "أضف مفتاح Anthropic API في Supabase › Edge Functions › Secrets باسم ANTHROPIC_API_KEY.", "Ajoutez votre clé API Anthropic dans Supabase › Edge Functions › Secrets, nommée ANTHROPIC_API_KEY."),
+  privacy: X("Your question and a summary of your trades (no account numbers) are sent to Google Gemini to write the answer. On the free tier, Google may use them to improve its products and reviewers may read them. This is not financial advice.", "يُرسَل سؤالك وملخّص لصفقاتك (بلا أرقام حسابات) إلى Google Gemini لكتابة الجواب. في المستوى المجاني قد تستخدمها Google لتحسين منتجاتها وقد يطّلع عليها مراجعون. هذا ليس نصيحة مالية.", "Votre question et un résumé de vos trades (sans numéros de compte) sont envoyés à Google Gemini pour rédiger la réponse. En version gratuite, Google peut les utiliser pour améliorer ses produits et des réviseurs peuvent les lire. Ce n'est pas un conseil financier."),
+  notDeployed: X("The chat is not set up yet: deploy the \"advisor\" function in Supabase and add a free Gemini API key (GEMINI_API_KEY).", "المحادثة غير مفعّلة بعد: انشر الدالة advisor في Supabase وأضف مفتاح Gemini API المجاني باسم GEMINI_API_KEY.", "Le chat n'est pas encore installé : déployez la fonction « advisor » dans Supabase et ajoutez une clé API Gemini gratuite (GEMINI_API_KEY)."),
+  noKey: X("Add your free Gemini API key in Supabase › Edge Functions › Secrets, named GEMINI_API_KEY.", "أضف مفتاح Gemini API المجاني في Supabase › Edge Functions › Secrets باسم GEMINI_API_KEY.", "Ajoutez votre clé API Gemini gratuite dans Supabase › Edge Functions › Secrets, nommée GEMINI_API_KEY."),
+  busy: X("Today's free AI quota is used up. Try again tomorrow.", "انتهت حصة الذكاء الاصطناعي المجانية لهذا اليوم. حاول غداً.", "Le quota gratuit du jour est épuisé. Réessayez demain."),
   signIn: X("Sign in to use the chat.", "سجّل الدخول لاستخدام المحادثة.", "Connectez-vous pour utiliser le chat."),
   failed: X("The advisor could not answer right now. Try again in a moment.", "تعذّر على المستشار الإجابة الآن. حاول بعد قليل.", "Le conseiller n'a pas pu répondre. Réessayez dans un instant."),
 };
@@ -52,7 +53,7 @@ const ASK: L[] = [
 ];
 
 const bold = (s: string) => s.split(/(\*\*[^*]+\*\*)/).map((p, i) => (p.startsWith("**") && p.endsWith("**") && p.length > 4 ? <strong key={i} className="font-semibold text-text">{p.slice(2, -2)}</strong> : p));
-/** Claude's answer: paragraphs, "- " or "1." lists, **bold**, headings shown as bold lines. */
+/** The AI's answer: paragraphs, "- " or "1." lists, **bold**, headings shown as bold lines. */
 function Rich({ text }: { text: string }) {
   const out: ReactNode[] = [];
   let list: string[] = [];
@@ -85,7 +86,7 @@ function Chat({ lang, T, context }: { lang: Lang; T: (x: L) => string; context: 
     if ("answer" in r) setTurns((t) => [...t, { role: "assistant", content: r.answer }]);
     else { setErr(r.error); setTurns((t) => t.slice(0, -1)); setDraft(question); }
   };
-  const errText = err && T(err === "notDeployed" ? TXT.notDeployed : err === "noKey" ? TXT.noKey : err === "signIn" ? TXT.signIn : TXT.failed);
+  const errText = err && T(err === "notDeployed" ? TXT.notDeployed : err === "noKey" ? TXT.noKey : err === "signIn" ? TXT.signIn : err === "busy" ? TXT.busy : TXT.failed);
   return (
     <section className="rounded-2xl border border-border p-5" style={cardBg}>
       <div className="flex flex-wrap items-center justify-between gap-3">

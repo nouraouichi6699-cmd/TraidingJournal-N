@@ -191,7 +191,7 @@ function groups(trades: Trade[], key: (t: Trade) => string) {
   return [...m].map(([k, ts]) => { const p = ts.map((t) => t.pnl as number); return { k, n: ts.length, net: r2(p.reduce((a, b) => a + b, 0)), wr: r2((p.filter((x) => x > 0).length / ts.length) * 100) }; });
 }
 
-/** What Claude gets: totals, results by symbol / side / weekday / entry hour / month, the advisor's findings, the last 40 trades. */
+/** What the AI gets: totals, results by symbol / side / weekday / entry hour / month, the advisor's findings, the last 40 trades. */
 export function journalContext(trades: Trade[], plan: Plan, currency: string | null) {
   const closed = trades.filter((t) => t.status === "closed" && t.pnl != null && Number.isFinite(t.pnl)).sort((a, b) => (a.exitTime ?? "").localeCompare(b.exitTime ?? ""));
   const m = metrics(closed);
