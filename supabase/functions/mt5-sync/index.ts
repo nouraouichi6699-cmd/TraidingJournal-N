@@ -41,6 +41,8 @@ Deno.serve(async (req) => {
     if (acc.login && login && acc.login !== login) return json({ ok: false, error: "wrongAccount", expected: acc.login }, 409);
 
     const good = positions.filter(valid), now = new Date().toISOString();
+    const brokerNow = typeof body.now === "string" && WHEN.test(body.now) ? body.now : null; // the EA's server time (MizanSync 1.01+)
+    const closedNow: { symbol: string; side: string; pnl: number; status: string; entry_time: string; exit_time: string }[] = [];
     const keys = good.map((p) => `${accountId}:${p.id}`);
     // what the journal already has (closed trades are final; deleted ones stay deleted)
     const have = new Map<string, { status: string; deleted_at: string | null }>();
@@ -56,6 +58,7 @@ Deno.serve(async (req) => {
       if (old && (old.deleted_at || old.status === "closed")) { skipped++; return []; }
       old ? updated++ : added++;
       const closed = p.status === "closed", com = Number(p.commission) || 0, swap = Number(p.swap) || 0, profit = Number(p.profit) || 0;
+      if (closed) closedNow.push({ symbol: p.symbol, side: p.type === "buy" ? "long" : "short", pnl: r2(profit + com + swap), status: "closed", entry_time: p.openTime, exit_time: p.closeTime as string });
       return [{
         user_id: uid, key, account_id: accountId, ...(old ? {} : { no: ++next }), symbol: p.symbol, side: p.type === "buy" ? "long" : "short", qty: p.volume,
         entry_time: p.openTime, entry_price: p.openPrice, exit_time: closed ? p.closeTime : null, exit_price: closed ? p.closePrice : null,
@@ -73,7 +76,13 @@ Deno.serve(async (req) => {
     // remember the MT5 login on the account, and when this key last synced (shown on the Import page).
     // updated_at null = the database's clock (sync_guard); the hash filter leaves a key replaced meanwhile untouched.
     if (!acc.login && login) await db(`accounts?id=eq.${accountId}&user_id=eq.${uid}`, { method: "PATCH", body: JSON.stringify({ login, server: typeof body.server === "string" ? body.server.slice(0, 80) : acc.server, updated_at: null }) });
-    await db(`user_settings?user_id=eq.${uid}&key=eq.${encodeURIComponent(row.key)}&value->>hash=eq.${hash}`, { method: "PATCH", body: JSON.stringify({ value: { ...row.value, last: now, login: login || null, sent: good.length }, updated_at: null }) });
+    await db(`user_settings?user_id=eq.${uid}&key=eq.${encodeURIComponent(row.key)}&value->>hash=eq.${hash}`, { method: "PATCH", body: JSON.stringify({ value: { ...row.value, last: now, login: login || null, sent: good.length, ...(brokerNow ? { brokerNow } : {}) }, updated_at: null }) });
+    // Telegram alerts (function "telegram"), only for users who linked a chat; a missing function or bot changes nothing here
+    if (closedNow.length && brokerNow) {
+      const linked = await db(`user_settings?select=key&user_id=eq.${uid}&key=eq.telegram&value->>chat=not.is.null&deleted_at=is.null`);
+      if (linked.ok && ((await linked.json()) as unknown[]).length)
+        await fetch(`${SB}/functions/v1/telegram`, { method: "POST", headers: { authorization: `Bearer ${SR}`, apikey: SR, "content-type": "application/json" }, body: JSON.stringify({ action: "sync", uid, accountId, now: brokerNow, closed: closedNow }), signal: AbortSignal.timeout(8000) }).catch(() => null);
+    }
     return json({ ok: true, added, updated, skipped, ignored: positions.length - good.length });
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);

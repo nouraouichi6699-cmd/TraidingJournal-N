@@ -12,6 +12,7 @@ import { propOdds } from "../lib/tradeLab";
 type L3 = Record<Lang, string>;
 const T = {
   title: { en: "Prop challenges", ar: "تحديات التمويل", fr: "Challenges prop" },
+  telegram: { en: "Get these warnings on Telegram →", ar: "استلم هذه التنبيهات على تيليغرام ←", fr: "Recevez ces alertes sur Telegram →" },
   lead: { en: "Your funded-account evaluation, checked on every trade: the target, the daily and overall loss limits, the trading days.", ar: "تقييم حسابك الممول مفحوصاً مع كل صفقة: الهدف، وحدّا الخسارة اليومية والكلية، وأيام التداول.", fr: "Votre évaluation de compte financé, vérifiée à chaque trade : l'objectif, les pertes max journalière et totale, les jours de trading." },
   new: { en: "New challenge", ar: "تحدٍّ جديد", fr: "Nouveau challenge" },
   emptyTitle: { en: "No challenge yet", ar: "لا يوجد تحدٍّ بعد", fr: "Aucun challenge" },
@@ -364,8 +365,8 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
             </div>
             <div className="flex flex-col gap-1.5">
               <label className={lbl}>{L(T.fMax)}<input className={field("max")} inputMode="decimal" dir="ltr" value={d.max} onChange={(e) => setD({ ...d, max: e.target.value, tpl: "custom" })} /></label>
-              <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={d.trailing} onChange={(e) => setD({ ...d, trailing: e.target.checked, tpl: "custom" })} />{L(T.fTrailing)}</label>
-              {d.trailing && <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={d.trailLock} onChange={(e) => setD({ ...d, trailLock: e.target.checked, tpl: "custom" })} />{L(T.fLock)}</label>}
+              <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-[var(--icon)]" checked={d.trailing} onChange={(e) => setD({ ...d, trailing: e.target.checked, tpl: "custom" })} />{L(T.fTrailing)}</label>
+              {d.trailing && <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-[var(--icon)]" checked={d.trailLock} onChange={(e) => setD({ ...d, trailLock: e.target.checked, tpl: "custom" })} />{L(T.fLock)}</label>}
             </div>
             <label className={lbl}>{L(T.fMinDays)}<input className={field("minDays")} inputMode="numeric" dir="ltr" value={d.minDays} onChange={(e) => setD({ ...d, minDays: e.target.value, tpl: "custom" })} /></label>
             <label className={lbl}>{L(T.fLimit)}<input className={field("limitDays")} inputMode="numeric" dir="ltr" value={d.limitDays} onChange={(e) => setD({ ...d, limitDays: e.target.value, tpl: "custom" })} /></label>
@@ -383,7 +384,7 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
   );
 }
 
-export default function ChallengeView({ lang, accounts, trades }: { lang: Lang; accounts: Account[]; trades: Trade[] }) {
+export default function ChallengeView({ lang, accounts, trades, onOpenProfile }: { lang: Lang; accounts: Account[]; trades: Trade[]; onOpenProfile?: () => void }) {
   const L = (x: L3) => x[lang];
   const [list, setList] = useChallenges();
   const [editing, setEditing] = useState<Challenge | "new" | null>(null);
@@ -395,6 +396,7 @@ export default function ChallengeView({ lang, accounts, trades }: { lang: Lang; 
         <div className="min-w-0">
           <h2 className="font-heading text-xl font-semibold">{L(T.title)}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted">{L(T.lead)}</p>
+          {onOpenProfile && shown.length > 0 && <button type="button" onClick={onOpenProfile} className="mt-1.5 text-xs font-semibold text-icon hover:underline">{L(T.telegram)}</button>}
         </div>
         {accounts.length > 0 && shown.length > 0 && (
           <button type="button" onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><Plus size={16} />{L(T.new)}</button>

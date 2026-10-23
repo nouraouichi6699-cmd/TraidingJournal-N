@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import Private from "./Private";
+import TelegramCard from "./TelegramCard";
 import { Camera, Trash2, Info, User, Check } from "lucide-react";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -69,6 +70,8 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
         </div>
         <button type="button" onClick={() => supabase.auth.signOut()} className={`${btn} border-icon text-icon hover:bg-primary-tint`}>{t("signOut")}</button>
       </section>
+
+      <TelegramCard lang={lang} />
 
       <section className={`${card} flex flex-wrap items-center justify-between gap-3 !border-loss/40`}>
         <div>
