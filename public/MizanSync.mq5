@@ -11,7 +11,7 @@
 //  3. Drag MizanSync onto any chart and paste the sync key from Mizan (Import page) in its inputs.
 // Keep MT5 open: closed trades reach Mizan within a minute. The status shows in the chart's top-left corner.
 #property copyright   "Mizan"
-#property version     "1.01"
+#property version     "1.02"
 #property description "Sends your trades to your Mizan journal automatically."
 #property description "Read-only: it never opens, changes or closes a trade."
 
@@ -312,7 +312,7 @@ bool Sync(const int days)
 
    string head = "{\"token\":\"" + Esc(g_key) + "\",\"now\":\"" + When(TimeCurrent()) + "\",\"login\":\"" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN))
                  + "\",\"server\":\"" + Esc(AccountInfoString(ACCOUNT_SERVER)) + "\",\"currency\":\"" + Esc(AccountInfoString(ACCOUNT_CURRENCY))
-                 + "\",\"positions\":[";
+                 + "\",\"balance\":" + Num(AccountInfoDouble(ACCOUNT_BALANCE)) + ",\"positions\":[";
    long added = 0;
    for(int start = 0; start < total || start == 0; start += BATCH)
      {
@@ -320,7 +320,7 @@ bool Sync(const int days)
       string body = head;
       for(int i = start; i < stop; i++)
          body += (i > start ? "," : "") + items[i];
-      body += "]}";
+      body += "],\"final\":" + (stop >= total ? "true" : "false") + "}"; // the last request of this sync
       string reply;
       int code = Post(body, reply);
       if(code != 200)

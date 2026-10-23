@@ -3,6 +3,8 @@
 // SHA-256 hash, in user_settings under "mt5-sync:<account id>", so the key itself is never kept anywhere.
 // Trades get the same key as the MT5 report import ("<account id>:<position id>"), so importing the report later adds no
 // duplicates. Closed trades already in the journal are not rewritten, and trades the user deleted stay deleted.
+// An account without a starting balance gets one from MT5 (MizanSync 1.02+): the balance now minus the result of its
+// trades, so the journal's balance matches MT5. A balance set by the user or by a report import is never touched.
 // Setup once: deploy, and turn "Verify JWT" off (an EA has no Supabase session; the sync key is checked here).
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -35,7 +37,7 @@ Deno.serve(async (req) => {
     const row = found.ok ? ((await found.json()) as { user_id: string; key: string; value: Record<string, unknown> }[])[0] : undefined;
     if (!row) return json({ ok: false, error: "badToken" }, 401);
     const uid = row.user_id, accountId = row.key.slice("mt5-sync:".length);
-    const acc = ((await (await db(`accounts?select=id,login,server&id=eq.${accountId}&user_id=eq.${uid}&deleted_at=is.null`)).json()) as { id: string; login: string | null; server: string | null }[])[0];
+    const acc = ((await (await db(`accounts?select=id,login,server,start_balance&id=eq.${accountId}&user_id=eq.${uid}&deleted_at=is.null`)).json()) as { id: string; login: string | null; server: string | null; start_balance: number | null }[])[0];
     if (!acc) return json({ ok: false, error: "noAccount" }, 404);
     const login = body.login == null ? "" : String(body.login).replace(/\D/g, "").slice(0, 20);
     if (acc.login && login && acc.login !== login) return json({ ok: false, error: "wrongAccount", expected: acc.login }, 409);
@@ -76,7 +78,25 @@ Deno.serve(async (req) => {
     // remember the MT5 login on the account, and when this key last synced (shown on the Import page).
     // updated_at null = the database's clock (sync_guard); the hash filter leaves a key replaced meanwhile untouched.
     if (!acc.login && login) await db(`accounts?id=eq.${accountId}&user_id=eq.${uid}`, { method: "PATCH", body: JSON.stringify({ login, server: typeof body.server === "string" ? body.server.slice(0, 80) : acc.server, updated_at: null }) });
-    await db(`user_settings?user_id=eq.${uid}&key=eq.${encodeURIComponent(row.key)}&value->>hash=eq.${hash}`, { method: "PATCH", body: JSON.stringify({ value: { ...row.value, last: now, login: login || null, sent: good.length, ...(brokerNow ? { brokerNow } : {}) }, updated_at: null }) });
+    // starting balance from MT5: only on the last request of a sync (all trades written), only when unset or set by us before
+    let startAuto = typeof row.value.startAuto === "number" ? row.value.startAuto : null;
+    const balance = Number(body.balance), cur = Number(acc.start_balance) || 0;
+    if (body.final === true && Number.isFinite(balance) && balance > 0 && (cur === 0 || (startAuto != null && Math.abs(cur - startAuto) < 0.005))) {
+      let sum = 0, ok = true;
+      for (let o = 0; ok; o += 1000) {
+        const r = await db(`trades?select=pnl&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=key.asc&limit=1000&offset=${o}`);
+        if (!r.ok) { ok = false; sum = NaN; break; }
+        const part = (await r.json()) as { pnl: number | null }[];
+        for (const t of part) sum += Number(t.pnl) || 0;
+        if (part.length < 1000) break;
+      }
+      const start = r2(balance - sum);
+      if (Number.isFinite(start) && start > 0 && Math.abs(start - cur) >= 0.005) {
+        const w = await db(`accounts?id=eq.${accountId}&user_id=eq.${uid}`, { method: "PATCH", body: JSON.stringify({ start_balance: start, updated_at: null }) });
+        if (w.ok) startAuto = start;
+      }
+    }
+    await db(`user_settings?user_id=eq.${uid}&key=eq.${encodeURIComponent(row.key)}&value->>hash=eq.${hash}`, { method: "PATCH", body: JSON.stringify({ value: { ...row.value, last: now, login: login || null, sent: good.length, ...(brokerNow ? { brokerNow } : {}), ...(startAuto != null ? { startAuto } : {}) }, updated_at: null }) });
     // Telegram alerts (function "telegram"), only for users who linked a chat; a missing function or bot changes nothing here
     if (closedNow.length && brokerNow) {
       const linked = await db(`user_settings?select=key&user_id=eq.${uid}&key=eq.telegram&value->>chat=not.is.null&deleted_at=is.null`);
