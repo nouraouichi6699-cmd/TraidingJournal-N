@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import SymbolIcon from "./SymbolIcon";
 import Private from "./Private";
-import { Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, Play } from "lucide-react";
+import TradeReplay from "./TradeReplay";
+import { canReplay } from "../lib/replayData";
 import { fmt } from "../lib/stats";
 import { commonCurrency, fmtMoney } from "../lib/money";
 import { pipsOf, weekOfMonth } from "../lib/pips";
@@ -14,7 +16,9 @@ interface Props {
   lang: Lang;
   accounts: Account[];
   trades: Trade[];
+  onOpenReport?: (tab: "benchmark" | "path") => void;
 }
+const REPLAY = { en: "Replay this trade", ar: "أعد تشغيل هذه الصفقة", fr: "Rejouer ce trade" };
 
 const GREEN = "text-[#22c55e]";
 const RED = "text-[#f87171]";
@@ -39,8 +43,9 @@ const loadHidden = (): Numeric[] => {
   }
 };
 
-export default function JournalView({ t, lang, accounts, trades }: Props) {
+export default function JournalView({ t, lang, accounts, trades, onOpenReport }: Props) {
   const [acc, setAcc] = useState("all");
+  const [replay, setReplay] = useState<Trade | null>(null);
   const [hidden, setHidden] = useState<Numeric[]>(loadHidden);
   const setHide = (next: Numeric[]) => {
     setHidden(next);
@@ -80,7 +85,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
   const th = "px-4 py-3 text-start font-bold text-icon";
 
   const renderTable = (list: Trade[]) => (
-        <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
+        <div className="relative overflow-x-auto rounded-2xl border border-border bg-surface">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-icon/40 bg-primary-tint">
@@ -93,6 +98,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                 {show("pnl") && <th scope="col" className={th}>{t("pnl")}</th>}
                 <th scope="col" className={th}>{t("colWeek")}</th>
                 <th scope="col" className={th}>{t("status")}</th>
+                <th scope="col" className="w-12 px-2"><span className="sr-only">{REPLAY[lang]}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -114,6 +120,13 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
                       {wk ? (<>{t(WEEK_KEYS[Math.min(wk.week, 6) - 1])}<span className="block text-xs text-muted">{monthName(wk.month)}</span></>) : "—"}
                     </td>
                     <td className="px-4 py-3">{t(x.status === "open" ? "open" : "closed")}</td>
+                    <td className="px-2 py-3 text-end">
+                      {canReplay(x) && (
+                        <button type="button" onClick={() => setReplay(x)} aria-label={REPLAY[lang]} title={REPLAY[lang]} className="grid h-8 w-8 place-items-center rounded-full border border-border text-icon transition-colors hover:border-[var(--icon)] hover:bg-primary-tint">
+                          <Play size={14} className="translate-x-px" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -197,6 +210,7 @@ export default function JournalView({ t, lang, accounts, trades }: Props) {
           )}
         </>
       )}
+      {replay && <TradeReplay lang={lang} trade={replay} trades={trades} currency={curOf.get(replay.accountId)} onClose={() => setReplay(null)} onOpenReport={onOpenReport} />}
     </section>
   );
 }

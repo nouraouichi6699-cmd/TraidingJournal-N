@@ -35,7 +35,7 @@ export function barAt(bars: IBar[], minutes: number, u: number): IBar | null {
   return k >= 0 && u < bars[k].t + minutes * MIN ? bars[k] : null;
 }
 /** Price at instant u inside its bar, between the bar's open and close. */
-const priceIn = (b: IBar, minutes: number, u: number) => b.o + (b.c - b.o) * Math.min(1, Math.max(0, (u - b.t) / (minutes * MIN)));
+export const priceIn = (b: IBar, minutes: number, u: number) => b.o + (b.c - b.o) * Math.min(1, Math.max(0, (u - b.t) / (minutes * MIN)));
 const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
 // ---------- broker clock ----------

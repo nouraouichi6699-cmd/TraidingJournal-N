@@ -652,3 +652,9 @@ h6 {
 
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
 @container (max-width: 140px) { .kpi-visual { display: none; } }
+
+/* Trade replay */
+@keyframes rp-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+.rp-in { animation: rp-in 0.22s ease-out; }
+.rp-range { accent-color: var(--icon); }
+@media (prefers-reduced-motion: reduce) { .rp-in { animation: none; } }
