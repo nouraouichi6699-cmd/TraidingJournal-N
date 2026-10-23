@@ -3,7 +3,8 @@ import { UploadCloud } from "lucide-react";
 import { parseTradingViewCsv, diagnoseCsv } from "../lib/tradingview";
 import { parseMt5Xlsx, parseMt5Html } from "../lib/mt5";
 import type { Key } from "../i18n";
-import type { Account } from "../types";
+import type { Account, Lang } from "../types";
+import Mt5SyncCard from "./Mt5SyncCard";
 import type { useJournal } from "../useJournal";
 import type { useAccounts } from "../useAccounts";
 import { planLedger, type FileLedger } from "../lib/importLedger";
@@ -11,6 +12,8 @@ import { fmtMoney } from "../lib/money";
 
 interface Props {
   t: (k: Key) => string;
+  lang: Lang;
+  userId: string;
   accounts: Account[];
   journal: ReturnType<typeof useJournal>;
   resolveMt5: ReturnType<typeof useAccounts>["resolveMt5"];
@@ -25,7 +28,7 @@ interface Line {
   details?: string[];
 }
 
-export default function ImportView({ t, accounts, journal, resolveMt5, setStartBalance, onConnect }: Props) {
+export default function ImportView({ t, lang, userId, accounts, journal, resolveMt5, setStartBalance, onConnect }: Props) {
   const [accountId, setAccountId] = useState<string>("");
   const [lines, setLines] = useState<Line[]>([]);
   const [over, setOver] = useState(false);
@@ -179,6 +182,8 @@ export default function ImportView({ t, accounts, journal, resolveMt5, setStartB
           ))}
         </ul>
       )}
+
+      {selected && <Mt5SyncCard lang={lang} userId={userId} account={selected} />}
     </section>
   );
 }
