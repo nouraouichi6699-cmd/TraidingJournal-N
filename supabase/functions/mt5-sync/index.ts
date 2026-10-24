@@ -101,10 +101,13 @@ Deno.serve(async (req) => {
     // Open positions without a stop loss go too (not the ones deleted from the journal): it warns once they are 2 minutes old.
     const openNoSl = good.filter((p) => p.status === "open" && !(Number(p.sl) > 0) && !have.get(`${accountId}:${p.id}`)?.deleted_at)
       .map((p) => ({ key: `${accountId}:${p.id}`, symbol: p.symbol, side: p.type === "buy" ? "long" : "short", qty: p.volume, entry_time: p.openTime }));
-    if ((closedNow.length || openNoSl.length) && brokerNow) {
+    // Positions first seen now (opened in the last 30 minutes): the "in your plan?" question and the danger-zone warning.
+    const opened = brokerNow ? good.filter((p) => p.status === "open" && !have.has(`${accountId}:${p.id}`) && Date.parse(`${brokerNow}Z`) - Date.parse(`${p.openTime}Z`) <= 30 * 60e3)
+      .map((p) => ({ key: `${accountId}:${p.id}`, symbol: p.symbol, side: p.type === "buy" ? "long" : "short", qty: p.volume, entry_time: p.openTime })) : [];
+    if ((closedNow.length || openNoSl.length || opened.length) && brokerNow) {
       const linked = await db(`user_settings?select=key&user_id=eq.${uid}&key=eq.telegram&value->>chat=not.is.null&deleted_at=is.null`);
       if (linked.ok && ((await linked.json()) as unknown[]).length)
-        await fetch(`${SB}/functions/v1/telegram`, { method: "POST", headers: { authorization: `Bearer ${SR}`, apikey: SR, "content-type": "application/json" }, body: JSON.stringify({ action: "sync", uid, accountId, now: brokerNow, closed: closedNow, open: openNoSl }), signal: AbortSignal.timeout(8000) }).catch(() => null);
+        await fetch(`${SB}/functions/v1/telegram`, { method: "POST", headers: { authorization: `Bearer ${SR}`, apikey: SR, "content-type": "application/json" }, body: JSON.stringify({ action: "sync", uid, accountId, now: brokerNow, closed: closedNow, open: openNoSl, opened }), signal: AbortSignal.timeout(8000) }).catch(() => null);
     }
     return json({ ok: true, added, updated, skipped, ignored: positions.length - good.length });
   } catch (e) {
