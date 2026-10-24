@@ -8,6 +8,10 @@
 //    reached), 3+ losses in a row, and open trades still without a stop loss after 2 minutes; each warning sent once.
 //    Trades just opened get a message each: "in my plan / outside my plan" buttons (a tap is saved in the synced setting
 //    "mizan-trade-plan") and, when the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning.
+//  - Accountability partner: the app makes a one-time invite link (7 days); the partner sees what they would get and
+//    accepts or declines with buttons, /leave stops it. When the trader breaks a rule (a trade left without a stop loss,
+//    a new trade after 3+ losses in a row today, a new trade after a challenge's daily loss limit), the partner gets one
+//    message per rule per day, never amounts or account details, and the trader is told.
 //  - "tick" (pg_cron every 5 minutes, migration 20261024_telegram_tick.sql; no key needed: it only sends what is due and
 //    runs at most every 4 minutes): MT5 sync stopped for an hour with open trades, yesterday's summary just after the
 //    broker's midnight, the week's summary on Sunday from 10:00 (with a tip from the AI model, no account names or
@@ -21,7 +25,10 @@ type Lang = "en" | "ar" | "fr";
 const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true };
 type Prefs = typeof PREFS;
 const prefsOf = (p?: Partial<Prefs> | null): Prefs => ({ ...PREFS, ...(p ?? {}) });
-type Tg = { chat?: number | null; name?: string | null; lang?: Lang; prefs?: Partial<Prefs>; codeHash?: string | null; codeAt?: string | null; sent?: Record<string, string>; site?: string | null; tz?: string | null };
+type Partner = { chat: number; name: string | null; lang: Lang; since: string };
+type Tg = { chat?: number | null; name?: string | null; lang?: Lang; prefs?: Partial<Prefs>; codeHash?: string | null; codeAt?: string | null; sent?: Record<string, string>; site?: string | null; tz?: string | null;
+  partner?: Partner | null; pcodeHash?: string | null; pcodeAt?: string | null };
+type Rule = "nosl" | "streak" | "limit";
 type Ch = { id: string; accountId: string; name: string; start: string; size: number; target: number | null; daily: number | null; dailyBase: "size" | "dayStart"; max: number | null; trailing: boolean; trailLock?: boolean; minDays: number };
 type TradeRow = { key?: string; symbol: string; side: string; pnl: number | null; status: string; entry_time: string | null; exit_time: string | null; sl?: number | null };
 type OpenRow = { key: string; symbol: string; side: string; qty: number; entry_time: string };
@@ -68,6 +75,25 @@ const TXT: Record<string, Record<Lang, string>> = {
   dhour: { en: "⚠️ Danger zone: your trades opened between {h1} and {h2} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك المفتوحة بين {h1} و{h2} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades ouverts entre {h1} et {h2} ont perdu {l} sur {n} ({p})." },
   dday: { en: "⚠️ Danger zone: your trades on {w} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك يوم {w} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades du {w} ont perdu {l} sur {n} ({p})." },
   planLine: { en: "📋 In your plan: {i} · outside it: {o}", ar: "📋 ضمن خطتك: {i} · خارجها: {o}", fr: "📋 Dans votre plan : {i} · hors plan : {o}" },
+  pInvite: { en: "🤝 {n} invites you to be their trading accountability partner. You will get a short message when they break one of their rules: a trade without a stop loss, trading on after 3 losses in a row, or a new trade after their daily loss limit. Never amounts or account details.", ar: "🤝 {n} يدعوك لتكون شريك الالتزام في تداوله. ستصلك رسالة قصيرة إذا كسر إحدى قواعده: صفقة بلا وقف خسارة، أو مواصلة التداول بعد ثلاث خسائر متتالية، أو صفقة جديدة بعد بلوغ حد خسارته اليومي. دون أي مبالغ أو تفاصيل حساب.", fr: "🤝 {n} vous invite à être son partenaire de discipline. Vous recevrez un court message quand il enfreint une de ses règles : un trade sans stop loss, continuer après 3 pertes d'affilée, ou un nouveau trade après sa limite de perte du jour. Jamais de montants ni de détails de compte." },
+  pAccept: { en: "✅ Accept", ar: "✅ أقبل", fr: "✅ J'accepte" },
+  pDecline: { en: "❌ No thanks", ar: "❌ لا شكراً", fr: "❌ Non merci" },
+  pAccepted: { en: "Done ✓ You are {n}'s accountability partner. /leave stops it at any time.", ar: "تم ✓ أصبحت شريك الالتزام لـ {n}. ‏/leave لإيقاف ذلك متى شئت.", fr: "C'est fait ✓ Vous êtes le partenaire de discipline de {n}. /leave pour arrêter à tout moment." },
+  pNow: { en: "🤝 {p} accepted: they are now your accountability partner.", ar: "🤝 قبل {p}: أصبح شريك الالتزام لك.", fr: "🤝 {p} a accepté : c'est maintenant votre partenaire de discipline." },
+  pDeclined: { en: "No problem. Nothing was shared.", ar: "لا مشكلة. لم تتم مشاركة أي شيء.", fr: "Pas de souci. Rien n'a été partagé." },
+  pDeclinedT: { en: "{p} declined your partner invite.", ar: "رفض {p} دعوتك لشراكة الالتزام.", fr: "{p} a refusé votre invitation de partenaire." },
+  pExpired: { en: "This invite has expired or was replaced. Ask for a new one.", ar: "انتهت صلاحية هذه الدعوة أو استُبدلت. اطلب دعوة جديدة.", fr: "Cette invitation a expiré ou a été remplacée. Demandez-en une nouvelle." },
+  pSelf: { en: "You can't be your own partner: send this link to a friend.", ar: "لا يمكنك أن تكون شريك نفسك: أرسل هذا الرابط لصديق.", fr: "Vous ne pouvez pas être votre propre partenaire : envoyez ce lien à un ami." },
+  pLeft: { en: "You are no longer the accountability partner of: {n}.", ar: "لم تعد شريك الالتزام لـ: {n}.", fr: "Vous n'êtes plus le partenaire de discipline de : {n}." },
+  pLeftT: { en: "{p} stopped being your accountability partner.", ar: "أوقف {p} شراكة الالتزام معك.", fr: "{p} n'est plus votre partenaire de discipline." },
+  pEnded: { en: "{n} ended the accountability partnership.", ar: "أنهى {n} شراكة الالتزام معك.", fr: "{n} a mis fin au partenariat de discipline." },
+  pGone: { en: "{p} can no longer receive messages from the bot: the partnership ended.", ar: "لم يعد {p} يستقبل رسائل البوت، فانتهت الشراكة.", fr: "{p} ne reçoit plus les messages du bot : le partenariat est terminé." },
+  pHelp: { en: "You are the accountability partner of: {n}. /leave stops it.", ar: "أنت شريك الالتزام لـ: {n}. ‏/leave لإيقاف ذلك.", fr: "Vous êtes le partenaire de discipline de : {n}. /leave pour arrêter." },
+  rnosl: { en: "a trade without a stop loss", ar: "صفقة بلا وقف خسارة", fr: "un trade sans stop loss" },
+  rstreak: { en: "trading on after {k} losses in a row", ar: "مواصلة التداول بعد {k} خسائر متتالية", fr: "continuer après {k} pertes d'affilée" },
+  rlimit: { en: "a new trade after the daily loss limit", ar: "صفقة جديدة بعد بلوغ حد الخسارة اليومي", fr: "un nouveau trade après la limite de perte du jour" },
+  bRule: { en: "🤝 {n} broke a rule: {r} ({s}, {h}). A short message from you can help.", ar: "🤝 {n} كسر قاعدة: {r} ({s}، {h}). رسالة قصيرة منك قد تساعده.", fr: "🤝 {n} a enfreint une règle : {r} ({s}, {h}). Un petit message de votre part peut l'aider." },
+  tTold: { en: "🤝 Your partner {p} was told: {r}.", ar: "🤝 أُبلغ شريكك {p}: {r}.", fr: "🤝 Votre partenaire {p} a été prévenu : {r}." },
   streak: { en: "🛑 {a}: {n} losses in a row ({s}). Stop and take a break before the next trade.", ar: "🛑 {a}: {n} خسائر متتالية ({s}). توقف وخذ استراحة قبل الصفقة القادمة.", fr: "🛑 {a} : {n} pertes d'affilée ({s}). Arrêtez-vous et faites une pause avant le prochain trade." },
   nosl: { en: "⚠️ {a}: {s} {d} {q} has no stop loss (open since {h}).", ar: "⚠️ {a}: صفقة {s} {d} {q} بلا وقف خسارة (مفتوحة منذ {h}).", fr: "⚠️ {a} : {s} {d} {q} sans stop loss (ouvert depuis {h})." },
   stale: { en: "📡 {a}: no sync from MT5 since {t}, with open trades ({n}). Is MT5 closed or is the computer asleep?", ar: "📡 {a}: لم تصل مزامنة من MT5 منذ {t}، وما زالت صفقات مفتوحة ({n}). هل أُغلق MT5 أو نام الحاسوب؟", fr: "📡 {a} : aucune synchro MT5 depuis {t}, avec des trades ouverts ({n}). MT5 est-il fermé ou l'ordinateur en veille ?" },
@@ -175,6 +201,7 @@ const WEEKDAY: Record<Lang, string[]> = {
   ar: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
   fr: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
 };
+const newest = <T extends { entry_time: string }>(l: T[]) => l.reduce((a, b) => (b.entry_time > a.entry_time ? b : a)); // the latest entry
 const CURS = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "CNY"];
 const IDX: [RegExp, string][] = [[/^(US|NAS|SPX|SP500|DJ|DOW|WS30)/, "USD"], [/^(GER|DE[0-9]|DAX|EU50|EUSTX|STOXX|FRA|ESP|IT[0-9]|NETH)/, "EUR"], [/^(UK|FTSE)/, "GBP"], [/^(JP|NIK)/, "JPY"], [/^(AUS|ASX)/, "AUD"], [/^(HK|CHINA|CN)/, "CNY"],
   [/^(XAU|XAG|XPT|XPD|GOLD|SILVER|BTC|ETH|WTI|BRENT|XTI|XBR|OIL|USOIL|UKOIL)/, "USD"]];
@@ -314,6 +341,28 @@ Deno.serve(async (req) => {
     const h = Number(x.entry_time.replace(" ", "T").slice(11, 13));
     return T(`d${d.kind}`, lang, { s: x.symbol, d: side(x.side, lang), w: WEEKDAY[lang][new Date(naive(x.entry_time)).getUTCDay()], h1: hh(h), h2: hh(h + 1), l: d.lost, n: d.n, p: money(d.net, { cur: a.currency, lang }) });
   };
+  /** The trader's name as the partner sees it: the Mizan profile name, else the first word of their Telegram name. */
+  const traderName = async (uid: string, t: Tg) => {
+    const p = (await rows<{ value: { name?: unknown } | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-profile&deleted_at=is.null`))[0]?.value?.name;
+    return (typeof p === "string" && p.trim() ? p.trim() : (t.name ?? "").split(" @")[0] || "Mizan").slice(0, 60);
+  };
+  /** A broken rule: the partner gets one message per rule per day (no amounts, no account) and the trader a line saying
+   *  so. Returns the key to remember ("" when nothing went out). A partner who blocked the bot ends the partnership. */
+  const tellPartner = async (uid: string, t: Tg, rule: Rule, x: { symbol: string; entry_time: string }, day: string, sent: Record<string, string>, k = 3) => {
+    const p = t.partner, key = `partner:${day}:${rule}`;
+    if (!p?.chat || sent[key]) return "";
+    const why = (l: Lang) => T(`r${rule}`, l, { k });
+    const res = await send(p.chat, T("bRule", p.lang, { n: await traderName(uid, t), r: why(p.lang), s: x.symbol, h: x.entry_time.replace(" ", "T").slice(11, 16) }));
+    if (res.status === 403) {
+      await saveTg(uid, { ...((await getTg(uid)) ?? t), partner: null });
+      if (t.chat) await send(t.chat, T("pGone", t.lang ?? "en", { p: p.name ?? "" }));
+      return "";
+    }
+    if (!res.ok) return "";
+    if (t.chat) await send(t.chat, T("tTold", t.lang ?? "en", { p: p.name ?? "", r: why(t.lang ?? "en") }));
+    sent[key] = day; // the rest of this call does not tell twice
+    return key;
+  };
   /** Points the bot here, for messages and button taps (set again when it was set before the buttons existed). */
   const ensureHook = async () => {
     const hook = `${SB}/functions/v1/telegram`, w = (await (await tg("getWebhookInfo", {})).json().catch(() => null))?.result;
@@ -367,7 +416,7 @@ Deno.serve(async (req) => {
     const tz = validTz(profileTz) ?? validTz(t.tz) ?? "UTC", loc = lang === "ar" ? "ar-u-nu-latn" : lang;
     const hm = (ms: number) => new Intl.DateTimeFormat(loc, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(new Date(ms));
     const dayName = (d: string) => new Intl.DateTimeFormat(loc, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
-    const sent = { ...(t.sent ?? {}) }, out: { text: string; keys: string[] }[] = [], quiet: string[] = [];
+    const sent = { ...(t.sent ?? {}) }, out: { text: string; keys: string[] }[] = [], quiet: string[] = [], partnerTodo: { x: OpenRow; day: string }[] = [];
     const word = (n: number) => (lang === "ar" ? (n >= 3 && n <= 10 ? "صفقات" : "صفقة") : n === 1 ? "trade" : "trades");
     let planMap: Record<string, boolean> | null = null; // the "in my plan" answers, read once when a summary needs them
     const plan = async () => (planMap ??= (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {});
@@ -392,10 +441,11 @@ Deno.serve(async (req) => {
         }
       }
       // no stop loss, when MT5 synced lately (the sync itself also checks; this one does not wait for the EA's next send)
-      if (prefs.nosl && now - last <= 15 * 60e3) {
+      if ((prefs.nosl || t.partner?.chat) && now - last <= 15 * 60e3) {
         const open = await rows<OpenRow>(`trades?select=key,symbol,side,qty,entry_time&user_id=eq.${uid}&account_id=eq.${a.id}&status=eq.open&sl=is.null&deleted_at=is.null&limit=50`);
         const due = noSlDue(open, brokerClock(st, now), sent).slice(0, 5);
-        if (due.length) out.push({ text: due.map((x) => noSlLine(a, x, lang)).join("\n"), keys: due.map((x) => x.k) });
+        if (prefs.nosl && due.length) out.push({ text: due.map((x) => noSlLine(a, x, lang)).join("\n"), keys: due.map((x) => x.k) });
+        if (due.length) partnerTodo.push({ x: newest(due), day: new Date(brokerClock(st, now)).toISOString().slice(0, 10) });
       }
     }
 
@@ -447,6 +497,7 @@ Deno.serve(async (req) => {
       if (r.ok) { n++; keys.push(...m.keys); }
       else if (r.status === 403) { await saveTg(uid, { ...t, chat: null }); return n; } // the user blocked the bot: unlink
     }
+    for (const d of partnerTodo) { const k = await tellPartner(uid, t, "nosl", d.x, d.day, sent); if (k) { n++; keys.push(k); } }
     if (keys.length) await remember(uid, t, sent, keys, new Date(now).toISOString().slice(0, 10));
     return n;
   }
@@ -458,6 +509,29 @@ Deno.serve(async (req) => {
       const u = await req.json().catch(() => null);
       // a tap on "in my plan" / "outside my plan": saved in the user's synced setting "mizan-trade-plan" ({ [trade key]: boolean })
       const cq = u?.callback_query;
+      // the partner's answer to an invite: "pa:<code>" accept, "pd:<code>" decline (the code is checked again here)
+      const pm = cq ? String(cq.data ?? "").match(/^p([ad]):([A-Za-z0-9_-]{10,40})$/) : null;
+      if (cq && pm && typeof cq.message?.chat?.id === "number") {
+        const qChat = cq.message.chat.id as number, pLang = langOf(String(cq.from?.language_code ?? "").slice(0, 2));
+        const inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>pcodeHash=eq.${await sha256(pm[2])}&deleted_at=is.null&limit=1`))[0];
+        await tg("editMessageReplyMarkup", { chat_id: qChat, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] } });
+        if (!inv?.value.chat || !inv.value.pcodeAt || Date.now() - Date.parse(inv.value.pcodeAt) > 7 * 864e5 || inv.value.chat === qChat) await send(qChat, T("pExpired", pLang));
+        else {
+          const pname = String(cq.from?.first_name || (cq.from?.username ? `@${cq.from.username}` : "") || "—").slice(0, 60), tname = await traderName(inv.user_id, inv.value);
+          if (pm[1] === "a") {
+            if (inv.value.partner?.chat && inv.value.partner.chat !== qChat) await send(inv.value.partner.chat, T("pEnded", inv.value.partner.lang, { n: tname })); // one partner: the new one replaces the old
+            await saveTg(inv.user_id, { ...inv.value, partner: { chat: qChat, name: pname, lang: pLang, since: new Date().toISOString() }, pcodeHash: null, pcodeAt: null });
+            await send(qChat, T("pAccepted", pLang, { n: tname }));
+            await send(inv.value.chat, T("pNow", inv.value.lang ?? "en", { p: pname }));
+          } else {
+            await saveTg(inv.user_id, { ...inv.value, pcodeHash: null, pcodeAt: null });
+            await send(qChat, T("pDeclined", pLang));
+            await send(inv.value.chat, T("pDeclinedT", inv.value.lang ?? "en", { p: pname }));
+          }
+        }
+        await tg("answerCallbackQuery", { callback_query_id: cq.id });
+        return json({ ok: true });
+      }
       if (cq) {
         const qChat = cq.message?.chat?.id, m = String(cq.data ?? "").match(/^p([01]):(.{3,61})$/);
         const who = typeof qChat === "number" ? (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${qChat}&deleted_at=is.null&limit=1`))[0] : undefined;
@@ -478,6 +552,28 @@ Deno.serve(async (req) => {
       const linked = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${chat}&deleted_at=is.null&limit=1`))[0];
       const lang = linked?.value.lang ?? userLang;
       const [cmd, arg] = text.split(/\s+/, 2);
+      // the traders this chat is the accountability partner of (a partner needs no Mizan account)
+      const partnerOf = () => rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->partner->>chat=eq.${chat}&deleted_at=is.null`);
+      if (cmd === "/start" && arg?.startsWith("partner_")) { // an invite link: show what the partner would get, then ask
+        const code = arg.slice(8), inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>pcodeHash=eq.${await sha256(code)}&deleted_at=is.null&limit=1`))[0];
+        if (!inv?.value.chat || !inv.value.pcodeAt || Date.now() - Date.parse(inv.value.pcodeAt) > 7 * 864e5) await send(chat, T("pExpired", userLang));
+        else if (inv.value.chat === chat) await send(chat, T("pSelf", userLang));
+        else await send(chat, T("pInvite", userLang, { n: await traderName(inv.user_id, inv.value) }), [[{ text: T("pAccept", userLang), callback_data: `pa:${code}` }, { text: T("pDecline", userLang), callback_data: `pd:${code}` }]]);
+        return json({ ok: true });
+      }
+      if (cmd === "/leave") {
+        const mine = await partnerOf();
+        if (mine.length) {
+          const names: string[] = [];
+          for (const r of mine) {
+            names.push(await traderName(r.user_id, r.value));
+            await saveTg(r.user_id, { ...r.value, partner: null });
+            if (r.value.chat) await send(r.value.chat, T("pLeftT", r.value.lang ?? "en", { p: r.value.partner?.name ?? "" }));
+          }
+          await send(chat, T("pLeft", userLang, { n: names.join(", ") }));
+          return json({ ok: true });
+        }
+      }
       if (cmd === "/start" && arg) {
         const row = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>codeHash=eq.${await sha256(arg)}&deleted_at=is.null&limit=1`))[0];
         if (!row || !row.value.codeAt || Date.now() - Date.parse(row.value.codeAt) > 30 * 60e3) { await send(chat, T("badCode", userLang)); return json({ ok: true }); }
@@ -485,8 +581,14 @@ Deno.serve(async (req) => {
         const name = [msg.from?.first_name, msg.from?.username ? `@${msg.from.username}` : null].filter(Boolean).join(" ").slice(0, 80) || null;
         await saveTg(row.user_id, { ...row.value, chat, name, codeHash: null, codeAt: null });
         await send(chat, T("linked", row.value.lang ?? userLang));
-      } else if (!linked) await send(chat, T("unknown", userLang));
-      else if (cmd === "/stop") { await saveTg(linked.user_id, { ...linked.value, chat: null }); await send(chat, T("stopped", lang)); }
+      } else if (!linked) {
+        const mine = await partnerOf();
+        await send(chat, mine.length ? T("pHelp", userLang, { n: (await Promise.all(mine.map((r) => traderName(r.user_id, r.value)))).join(", ") }) : T("unknown", userLang));
+      } else if (cmd === "/stop") { // the alerts stop, and so does the partnership
+        if (linked.value.partner?.chat) await send(linked.value.partner.chat, T("pEnded", linked.value.partner.lang, { n: await traderName(linked.user_id, linked.value) }));
+        await saveTg(linked.user_id, { ...linked.value, chat: null, partner: null });
+        await send(chat, T("stopped", lang));
+      }
       else if (cmd === "/status") await send(chat, await statusText(linked.user_id, lang));
       else await send(chat, T("help", lang));
       return json({ ok: true });
@@ -525,10 +627,24 @@ Deno.serve(async (req) => {
         const s = lossStreak(last), k = s.n >= 3 && last[0]?.key && (last[0].exit_time ?? "") >= since ? `streak:${today}:${last[0].key}` : "";
         if (k && !sent[k]) { alerts.push(T("streak", lang, { a: acc.name, n: s.n, s: money(s.sum, { cur: acc.currency, lang }) })); newKeys.push(k); }
       }
-      // open trades still without a stop loss 2 minutes after the entry (once per trade)
-      if (prefs.nosl && Array.isArray(body.open)) {
+      // open trades still without a stop loss 2 minutes after the entry (once per trade); the partner hears of it too
+      const todo: { rule: Rule; x: OpenRow; k?: number }[] = [];
+      if ((prefs.nosl || t.partner?.chat) && Array.isArray(body.open)) {
         const due = noSlDue(body.open as OpenRow[], Date.parse(`${now}Z`), sent).slice(0, 5);
-        for (const x of due) { alerts.push(noSlLine(acc, x, lang)); newKeys.push(x.k); }
+        if (prefs.nosl) for (const x of due) { alerts.push(noSlLine(acc, x, lang)); newKeys.push(x.k); }
+        if (due.length) todo.push({ rule: "nosl", x: newest(due) });
+      }
+      // a new trade after 3+ losses in a row today, or after a challenge's daily loss limit was reached: for the partner
+      const newOne = t.partner?.chat && Array.isArray(body.opened) ? (body.opened as OpenRow[]).find((x) => typeof x?.symbol === "string" && typeof x.entry_time === "string" && Date.parse(`${now}Z`) - naive(x.entry_time) <= 30 * 60e3) : undefined;
+      if (newOne) {
+        const last = await rows<TradeRow>(`trades?select=key,pnl,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=exit_time.desc&limit=30`);
+        const s = lossStreak(last.filter((x) => day(x.exit_time) === today)); // losses in a row today
+        if (s.n >= 3) todo.push({ rule: "streak", x: newOne, k: s.n });
+        const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId === accountId && c.daily != null);
+        if (chs.length) {
+          const all = await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null`);
+          if (chs.some((c) => { const n = challengeNow(c, all, today); return n.limit != null && n.limit > 0 && -n.todayPnl >= n.limit - 1e-9; })) todo.push({ rule: "limit", x: newOne });
+        }
       }
       if (prefs.rules && closed.length) {
         const list = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId === accountId);
@@ -562,6 +678,7 @@ Deno.serve(async (req) => {
         if (r.ok) { n++; keep.push(...newKeys); }
       }
       for (const e of entries) { const r = await send(t.chat, e.text, e.kb); if (r.ok) { n++; keep.push(e.k); } }
+      for (const d of todo) { const k = await tellPartner(uid, t, d.rule, d.x, today, sent, d.k); if (k) { n++; keep.push(k); } }
       if (keep.length) await remember(uid, t, sent, keep, today);
       return json({ ok: true, sent: n });
     }
@@ -590,7 +707,7 @@ Deno.serve(async (req) => {
     if (!uid) return json({ ok: false, error: "signIn" }, 401);
     if (!TOKEN) return json({ ok: false, error: "noToken" }, 503);
     const lang = langOf(body?.lang), cur = (await getTg(uid)) ?? {};
-    const state = (v: Tg) => ({ linked: !!v.chat, name: v.name ?? null, prefs: prefsOf(v.prefs) });
+    const state = (v: Tg) => ({ linked: !!v.chat, name: v.name ?? null, prefs: prefsOf(v.prefs), partner: v.partner?.chat ? { name: v.partner.name, since: v.partner.since } : null });
 
     switch (body?.action) {
       case "info": {
@@ -615,8 +732,22 @@ Deno.serve(async (req) => {
       }
       case "unlink": {
         if (cur.chat) await send(cur.chat, T("stopped", cur.lang ?? lang)).catch(() => null);
-        await saveTg(uid, { ...cur, chat: null, name: null, codeHash: null, codeAt: null });
+        if (cur.partner?.chat) await send(cur.partner.chat, T("pEnded", cur.partner.lang, { n: await traderName(uid, cur) })).catch(() => null);
+        await saveTg(uid, { ...cur, chat: null, name: null, codeHash: null, codeAt: null, partner: null, pcodeHash: null, pcodeAt: null });
         return json({ ok: true, ...state({}) });
+      }
+      case "partnerInvite": { // a one-time t.me link (7 days) for the partner; a new one replaces the last
+        if (!cur.chat) return json({ ok: false, error: "notLinked" }, 409);
+        const code = b64url(crypto.getRandomValues(new Uint8Array(18)));
+        await saveTg(uid, { ...cur, lang, pcodeHash: await sha256(code), pcodeAt: new Date().toISOString() });
+        const me = await (await tg("getMe", {})).json().catch(() => null);
+        return me?.ok ? json({ ok: true, url: `https://t.me/${me.result.username}?start=partner_${code}` }) : json({ ok: false, error: "badToken" }, 502);
+      }
+      case "partnerRemove": {
+        if (cur.partner?.chat) await send(cur.partner.chat, T("pEnded", cur.partner.lang, { n: await traderName(uid, cur) })).catch(() => null);
+        const next = { ...cur, partner: null, pcodeHash: null, pcodeAt: null };
+        await saveTg(uid, next);
+        return json({ ok: true, ...state(next) });
       }
       case "prefs": {
         const p = body?.prefs ?? {}, next = { ...cur, lang, prefs: Object.fromEntries(Object.keys(PREFS).map((k) => [k, p[k] !== false])) as Prefs };
