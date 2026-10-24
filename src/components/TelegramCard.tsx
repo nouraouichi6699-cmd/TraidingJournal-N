@@ -28,6 +28,7 @@ const T = {
   news: { en: "High-impact news 15 minutes ahead", ar: "الأخبار القوية قبل ربع ساعة", fr: "Annonces majeures 15 minutes avant" },
   entry: { en: "New trade: is it in your plan?", ar: "صفقة جديدة: هل هي ضمن خطتك؟", fr: "Nouveau trade : est-il dans votre plan ?" },
   danger: { en: "Danger zone, from your own history", ar: "منطقة الخطر من سجلك", fr: "Zone de danger, d'après votre historique" },
+  morning: { en: "Morning plan for your challenges (08:00)", ar: "خطة الصباح لتحدياتك (الثامنة صباحاً)", fr: "Plan du matin pour vos challenges (8 h)" },
   pTitle: { en: "Accountability partner", ar: "شريك الالتزام", fr: "Partenaire de discipline" },
   pWhat: { en: "A friend or coach gets a short message, with no amounts, when you leave a trade without a stop loss, trade on after 3 losses in a row, or open a trade after a challenge's daily loss limit.", ar: "يصل صديقك أو مدرّبك تنبيه قصير دون مبالغ إذا تركت صفقة بلا وقف خسارة، أو واصلت التداول بعد ثلاث خسائر متتالية، أو فتحت صفقة بعد بلوغ حد الخسارة اليومي في تحدٍّ.", fr: "Un ami ou un coach reçoit un court message, sans montants, quand vous laissez un trade sans stop loss, continuez après 3 pertes d'affilée ou ouvrez un trade après la limite de perte du jour d'un challenge." },
   pInvite: { en: "Invite a partner", ar: "دعوة شريك", fr: "Inviter un partenaire" },

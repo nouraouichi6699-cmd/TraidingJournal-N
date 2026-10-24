@@ -15,21 +15,22 @@
 //  - "tick" (pg_cron every 5 minutes, migration 20261024_telegram_tick.sql; no key needed: it only sends what is due and
 //    runs at most every 4 minutes): MT5 sync stopped for an hour with open trades, yesterday's summary just after the
 //    broker's midnight, the week's summary on Sunday from 10:00 (with a tip from the AI model, no account names or
-//    numbers sent to it), high-impact news 15 minutes ahead for the currencies the user trades.
+//    numbers sent to it), high-impact news 15 minutes ahead for the currencies the user trades, and on weekdays from
+//    08:00 the morning plan of each running challenge (room, a safe risk per trade, the pace to the target).
 // Stored in user_settings "telegram": { chat, name, lang, prefs, codeHash, codeAt, sent, site, tz } (no bot token anywhere
 // but here). Setup once: create a bot with @BotFather, add its token as the secret TELEGRAM_BOT_TOKEN, deploy with
 // "Verify JWT" off; for the scheduled alerts run the migration once. The weekly tip uses GEMINI_API_KEY (as "advisor").
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 type Lang = "en" | "ar" | "fr";
-const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true };
+const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true, morning: true };
 type Prefs = typeof PREFS;
 const prefsOf = (p?: Partial<Prefs> | null): Prefs => ({ ...PREFS, ...(p ?? {}) });
 type Partner = { chat: number; name: string | null; lang: Lang; since: string };
 type Tg = { chat?: number | null; name?: string | null; lang?: Lang; prefs?: Partial<Prefs>; codeHash?: string | null; codeAt?: string | null; sent?: Record<string, string>; site?: string | null; tz?: string | null;
   partner?: Partner | null; pcodeHash?: string | null; pcodeAt?: string | null };
 type Rule = "nosl" | "streak" | "limit";
-type Ch = { id: string; accountId: string; name: string; start: string; size: number; target: number | null; daily: number | null; dailyBase: "size" | "dayStart"; max: number | null; trailing: boolean; trailLock?: boolean; minDays: number };
+type Ch = { id: string; accountId: string; name: string; start: string; size: number; target: number | null; daily: number | null; dailyBase: "size" | "dayStart"; max: number | null; trailing: boolean; trailLock?: boolean; minDays: number; limitDays?: number | null };
 type TradeRow = { key?: string; symbol: string; side: string; pnl: number | null; status: string; entry_time: string | null; exit_time: string | null; sl?: number | null };
 type OpenRow = { key: string; symbol: string; side: string; qty: number; entry_time: string };
 type Acc = { id: string; name: string; currency: string | null };
@@ -94,6 +95,14 @@ const TXT: Record<string, Record<Lang, string>> = {
   rlimit: { en: "a new trade after the daily loss limit", ar: "صفقة جديدة بعد بلوغ حد الخسارة اليومي", fr: "un nouveau trade après la limite de perte du jour" },
   bRule: { en: "🤝 {n} broke a rule: {r} ({s}, {h}). A short message from you can help.", ar: "🤝 {n} كسر قاعدة: {r} ({s}، {h}). رسالة قصيرة منك قد تساعده.", fr: "🤝 {n} a enfreint une règle : {r} ({s}, {h}). Un petit message de votre part peut l'aider." },
   tTold: { en: "🤝 Your partner {p} was told: {r}.", ar: "🤝 أُبلغ شريكك {p}: {r}.", fr: "🤝 Votre partenaire {p} a été prévenu : {r}." },
+  mHead: { en: "☀️ Morning plan · {d}", ar: "☀️ خطة الصباح · {d}", fr: "☀️ Plan du matin · {d}" },
+  mDay: { en: "room today {r}", ar: "الهامش اليوم {r}", fr: "marge du jour {r}" },
+  mAll: { en: "overall room {r}", ar: "الهامش الكلي {r}", fr: "marge totale {r}" },
+  mRisk: { en: "Max risk per trade: {r} (3 losses in a row stay inside your limits)", ar: "أقصى مخاطرة للصفقة: {r} (حتى ثلاث خسائر متتالية تبقيك داخل حدودك)", fr: "Risque max par trade : {r} (3 pertes d'affilée restent dans vos limites)" },
+  mLeft: { en: "Target: {l} left", ar: "الهدف: بقي {l}", fr: "Objectif : reste {l}" },
+  mPace: { en: " · {t} trading days left · about {p} a day", ar: " · بقي {t} {w} للتداول · نحو {p} في اليوم", fr: " · {t} jours de trading restants · environ {p} par jour" },
+  mReached: { en: "Target reached ✓: trade small until the minimum days are met ({d} of {m})", ar: "تم بلوغ الهدف ✓: تداول بحجم صغير حتى تكتمل الأيام الدنيا ({d} من {m})", fr: "Objectif atteint ✓ : tradez petit jusqu'au minimum de jours ({d} sur {m})" },
+  mDays: { en: "Trading days: {d} of {m}", ar: "أيام التداول: {d} من {m}", fr: "Jours de trading : {d} sur {m}" },
   streak: { en: "🛑 {a}: {n} losses in a row ({s}). Stop and take a break before the next trade.", ar: "🛑 {a}: {n} خسائر متتالية ({s}). توقف وخذ استراحة قبل الصفقة القادمة.", fr: "🛑 {a} : {n} pertes d'affilée ({s}). Arrêtez-vous et faites une pause avant le prochain trade." },
   nosl: { en: "⚠️ {a}: {s} {d} {q} has no stop loss (open since {h}).", ar: "⚠️ {a}: صفقة {s} {d} {q} بلا وقف خسارة (مفتوحة منذ {h}).", fr: "⚠️ {a} : {s} {d} {q} sans stop loss (ouvert depuis {h})." },
   stale: { en: "📡 {a}: no sync from MT5 since {t}, with open trades ({n}). Is MT5 closed or is the computer asleep?", ar: "📡 {a}: لم تصل مزامنة من MT5 منذ {t}، وما زالت صفقات مفتوحة ({n}). هل أُغلق MT5 أو نام الحاسوب؟", fr: "📡 {a} : aucune synchro MT5 depuis {t}, avec des trades ouverts ({n}). MT5 est-il fermé ou l'ordinateur en veille ?" },
@@ -161,6 +170,25 @@ export function warnings(c: Ch, n: ReturnType<typeof challengeNow>, today: strin
   return { out, keys };
 }
 
+/** The morning numbers of a running challenge: room today and overall, a risk per trade that keeps 3 losses in a row
+ *  inside both limits, what is left of the target and the pace over the weekdays left. Null once it is over (under the
+ *  floor, out of time, or passed: target and minimum days met). */
+export function morningPlan(c: Ch, n: ReturnType<typeof challengeNow>, today: string) {
+  const at = (d: string) => Date.parse(`${d}T00:00:00Z`), used = Math.round((at(today) - at(c.start)) / 864e5) + 1; // calendar days, today included
+  if (n.floor != null && n.bal < n.floor - 1e-9) return null;
+  if (c.limitDays != null && c.limitDays > 0 && used > c.limitDays) return null;
+  const reached = n.goal != null && n.pnl >= n.goal - 1e-9;
+  if (reached && n.days >= c.minDays) return null;
+  const dayRoom = n.limit != null ? Math.max(0, n.limit + n.todayPnl) : null, allRoom = n.floor != null ? Math.max(0, n.bal - n.floor) : null;
+  const rooms = [dayRoom, allRoom].filter((x): x is number => x != null);
+  const left = n.goal != null ? Math.max(0, n.goal - n.pnl) : null;
+  let tdLeft: number | null = null;
+  if (c.limitDays != null && c.limitDays > 0) {
+    tdLeft = 0;
+    for (let d = at(today), end = at(c.start) + (c.limitDays - 1) * 864e5; d <= end; d += 864e5) { const w = new Date(d).getUTCDay(); if (w !== 0 && w !== 6) tdLeft++; }
+  }
+  return { dayRoom, allRoom, risk: rooms.length ? Math.min(...rooms) / 3 : null, left, reached, tdLeft, pace: left != null && tdLeft ? left / tdLeft : null, days: n.days, minDays: c.minDays };
+}
 /** Losses in a row at the top of closed trades listed newest first (a trade at 0 or better ends the run). */
 export function lossStreak(newestFirst: { pnl: number | null }[]) {
   let n = 0, sum = 0;
@@ -476,6 +504,29 @@ Deno.serve(async (req) => {
           const tip = await weekTip(lang, weekFacts(list, new Map(accs.map((a) => [a.id, a.currency])), pl));
           out.push({ text: [T("weekHead", lang, { d: `${dayName(from)} – ${dayName(addDays(lp.date, -1))}` }), ...parts, ...(tip ? [`💡 ${tip}`] : [])].join("\n\n"), keys: [k] });
         }
+      }
+    }
+
+    // the morning plan of each running challenge, on weekdays from 08:00 the user's time
+    if (prefs.morning) {
+      const lp = localParts(now, tz), k = `morning:${lp.date}:`;
+      if (lp.wd >= 1 && lp.wd <= 5 && lp.hour >= 8 && lp.hour < 12 && !sent[k]) {
+        const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId);
+        const parts: string[] = [];
+        for (const c of chs) {
+          const a = accs.find((x) => x.id === c.accountId), today = brokerToday(syncOf(c.accountId), now);
+          if (!a || c.start > today) continue;
+          const trades = await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${a.id}&deleted_at=is.null&entry_time=gte.${c.start}`);
+          const p = morningPlan(c, challengeNow(c, trades, today), today);
+          if (!p) continue;
+          const m0 = (v: number) => money(v, { cur: a.currency, lang });
+          const room = [p.dayRoom != null ? T("mDay", lang, { r: m0(p.dayRoom) }) : "", p.allRoom != null ? T("mAll", lang, { r: m0(p.allRoom) }) : ""].filter(Boolean).join(" · ");
+          parts.push([`🏁 ${c.name} · ${a.name}`, ...(room ? [`• ${room}`] : []), ...(p.risk != null ? [`• ${T("mRisk", lang, { r: m0(p.risk) })}`] : []),
+            ...(p.reached ? [`• ${T("mReached", lang, { d: p.days, m: p.minDays })}`] : p.left != null ? [`• ${T("mLeft", lang, { l: m0(p.left) })}${p.tdLeft && p.pace != null ? T("mPace", lang, { t: p.tdLeft, p: m0(p.pace), w: p.tdLeft >= 3 && p.tdLeft <= 10 ? "أيام" : p.tdLeft <= 2 ? "يوم" : "يوماً" }) : ""}`] : []),
+            ...(!p.reached && p.minDays > 0 && p.days < p.minDays ? [`• ${T("mDays", lang, { d: p.days, m: p.minDays })}`] : [])].join("\n"));
+        }
+        if (parts.length) out.push({ text: [T("mHead", lang, { d: dayName(lp.date) }), ...parts].join("\n\n"), keys: [k] });
+        else quiet.push(k);
       }
     }
 
