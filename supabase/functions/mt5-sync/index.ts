@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
     const good = positions.filter(valid), now = new Date().toISOString();
     const brokerNow = typeof body.now === "string" && WHEN.test(body.now) ? body.now : null; // the EA's server time (MizanSync 1.01+)
-    const closedNow: { symbol: string; side: string; pnl: number; status: string; entry_time: string; exit_time: string }[] = [];
+    const closedNow: { key: string; symbol: string; side: string; pnl: number; status: string; entry_time: string; exit_time: string }[] = [];
     const keys = good.map((p) => `${accountId}:${p.id}`);
     // what the journal already has (closed trades are final; deleted ones stay deleted)
     const have = new Map<string, { status: string; deleted_at: string | null }>();
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       if (old && (old.deleted_at || old.status === "closed")) { skipped++; return []; }
       old ? updated++ : added++;
       const closed = p.status === "closed", com = Number(p.commission) || 0, swap = Number(p.swap) || 0, profit = Number(p.profit) || 0;
-      if (closed) closedNow.push({ symbol: p.symbol, side: p.type === "buy" ? "long" : "short", pnl: r2(profit + com + swap), status: "closed", entry_time: p.openTime, exit_time: p.closeTime as string });
+      if (closed) closedNow.push({ key, symbol: p.symbol, side: p.type === "buy" ? "long" : "short", pnl: r2(profit + com + swap), status: "closed", entry_time: p.openTime, exit_time: p.closeTime as string });
       return [{
         user_id: uid, key, account_id: accountId, ...(old ? {} : { no: ++next }), symbol: p.symbol, side: p.type === "buy" ? "long" : "short", qty: p.volume,
         entry_time: p.openTime, entry_price: p.openPrice, exit_time: closed ? p.closeTime : null, exit_price: closed ? p.closePrice : null,
@@ -97,11 +97,14 @@ Deno.serve(async (req) => {
       }
     }
     await db(`user_settings?user_id=eq.${uid}&key=eq.${encodeURIComponent(row.key)}&value->>hash=eq.${hash}`, { method: "PATCH", body: JSON.stringify({ value: { ...row.value, last: now, login: login || null, sent: good.length, ...(brokerNow ? { brokerNow } : {}), ...(startAuto != null ? { startAuto } : {}) }, updated_at: null }) });
-    // Telegram alerts (function "telegram"), only for users who linked a chat; a missing function or bot changes nothing here
-    if (closedNow.length && brokerNow) {
+    // Telegram alerts (function "telegram"), only for users who linked a chat; a missing function or bot changes nothing here.
+    // Open positions without a stop loss go too (not the ones deleted from the journal): it warns once they are 2 minutes old.
+    const openNoSl = good.filter((p) => p.status === "open" && !(Number(p.sl) > 0) && !have.get(`${accountId}:${p.id}`)?.deleted_at)
+      .map((p) => ({ key: `${accountId}:${p.id}`, symbol: p.symbol, side: p.type === "buy" ? "long" : "short", qty: p.volume, entry_time: p.openTime }));
+    if ((closedNow.length || openNoSl.length) && brokerNow) {
       const linked = await db(`user_settings?select=key&user_id=eq.${uid}&key=eq.telegram&value->>chat=not.is.null&deleted_at=is.null`);
       if (linked.ok && ((await linked.json()) as unknown[]).length)
-        await fetch(`${SB}/functions/v1/telegram`, { method: "POST", headers: { authorization: `Bearer ${SR}`, apikey: SR, "content-type": "application/json" }, body: JSON.stringify({ action: "sync", uid, accountId, now: brokerNow, closed: closedNow }), signal: AbortSignal.timeout(8000) }).catch(() => null);
+        await fetch(`${SB}/functions/v1/telegram`, { method: "POST", headers: { authorization: `Bearer ${SR}`, apikey: SR, "content-type": "application/json" }, body: JSON.stringify({ action: "sync", uid, accountId, now: brokerNow, closed: closedNow, open: openNoSl }), signal: AbortSignal.timeout(8000) }).catch(() => null);
     }
     return json({ ok: true, added, updated, skipped, ignored: positions.length - good.length });
   } catch (e) {

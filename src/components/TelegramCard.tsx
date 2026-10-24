@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import type { Lang } from "../types";
-import { tgInfo, tgLink, tgLinked, tgPrefs, tgTest, tgUnlink, type TgError, type TgPrefs } from "../lib/telegram";
+import { TG_PREFS, tgInfo, tgLink, tgLinked, tgPrefs, tgTest, tgUnlink, type TgError, type TgPrefs } from "../lib/telegram";
 
 type L3 = Record<Lang, string>;
 const T = {
@@ -20,7 +20,13 @@ const T = {
   sent: { en: "Sent ✓", ar: "أُرسلت ✓", fr: "Envoyé ✓" },
   off: { en: "Disconnect", ar: "فك الربط", fr: "Déconnecter" },
   cmds: { en: "In Telegram: /status shows your challenges, /stop turns the alerts off.", ar: "في تيليغرام: ‏/status لعرض تحدياتك، و‏/stop لإيقاف التنبيهات.", fr: "Dans Telegram : /status montre vos challenges, /stop coupe les alertes." },
-  only: { en: "Alerts come from MT5 auto-sync: trades imported from reports send none.", ar: "تأتي التنبيهات من مزامنة MT5: الصفقات المستوردة من التقارير لا ترسل تنبيهات.", fr: "Les alertes viennent de la synchro MT5 : les trades importés d'un rapport n'en envoient pas." },
+  streak: { en: "3 losses in a row: take a break", ar: "ثلاث خسائر متتالية: خذ استراحة", fr: "3 pertes d'affilée : faites une pause" },
+  nosl: { en: "Open trade without a stop loss", ar: "صفقة مفتوحة بلا وقف خسارة", fr: "Trade ouvert sans stop loss" },
+  stale: { en: "MT5 stopped syncing with open trades", ar: "توقف مزامنة MT5 وعندك صفقات مفتوحة", fr: "Synchro MT5 arrêtée avec des trades ouverts" },
+  daily: { en: "Day summary, after the market's midnight", ar: "ملخص اليوم بعد منتصف ليل السوق", fr: "Bilan du jour, après minuit du marché" },
+  weekly: { en: "Week summary on Sunday, with a tip", ar: "ملخص الأسبوع يوم الأحد مع نصيحة", fr: "Bilan de la semaine le dimanche, avec un conseil" },
+  news: { en: "High-impact news 15 minutes ahead", ar: "الأخبار القوية قبل ربع ساعة", fr: "Annonces majeures 15 minutes avant" },
+  only: { en: "Trade alerts come from MT5 auto-sync; the summaries and news use all your trades.", ar: "تنبيهات الصفقات تأتي من مزامنة MT5، أما الملخصات والأخبار فتشمل كل صفقاتك.", fr: "Les alertes de trades viennent de la synchro MT5 ; les bilans et annonces utilisent tous vos trades." },
   notDeployed: { en: "Telegram alerts are not set up on the server yet: deploy the \"telegram\" function (Verify JWT off).", ar: "تنبيهات تيليغرام غير مفعّلة على الخادم بعد: انشر الدالة telegram مع إيقاف Verify JWT.", fr: "Les alertes Telegram ne sont pas encore installées : déployez la fonction « telegram » (Verify JWT désactivé)." },
   noToken: { en: "Add your bot's token as the Supabase secret TELEGRAM_BOT_TOKEN.", ar: "أضف رمز البوت كسرّ في Supabase باسم TELEGRAM_BOT_TOKEN.", fr: "Ajoutez le jeton du bot comme secret Supabase TELEGRAM_BOT_TOKEN." },
   badToken: { en: "Telegram refused the bot token: check TELEGRAM_BOT_TOKEN.", ar: "رفض تيليغرام رمز البوت: تحقّق من TELEGRAM_BOT_TOKEN.", fr: "Telegram a refusé le jeton du bot : vérifiez TELEGRAM_BOT_TOKEN." },
@@ -42,7 +48,7 @@ export default function TelegramCard({ lang }: { lang: Lang }) {
 
   const load = useCallback(async () => {
     const r = await tgInfo(lang);
-    setV("error" in r ? { kind: "error", error: r.error } : { kind: "ready", bot: r.bot, linked: r.linked, name: r.name, prefs: r.prefs });
+    setV("error" in r ? { kind: "error", error: r.error } : { kind: "ready", bot: r.bot, linked: r.linked, name: r.name, prefs: { ...TG_PREFS, ...r.prefs } });
   }, [lang]);
   useEffect(() => { void load(); }, [load]);
 
@@ -119,9 +125,10 @@ export default function TelegramCard({ lang }: { lang: Lang }) {
       {v.kind === "ready" && v.linked && (
         <div className="mt-4 flex flex-col gap-3">
           <p className="text-sm">{L(T.to).replace("{n}", v.name ?? "Telegram").replace("{b}", v.bot)}</p>
-          <div className="flex flex-col gap-2 text-sm">
-            <label className="flex items-center gap-2"><input type="checkbox" className="accent-[var(--icon)]" checked={v.prefs.trades} disabled={busy} onChange={(e) => setPref({ ...v.prefs, trades: e.target.checked })} />{L(T.trades)}</label>
-            <label className="flex items-center gap-2"><input type="checkbox" className="accent-[var(--icon)]" checked={v.prefs.rules} disabled={busy} onChange={(e) => setPref({ ...v.prefs, rules: e.target.checked })} />{L(T.rules)}</label>
+          <div className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            {(Object.keys(TG_PREFS) as (keyof TgPrefs)[]).map((k) => (
+              <label key={k} className="flex items-start gap-2"><input type="checkbox" className="mt-0.5 accent-[var(--icon)]" checked={v.prefs[k]} disabled={busy} onChange={(e) => setPref({ ...v.prefs, [k]: e.target.checked })} />{L(T[k])}</label>
+            ))}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={test} className={btn}>{L(T.test)}</button>

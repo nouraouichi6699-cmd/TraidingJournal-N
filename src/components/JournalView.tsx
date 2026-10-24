@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SymbolIcon from "./SymbolIcon";
 import Private from "./Private";
 import { Eye, EyeOff, ChevronDown, Play } from "lucide-react";
@@ -17,6 +17,9 @@ interface Props {
   accounts: Account[];
   trades: Trade[];
   onOpenReport?: (tab: "benchmark" | "path") => void;
+  /** A trade to open with its note in focus (the "note" button of a Telegram alert), once it is in the journal. */
+  openKey?: string | null;
+  onOpened?: () => void;
 }
 const REPLAY = { en: "Replay this trade", ar: "أعد تشغيل هذه الصفقة", fr: "Rejouer ce trade" };
 
@@ -43,9 +46,14 @@ const loadHidden = (): Numeric[] => {
   }
 };
 
-export default function JournalView({ t, lang, accounts, trades, onOpenReport }: Props) {
+export default function JournalView({ t, lang, accounts, trades, onOpenReport, openKey, onOpened }: Props) {
   const [acc, setAcc] = useState("all");
   const [replay, setReplay] = useState<Trade | null>(null);
+  const [focusNote, setFocusNote] = useState(false);
+  useEffect(() => {
+    const tr = openKey ? trades.find((x) => x.key === openKey) : undefined;
+    if (tr) { setReplay(tr); setFocusNote(true); onOpened?.(); }
+  }, [openKey, trades]); // eslint-disable-line react-hooks/exhaustive-deps
   const [hidden, setHidden] = useState<Numeric[]>(loadHidden);
   const setHide = (next: Numeric[]) => {
     setHidden(next);
@@ -210,7 +218,7 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport }:
           )}
         </>
       )}
-      {replay && <TradeReplay lang={lang} trade={replay} trades={trades} currency={curOf.get(replay.accountId)} onClose={() => setReplay(null)} onOpenReport={onOpenReport} />}
+      {replay && <TradeReplay lang={lang} trade={replay} trades={trades} currency={curOf.get(replay.accountId)} focusNote={focusNote} onClose={() => { setReplay(null); setFocusNote(false); }} onOpenReport={onOpenReport} />}
     </section>
   );
 }

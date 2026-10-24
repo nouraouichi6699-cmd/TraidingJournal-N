@@ -66,7 +66,13 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const trading = useMemo(() => [...edge, ...week], [edge, week]);
   const interests = useInterests(trading);
   const [connecting, setConnecting] = useState(false);
-  const [view, setView] = useState<View | "profile" | "news" | "calendar">("dashboard");
+  // A trade to open from the "note" button of a Telegram alert (?trade=<key>): the journal opens it once it has it.
+  const [openTrade, setOpenTrade] = useState<string | null>(() => { try { return new URLSearchParams(location.search).get("trade"); } catch { return null; } });
+  const tradeOpened = () => {
+    setOpenTrade(null);
+    try { const u = new URL(location.href); u.searchParams.delete("trade"); history.replaceState(history.state, "", `${u.pathname}${u.search}${u.hash}`); } catch { /* the address keeps it */ }
+  };
+  const [view, setView] = useState<View | "profile" | "news" | "calendar">(() => (openTrade ? "journal" : "dashboard"));
   // One-shot deep link into Reports (e.g. Charts -> "Open this day" -> Day by Day), consumed when Reports mounts.
   const [reportsNav, setReportsNav] = useState<{ tab: string; day?: string; acc?: string | null } | null>(null);
   const { profile, save: saveProfile } = useProfile();
@@ -133,7 +139,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "advisor" && <AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} />}
               {view === "challenges" && <ChallengeView lang={lang} accounts={accounts} trades={journal.trades} onOpenProfile={() => setView("profile")} />}
-              {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} />}
+              {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} openKey={openTrade} onOpened={tradeOpened} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} />}
               {view === "import" && (
                 <ImportView t={t} lang={lang} userId={userId} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
               )}

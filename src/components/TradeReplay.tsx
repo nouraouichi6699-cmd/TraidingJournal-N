@@ -9,10 +9,13 @@ import { pointValues } from "../lib/portfolio";
 import { loadReplay, type ReplayLoad, type ReplayWhy } from "../lib/replayData";
 import type { Replay } from "../lib/replay";
 import { usePrivacy } from "../usePrivacy";
+import { noteOf, saveNote } from "../lib/tradeNotes";
 
 type L3 = Record<Lang, string>;
 const T = {
   title: { en: "Trade replay", ar: "إعادة تشغيل الصفقة", fr: "Rejouer le trade" },
+  note: { en: "Note", ar: "ملاحظة", fr: "Note" },
+  notePh: { en: "Why did you take this trade? How did you feel?", ar: "لماذا دخلت هذه الصفقة؟ وبماذا شعرت؟", fr: "Pourquoi ce trade ? Qu'avez-vous ressenti ?" },
   loading: { en: "Loading market prices… {d}/{t}", ar: "جارٍ تحميل أسعار السوق… {d}/{t}", fr: "Chargement des prix… {d}/{t}" },
   play: { en: "Play", ar: "تشغيل", fr: "Lecture" },
   pause: { en: "Pause", ar: "إيقاف مؤقت", fr: "Pause" },
@@ -176,8 +179,10 @@ function Chart({ r, p, trade, digits, lang }: { r: Replay; p: number; trade: Tra
 
 type Ev = { t: number; i: number; text: string; tone: "up" | "down" | "plain" };
 
-export default function TradeReplay({ lang, trade, trades, currency, onClose, onOpenReport }: { lang: Lang; trade: Trade; trades: Trade[]; currency?: string; onClose: () => void; onOpenReport?: (tab: "benchmark" | "path") => void }) {
+export default function TradeReplay({ lang, trade, trades, currency, onClose, onOpenReport, focusNote }: { lang: Lang; trade: Trade; trades: Trade[]; currency?: string; onClose: () => void; onOpenReport?: (tab: "benchmark" | "path") => void; focusNote?: boolean }) {
   const L = (x: L3) => x[lang];
+  const [note, setNote] = useState(() => noteOf(trade.key));
+  const noteBox = useRef<HTMLTextAreaElement>(null);
   const [load, setLoad] = useState<ReplayLoad | { loading: [number, number] }>({ loading: [0, 1] });
   const [attempt, setAttempt] = useState(0);
   const [p, setP] = useState(0);
@@ -238,7 +243,7 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null, prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    panel.current?.focus();
+    (focusNote ? noteBox.current : panel.current)?.focus(); // opened from a Telegram "note" button: straight to the note
     return () => { document.body.style.overflow = prevOverflow; opener?.focus?.(); };
   }, []);
   useEffect(() => {
@@ -327,6 +332,11 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
             </p>
           </div>
           <button type="button" aria-label={L(T.close)} onClick={onClose} className="icon-btn -m-1.5"><X size={20} /></button>
+        </div>
+
+        <div className="border-b border-border px-4 py-3 sm:px-5">
+          <label htmlFor="trade-note" className="text-xs font-semibold text-muted">{L(T.note)}</label>
+          <textarea id="trade-note" ref={noteBox} value={note} rows={2} maxLength={2000} placeholder={L(T.notePh)} onChange={(ev) => { setNote(ev.target.value); saveNote(trade.key, ev.target.value); }} className="field mt-1.5 block w-full resize-y text-sm" />
         </div>
 
         {"loading" in load && (

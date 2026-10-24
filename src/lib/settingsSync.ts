@@ -4,7 +4,7 @@ import { startPuller } from "./syncSchedule";
 
 // Per-key, last-write-wins sync of small user settings (profile, dashboard, charts, interests, journal columns).
 // Remote values are applied at startup (before the app mounts); local edits are pushed in the background.
-const KEYS = ["mizan-profile", "mizan-dashboard-v2", "mizan-charts", "mizan-interests", "mizan-journal-cols", "mizan-challenges"];
+const KEYS = ["mizan-profile", "mizan-dashboard-v2", "mizan-charts", "mizan-interests", "mizan-journal-cols", "mizan-challenges", "mizan-trade-notes"];
 const META = "mizan-sync-meta-settings", CUR = "mizan-sync-cursor-settings";
 
 type M = { u: number; h: string; p: 0 | 1 }; // updated ms, content hash, pending push

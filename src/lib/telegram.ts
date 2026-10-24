@@ -3,7 +3,8 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { Lang } from "../types";
 
-export type TgPrefs = { trades: boolean; rules: boolean };
+export const TG_PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true };
+export type TgPrefs = typeof TG_PREFS;
 export type TgState = { linked: boolean; name: string | null; prefs: TgPrefs };
 export type TgError = "notDeployed" | "noToken" | "badToken" | "signIn" | "notLinked" | "unreachable" | "failed";
 
@@ -21,8 +22,9 @@ async function call<T>(body: Record<string, unknown>): Promise<T | { error: TgEr
     return { error: "unreachable" };
   }
 }
-/** The bot's name and the link state; the first call also points the bot's webhook at the function. */
-export const tgInfo = (lang: Lang) => call<TgState & { bot: string }>({ action: "info", lang });
+/** The bot's name and the link state; the first call also points the bot's webhook at the function. It also sends the
+ *  app's address (the "note" buttons under trade alerts open it) and the browser's time zone. */
+export const tgInfo = (lang: Lang) => call<TgState & { bot: string }>({ action: "info", lang, site: `${location.origin}${import.meta.env.BASE_URL}`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
 /** A one-time t.me link (valid 30 minutes): pressing Start in Telegram links the chat. */
 export const tgLink = (lang: Lang) => call<{ url: string }>({ action: "link", lang });
 export const tgTest = (lang: Lang) => call<{ ok: true }>({ action: "test", lang });
