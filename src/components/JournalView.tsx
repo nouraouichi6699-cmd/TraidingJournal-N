@@ -3,6 +3,7 @@ import SymbolIcon from "./SymbolIcon";
 import Private from "./Private";
 import { Eye, EyeOff, ChevronDown, Play } from "lucide-react";
 import TradeReplay from "./TradeReplay";
+import { planSplit, readPlan } from "../lib/tradePlan";
 import { canReplay } from "../lib/replayData";
 import { fmt } from "../lib/stats";
 import { commonCurrency, fmtMoney } from "../lib/money";
@@ -22,6 +23,12 @@ interface Props {
   onOpened?: () => void;
 }
 const REPLAY = { en: "Replay this trade", ar: "أعد تشغيل هذه الصفقة", fr: "Rejouer ce trade" };
+const PLAN = {
+  title: { en: "Your plan", ar: "خطتك", fr: "Votre plan" },
+  yes: { en: "In the plan", ar: "ضمن الخطة", fr: "Dans le plan" },
+  no: { en: "Outside the plan", ar: "خارج الخطة", fr: "Hors plan" },
+  hint: { en: "From your answers to the Telegram new-trade buttons.", ar: "من إجاباتك على أزرار رسالة الصفقة الجديدة في تيليغرام.", fr: "D'après vos réponses aux boutons Telegram des nouveaux trades." },
+};
 
 const GREEN = "text-[#22c55e]";
 const RED = "text-[#f87171]";
@@ -71,6 +78,9 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport, o
         .sort((a, b) => (b.entryTime ?? "").localeCompare(a.entryTime ?? "")),
     [trades, acc],
   );
+
+  // Closed trades in and outside the plan (answered in Telegram), for the account shown.
+  const split = planSplit(rows, readPlan());
 
   // The current month stays in the main table; older months are grouped below, newest first.
   const nowYm = new Date().toISOString().slice(0, 7);
@@ -179,6 +189,19 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport, o
         </div>
       </div>
 
+      {split.yes.n + split.no.n > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm">
+          <span className="font-semibold text-icon">{PLAN.title[lang]}</span>
+          {(["yes", "no"] as const).map((k) => (
+            <span key={k} className="flex items-center gap-2">
+              <span>{k === "yes" ? "✅" : "❌"} {PLAN[k][lang]}</span>
+              <span className="text-xs text-muted">{split[k].n} {t("monthTrades")}</span>
+              {show("pnl") && <span className={`tnum font-semibold ${tone(split[k].net)}`} dir="ltr"><Private hint={t("privacyReveal")}>{fmtMoney(split[k].net, { sign: true, currency: groupCur(split[k].list) })}</Private></span>}
+            </span>
+          ))}
+          <span className="text-xs text-muted">{PLAN.hint[lang]}</span>
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-muted">{t("noTrades")}</p>
       ) : (

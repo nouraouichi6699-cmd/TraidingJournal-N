@@ -10,12 +10,15 @@ import { loadReplay, type ReplayLoad, type ReplayWhy } from "../lib/replayData";
 import type { Replay } from "../lib/replay";
 import { usePrivacy } from "../usePrivacy";
 import { noteOf, saveNote } from "../lib/tradeNotes";
+import { readPlan } from "../lib/tradePlan";
 
 type L3 = Record<Lang, string>;
 const T = {
   title: { en: "Trade replay", ar: "إعادة تشغيل الصفقة", fr: "Rejouer le trade" },
   note: { en: "Note", ar: "ملاحظة", fr: "Note" },
   notePh: { en: "Why did you take this trade? How did you feel?", ar: "لماذا دخلت هذه الصفقة؟ وبماذا شعرت؟", fr: "Pourquoi ce trade ? Qu'avez-vous ressenti ?" },
+  planIn: { en: "In the plan", ar: "ضمن الخطة", fr: "Dans le plan" },
+  planOut: { en: "Outside the plan", ar: "خارج الخطة", fr: "Hors plan" },
   loading: { en: "Loading market prices… {d}/{t}", ar: "جارٍ تحميل أسعار السوق… {d}/{t}", fr: "Chargement des prix… {d}/{t}" },
   play: { en: "Play", ar: "تشغيل", fr: "Lecture" },
   pause: { en: "Pause", ar: "إيقاف مؤقت", fr: "Pause" },
@@ -182,6 +185,7 @@ type Ev = { t: number; i: number; text: string; tone: "up" | "down" | "plain" };
 export default function TradeReplay({ lang, trade, trades, currency, onClose, onOpenReport, focusNote }: { lang: Lang; trade: Trade; trades: Trade[]; currency?: string; onClose: () => void; onOpenReport?: (tab: "benchmark" | "path") => void; focusNote?: boolean }) {
   const L = (x: L3) => x[lang];
   const [note, setNote] = useState(() => noteOf(trade.key));
+  const [inPlan] = useState<boolean | undefined>(() => readPlan()[trade.key]); // answered in Telegram
   const noteBox = useRef<HTMLTextAreaElement>(null);
   const [load, setLoad] = useState<ReplayLoad | { loading: [number, number] }>({ loading: [0, 1] });
   const [attempt, setAttempt] = useState(0);
@@ -325,6 +329,7 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
               <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${trade.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{L(T[trade.side])}</span>
               <span className="text-sm font-medium text-muted" dir="ltr">{trade.qty.toLocaleString("en-US")}</span>
               {trade.pnl != null && <span className={`text-sm font-semibold ${tone(trade.pnl)}`} dir="ltr">{hidden ? "••••" : fmtMoney(trade.pnl, { cents: true, sign: true, currency })}</span>}
+              {inPlan !== undefined && <span className="rounded-full border border-border px-2.5 py-0.5 text-xs font-semibold text-muted">{inPlan ? "✅" : "❌"} {L(inPlan ? T.planIn : T.planOut)}</span>}
             </h2>
             <p className="mt-0.5 text-xs text-muted">
               <bdi>{Number.isFinite(s) ? headDate.format(new Date(s)) : "—"}</bdi> <bdi dir="ltr">{Number.isFinite(s) ? hhmm(s) : ""}</bdi> {lang === "ar" ? "←" : "→"} <bdi dir="ltr">{Number.isFinite(e) ? hhmm(e) : "—"}</bdi>

@@ -26,6 +26,8 @@ const T = {
   daily: { en: "Day summary, after the market's midnight", ar: "ملخص اليوم بعد منتصف ليل السوق", fr: "Bilan du jour, après minuit du marché" },
   weekly: { en: "Week summary on Sunday, with a tip", ar: "ملخص الأسبوع يوم الأحد مع نصيحة", fr: "Bilan de la semaine le dimanche, avec un conseil" },
   news: { en: "High-impact news 15 minutes ahead", ar: "الأخبار القوية قبل ربع ساعة", fr: "Annonces majeures 15 minutes avant" },
+  entry: { en: "New trade: is it in your plan?", ar: "صفقة جديدة: هل هي ضمن خطتك؟", fr: "Nouveau trade : est-il dans votre plan ?" },
+  danger: { en: "Danger zone, from your own history", ar: "منطقة الخطر من سجلك", fr: "Zone de danger, d'après votre historique" },
   only: { en: "Trade alerts come from MT5 auto-sync; the summaries and news use all your trades.", ar: "تنبيهات الصفقات تأتي من مزامنة MT5، أما الملخصات والأخبار فتشمل كل صفقاتك.", fr: "Les alertes de trades viennent de la synchro MT5 ; les bilans et annonces utilisent tous vos trades." },
   notDeployed: { en: "Telegram alerts are not set up on the server yet: deploy the \"telegram\" function (Verify JWT off).", ar: "تنبيهات تيليغرام غير مفعّلة على الخادم بعد: انشر الدالة telegram مع إيقاف Verify JWT.", fr: "Les alertes Telegram ne sont pas encore installées : déployez la fonction « telegram » (Verify JWT désactivé)." },
   noToken: { en: "Add your bot's token as the Supabase secret TELEGRAM_BOT_TOKEN.", ar: "أضف رمز البوت كسرّ في Supabase باسم TELEGRAM_BOT_TOKEN.", fr: "Ajoutez le jeton du bot comme secret Supabase TELEGRAM_BOT_TOKEN." },

@@ -6,6 +6,8 @@
 //  - From mt5-sync (service role): the trades the MT5 sync just closed -> one message with the trades (each with a "note"
 //    button that opens it in Mizan), the prop-rule warnings (half / 80% of a loss limit used, limit passed, target
 //    reached), 3+ losses in a row, and open trades still without a stop loss after 2 minutes; each warning sent once.
+//    Trades just opened get a message each: "in my plan / outside my plan" buttons (a tap is saved in the synced setting
+//    "mizan-trade-plan") and, when the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning.
 //  - "tick" (pg_cron every 5 minutes, migration 20261024_telegram_tick.sql; no key needed: it only sends what is due and
 //    runs at most every 4 minutes): MT5 sync stopped for an hour with open trades, yesterday's summary just after the
 //    broker's midnight, the week's summary on Sunday from 10:00 (with a tip from the AI model, no account names or
@@ -16,7 +18,7 @@
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 type Lang = "en" | "ar" | "fr";
-const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true };
+const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true };
 type Prefs = typeof PREFS;
 const prefsOf = (p?: Partial<Prefs> | null): Prefs => ({ ...PREFS, ...(p ?? {}) });
 type Tg = { chat?: number | null; name?: string | null; lang?: Lang; prefs?: Partial<Prefs>; codeHash?: string | null; codeAt?: string | null; sent?: Record<string, string>; site?: string | null; tz?: string | null };
@@ -25,7 +27,9 @@ type TradeRow = { key?: string; symbol: string; side: string; pnl: number | null
 type OpenRow = { key: string; symbol: string; side: string; qty: number; entry_time: string };
 type Acc = { id: string; name: string; currency: string | null };
 type Sync = { brokerNow?: string; last?: string };
-type Btn = { text: string; url: string };
+type Btn = { text: string; url?: string; callback_data?: string };
+type Hist = { symbol: string; side: string; pnl: number | null; entry_time: string | null };
+type Danger = { kind: "symHour" | "sideSym" | "sym" | "hour" | "day"; n: number; lost: number; net: number };
 type Cal = { id: string; time: string; currency: string; title: string; forecast: string; previous: string };
 
 const TXT: Record<string, Record<Lang, string>> = {
@@ -53,6 +57,17 @@ const TXT: Record<string, Record<Lang, string>> = {
   stToday: { en: "Today: {t} (room {r} of {l})", ar: "اليوم: {t} (الهامش {r} من {l})", fr: "Aujourd'hui : {t} (marge {r} sur {l})" },
   stOverall: { en: "Overall room: {r} (floor {f})", ar: "هامش الخسارة الكلية: {r} (الحد الأدنى {f})", fr: "Marge totale : {r} (plancher {f})" },
   note: { en: "📝 Note · {s}", ar: "📝 ملاحظة · {s}", fr: "📝 Note · {s}" },
+  entry: { en: "📥 {a}: new trade {s} {d} {q} ({h})", ar: "📥 {a}: صفقة جديدة {s} {d} {q} ({h})", fr: "📥 {a} : nouveau trade {s} {d} {q} ({h})" },
+  ask: { en: "Is it in your plan?", ar: "هل هي ضمن خطتك؟", fr: "Est-il dans votre plan ?" },
+  planYes: { en: "✅ In my plan", ar: "✅ ضمن خطتي", fr: "✅ Dans mon plan" },
+  planNo: { en: "❌ Outside my plan", ar: "❌ خارج خطتي", fr: "❌ Hors de mon plan" },
+  planSaved: { en: "Saved ✓", ar: "حُفظ ✓", fr: "Enregistré ✓" },
+  dsymHour: { en: "⚠️ Danger zone: your trades on {s} between {h1} and {h2} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك على {s} بين {h1} و{h2} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades sur {s} entre {h1} et {h2} ont perdu {l} sur {n} ({p})." },
+  dsideSym: { en: "⚠️ Danger zone: your {d} trades on {s} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقات {d} عندك على {s} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades {d} sur {s} ont perdu {l} sur {n} ({p})." },
+  dsym: { en: "⚠️ Danger zone: your trades on {s} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك على {s} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades sur {s} ont perdu {l} sur {n} ({p})." },
+  dhour: { en: "⚠️ Danger zone: your trades opened between {h1} and {h2} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك المفتوحة بين {h1} و{h2} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades ouverts entre {h1} et {h2} ont perdu {l} sur {n} ({p})." },
+  dday: { en: "⚠️ Danger zone: your trades on {w} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك يوم {w} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades du {w} ont perdu {l} sur {n} ({p})." },
+  planLine: { en: "📋 In your plan: {i} · outside it: {o}", ar: "📋 ضمن خطتك: {i} · خارجها: {o}", fr: "📋 Dans votre plan : {i} · hors plan : {o}" },
   streak: { en: "🛑 {a}: {n} losses in a row ({s}). Stop and take a break before the next trade.", ar: "🛑 {a}: {n} خسائر متتالية ({s}). توقف وخذ استراحة قبل الصفقة القادمة.", fr: "🛑 {a} : {n} pertes d'affilée ({s}). Arrêtez-vous et faites une pause avant le prochain trade." },
   nosl: { en: "⚠️ {a}: {s} {d} {q} has no stop loss (open since {h}).", ar: "⚠️ {a}: صفقة {s} {d} {q} بلا وقف خسارة (مفتوحة منذ {h}).", fr: "⚠️ {a} : {s} {d} {q} sans stop loss (ouvert depuis {h})." },
   stale: { en: "📡 {a}: no sync from MT5 since {t}, with open trades ({n}). Is MT5 closed or is the computer asleep?", ar: "📡 {a}: لم تصل مزامنة من MT5 منذ {t}، وما زالت صفقات مفتوحة ({n}). هل أُغلق MT5 أو نام الحاسوب؟", fr: "📡 {a} : aucune synchro MT5 depuis {t}, avec des trades ouverts ({n}). MT5 est-il fermé ou l'ordinateur en veille ?" },
@@ -133,6 +148,33 @@ export function noSlDue(open: OpenRow[], brokerNow: number, sent: Record<string,
     .map((x) => ({ ...x, k: `nosl:${x.entry_time.slice(0, 10)}:${x.key}` }))
     .filter((x) => !sent[x.k]);
 }
+/** The worst pattern of the trader's own closed trades that a new trade matches (same symbol and entry hour, same side on
+ *  the symbol, the symbol, the entry hour, the weekday; broker clock): at least 6 trades over 3 days or more (one bad day
+ *  is not a pattern), two thirds or more of them lost, and a net loss. The most specific pattern wins a tie. */
+export function dangerOf(x: { symbol: string; side: string; entry_time: string }, hist: Hist[]): Danger | null {
+  const hour = (s: string) => Number(s.replace(" ", "T").slice(11, 13)), wd = (s: string) => new Date(naive(s)).getUTCDay();
+  const xh = hour(x.entry_time), xd = wd(x.entry_time);
+  const closed = hist.filter((t) => t.pnl != null && Number.isFinite(Number(t.pnl)) && typeof t.entry_time === "string");
+  const groups: [Danger["kind"], (t: Hist) => boolean][] = [
+    ["symHour", (t) => t.symbol === x.symbol && hour(t.entry_time as string) === xh],
+    ["sideSym", (t) => t.symbol === x.symbol && t.side === x.side],
+    ["sym", (t) => t.symbol === x.symbol],
+    ["hour", (t) => hour(t.entry_time as string) === xh],
+    ["day", (t) => wd(t.entry_time as string) === xd],
+  ];
+  let best: Danger | null = null;
+  for (const [kind, test] of groups) {
+    const l = closed.filter(test), n = l.length, lost = l.filter((t) => Number(t.pnl) < 0).length, net = l.reduce((a, t) => a + Number(t.pnl), 0);
+    if (n < 6 || lost / n < 2 / 3 - 1e-9 || net >= 0 || new Set(l.map((t) => (t.entry_time as string).slice(0, 10))).size < 3) continue;
+    if (!best || lost / n > best.lost / best.n + 1e-9) best = { kind, n, lost, net };
+  }
+  return best;
+}
+const WEEKDAY: Record<Lang, string[]> = {
+  en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+  ar: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
+  fr: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
+};
 const CURS = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "CNY"];
 const IDX: [RegExp, string][] = [[/^(US|NAS|SPX|SP500|DJ|DOW|WS30)/, "USD"], [/^(GER|DE[0-9]|DAX|EU50|EUSTX|STOXX|FRA|ESP|IT[0-9]|NETH)/, "EUR"], [/^(UK|FTSE)/, "GBP"], [/^(JP|NIK)/, "JPY"], [/^(AUS|ASX)/, "AUD"], [/^(HK|CHINA|CN)/, "CNY"],
   [/^(XAU|XAG|XPT|XPD|GOLD|SILVER|BTC|ETH|WTI|BRENT|XTI|XBR|OIL|USOIL|UKOIL)/, "USD"]];
@@ -178,7 +220,7 @@ export function newsDue(cal: Cal[], now: number, curs: Set<string>, sent: Record
 }
 const r2 = (x: number) => Math.round(x * 100) / 100;
 /** What the weekly tip is built from, per account currency: totals, symbols, weekdays, entry hours. No account names or numbers. */
-export function weekFacts(trades: (TradeRow & { account_id: string })[], curOf: Map<string, string | null>) {
+export function weekFacts(trades: (TradeRow & { account_id: string })[], curOf: Map<string, string | null>, plan: Record<string, boolean> = {}) {
   const by = new Map<string, TradeRow[]>();
   for (const t of trades) { const c = curOf.get(t.account_id) || "?"; by.set(c, [...(by.get(c) ?? []), t]); }
   return [...by].map(([currency, list]) => {
@@ -191,8 +233,10 @@ export function weekFacts(trades: (TradeRow & { account_id: string })[], curOf: 
     };
     let run = 0, worstRun = 0;
     for (const t of [...list].sort((a, b) => (a.exit_time ?? "").localeCompare(b.exit_time ?? ""))) { run = Number(t.pnl) < 0 ? run + 1 : 0; worstRun = Math.max(worstRun, run); }
+    const planned = (v: boolean) => { const l = list.filter((t) => t.key && plan[t.key] === v); return { trades: l.length, net: r2(l.reduce((a, t) => a + Number(t.pnl), 0)) }; };
     return {
       currency, trades: s.n, net: r2(s.net), winRatePct: s.win, avgWin: avg(wins), avgLoss: avg(losses), withoutStopLoss: list.filter((t) => !(Number(t.sl) > 0)).length, mostLossesInARow: worstRun,
+      inThePlan: planned(true), outsideThePlan: planned(false),
       bySymbol: group((t) => t.symbol), byWeekday: group((t) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(naive(t.entry_time ?? t.exit_time ?? "")).getUTCDay()] ?? "?"),
       byEntryHour: group((t) => `${(t.entry_time ?? "").replace(" ", "T").slice(11, 13) || "?"}h`),
     };
@@ -239,11 +283,11 @@ Deno.serve(async (req) => {
   const db = (path: string, init: RequestInit = {}) => fetch(`${SB}/rest/v1/${path}`, { ...init, headers: { apikey: SR, authorization: `Bearer ${SR}`, "content-type": "application/json", ...(init.headers ?? {}) }, signal: AbortSignal.timeout(15000) });
   const rows = async <T,>(path: string): Promise<T[]> => { const r = await db(path); return r.ok ? ((await r.json()) as T[]) : []; };
   const tg = (method: string, body: unknown) => fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
-  /** One message, with URL buttons below it (one per row). Telegram refuses some URLs (localhost): then it goes without them. */
-  const send = async (chat: number, text: string, buttons: Btn[] = []) => {
+  /** One message, with rows of buttons below it. Telegram refuses some URLs (localhost): then it goes without them. */
+  const send = async (chat: number, text: string, kb: Btn[][] = []) => {
     const base = { chat_id: chat, text: text.slice(0, 4000) };
-    const r = await tg("sendMessage", buttons.length ? { ...base, reply_markup: { inline_keyboard: buttons.map((b) => [b]) } } : base);
-    return r.ok || !buttons.length ? r : tg("sendMessage", base);
+    const r = await tg("sendMessage", kb.length ? { ...base, reply_markup: { inline_keyboard: kb } } : base);
+    return r.ok || !kb.length ? r : tg("sendMessage", base);
   };
   const getTg = async (uid: string) => (await rows<{ value: Tg }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.telegram&deleted_at=is.null`))[0]?.value ?? null;
   const saveTg = (uid: string, value: Tg) => db("user_settings?on_conflict=user_id,key", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ user_id: uid, key: "telegram", value, updated_at: null, deleted_at: null }) });
@@ -260,6 +304,22 @@ Deno.serve(async (req) => {
   const side = (s: string, lang: Lang) => T(s === "short" ? "short" : "long", lang);
   const noSlLine = (a: Acc, x: OpenRow, lang: Lang) => T("nosl", lang, { a: a.name, s: x.symbol, d: side(x.side, lang), q: Number(x.qty).toLocaleString("en-US"), h: x.entry_time.replace(" ", "T").slice(11, 16) });
   const site = (t: Tg) => (typeof t.site === "string" && /^https?:\/\/\S+$/.test(t.site) ? t.site : null);
+  // "in my plan" / "outside my plan" under a new trade; the chosen one gets a dot (callback data: p1:<trade key>, 64 bytes max)
+  const planButtons = (key: string, lang: Lang, chosen?: boolean): Btn[] => [
+    { text: `${chosen === true ? "● " : ""}${T("planYes", lang)}`, callback_data: `p1:${key}` },
+    { text: `${chosen === false ? "● " : ""}${T("planNo", lang)}`, callback_data: `p0:${key}` },
+  ];
+  const hh = (h: number) => `${String(h % 24).padStart(2, "0")}:00`;
+  const dangerLine = (d: Danger, x: OpenRow, lang: Lang, a: Acc) => {
+    const h = Number(x.entry_time.replace(" ", "T").slice(11, 13));
+    return T(`d${d.kind}`, lang, { s: x.symbol, d: side(x.side, lang), w: WEEKDAY[lang][new Date(naive(x.entry_time)).getUTCDay()], h1: hh(h), h2: hh(h + 1), l: d.lost, n: d.n, p: money(d.net, { cur: a.currency, lang }) });
+  };
+  /** Points the bot here, for messages and button taps (set again when it was set before the buttons existed). */
+  const ensureHook = async () => {
+    const hook = `${SB}/functions/v1/telegram`, w = (await (await tg("getWebhookInfo", {})).json().catch(() => null))?.result;
+    if (!w || w.url !== hook || /401|403/.test(w.last_error_message ?? "") || !(w.allowed_updates ?? []).includes("callback_query"))
+      await tg("setWebhook", { url: hook, secret_token: secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: !w || w.url !== hook });
+  };
 
   /** The status of every challenge of a user, for /status. */
   async function statusText(uid: string, lang: Lang) {
@@ -308,11 +368,15 @@ Deno.serve(async (req) => {
     const hm = (ms: number) => new Intl.DateTimeFormat(loc, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(new Date(ms));
     const dayName = (d: string) => new Intl.DateTimeFormat(loc, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
     const sent = { ...(t.sent ?? {}) }, out: { text: string; keys: string[] }[] = [], quiet: string[] = [];
-    const block = (a: Acc, list: TradeRow[]) => {
+    const word = (n: number) => (lang === "ar" ? (n >= 3 && n <= 10 ? "صفقات" : "صفقة") : n === 1 ? "trade" : "trades");
+    let planMap: Record<string, boolean> | null = null; // the "in my plan" answers, read once when a summary needs them
+    const plan = async () => (planMap ??= (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {});
+    const block = (a: Acc, list: TradeRow[], pl: Record<string, boolean>) => {
       const s = tradeStats(list), m = (v: number, cents = false) => money(v, { cents, sign: true, cur: a.currency, lang });
-      const word = lang === "ar" ? (s.n >= 3 && s.n <= 10 ? "صفقات" : "صفقة") : s.n === 1 ? "trade" : "trades";
-      return [T("sumLine", lang, { a: a.name, p: m(s.net), n: s.n, w: word, r: s.win }),
-        ...(s.n > 1 ? [T("bestWorst", lang, { b: `${s.best.symbol} ${m(Number(s.best.pnl), true)}`, w: `${s.worst.symbol} ${m(Number(s.worst.pnl), true)}` })] : [])].join("\n");
+      const part = (v: boolean) => { const l = list.filter((x) => x.key && pl[x.key] === v); return `${l.length} ${word(l.length)} ${m(l.reduce((sum, x) => sum + Number(x.pnl), 0))}`; };
+      return [T("sumLine", lang, { a: a.name, p: m(s.net), n: s.n, w: word(s.n), r: s.win }),
+        ...(s.n > 1 ? [T("bestWorst", lang, { b: `${s.best.symbol} ${m(Number(s.best.pnl), true)}`, w: `${s.worst.symbol} ${m(Number(s.worst.pnl), true)}` })] : []),
+        ...(list.some((x) => x.key && x.key in pl) ? [T("planLine", lang, { i: part(true), o: part(false) })] : [])].join("\n");
     };
 
     for (const a of accs) {
@@ -342,9 +406,9 @@ Deno.serve(async (req) => {
       for (const a of accs) {
         const bc = brokerClock(syncOf(a.id), now), today = new Date(bc).toISOString().slice(0, 10), d = addDays(today, -1), k = `daily:${d}:${a.id}`;
         if (new Date(bc).getUTCHours() >= 3 || sent[k]) continue;
-        const list = await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${a.id}&status=eq.closed&deleted_at=is.null&exit_time=gte.${d}&exit_time=lt.${today}&limit=2000`);
+        const list = await rows<TradeRow>(`trades?select=key,symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${a.id}&status=eq.closed&deleted_at=is.null&exit_time=gte.${d}&exit_time=lt.${today}&limit=2000`);
         if (!list.length) { quiet.push(k); continue; }
-        parts.push(block(a, list)); keys.push(k); label = d;
+        parts.push(block(a, list, await plan())); keys.push(k); label = d;
       }
       if (parts.length) out.push({ text: [T("dayHead", lang, { d: dayName(label) }), ...parts].join("\n\n"), keys });
     }
@@ -354,11 +418,12 @@ Deno.serve(async (req) => {
       const lp = localParts(now, tz), k = `weekly:${lp.date}:`;
       if (lp.wd === 0 && lp.hour >= 10 && !sent[k]) {
         const from = addDays(lp.date, -7);
-        const list = await rows<TradeRow & { account_id: string }>(`trades?select=account_id,symbol,side,pnl,status,entry_time,exit_time,sl&user_id=eq.${uid}&status=eq.closed&deleted_at=is.null&exit_time=gte.${from}&exit_time=lt.${lp.date}&limit=5000`);
+        const list = await rows<TradeRow & { account_id: string }>(`trades?select=key,account_id,symbol,side,pnl,status,entry_time,exit_time,sl&user_id=eq.${uid}&status=eq.closed&deleted_at=is.null&exit_time=gte.${from}&exit_time=lt.${lp.date}&limit=5000`);
         if (!list.length) quiet.push(k);
         else {
-          const parts = accs.map((a) => ({ a, l: list.filter((x) => x.account_id === a.id) })).filter((x) => x.l.length).map((x) => block(x.a, x.l));
-          const tip = await weekTip(lang, weekFacts(list, new Map(accs.map((a) => [a.id, a.currency]))));
+          const pl = await plan();
+          const parts = accs.map((a) => ({ a, l: list.filter((x) => x.account_id === a.id) })).filter((x) => x.l.length).map((x) => block(x.a, x.l, pl));
+          const tip = await weekTip(lang, weekFacts(list, new Map(accs.map((a) => [a.id, a.currency])), pl));
           out.push({ text: [T("weekHead", lang, { d: `${dayName(from)} – ${dayName(addDays(lp.date, -1))}` }), ...parts, ...(tip ? [`💡 ${tip}`] : [])].join("\n\n"), keys: [k] });
         }
       }
@@ -390,7 +455,24 @@ Deno.serve(async (req) => {
     // ---- Telegram webhook ----
     if (req.headers.has("x-telegram-bot-api-secret-token")) {
       if (!secret || req.headers.get("x-telegram-bot-api-secret-token") !== secret) return json({ ok: false }, 401);
-      const u = await req.json().catch(() => null), msg = u?.message, chat = msg?.chat?.id, text = typeof msg?.text === "string" ? msg.text.trim() : "";
+      const u = await req.json().catch(() => null);
+      // a tap on "in my plan" / "outside my plan": saved in the user's synced setting "mizan-trade-plan" ({ [trade key]: boolean })
+      const cq = u?.callback_query;
+      if (cq) {
+        const qChat = cq.message?.chat?.id, m = String(cq.data ?? "").match(/^p([01]):(.{3,61})$/);
+        const who = typeof qChat === "number" ? (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${qChat}&deleted_at=is.null&limit=1`))[0] : undefined;
+        const qLang = who?.value.lang ?? "en";
+        let saved = false;
+        if (who && m && (await rows<{ key: string }>(`trades?select=key&user_id=eq.${who.user_id}&key=eq.${encodeURIComponent(m[2])}&limit=1`)).length) {
+          const cur = (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${who.user_id}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {};
+          const w = await db("user_settings?on_conflict=user_id,key", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ user_id: who.user_id, key: "mizan-trade-plan", value: { ...cur, [m[2]]: m[1] === "1" }, updated_at: null, deleted_at: null }) });
+          saved = w.ok;
+          if (saved) await tg("editMessageReplyMarkup", { chat_id: qChat, message_id: cq.message?.message_id, reply_markup: { inline_keyboard: [planButtons(m[2], qLang, m[1] === "1")] } });
+        }
+        await tg("answerCallbackQuery", { callback_query_id: cq.id, ...(saved ? { text: T("planSaved", qLang) } : {}) });
+        return json({ ok: true });
+      }
+      const msg = u?.message, chat = msg?.chat?.id, text = typeof msg?.text === "string" ? msg.text.trim() : "";
       if (typeof chat !== "number" || msg?.chat?.type !== "private") return json({ ok: true });
       const userLang = langOf(String(msg?.from?.language_code ?? "").slice(0, 2));
       const linked = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${chat}&deleted_at=is.null&limit=1`))[0];
@@ -459,11 +541,29 @@ Deno.serve(async (req) => {
           }
         }
       }
-      if (!lines.length && !alerts.length) return json({ ok: true, sent: 0 });
-      const text = [lines.length ? `📊 ${acc.name}\n${lines.join("\n")}` : "", alerts.join("\n\n")].filter(Boolean).join("\n\n");
-      const r = await send(t.chat, text, buttons);
-      if (r.ok && newKeys.length) await remember(uid, t, sent, newKeys, today);
-      return json({ ok: r.ok, sent: r.ok ? 1 : 0 });
+      // trades just opened (30 minutes at most): one message each, with the plan question and the danger-zone warning
+      const entries: { text: string; kb: Btn[][]; k: string }[] = [];
+      if ((prefs.entry || prefs.danger) && Array.isArray(body.opened)) {
+        const fresh = (body.opened as OpenRow[]).filter((x) => typeof x?.key === "string" && x.key.length <= 60 && typeof x.symbol === "string" && typeof x.entry_time === "string"
+          && Date.parse(`${now}Z`) - naive(x.entry_time) <= 30 * 60e3 && !sent[`entry:${x.entry_time.slice(0, 10)}:${x.key}`]).slice(0, 3);
+        const hist = fresh.length && prefs.danger ? await rows<Hist>(`trades?select=symbol,side,pnl,entry_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=exit_time.desc&limit=1000`) : [];
+        for (const x of fresh) {
+          const d = prefs.danger ? dangerOf(x, hist) : null;
+          if (!prefs.entry && !d) continue;
+          const head = T("entry", lang, { a: acc.name, s: x.symbol, d: side(x.side, lang), q: Number(x.qty).toLocaleString("en-US"), h: x.entry_time.replace(" ", "T").slice(11, 16) });
+          entries.push({ text: [head, ...(d ? [dangerLine(d, x, lang, acc)] : []), ...(prefs.entry ? [T("ask", lang)] : [])].join("\n"), kb: prefs.entry ? [planButtons(x.key, lang)] : [], k: `entry:${x.entry_time.slice(0, 10)}:${x.key}` });
+        }
+      }
+      const keep: string[] = [];
+      let n = 0;
+      if (lines.length || alerts.length) {
+        const text = [lines.length ? `📊 ${acc.name}\n${lines.join("\n")}` : "", alerts.join("\n\n")].filter(Boolean).join("\n\n");
+        const r = await send(t.chat, text, buttons.map((b) => [b]));
+        if (r.ok) { n++; keep.push(...newKeys); }
+      }
+      for (const e of entries) { const r = await send(t.chat, e.text, e.kb); if (r.ok) { n++; keep.push(e.k); } }
+      if (keep.length) await remember(uid, t, sent, keep, today);
+      return json({ ok: true, sent: n });
     }
 
     // ---- pg_cron, every 5 minutes: what is due now for every linked chat ----
@@ -472,6 +572,7 @@ Deno.serve(async (req) => {
       // one run at a time and at most every 4 minutes, so the open call cannot be used to flood anyone
       const lock = await db(`tg_state?id=eq.tick&at=lt.${encodeURIComponent(new Date(Date.now() - 4 * 60e3).toISOString())}`, { method: "PATCH", headers: { prefer: "return=representation" }, body: JSON.stringify({ at: new Date().toISOString() }) });
       if (!lock.ok || !((await lock.json()) as unknown[]).length) return json({ ok: true, skipped: true });
+      await ensureHook().catch(() => null); // the plan buttons need button taps sent here: set once, without waiting for the app
       const users = await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=not.is.null&deleted_at=is.null&limit=1000`);
       let calP: Promise<Cal[]> | null = null, n = 0;
       const calendar = () => (calP ??= loadCalendar()); // read once per tick, and only if someone needs it
@@ -495,9 +596,7 @@ Deno.serve(async (req) => {
       case "info": {
         const me = await (await tg("getMe", {})).json().catch(() => null);
         if (!me?.ok) return json({ ok: false, error: "badToken" }, 502);
-        // point the bot here (once): Telegram then sends every message for the bot to this function
-        const hook = `${SB}/functions/v1/telegram`, info = await (await tg("getWebhookInfo", {})).json().catch(() => null);
-        if (info?.result?.url !== hook || /401|403/.test(info?.result?.last_error_message ?? "")) await tg("setWebhook", { url: hook, secret_token: secret, allowed_updates: ["message"], drop_pending_updates: true });
+        await ensureHook(); // point the bot here: Telegram then sends every message and button tap for the bot to this function
         // the app's address (for the "note" buttons) and the browser's time zone (when the profile has none)
         const at = typeof body?.site === "string" && /^https?:\/\/\S{3,200}$/.test(body.site) ? body.site : cur.site ?? null, tz = validTz(body?.tz) ?? cur.tz ?? null;
         if (cur.lang !== lang || cur.site !== at || cur.tz !== tz) await saveTg(uid, { ...cur, lang, site: at, tz });
