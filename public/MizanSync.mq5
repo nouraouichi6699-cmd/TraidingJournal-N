@@ -11,7 +11,7 @@
 //  3. Drag MizanSync onto any chart and paste the sync key from Mizan (Import page) in its inputs.
 // Keep MT5 open: closed trades reach Mizan within a minute. The status shows in the chart's top-left corner.
 #property copyright   "Mizan"
-#property version     "1.02"
+#property version     "1.03"
 #property description "Sends your trades to your Mizan journal automatically."
 #property description "Read-only: it never opens, changes or closes a trade."
 
@@ -25,7 +25,9 @@ input int    InpEvery = 60;  // Check every (seconds)
 #define HEARTBEAT 600   // seconds: resend at least this often, so Mizan shows the link is alive
 
 string   g_key   = "";
-bool     g_full  = false;  // the first sync (InpDays of history) is done
+datetime g_from  = 0;      // server time of the last sync that saw the whole history (0 = first sync: InpDays)
+datetime g_beat  = 0;      // local time of the last timer event (a big jump = the PC slept)
+datetime g_calm  = 0;      // local time from which MT5 counts as settled after a sleep or a lost connection
 bool     g_dirty = true;   // a deal or a position changed since the last check
 bool     g_stop  = false;  // the server refused the key: wait until the inputs change
 bool     g_told  = false;  // the "allow WebRequest" alert was shown
@@ -265,14 +267,14 @@ void Fail(const int code, const string reply)
    Print("Mizan Sync: HTTP ", code, " ", reply);
   }
 
-// Sends the open positions and the positions closed in the last `days` days. False when it should retry.
-bool Sync(const int days)
+// Sends the open positions and the positions closed since `from` (server time). False when it should retry.
+bool Sync(const datetime from)
   {
    string items[];
    long openIds[];
    AddOpen(items, openIds);
    datetime now = TimeCurrent();
-   if(!HistorySelect(now - days * 86400, now + 86400))
+   if(!HistorySelect(from, now + 86400))
      {
       Show("Could not read the account history. Retrying...");
       return false;
@@ -349,7 +351,7 @@ int OnInit()
      }
    if(MQLInfoInteger(MQL_TESTER))
       return INIT_FAILED; // WebRequest does not work in the Strategy Tester
-   g_full = false;
+   g_from = 0;
    g_dirty = true;
    g_stop = false;
    g_next = 0;
@@ -377,11 +379,21 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
 
 void OnTimer()
   {
-   if(g_stop || (!g_dirty && TimeLocal() < g_next))
+   datetime t = TimeLocal();
+   if(t - g_beat > 60 || !TerminalInfoInteger(TERMINAL_CONNECTED))
+      g_calm = t + 120; // after a sleep or a lost connection, MT5 first reloads the account history
+   g_beat = t;
+   if(g_stop || (!g_dirty && t < g_next))
       return;
    g_dirty = false;
-   if(Sync(g_full ? RECENT : (InpDays < 1 ? 1 : InpDays)))
-      g_full = true;
-   g_next = TimeLocal() + (InpEvery < 10 ? 10 : InpEvery);
+   datetime now = TimeCurrent();
+   datetime from = now - RECENT * 86400;
+   if(g_from == 0)
+      from = now - (InpDays < 1 ? 1 : InpDays) * 86400;
+   else if(g_from < from)
+      from = g_from; // a gap (sleep, no internet): check everything since the last good sync
+   if(Sync(from) && t >= g_calm)
+      g_from = now;
+   g_next = t + (InpEvery < 10 ? 10 : InpEvery);
   }
 //+------------------------------------------------------------------+
