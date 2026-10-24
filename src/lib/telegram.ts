@@ -5,7 +5,8 @@ import type { Lang } from "../types";
 
 export const TG_PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true };
 export type TgPrefs = typeof TG_PREFS;
-export type TgState = { linked: boolean; name: string | null; prefs: TgPrefs };
+export type TgPartner = { name: string | null; since: string };
+export type TgState = { linked: boolean; name: string | null; prefs: TgPrefs; partner?: TgPartner | null };
 export type TgError = "notDeployed" | "noToken" | "badToken" | "signIn" | "notLinked" | "unreachable" | "failed";
 
 async function call<T>(body: Record<string, unknown>): Promise<T | { error: TgError }> {
@@ -30,6 +31,16 @@ export const tgLink = (lang: Lang) => call<{ url: string }>({ action: "link", la
 export const tgTest = (lang: Lang) => call<{ ok: true }>({ action: "test", lang });
 export const tgUnlink = (lang: Lang) => call<TgState>({ action: "unlink", lang });
 export const tgPrefs = (lang: Lang, prefs: TgPrefs) => call<TgState>({ action: "prefs", lang, prefs });
+/** A one-time t.me invite for an accountability partner (7 days; a new one replaces the last). */
+export const tgPartnerInvite = (lang: Lang) => call<{ url: string }>({ action: "partnerInvite", lang });
+export const tgPartnerRemove = (lang: Lang) => call<TgState>({ action: "partnerRemove", lang });
+/** The partner now and whether an invite is still open, read from the user's own settings row. */
+export async function tgPartnerNow(): Promise<{ partner: TgPartner | null; pending: boolean } | null> {
+  const { data, error } = await supabase.from("user_settings").select("value").eq("key", "telegram").is("deleted_at", null).maybeSingle();
+  if (error) return null;
+  const v = data?.value as { partner?: { chat?: number; name?: string | null; since?: string } | null; pcodeHash?: string | null } | null | undefined;
+  return { partner: v?.partner?.chat ? { name: v.partner.name ?? null, since: v.partner.since ?? "" } : null, pending: !!v?.pcodeHash };
+}
 /** Whether a chat is linked right now, read from the user's own settings row (no call to Telegram). */
 export async function tgLinked(): Promise<{ linked: boolean; name: string | null } | null> {
   const { data, error } = await supabase.from("user_settings").select("value").eq("key", "telegram").is("deleted_at", null).maybeSingle();
