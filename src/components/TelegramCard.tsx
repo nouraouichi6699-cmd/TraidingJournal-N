@@ -290,7 +290,7 @@ export default function TelegramCard({ lang, onStatus }: { lang: Lang; onStatus?
 
         {v.kind === "ready" && v.linked && (
           <>
-            <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-bg p-4">
+            <div id="pf-tg-link" className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-bg p-4">
               <span className="tone-sky tone-tile h-10 w-10 rounded-full"><Send size={17} /></span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{L(T.linkedTo).replace("{n}", v.name ?? "Telegram")}</p>
@@ -304,7 +304,7 @@ export default function TelegramCard({ lang, onStatus }: { lang: Lang; onStatus?
             {note && <p className="mt-3 text-sm" role="status">{note}</p>}
 
             <h3 className="mt-7 font-heading text-base font-semibold">{L(T.choose)}</h3>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <div id="pf-alerts" className="mt-3 grid gap-4 md:grid-cols-2">
               {GROUPS.map((g) => {
                 const on = g.items.filter((x) => v.prefs[x.k]).length, GIcon = g.icon;
                 return (
@@ -359,7 +359,7 @@ export default function TelegramCard({ lang, onStatus }: { lang: Lang; onStatus?
         {v.kind === "ready" && v.linked && peopleNote && <p className="mt-3 text-sm" role="status">{peopleNote}</p>}
         {!(v.kind === "ready" && v.linked) && (
           <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-border p-4">
-            <p className="min-w-0 flex-1 text-sm text-muted">{L(T.peopleNeed)}</p>
+            <p className="min-w-[10rem] flex-1 text-sm text-muted">{L(T.peopleNeed)}</p>
             {v.kind === "ready" && <button type="button" onClick={goTelegram} className="tone-sky tone-btn rounded-lg px-3.5 py-2 text-xs font-semibold">{L(T.goTg)}</button>}
           </div>
         )}
