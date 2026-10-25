@@ -1,4 +1,4 @@
-npm # Mizan — by Nour Aouichi
+npm npm run dev# Mizan — by Nour Aouichi
 
 ميزان — trading journal. React + TypeScript + Vite + Tailwind. Arabic/English (RTL/LTR), three themes.
 
