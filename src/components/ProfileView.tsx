@@ -175,7 +175,7 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
         <SectionHead tone="slate" icon={KeyRound} title={L(T.account)} sub={L(T.accountSub)} />
         <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-bg p-4">
           <span className="tone-slate tone-tile h-10 w-10 rounded-full"><Mail size={17} /></span>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[8rem] flex-1">
             <p className="text-xs text-muted">{t("signedInAs")}</p>
             <p className="truncate text-sm font-semibold"><Private hint={t("privacyReveal")}>{email}</Private></p>
           </div>
@@ -196,9 +196,11 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
         <div role="region" aria-label={L(T.unsaved)} className="sticky bottom-4 z-30 mx-auto flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl px-4 py-3 shadow-2xl"
           style={{ border: "1px solid color-mix(in srgb, var(--icon) 55%, var(--border))", background: "color-mix(in srgb, var(--surface) 92%, var(--icon))" }}>
           <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--icon)]" />
-          <p className="min-w-0 flex-1 text-sm font-medium">{L(T.unsaved)}</p>
-          <button type="button" onClick={() => { setDraft(profile); setMsg(null); }} className="rounded-lg border border-border px-3.5 py-2 text-sm font-semibold hover:border-[var(--muted)]">{L(T.discard)}</button>
-          <button type="button" onClick={() => { onSave(draft); setMsg(null); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary">{t("saveChanges")}</button>
+          <p className="min-w-[9rem] flex-1 text-sm font-medium">{L(T.unsaved)}</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => { setDraft(profile); setMsg(null); }} className="rounded-lg border border-border px-3.5 py-2 text-sm font-semibold hover:border-[var(--muted)]">{L(T.discard)}</button>
+            <button type="button" onClick={() => { onSave(draft); setMsg(null); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary">{t("saveChanges")}</button>
+          </div>
         </div>
       )}
     </div>

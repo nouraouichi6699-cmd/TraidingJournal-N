@@ -21,10 +21,11 @@ export default function Brand({ lang }: { lang: Lang }) {
   );
 }
 
-/** Discreet signature + feedback icon, fixed to the bottom-left corner. */
+/** Discreet signature + feedback icon, fixed to the bottom-left corner; on phones it closes the page instead, so it
+ *  never sits on top of a field. */
 export function Watermark({ feedback }: { feedback: string }) {
   return (
-    <div className="pointer-events-none fixed bottom-3 left-4 z-10 flex select-none flex-col items-start gap-1" dir="ltr">
+    <div className="pointer-events-none fixed bottom-3 left-4 z-10 flex select-none flex-col items-start gap-1 max-sm:static max-sm:w-full max-sm:items-center max-sm:pb-6 max-sm:pt-2" dir="ltr">
       <span
         aria-hidden
         className="font-wordmark text-text/35"
