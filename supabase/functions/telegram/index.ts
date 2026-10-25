@@ -10,6 +10,10 @@
 //    "mizan-trade-plan") and, when the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning.
 //  - Voice notes: a voice note sent in reply to a trade's message (its plan or note button names the trade) is turned
 //    into text by the AI model and kept with the trade in the synced setting "mizan-trade-voice" (shown in Mizan).
+//  - Discipline board: the bot added to a Telegram group posts a Join / Leave board; each day after the broker's midnight
+//    it posts every member's discipline score out of 100 (stop loss on each trade, trades in the plan, no trade after 3
+//    losses in a row, none after a challenge's daily loss limit), and on Sunday the week's ranking. Never amounts or
+//    accounts. Kept in tg_state rows "grp:<chat id>"; members opt in themselves (their Telegram linked to Mizan).
 //  - Accountability partner: the app makes a one-time invite link (7 days); the partner sees what they would get and
 //    accepts or declines with buttons, /leave stops it. When the trader breaks a rule (a trade left without a stop loss,
 //    a new trade after 3+ losses in a row today, a new trade after a challenge's daily loss limit), the partner gets one
@@ -36,6 +40,8 @@ type Ch = { id: string; accountId: string; name: string; start: string; size: nu
 type TradeRow = { key?: string; symbol: string; side: string; pnl: number | null; status: string; entry_time: string | null; exit_time: string | null; sl?: number | null };
 type OpenRow = { key: string; symbol: string; side: string; qty: number; entry_time: string };
 type Acc = { id: string; name: string; currency: string | null };
+type Grp = { title?: string; lang?: Lang; members: string[]; day?: string; week?: string };
+type DayTrade = TradeRow & { key: string; account_id: string };
 type Sync = { brokerNow?: string; last?: string };
 type Btn = { text: string; url?: string; callback_data?: string };
 type Hist = { symbol: string; side: string; pnl: number | null; entry_time: string | null };
@@ -72,6 +78,19 @@ const TXT: Record<string, Record<Lang, string>> = {
   planYes: { en: "✅ In my plan", ar: "✅ ضمن خطتي", fr: "✅ Dans mon plan" },
   planNo: { en: "❌ Outside my plan", ar: "❌ خارج خطتي", fr: "❌ Hors de mon plan" },
   planSaved: { en: "Saved ✓", ar: "حُفظ ✓", fr: "Enregistré ✓" },
+  gIntro: { en: "📋 Mizan discipline board\nEach day I post a discipline score out of 100 for every member who joins: a stop loss on every trade, trades in the plan, stopping after 3 losses in a row, and respecting a challenge's daily loss limit. Never amounts or account details.\nTo join, link your Telegram to Mizan first (Profile › Telegram alerts), then tap Join.", ar: "📋 لوحة الانضباط من ميزان\nكل يوم أنشر درجة انضباط من 100 لكل عضو ينضم، تُحسب من: وقف الخسارة في كل صفقة، والصفقات ضمن الخطة، والتوقف بعد 3 خسائر متتالية، واحترام حد الخسارة اليومي في التحديات. بلا أي مبالغ أو تفاصيل حسابات.\nللانضمام: اربط تيليغرام بميزان أولاً (الحساب الشخصي › تنبيهات تيليغرام)، ثم اضغط «انضمام».", fr: "📋 Tableau de discipline Mizan\nChaque jour, je publie une note de discipline sur 100 pour chaque membre inscrit : un stop loss sur chaque trade, des trades dans le plan, l'arrêt après 3 pertes d'affilée et le respect de la limite de perte journalière des challenges. Jamais de montants ni de détails de compte.\nPour rejoindre : liez d'abord votre Telegram à Mizan (Profil › Alertes Telegram), puis appuyez sur Rejoindre." },
+  gJoin: { en: "✅ Join", ar: "✅ انضمام", fr: "✅ Rejoindre" },
+  gLeave: { en: "Leave", ar: "مغادرة", fr: "Quitter" },
+  gJoined: { en: "Joined ✓ Your score will be posted here each day.", ar: "تم الانضمام ✓ ستُنشر درجتك هنا كل يوم.", fr: "Inscrit ✓ Votre note sera publiée ici chaque jour." },
+  gLeft: { en: "Done: you are off the board.", ar: "تم: لم تعد في اللوحة.", fr: "C'est fait : vous n'êtes plus sur le tableau." },
+  gLink: { en: "Link your Telegram to Mizan first: Profile › Telegram alerts.", ar: "اربط تيليغرام بميزان أولاً: الحساب الشخصي › تنبيهات تيليغرام.", fr: "Liez d'abord votre Telegram à Mizan : Profil › Alertes Telegram." },
+  gDay: { en: "📋 Discipline board · {d}", ar: "📋 لوحة الانضباط · {d}", fr: "📋 Tableau de discipline · {d}" },
+  gWeek: { en: "🏆 Discipline ranking of the week · {d}", ar: "🏆 ترتيب الانضباط للأسبوع · {d}", fr: "🏆 Classement de discipline de la semaine · {d}" },
+  gNone: { en: "no trades", ar: "لم يتداول", fr: "aucun trade" },
+  fNoSl: { en: "without SL: {k}", ar: "بلا وقف خسارة: {k}", fr: "sans SL : {k}" },
+  fOut: { en: "outside the plan: {k}", ar: "خارج الخطة: {k}", fr: "hors plan : {k}" },
+  fStreak: { en: "traded on after 3 losses", ar: "واصل بعد 3 خسائر", fr: "a continué après 3 pertes" },
+  fLimit: { en: "traded after the daily limit", ar: "تداول بعد الحد اليومي", fr: "a tradé après la limite du jour" },
   vSaved: { en: "🎙️ Voice note saved with your {s} trade ✓\n\n“{t}”", ar: "🎙️ حُفظت الملاحظة الصوتية مع صفقة {s} ✓\n\n«{t}»", fr: "🎙️ Note vocale enregistrée avec votre trade {s} ✓\n\n« {t} »" },
   vReply: { en: "To keep a voice note with a trade, send it as a reply to that trade's message (swipe the message, or hold it and tap Reply).", ar: "لحفظ ملاحظة صوتية مع صفقة، أرسلها ردّاً على رسالة تلك الصفقة: اسحب الرسالة، أو اضغط عليها مطولاً ثم «رد».", fr: "Pour garder une note vocale avec un trade, envoyez-la en réponse au message de ce trade (glissez le message, ou appuyez longuement puis Répondre)." },
   vMany: { en: "This message has several trades: reply to the “new trade” message of the one you mean.", ar: "هذه الرسالة فيها أكثر من صفقة: أرسل الملاحظة ردّاً على رسالة «صفقة جديدة» الخاصة بالصفقة التي تقصدها.", fr: "Ce message contient plusieurs trades : répondez au message « nouveau trade » de celui que vous visez." },
@@ -201,6 +220,27 @@ export function lossStreak(newestFirst: { pnl: number | null }[]) {
   let n = 0, sum = 0;
   for (const t of newestFirst) { const p = Number(t.pnl); if (t.pnl == null || !(p < 0)) break; n++; sum += p; }
   return { n, sum };
+}
+/** One trader's discipline on broker day `d` (trades entered that day): the score out of 100 is the mean of the rules that
+ *  apply (stop loss set, in the plan when answered, no entry after 3 losses in a row that day on the account, none after a
+ *  challenge's daily loss limit was reached); null without a trade that day. `trades` must reach back to the challenges' start. */
+export function disciplineDay(trades: DayTrade[], plan: Record<string, boolean>, chs: Ch[], d: string) {
+  const entered = trades.filter((t) => day(t.entry_time) === d && t.entry_time);
+  if (!entered.length) return null;
+  const n = entered.length, noSl = entered.filter((t) => !(Number(t.sl) > 0)).length;
+  const answered = entered.filter((t) => typeof plan[t.key] === "boolean"), out = answered.filter((t) => plan[t.key] === false).length;
+  let afterStreak = 0, afterLimit = 0, limitRule = false;
+  for (const t of entered) {
+    const before = trades.filter((x) => x.account_id === t.account_id && x.status === "closed" && x.pnl != null && x.exit_time && day(x.exit_time) === d && x.exit_time < (t.entry_time as string))
+      .sort((a, b) => (b.exit_time as string).localeCompare(a.exit_time as string));
+    if (lossStreak(before).n >= 3) afterStreak++;
+    const lim = chs.filter((c) => c.accountId === t.account_id && c.daily != null && c.start <= d);
+    if (lim.length) limitRule = true;
+    const lost = -before.reduce((a, x) => a + Number(x.pnl), 0);
+    if (lim.some((c) => { const v = challengeNow(c, trades.filter((x) => x.account_id === c.accountId), d).limit; return v != null && v > 0 && lost >= v - 1e-9; })) afterLimit++;
+  }
+  const parts = [1 - noSl / n, ...(answered.length ? [1 - out / answered.length] : []), 1 - afterStreak / n, ...(limitRule ? [1 - afterLimit / n] : [])];
+  return { score: Math.round((100 * parts.reduce((a, b) => a + b, 0)) / parts.length), n, noSl, out, afterStreak, afterLimit };
 }
 const naive = (s: string) => Date.parse(`${s.replace(" ", "T").slice(0, 16)}Z`); // a journal time (broker clock) as UTC ms
 /** Open trades still without a stop loss 2 minutes after the entry (both on the broker clock), not warned about yet. */
@@ -435,6 +475,46 @@ Deno.serve(async (req) => {
       await tg("setWebhook", { url: hook, secret_token: secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: !w || w.url !== hook });
   };
 
+  /** A group's discipline board: yesterday's scores after the broker's midnight (standard broker clock, UTC+2/+3), and on
+   *  Sunday from 10:00 the ranking of the 7 days before. Each is posted once (the day / week is kept in the group's row). */
+  const tickGroup = async (id: string, g: Grp) => {
+    const chat = Number(id.slice(4)), members = Array.isArray(g.members) ? g.members : [];
+    if (!members.length || !Number.isFinite(chat)) return 0;
+    const b = new Date(brokerClock(undefined)), today = b.toISOString().slice(0, 10), hour = b.getUTCHours(), yday = addDays(today, -1);
+    const daily = hour < 12 && g.day !== yday, week = b.getUTCDay() === 0 && hour >= 10 && g.week !== today;
+    if (!daily && !week) return 0;
+    const lang = g.lang ?? "en", loc = lang === "ar" ? "ar-u-nu-latn" : lang;
+    const dname = (d: string) => new Intl.DateTimeFormat(loc, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
+    const days = week ? Array.from({ length: 7 }, (_, i) => addDays(today, i - 7)) : [yday];
+    const per = await Promise.all(members.slice(0, 50).map(async (uid) => {
+      const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId && c.daily != null);
+      const from = [addDays(days[0], -3), ...chs.map((c) => c.start)].sort()[0];
+      const trades = await rows<DayTrade>(`trades?select=key,account_id,symbol,side,pnl,status,entry_time,exit_time,sl&user_id=eq.${uid}&deleted_at=is.null&entry_time=gte.${from}&limit=5000`);
+      const plan = (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {};
+      return { name: await traderName(uid, (await getTg(uid)) ?? ({} as Tg)), scores: days.map((d) => disciplineDay(trades, plan, chs, d)) };
+    }));
+    await db(`tg_state?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ value: { ...g, ...(daily ? { day: yday } : {}), ...(week ? { week: today } : {}) } }) });
+    const kb = [[{ text: T("gJoin", lang), callback_data: "gj" }, { text: T("gLeave", lang), callback_data: "gl" }]];
+    const out: { text: string; kb: Btn[][] }[] = [];
+    if (daily) {
+      const rowsD = per.map((p) => ({ name: p.name, s: p.scores[p.scores.length - 1] })).sort((a, z) => (z.s?.score ?? -1) - (a.s?.score ?? -1));
+      if (rowsD.some((r) => r.s)) out.push({ kb, text: [T("gDay", lang, { d: dname(yday) }), ...rowsD.map(({ name, s }) => !s ? `⚪ ${name} · ${T("gNone", lang)}` : [`${s.score >= 80 ? "🟢" : s.score >= 50 ? "🟡" : "🔴"} ${name} · ${s.score}`, ...(s.noSl ? [T("fNoSl", lang, { k: s.noSl })] : []), ...(s.out ? [T("fOut", lang, { k: s.out })] : []), ...(s.afterStreak ? [T("fStreak", lang)] : []), ...(s.afterLimit ? [T("fLimit", lang)] : [])].join(" · "))].join("\n") });
+    }
+    if (week) {
+      const daysW = (k: number) => (lang === "ar" ? (k === 1 ? "يوم واحد" : k === 2 ? "يومان" : `${k} أيام`) : lang === "fr" ? `${k} jour${k > 1 ? "s" : ""}` : `${k} day${k > 1 ? "s" : ""}`);
+      const rank = per.map((p) => { const sc = p.scores.filter((x): x is NonNullable<typeof x> => !!x); return { name: p.name, k: sc.length, avg: sc.length ? Math.round(sc.reduce((a, x) => a + x.score, 0) / sc.length) : -1 }; })
+        .filter((r) => r.k).sort((a, z) => z.avg - a.avg || z.k - a.k);
+      if (rank.length) out.push({ kb: [], text: [T("gWeek", lang, { d: `${dname(days[0])} – ${dname(days[6])}` }), ...rank.map((r, i) => `${["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`} ${r.name} · ${r.avg} (${daysW(r.k)})`)].join("\n") });
+    }
+    let sentN = 0;
+    for (const m of out) {
+      const r = await send(chat, m.text, m.kb);
+      if (r.ok) sentN++;
+      else if (r.status === 403 || r.status === 400) { await db(`tg_state?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }); break; } // the bot was removed from the group
+    }
+    return sentN;
+  };
+
   /** The status of every challenge of a user, for /status. */
   async function statusText(uid: string, lang: Lang) {
     const list = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c && c.accountId);
@@ -620,6 +700,18 @@ Deno.serve(async (req) => {
         await tg("answerCallbackQuery", { callback_query_id: cq.id });
         return json({ ok: true });
       }
+      if (cq && /^g[jl]$/.test(String(cq.data ?? "")) && typeof cq.message?.chat?.id === "number") { // discipline board: join / leave
+        const gid = `grp:${cq.message.chat.id}`, g = (await rows<{ value: Grp }>(`tg_state?select=value&id=eq.${encodeURIComponent(gid)}`))[0]?.value;
+        const who = typeof cq.from?.id === "number" ? (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${cq.from.id}&deleted_at=is.null&limit=1`))[0] : undefined;
+        const l = who?.value.lang ?? langOf(String(cq.from?.language_code ?? "").slice(0, 2));
+        if (who) {
+          const base: Grp = g ?? { title: String(cq.message.chat.title ?? "").slice(0, 80), lang: l, members: [] };
+          const members = (base.members ?? []).filter((x) => x !== who.user_id).concat(cq.data === "gj" ? [who.user_id] : []);
+          await db("tg_state?on_conflict=id", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: gid, value: { ...base, members } }) });
+        }
+        await tg("answerCallbackQuery", { callback_query_id: cq.id, text: T(!who ? "gLink" : cq.data === "gj" ? "gJoined" : "gLeft", l), show_alert: !who });
+        return json({ ok: true });
+      }
       if (cq) {
         const qChat = cq.message?.chat?.id, m = String(cq.data ?? "").match(/^p([01]):(.{3,61})$/);
         const who = typeof qChat === "number" ? (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${qChat}&deleted_at=is.null&limit=1`))[0] : undefined;
@@ -635,6 +727,20 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       const msg = u?.message, chat = msg?.chat?.id, text = typeof msg?.text === "string" ? msg.text.trim() : "";
+      if (typeof chat === "number" && (msg?.chat?.type === "group" || msg?.chat?.type === "supergroup")) {
+        // the bot added to a group (or asked with /board): the discipline board is set up there; removed: forgotten
+        const botId = Number(TOKEN.split(":")[0]), gid = `grp:${chat}`, glang = langOf(String(msg.from?.language_code ?? "").slice(0, 2));
+        const g = (await rows<{ value: Grp }>(`tg_state?select=value&id=eq.${encodeURIComponent(gid)}`))[0]?.value;
+        const save = (id: string, value: Grp) => db("tg_state?on_conflict=id", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id, value }) });
+        if (typeof msg.migrate_to_chat_id === "number") { if (g) { await save(`grp:${msg.migrate_to_chat_id}`, g); await db(`tg_state?id=eq.${encodeURIComponent(gid)}`, { method: "DELETE" }); } }
+        else if (msg.left_chat_member?.id === botId) await db(`tg_state?id=eq.${encodeURIComponent(gid)}`, { method: "DELETE" });
+        else if ((msg.new_chat_members ?? []).some((x: { id?: number }) => x.id === botId) || msg.group_chat_created || msg.supergroup_chat_created || /^\/(board|start)(@\w+)?$/i.test(text)) {
+          const lang = g?.lang ?? glang;
+          if (!g) await save(gid, { title: String(msg.chat.title ?? "").slice(0, 80), lang, members: [] });
+          await send(chat, T("gIntro", lang), [[{ text: T("gJoin", lang), callback_data: "gj" }, { text: T("gLeave", lang), callback_data: "gl" }]]);
+        }
+        return json({ ok: true });
+      }
       if (typeof chat !== "number" || msg?.chat?.type !== "private") return json({ ok: true });
       const userLang = langOf(String(msg?.from?.language_code ?? "").slice(0, 2));
       const linked = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${chat}&deleted_at=is.null&limit=1`))[0];
@@ -809,7 +915,9 @@ Deno.serve(async (req) => {
         const part = await Promise.all(users.slice(i, i + 5).map((u) => tickUser(u.user_id, u.value, calendar).catch(() => 0))); // a failing user does not stop the others
         n += part.reduce((a, b) => a + b, 0);
       }
-      return json({ ok: true, users: users.length, sent: n });
+      const groups = await rows<{ id: string; value: Grp }>(`tg_state?select=id,value&id=like.grp:*&limit=500`);
+      for (const g of groups) n += await tickGroup(g.id, g.value).catch(() => 0);
+      return json({ ok: true, users: users.length, groups: groups.length, sent: n });
     }
 
     // ---- from the app (the user's session) ----
