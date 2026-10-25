@@ -1,5 +1,5 @@
-import { Eye, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Calculator, Eye, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import Brand from "./Brand";
 import Dropdown from "./Dropdown";
 import Sessions from "./Sessions";
@@ -21,6 +21,7 @@ interface Props {
   onProfile: () => void;
   onNews: () => void;
   onCalendar: () => void;
+  calc?: ReactNode; // position size calculator panel
   onDashboard: () => void;
   onCharts?: () => void;
   interests: Interests;
@@ -28,7 +29,9 @@ interface Props {
 
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, onDashboard, onCharts, interests }: Props) {
+const calcLabel: Record<Lang, string> = { en: "Position size", ar: "حجم الصفقة", fr: "Taille de position" };
+
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
   const privacy = usePrivacy();
   const dash = useDashEdit();
   const [full, setFull] = useState(!!document.fullscreenElement);
@@ -80,6 +83,12 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             </div>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           </div>
+
+          {calc && (
+            <Dropdown label={calcLabel[lang]} panelClass="w-[min(92vw,360px)]" trigger={<Calculator {...ic} />}>
+              {() => calc}
+            </Dropdown>
+          )}
 
           <button type="button" aria-pressed={privacy.hidden} aria-label={t(privacy.hidden ? "privacyOff" : "privacyOn")} title={t(privacy.hidden ? "privacyOff" : "privacyOn")} onClick={privacy.toggle} className="icon-btn">
             {privacy.hidden ? <EyeOff {...ic} /> : <Eye {...ic} />}

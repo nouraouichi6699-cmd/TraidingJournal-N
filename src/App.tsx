@@ -9,6 +9,7 @@ import { useInterests } from "./useInterests";
 import { edgeAlerts, weeklyReport } from "./lib/tradeLab";
 import { commonCurrency, fmtMoney, ltrNumbers } from "./lib/money";
 import Header from "./components/Header";
+import SizeCalc from "./components/SizeCalc";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
 import AccountsList from "./components/AccountsList";
@@ -79,7 +80,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">

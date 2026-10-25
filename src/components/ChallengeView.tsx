@@ -88,6 +88,7 @@ const T = {
 
 const KEY = "mizan-challenges";
 const read = (): Challenge[] => { try { const v = JSON.parse(localStorage.getItem(KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+export const readChallenges = read;
 const write = (l: Challenge[]) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* storage blocked */ } };
 /** Challenges in local storage (synced with the account by settingsSync); re-read when the window regains focus. */
 function useChallenges() {
@@ -98,7 +99,7 @@ function useChallenges() {
 
 const GUESS: TimeModel = { base: 2, dst: "us" };
 /** Today in the account's clock: the broker's (Trade path's clock, else UTC+2/+3) for MT5, the device's for others. */
-function todayFor(a: Account | undefined, now = Date.now()) {
+export function todayFor(a: Account | undefined, now = Date.now()) {
   if (a?.platform !== "mt5") return new Date(now - new Date(now).getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
   const c = readClock(), m = (c.override && parseModel(c.override)) || (c.auto[a.id] && parseModel(c.auto[a.id].m)) || GUESS;
   return new Date(now + offsetMs(m, now)).toISOString().slice(0, 10);
