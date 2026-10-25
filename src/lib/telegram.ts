@@ -6,7 +6,11 @@ import type { Lang } from "../types";
 export const TG_PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true, morning: true };
 export type TgPrefs = typeof TG_PREFS;
 export type TgPartner = { name: string | null; since: string };
-export type TgState = { linked: boolean; name: string | null; prefs: TgPrefs; partner?: TgPartner | null };
+export const TG_COACH = { nosl: true, streak: true, limit: true, daily: true }; // what the coach gets
+export type TgCoachPrefs = typeof TG_COACH;
+export type TgCoach = TgPartner & { prefs: TgCoachPrefs };
+export type TgRole = "partner" | "coach";
+export type TgState = { linked: boolean; name: string | null; prefs: TgPrefs; partner?: TgPartner | null; coach?: TgCoach | null };
 export type TgError = "notDeployed" | "noToken" | "badToken" | "signIn" | "notLinked" | "unreachable" | "failed";
 
 async function call<T>(body: Record<string, unknown>): Promise<T | { error: TgError }> {
@@ -34,12 +38,18 @@ export const tgPrefs = (lang: Lang, prefs: TgPrefs) => call<TgState>({ action: "
 /** A one-time t.me invite for an accountability partner (7 days; a new one replaces the last). */
 export const tgPartnerInvite = (lang: Lang) => call<{ url: string }>({ action: "partnerInvite", lang });
 export const tgPartnerRemove = (lang: Lang) => call<TgState>({ action: "partnerRemove", lang });
-/** The partner now and whether an invite is still open, read from the user's own settings row. */
-export async function tgPartnerNow(): Promise<{ partner: TgPartner | null; pending: boolean } | null> {
+/** The same for a coach, who can follow many traders; the trader chooses what the coach gets. */
+export const tgCoachInvite = (lang: Lang) => call<{ url: string }>({ action: "coachInvite", lang });
+export const tgCoachRemove = (lang: Lang) => call<TgState>({ action: "coachRemove", lang });
+export const tgCoachPrefs = (lang: Lang, prefs: TgCoachPrefs) => call<TgState>({ action: "coachPrefs", lang, prefs });
+/** The partner or coach now and whether an invite is still open, read from the user's own settings row. */
+export async function tgWatcherNow(role: TgRole): Promise<{ person: TgPartner | TgCoach | null; pending: boolean } | null> {
   const { data, error } = await supabase.from("user_settings").select("value").eq("key", "telegram").is("deleted_at", null).maybeSingle();
   if (error) return null;
-  const v = data?.value as { partner?: { chat?: number; name?: string | null; since?: string } | null; pcodeHash?: string | null } | null | undefined;
-  return { partner: v?.partner?.chat ? { name: v.partner.name ?? null, since: v.partner.since ?? "" } : null, pending: !!v?.pcodeHash };
+  const v = data?.value as Record<string, unknown> | null | undefined;
+  const p = v?.[role] as { chat?: number; name?: string | null; since?: string; prefs?: Partial<TgCoachPrefs> } | null | undefined;
+  const person = p?.chat ? { name: p.name ?? null, since: p.since ?? "", ...(role === "coach" ? { prefs: { ...TG_COACH, ...(p.prefs ?? {}) } } : {}) } : null;
+  return { person, pending: !!v?.[role === "partner" ? "pcodeHash" : "ccodeHash"] };
 }
 /** Whether a chat is linked right now, read from the user's own settings row (no call to Telegram). */
 export async function tgLinked(): Promise<{ linked: boolean; name: string | null } | null> {

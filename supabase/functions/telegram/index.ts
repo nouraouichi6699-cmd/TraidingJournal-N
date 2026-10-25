@@ -10,6 +10,9 @@
 //    "mizan-trade-plan") and, when the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning.
 //  - Voice notes: a voice note sent in reply to a trade's message (its plan or note button names the trade) is turned
 //    into text by the AI model and kept with the trade in the synced setting "mizan-trade-voice" (shown in Mizan).
+//  - Coach: like the partner, from a one-time invite ("coach_<code>"); one coach can follow many traders. The coach gets
+//    the same rule alerts (the trader picks which) and, after the broker's midnight, one message with each trader's
+//    discipline score and broken rules. Never amounts or accounts. /leave ends the partner and coach roles of a chat.
 //  - Discipline board: the bot added to a Telegram group posts a Join / Leave board; each day after the broker's midnight
 //    it posts every member's discipline score out of 100 (stop loss on each trade, trades in the plan, no trade after 3
 //    losses in a row, none after a challenge's daily loss limit), and on Sunday the week's ranking. Never amounts or
@@ -33,8 +36,10 @@ const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true
 type Prefs = typeof PREFS;
 const prefsOf = (p?: Partial<Prefs> | null): Prefs => ({ ...PREFS, ...(p ?? {}) });
 type Partner = { chat: number; name: string | null; lang: Lang; since: string };
+const COACH = { nosl: true, streak: true, limit: true, daily: true }; // what the coach gets, chosen by the trader
+type Coach = Partner & { prefs?: Partial<typeof COACH> };
 type Tg = { chat?: number | null; name?: string | null; lang?: Lang; prefs?: Partial<Prefs>; codeHash?: string | null; codeAt?: string | null; sent?: Record<string, string>; site?: string | null; tz?: string | null;
-  partner?: Partner | null; pcodeHash?: string | null; pcodeAt?: string | null };
+  partner?: Partner | null; pcodeHash?: string | null; pcodeAt?: string | null; coach?: Coach | null; ccodeHash?: string | null; ccodeAt?: string | null };
 type Rule = "nosl" | "streak" | "limit";
 type Ch = { id: string; accountId: string; name: string; start: string; size: number; target: number | null; daily: number | null; dailyBase: "size" | "dayStart"; max: number | null; trailing: boolean; trailLock?: boolean; minDays: number; limitDays?: number | null };
 type TradeRow = { key?: string; symbol: string; side: string; pnl: number | null; status: string; entry_time: string | null; exit_time: string | null; sl?: number | null };
@@ -116,6 +121,19 @@ const TXT: Record<string, Record<Lang, string>> = {
   pEnded: { en: "{n} ended the accountability partnership.", ar: "أنهى {n} شراكة الالتزام معك.", fr: "{n} a mis fin au partenariat de discipline." },
   pGone: { en: "{p} can no longer receive messages from the bot: the partnership ended.", ar: "لم يعد {p} يستقبل رسائل البوت، فانتهت الشراكة.", fr: "{p} ne reçoit plus les messages du bot : le partenariat est terminé." },
   pHelp: { en: "You are the accountability partner of: {n}. /leave stops it.", ar: "أنت شريك الالتزام لـ: {n}. ‏/leave لإيقاف ذلك.", fr: "Vous êtes le partenaire de discipline de : {n}. /leave pour arrêter." },
+  cInvite: { en: "🎓 {n} invites you to be their trading coach. Each day you will get their discipline score out of 100 and the rules they broke, and a short alert when they break one (a trade without a stop loss, trading on after 3 losses in a row, a new trade after the daily loss limit). Never amounts or account details.", ar: "🎓 {n} يدعوك لتكون مدرّبه في التداول. ستصلك كل يوم درجة انضباطه من 100 والقواعد التي كسرها، وتنبيه قصير عندما يكسر قاعدة (صفقة بلا وقف خسارة، أو مواصلة التداول بعد 3 خسائر متتالية، أو صفقة جديدة بعد بلوغ حد الخسارة اليومي). بلا أي مبالغ أو تفاصيل حسابات.", fr: "🎓 {n} vous invite à être son coach de trading. Chaque jour, vous recevrez sa note de discipline sur 100 et les règles enfreintes, et une courte alerte quand il en enfreint une (un trade sans stop loss, continuer après 3 pertes d'affilée, un nouveau trade après la limite de perte du jour). Jamais de montants ni de détails de compte." },
+  cAccepted: { en: "Done ✓ You are {n}'s coach. /leave stops it at any time.", ar: "تم ✓ أصبحت مدرّب {n}. ‏/leave لإيقاف ذلك متى شئت.", fr: "C'est fait ✓ Vous êtes le coach de {n}. /leave pour arrêter à tout moment." },
+  cNow: { en: "🎓 {p} accepted: they are now your coach.", ar: "🎓 قبل {p}: أصبح مدرّبك.", fr: "🎓 {p} a accepté : c'est maintenant votre coach." },
+  cDeclinedT: { en: "{p} declined your coach invite.", ar: "رفض {p} دعوتك ليكون مدرّبك.", fr: "{p} a refusé votre invitation de coach." },
+  cSelf: { en: "You can't be your own coach: send this link to your coach.", ar: "لا يمكنك أن تكون مدرّب نفسك: أرسل هذا الرابط لمدرّبك.", fr: "Vous ne pouvez pas être votre propre coach : envoyez ce lien à votre coach." },
+  cLeft: { en: "You are no longer the coach of: {n}.", ar: "لم تعد مدرّباً لـ: {n}.", fr: "Vous n'êtes plus le coach de : {n}." },
+  cLeftT: { en: "{p} stopped being your coach.", ar: "توقف {p} عن تدريبك.", fr: "{p} n'est plus votre coach." },
+  cEnded: { en: "{n} ended the coaching.", ar: "أنهى {n} التدريب معك.", fr: "{n} a mis fin au coaching." },
+  cGone: { en: "{p} can no longer receive messages from the bot: the coaching ended.", ar: "لم يعد {p} يستقبل رسائل البوت، فانتهى التدريب.", fr: "{p} ne reçoit plus les messages du bot : le coaching est terminé." },
+  cHelp: { en: "You coach: {n}. /leave stops it.", ar: "أنت مدرّب: {n}. ‏/leave لإيقاف ذلك.", fr: "Vous coachez : {n}. /leave pour arrêter." },
+  cRule: { en: "🎓 {n} broke a rule: {r} ({s}, {h}).", ar: "🎓 {n} كسر قاعدة: {r} ({s}، {h}).", fr: "🎓 {n} a enfreint une règle : {r} ({s}, {h})." },
+  cTold: { en: "🎓 Your coach {p} was told: {r}.", ar: "🎓 أُبلغ مدرّبك {p}: {r}.", fr: "🎓 Votre coach {p} a été prévenu : {r}." },
+  cDay: { en: "🎓 Your traders · {d}", ar: "🎓 متداولوك · {d}", fr: "🎓 Vos traders · {d}" },
   rnosl: { en: "a trade without a stop loss", ar: "صفقة بلا وقف خسارة", fr: "un trade sans stop loss" },
   rstreak: { en: "trading on after {k} losses in a row", ar: "مواصلة التداول بعد {k} خسائر متتالية", fr: "continuer après {k} pertes d'affilée" },
   rlimit: { en: "a new trade after the daily loss limit", ar: "صفقة جديدة بعد بلوغ حد الخسارة اليومي", fr: "un nouveau trade après la limite de perte du jour" },
@@ -451,22 +469,25 @@ Deno.serve(async (req) => {
     const p = (await rows<{ value: { name?: unknown } | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-profile&deleted_at=is.null`))[0]?.value?.name;
     return (typeof p === "string" && p.trim() ? p.trim() : (t.name ?? "").split(" @")[0] || "Mizan").slice(0, 60);
   };
-  /** A broken rule: the partner gets one message per rule per day (no amounts, no account) and the trader a line saying
-   *  so. Returns the key to remember ("" when nothing went out). A partner who blocked the bot ends the partnership. */
+  /** A broken rule: the partner, and the coach when the trader allows that rule, get one message per rule per day (no
+   *  amounts, no account) and the trader a line saying so. Returns the keys to remember. Whoever blocked the bot is let go. */
   const tellPartner = async (uid: string, t: Tg, rule: Rule, x: { symbol: string; entry_time: string }, day: string, sent: Record<string, string>, k = 3) => {
-    const p = t.partner, key = `partner:${day}:${rule}`;
-    if (!p?.chat || sent[key]) return "";
-    const why = (l: Lang) => T(`r${rule}`, l, { k });
-    const res = await send(p.chat, T("bRule", p.lang, { n: await traderName(uid, t), r: why(p.lang), s: x.symbol, h: x.entry_time.replace(" ", "T").slice(11, 16) }));
-    if (res.status === 403) {
-      await saveTg(uid, { ...((await getTg(uid)) ?? t), partner: null });
-      if (t.chat) await send(t.chat, T("pGone", t.lang ?? "en", { p: p.name ?? "" }));
-      return "";
+    const keys: string[] = [], why = (l: Lang) => T(`r${rule}`, l, { k });
+    for (const role of ["partner", "coach"] as const) {
+      const p = t[role], key = `${role}:${day}:${rule}`;
+      if (!p?.chat || sent[key] || (role === "coach" && t.coach?.prefs?.[rule] === false)) continue;
+      const res = await send(p.chat, T(role === "partner" ? "bRule" : "cRule", p.lang, { n: await traderName(uid, t), r: why(p.lang), s: x.symbol, h: x.entry_time.replace(" ", "T").slice(11, 16) }));
+      if (res.status === 403) {
+        await saveTg(uid, { ...((await getTg(uid)) ?? t), [role]: null });
+        if (t.chat) await send(t.chat, T(role === "partner" ? "pGone" : "cGone", t.lang ?? "en", { p: p.name ?? "" }));
+        continue;
+      }
+      if (!res.ok) continue;
+      if (t.chat) await send(t.chat, T(role === "partner" ? "tTold" : "cTold", t.lang ?? "en", { p: p.name ?? "", r: why(t.lang ?? "en") }));
+      sent[key] = day; // the rest of this call does not tell twice
+      keys.push(key);
     }
-    if (!res.ok) return "";
-    if (t.chat) await send(t.chat, T("tTold", t.lang ?? "en", { p: p.name ?? "", r: why(t.lang ?? "en") }));
-    sent[key] = day; // the rest of this call does not tell twice
-    return key;
+    return keys;
   };
   /** Points the bot here, for messages and button taps (set again when it was set before the buttons existed). */
   const ensureHook = async () => {
@@ -475,6 +496,18 @@ Deno.serve(async (req) => {
       await tg("setWebhook", { url: hook, secret_token: secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: !w || w.url !== hook });
   };
 
+  /** Each member's discipline score on the given broker days (see disciplineDay), with the name others see. */
+  const scoresFor = (uids: string[], days: string[]) => Promise.all(uids.slice(0, 50).map(async (uid) => {
+    const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId && c.daily != null);
+    const from = [addDays(days[0], -3), ...chs.map((c) => c.start)].sort()[0];
+    const trades = await rows<DayTrade>(`trades?select=key,account_id,symbol,side,pnl,status,entry_time,exit_time,sl&user_id=eq.${uid}&deleted_at=is.null&entry_time=gte.${from}&limit=5000`);
+    const plan = (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {};
+    return { uid, name: await traderName(uid, (await getTg(uid)) ?? ({} as Tg)), scores: days.map((d) => disciplineDay(trades, plan, chs, d)) };
+  }));
+  /** One line per trader, best score first: score and broken rules, or "no trades". */
+  const boardLines = (list: { name: string; s: ReturnType<typeof disciplineDay> }[], lang: Lang) => [...list].sort((a, z) => (z.s?.score ?? -1) - (a.s?.score ?? -1)).map(({ name, s }) =>
+    !s ? `⚪ ${name} · ${T("gNone", lang)}` : [`${s.score >= 80 ? "🟢" : s.score >= 50 ? "🟡" : "🔴"} ${name} · ${s.score}`, ...(s.noSl ? [T("fNoSl", lang, { k: s.noSl })] : []), ...(s.out ? [T("fOut", lang, { k: s.out })] : []), ...(s.afterStreak ? [T("fStreak", lang)] : []), ...(s.afterLimit ? [T("fLimit", lang)] : [])].join(" · "));
+  const dayLabel = (d: string, lang: Lang) => new Intl.DateTimeFormat(lang === "ar" ? "ar-u-nu-latn" : lang, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
   /** A group's discipline board: yesterday's scores after the broker's midnight (standard broker clock, UTC+2/+3), and on
    *  Sunday from 10:00 the ranking of the 7 days before. Each is posted once (the day / week is kept in the group's row). */
   const tickGroup = async (id: string, g: Grp) => {
@@ -483,28 +516,18 @@ Deno.serve(async (req) => {
     const b = new Date(brokerClock(undefined)), today = b.toISOString().slice(0, 10), hour = b.getUTCHours(), yday = addDays(today, -1);
     const daily = hour < 12 && g.day !== yday, week = b.getUTCDay() === 0 && hour >= 10 && g.week !== today;
     if (!daily && !week) return 0;
-    const lang = g.lang ?? "en", loc = lang === "ar" ? "ar-u-nu-latn" : lang;
-    const dname = (d: string) => new Intl.DateTimeFormat(loc, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T12:00:00Z`));
+    const lang = g.lang ?? "en";
     const days = week ? Array.from({ length: 7 }, (_, i) => addDays(today, i - 7)) : [yday];
-    const per = await Promise.all(members.slice(0, 50).map(async (uid) => {
-      const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId && c.daily != null);
-      const from = [addDays(days[0], -3), ...chs.map((c) => c.start)].sort()[0];
-      const trades = await rows<DayTrade>(`trades?select=key,account_id,symbol,side,pnl,status,entry_time,exit_time,sl&user_id=eq.${uid}&deleted_at=is.null&entry_time=gte.${from}&limit=5000`);
-      const plan = (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {};
-      return { name: await traderName(uid, (await getTg(uid)) ?? ({} as Tg)), scores: days.map((d) => disciplineDay(trades, plan, chs, d)) };
-    }));
+    const per = await scoresFor(members, days);
     await db(`tg_state?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ value: { ...g, ...(daily ? { day: yday } : {}), ...(week ? { week: today } : {}) } }) });
     const kb = [[{ text: T("gJoin", lang), callback_data: "gj" }, { text: T("gLeave", lang), callback_data: "gl" }]];
     const out: { text: string; kb: Btn[][] }[] = [];
-    if (daily) {
-      const rowsD = per.map((p) => ({ name: p.name, s: p.scores[p.scores.length - 1] })).sort((a, z) => (z.s?.score ?? -1) - (a.s?.score ?? -1));
-      if (rowsD.some((r) => r.s)) out.push({ kb, text: [T("gDay", lang, { d: dname(yday) }), ...rowsD.map(({ name, s }) => !s ? `⚪ ${name} · ${T("gNone", lang)}` : [`${s.score >= 80 ? "🟢" : s.score >= 50 ? "🟡" : "🔴"} ${name} · ${s.score}`, ...(s.noSl ? [T("fNoSl", lang, { k: s.noSl })] : []), ...(s.out ? [T("fOut", lang, { k: s.out })] : []), ...(s.afterStreak ? [T("fStreak", lang)] : []), ...(s.afterLimit ? [T("fLimit", lang)] : [])].join(" · "))].join("\n") });
-    }
+    if (daily && per.some((p) => p.scores[p.scores.length - 1])) out.push({ kb, text: [T("gDay", lang, { d: dayLabel(yday, lang) }), ...boardLines(per.map((p) => ({ name: p.name, s: p.scores[p.scores.length - 1] })), lang)].join("\n") });
     if (week) {
       const daysW = (k: number) => (lang === "ar" ? (k === 1 ? "يوم واحد" : k === 2 ? "يومان" : `${k} أيام`) : lang === "fr" ? `${k} jour${k > 1 ? "s" : ""}` : `${k} day${k > 1 ? "s" : ""}`);
       const rank = per.map((p) => { const sc = p.scores.filter((x): x is NonNullable<typeof x> => !!x); return { name: p.name, k: sc.length, avg: sc.length ? Math.round(sc.reduce((a, x) => a + x.score, 0) / sc.length) : -1 }; })
         .filter((r) => r.k).sort((a, z) => z.avg - a.avg || z.k - a.k);
-      if (rank.length) out.push({ kb: [], text: [T("gWeek", lang, { d: `${dname(days[0])} – ${dname(days[6])}` }), ...rank.map((r, i) => `${["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`} ${r.name} · ${r.avg} (${daysW(r.k)})`)].join("\n") });
+      if (rank.length) out.push({ kb: [], text: [T("gWeek", lang, { d: `${dayLabel(days[0], lang)} – ${dayLabel(days[6], lang)}` }), ...rank.map((r, i) => `${["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`} ${r.name} · ${r.avg} (${daysW(r.k)})`)].join("\n") });
     }
     let sentN = 0;
     for (const m of out) {
@@ -513,6 +536,24 @@ Deno.serve(async (req) => {
       else if (r.status === 403 || r.status === 400) { await db(`tg_state?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }); break; } // the bot was removed from the group
     }
     return sentN;
+  };
+  /** A coach's day: after the broker's midnight, one message with yesterday's score of each trader they coach (who
+   *  allow it), once a day (kept in tg_state "coach:<chat>"). A coach who blocked the bot is let go. */
+  const tickCoach = async (chat: number, lang: Lang, uids: string[]) => {
+    const id = `coach:${chat}`, st = (await rows<{ value: { day?: string } | null }>(`tg_state?select=value&id=eq.${encodeURIComponent(id)}`))[0]?.value ?? {};
+    const b = new Date(brokerClock(undefined)), yday = addDays(b.toISOString().slice(0, 10), -1);
+    if (b.getUTCHours() >= 12 || st.day === yday) return 0;
+    const per = await scoresFor(uids, [yday]);
+    await db("tg_state?on_conflict=id", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id, value: { ...st, day: yday } }) });
+    if (!per.some((p) => p.scores[0])) return 0;
+    const r = await send(chat, [T("cDay", lang, { d: dayLabel(yday, lang) }), ...boardLines(per.map((p) => ({ name: p.name, s: p.scores[0] })), lang)].join("\n"));
+    if (r.status === 403) for (const uid of uids) {
+      const t = await getTg(uid);
+      if (t?.coach?.chat !== chat) continue;
+      await saveTg(uid, { ...t, coach: null });
+      if (t.chat) await send(t.chat, T("cGone", t.lang ?? "en", { p: t.coach.name ?? "" }));
+    }
+    return r.ok ? 1 : 0;
   };
 
   /** The status of every challenge of a user, for /status. */
@@ -586,7 +627,7 @@ Deno.serve(async (req) => {
         }
       }
       // no stop loss, when MT5 synced lately (the sync itself also checks; this one does not wait for the EA's next send)
-      if ((prefs.nosl || t.partner?.chat) && now - last <= 15 * 60e3) {
+      if ((prefs.nosl || t.partner?.chat || t.coach?.chat) && now - last <= 15 * 60e3) {
         const open = await rows<OpenRow>(`trades?select=key,symbol,side,qty,entry_time&user_id=eq.${uid}&account_id=eq.${a.id}&status=eq.open&sl=is.null&deleted_at=is.null&limit=50`);
         const due = noSlDue(open, brokerClock(st, now), sent).slice(0, 5);
         if (prefs.nosl && due.length) out.push({ text: due.map((x) => noSlLine(a, x, lang)).join("\n"), keys: due.map((x) => x.k) });
@@ -665,7 +706,7 @@ Deno.serve(async (req) => {
       if (r.ok) { n++; keys.push(...m.keys); }
       else if (r.status === 403) { await saveTg(uid, { ...t, chat: null }); return n; } // the user blocked the bot: unlink
     }
-    for (const d of partnerTodo) { const k = await tellPartner(uid, t, "nosl", d.x, d.day, sent); if (k) { n++; keys.push(k); } }
+    for (const d of partnerTodo) { const k = await tellPartner(uid, t, "nosl", d.x, d.day, sent); n += k.length; keys.push(...k); }
     if (keys.length) await remember(uid, t, sent, keys, new Date(now).toISOString().slice(0, 10));
     return n;
   }
@@ -677,24 +718,28 @@ Deno.serve(async (req) => {
       const u = await req.json().catch(() => null);
       // a tap on "in my plan" / "outside my plan": saved in the user's synced setting "mizan-trade-plan" ({ [trade key]: boolean })
       const cq = u?.callback_query;
-      // the partner's answer to an invite: "pa:<code>" accept, "pd:<code>" decline (the code is checked again here)
-      const pm = cq ? String(cq.data ?? "").match(/^p([ad]):([A-Za-z0-9_-]{10,40})$/) : null;
+      // the answer to a partner or coach invite: "pa:/pd:<code>" (partner), "ca:/cd:<code>" (coach), accept or decline
+      const pm = cq ? String(cq.data ?? "").match(/^([pc])([ad]):([A-Za-z0-9_-]{10,40})$/) : null;
       if (cq && pm && typeof cq.message?.chat?.id === "number") {
+        const role = pm[1] === "p" ? "partner" : "coach", hk = pm[1] === "p" ? "pcodeHash" : "ccodeHash", ak = pm[1] === "p" ? "pcodeAt" : "ccodeAt", px = pm[1];
         const qChat = cq.message.chat.id as number, pLang = langOf(String(cq.from?.language_code ?? "").slice(0, 2));
-        const inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>pcodeHash=eq.${await sha256(pm[2])}&deleted_at=is.null&limit=1`))[0];
+        const inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>${hk}=eq.${await sha256(pm[3])}&deleted_at=is.null&limit=1`))[0];
         await tg("editMessageReplyMarkup", { chat_id: qChat, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] } });
-        if (!inv?.value.chat || !inv.value.pcodeAt || Date.now() - Date.parse(inv.value.pcodeAt) > 7 * 864e5 || inv.value.chat === qChat) await send(qChat, T("pExpired", pLang));
+        const at = inv?.value[ak];
+        if (!inv?.value.chat || !at || Date.now() - Date.parse(at) > 7 * 864e5 || inv.value.chat === qChat) await send(qChat, T("pExpired", pLang));
         else {
           const pname = String(cq.from?.first_name || (cq.from?.username ? `@${cq.from.username}` : "") || "—").slice(0, 60), tname = await traderName(inv.user_id, inv.value);
-          if (pm[1] === "a") {
-            if (inv.value.partner?.chat && inv.value.partner.chat !== qChat) await send(inv.value.partner.chat, T("pEnded", inv.value.partner.lang, { n: tname })); // one partner: the new one replaces the old
-            await saveTg(inv.user_id, { ...inv.value, partner: { chat: qChat, name: pname, lang: pLang, since: new Date().toISOString() }, pcodeHash: null, pcodeAt: null });
-            await send(qChat, T("pAccepted", pLang, { n: tname }));
-            await send(inv.value.chat, T("pNow", inv.value.lang ?? "en", { p: pname }));
+          const old = inv.value[role];
+          if (pm[2] === "a") {
+            if (old?.chat && old.chat !== qChat) await send(old.chat, T(`${px}Ended`, old.lang, { n: tname })); // one of each: the new one replaces the old
+            const who: Coach = { chat: qChat, name: pname, lang: pLang, since: new Date().toISOString(), ...(role === "coach" && inv.value.coach?.prefs ? { prefs: inv.value.coach.prefs } : {}) };
+            await saveTg(inv.user_id, { ...inv.value, [role]: who, [hk]: null, [ak]: null });
+            await send(qChat, T(`${px}Accepted`, pLang, { n: tname }));
+            await send(inv.value.chat, T(`${px}Now`, inv.value.lang ?? "en", { p: pname }));
           } else {
-            await saveTg(inv.user_id, { ...inv.value, pcodeHash: null, pcodeAt: null });
+            await saveTg(inv.user_id, { ...inv.value, [hk]: null, [ak]: null });
             await send(qChat, T("pDeclined", pLang));
-            await send(inv.value.chat, T("pDeclinedT", inv.value.lang ?? "en", { p: pname }));
+            await send(inv.value.chat, T(`${px}DeclinedT`, inv.value.lang ?? "en", { p: pname }));
           }
         }
         await tg("answerCallbackQuery", { callback_query_id: cq.id });
@@ -748,6 +793,7 @@ Deno.serve(async (req) => {
       const [cmd, arg] = text.split(/\s+/, 2);
       // the traders this chat is the accountability partner of (a partner needs no Mizan account)
       const partnerOf = () => rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->partner->>chat=eq.${chat}&deleted_at=is.null`);
+      const coachOf = () => rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->coach->>chat=eq.${chat}&deleted_at=is.null`);
       const audio = msg?.voice ?? msg?.audio;
       if (linked && audio?.file_id) {
         // a voice note in reply to a trade's message: that message's plan or note button names the trade
@@ -772,25 +818,28 @@ Deno.serve(async (req) => {
         await send(chat, w.ok ? T("vSaved", lang, { s: tr.symbol, t: words }) : T("vFail", lang));
         return json({ ok: true });
       }
-      if (cmd === "/start" && arg?.startsWith("partner_")) { // an invite link: show what the partner would get, then ask
-        const code = arg.slice(8), inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>pcodeHash=eq.${await sha256(code)}&deleted_at=is.null&limit=1`))[0];
-        if (!inv?.value.chat || !inv.value.pcodeAt || Date.now() - Date.parse(inv.value.pcodeAt) > 7 * 864e5) await send(chat, T("pExpired", userLang));
-        else if (inv.value.chat === chat) await send(chat, T("pSelf", userLang));
-        else await send(chat, T("pInvite", userLang, { n: await traderName(inv.user_id, inv.value) }), [[{ text: T("pAccept", userLang), callback_data: `pa:${code}` }, { text: T("pDecline", userLang), callback_data: `pd:${code}` }]]);
+      const invite = cmd === "/start" ? arg?.match(/^(partner|coach)_(.+)$/) : null;
+      if (invite) { // an invite link: show what the partner or coach would get, then ask
+        const px = invite[1] === "partner" ? "p" : "c", code = invite[2];
+        const inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>${px}codeHash=eq.${await sha256(code)}&deleted_at=is.null&limit=1`))[0];
+        const at = px === "p" ? inv?.value.pcodeAt : inv?.value.ccodeAt;
+        if (!inv?.value.chat || !at || Date.now() - Date.parse(at) > 7 * 864e5) await send(chat, T("pExpired", userLang));
+        else if (inv.value.chat === chat) await send(chat, T(`${px}Self`, userLang));
+        else await send(chat, T(`${px}Invite`, userLang, { n: await traderName(inv.user_id, inv.value) }), [[{ text: T("pAccept", userLang), callback_data: `${px}a:${code}` }, { text: T("pDecline", userLang), callback_data: `${px}d:${code}` }]]);
         return json({ ok: true });
       }
-      if (cmd === "/leave") {
-        const mine = await partnerOf();
-        if (mine.length) {
+      if (cmd === "/leave") { // stop being a partner and a coach, for everyone
+        const done: string[] = [];
+        for (const [role, list] of [["partner", await partnerOf()], ["coach", await coachOf()]] as const) {
           const names: string[] = [];
-          for (const r of mine) {
+          for (const r of list) {
             names.push(await traderName(r.user_id, r.value));
-            await saveTg(r.user_id, { ...r.value, partner: null });
-            if (r.value.chat) await send(r.value.chat, T("pLeftT", r.value.lang ?? "en", { p: r.value.partner?.name ?? "" }));
+            await saveTg(r.user_id, { ...r.value, [role]: null });
+            if (r.value.chat) await send(r.value.chat, T(role === "partner" ? "pLeftT" : "cLeftT", r.value.lang ?? "en", { p: r.value[role]?.name ?? "" }));
           }
-          await send(chat, T("pLeft", userLang, { n: names.join(", ") }));
-          return json({ ok: true });
+          if (names.length) done.push(T(role === "partner" ? "pLeft" : "cLeft", userLang, { n: names.join(", ") }));
         }
+        if (done.length) { await send(chat, done.join("\n")); return json({ ok: true }); }
       }
       if (cmd === "/start" && arg) {
         const row = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>codeHash=eq.${await sha256(arg)}&deleted_at=is.null&limit=1`))[0];
@@ -800,11 +849,13 @@ Deno.serve(async (req) => {
         await saveTg(row.user_id, { ...row.value, chat, name, codeHash: null, codeAt: null });
         await send(chat, T("linked", row.value.lang ?? userLang));
       } else if (!linked) {
-        const mine = await partnerOf();
-        await send(chat, mine.length ? T("pHelp", userLang, { n: (await Promise.all(mine.map((r) => traderName(r.user_id, r.value)))).join(", ") }) : T("unknown", userLang));
-      } else if (cmd === "/stop") { // the alerts stop, and so does the partnership
+        const mine = await partnerOf(), coached = await coachOf(), names = (l: { user_id: string; value: Tg }[]) => Promise.all(l.map((r) => traderName(r.user_id, r.value))).then((x) => x.join(", "));
+        const help = [...(mine.length ? [T("pHelp", userLang, { n: await names(mine) })] : []), ...(coached.length ? [T("cHelp", userLang, { n: await names(coached) })] : [])];
+        await send(chat, help.length ? help.join("\n") : T("unknown", userLang));
+      } else if (cmd === "/stop") { // the alerts stop, and so do the partnership and the coaching
         if (linked.value.partner?.chat) await send(linked.value.partner.chat, T("pEnded", linked.value.partner.lang, { n: await traderName(linked.user_id, linked.value) }));
-        await saveTg(linked.user_id, { ...linked.value, chat: null, partner: null });
+        if (linked.value.coach?.chat) await send(linked.value.coach.chat, T("cEnded", linked.value.coach.lang, { n: await traderName(linked.user_id, linked.value) }));
+        await saveTg(linked.user_id, { ...linked.value, chat: null, partner: null, coach: null });
         await send(chat, T("stopped", lang));
       }
       else if (cmd === "/status") await send(chat, await statusText(linked.user_id, lang));
@@ -847,13 +898,13 @@ Deno.serve(async (req) => {
       }
       // open trades still without a stop loss 2 minutes after the entry (once per trade); the partner hears of it too
       const todo: { rule: Rule; x: OpenRow; k?: number }[] = [];
-      if ((prefs.nosl || t.partner?.chat) && Array.isArray(body.open)) {
+      if ((prefs.nosl || t.partner?.chat || t.coach?.chat) && Array.isArray(body.open)) {
         const due = noSlDue(body.open as OpenRow[], Date.parse(`${now}Z`), sent).slice(0, 5);
         if (prefs.nosl) for (const x of due) { alerts.push(noSlLine(acc, x, lang)); newKeys.push(x.k); }
         if (due.length) todo.push({ rule: "nosl", x: newest(due) });
       }
       // a new trade after 3+ losses in a row today, or after a challenge's daily loss limit was reached: for the partner
-      const newOne = t.partner?.chat && Array.isArray(body.opened) ? (body.opened as OpenRow[]).find((x) => typeof x?.symbol === "string" && typeof x.entry_time === "string" && Date.parse(`${now}Z`) - naive(x.entry_time) <= 30 * 60e3) : undefined;
+      const newOne = (t.partner?.chat || t.coach?.chat) && Array.isArray(body.opened) ? (body.opened as OpenRow[]).find((x) => typeof x?.symbol === "string" && typeof x.entry_time === "string" && Date.parse(`${now}Z`) - naive(x.entry_time) <= 30 * 60e3) : undefined;
       if (newOne) {
         const last = await rows<TradeRow>(`trades?select=key,pnl,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=exit_time.desc&limit=30`);
         const s = lossStreak(last.filter((x) => day(x.exit_time) === today)); // losses in a row today
@@ -896,7 +947,7 @@ Deno.serve(async (req) => {
         if (r.ok) { n++; keep.push(...newKeys); }
       }
       for (const e of entries) { const r = await send(t.chat, e.text, e.kb); if (r.ok) { n++; keep.push(e.k); } }
-      for (const d of todo) { const k = await tellPartner(uid, t, d.rule, d.x, today, sent, d.k); if (k) { n++; keep.push(k); } }
+      for (const d of todo) { const k = await tellPartner(uid, t, d.rule, d.x, today, sent, d.k); n += k.length; keep.push(...k); }
       if (keep.length) await remember(uid, t, sent, keep, today);
       return json({ ok: true, sent: n });
     }
@@ -915,6 +966,10 @@ Deno.serve(async (req) => {
         const part = await Promise.all(users.slice(i, i + 5).map((u) => tickUser(u.user_id, u.value, calendar).catch(() => 0))); // a failing user does not stop the others
         n += part.reduce((a, b) => a + b, 0);
       }
+      const coached = await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->coach->>chat=not.is.null&deleted_at=is.null&limit=1000`);
+      const byCoach = new Map<number, { lang: Lang; uids: string[] }>();
+      for (const r of coached) { const c = r.value.coach; if (!c?.chat || c.prefs?.daily === false) continue; const e = byCoach.get(c.chat) ?? { lang: c.lang, uids: [] }; e.uids.push(r.user_id); byCoach.set(c.chat, e); }
+      for (const [c, e] of byCoach) n += await tickCoach(c, e.lang, e.uids).catch(() => 0);
       const groups = await rows<{ id: string; value: Grp }>(`tg_state?select=id,value&id=like.grp:*&limit=500`);
       for (const g of groups) n += await tickGroup(g.id, g.value).catch(() => 0);
       return json({ ok: true, users: users.length, groups: groups.length, sent: n });
@@ -927,7 +982,8 @@ Deno.serve(async (req) => {
     if (!uid) return json({ ok: false, error: "signIn" }, 401);
     if (!TOKEN) return json({ ok: false, error: "noToken" }, 503);
     const lang = langOf(body?.lang), cur = (await getTg(uid)) ?? {};
-    const state = (v: Tg) => ({ linked: !!v.chat, name: v.name ?? null, prefs: prefsOf(v.prefs), partner: v.partner?.chat ? { name: v.partner.name, since: v.partner.since } : null });
+    const state = (v: Tg) => ({ linked: !!v.chat, name: v.name ?? null, prefs: prefsOf(v.prefs), partner: v.partner?.chat ? { name: v.partner.name, since: v.partner.since } : null,
+      coach: v.coach?.chat ? { name: v.coach.name, since: v.coach.since, prefs: { ...COACH, ...(v.coach.prefs ?? {}) } } : null });
 
     switch (body?.action) {
       case "info": {
@@ -953,7 +1009,8 @@ Deno.serve(async (req) => {
       case "unlink": {
         if (cur.chat) await send(cur.chat, T("stopped", cur.lang ?? lang)).catch(() => null);
         if (cur.partner?.chat) await send(cur.partner.chat, T("pEnded", cur.partner.lang, { n: await traderName(uid, cur) })).catch(() => null);
-        await saveTg(uid, { ...cur, chat: null, name: null, codeHash: null, codeAt: null, partner: null, pcodeHash: null, pcodeAt: null });
+        if (cur.coach?.chat) await send(cur.coach.chat, T("cEnded", cur.coach.lang, { n: await traderName(uid, cur) })).catch(() => null);
+        await saveTg(uid, { ...cur, chat: null, name: null, codeHash: null, codeAt: null, partner: null, pcodeHash: null, pcodeAt: null, coach: null, ccodeHash: null, ccodeAt: null });
         return json({ ok: true, ...state({}) });
       }
       case "partnerInvite": { // a one-time t.me link (7 days) for the partner; a new one replaces the last
@@ -966,6 +1023,25 @@ Deno.serve(async (req) => {
       case "partnerRemove": {
         if (cur.partner?.chat) await send(cur.partner.chat, T("pEnded", cur.partner.lang, { n: await traderName(uid, cur) })).catch(() => null);
         const next = { ...cur, partner: null, pcodeHash: null, pcodeAt: null };
+        await saveTg(uid, next);
+        return json({ ok: true, ...state(next) });
+      }
+      case "coachInvite": { // the same for a coach
+        if (!cur.chat) return json({ ok: false, error: "notLinked" }, 409);
+        const code = b64url(crypto.getRandomValues(new Uint8Array(18)));
+        await saveTg(uid, { ...cur, lang, ccodeHash: await sha256(code), ccodeAt: new Date().toISOString() });
+        const me = await (await tg("getMe", {})).json().catch(() => null);
+        return me?.ok ? json({ ok: true, url: `https://t.me/${me.result.username}?start=coach_${code}` }) : json({ ok: false, error: "badToken" }, 502);
+      }
+      case "coachRemove": {
+        if (cur.coach?.chat) await send(cur.coach.chat, T("cEnded", cur.coach.lang, { n: await traderName(uid, cur) })).catch(() => null);
+        const next = { ...cur, coach: null, ccodeHash: null, ccodeAt: null };
+        await saveTg(uid, next);
+        return json({ ok: true, ...state(next) });
+      }
+      case "coachPrefs": { // what the coach gets: the rule alerts and the daily scores
+        if (!cur.coach?.chat) return json({ ok: false, error: "notLinked" }, 409);
+        const p = body?.prefs ?? {}, next = { ...cur, coach: { ...cur.coach, prefs: Object.fromEntries(Object.keys(COACH).map((k) => [k, p[k] !== false])) as typeof COACH } };
         await saveTg(uid, next);
         return json({ ok: true, ...state(next) });
       }
