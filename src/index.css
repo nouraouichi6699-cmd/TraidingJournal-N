@@ -708,8 +708,113 @@ h6 {
   .adv-lift:hover, .adv-ask:hover, .adv-ask:focus-visible, .adv-cta:hover, .adv-send:not(:disabled):hover { transform: none; }
 }
 @media print {
-  .adv-reveal, .adv-reveal .adv-rule, .adv-reveal .adv-meter span { opacity: 1 !important; transform: none !important; }
+  .adv-reveal, .adv-reveal .adv-rule, .adv-reveal .adv-meter span, .adv-reveal .adv-hbar { opacity: 1 !important; transform: none !important; }
+  .adv-fab, .adv-drawer, .adv-scrim { display: none !important; }
 }
+
+/* Advisor: sticky summary bar, bars, the floating chat button and its side panel */
+.adv-bar { background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.adv-bar::-webkit-scrollbar { display: none; }
+.adv-tile { border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--border)); background: color-mix(in srgb, var(--tone) 7%, var(--surface)); transition: transform .2s cubic-bezier(.22, 1, .36, 1), border-color .2s, background-color .2s, box-shadow .2s; }
+.adv-tile:hover:not(:disabled) { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tone) 55%, transparent); }
+.adv-tile[aria-current="true"] { border-color: color-mix(in srgb, var(--tone) 70%, transparent); background: color-mix(in srgb, var(--tone) 15%, var(--surface)); box-shadow: 0 10px 24px -18px var(--tone); }
+.adv-tile:disabled { opacity: .45; cursor: default; }
+.adv-mood { background: radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--tone) 26%, transparent), transparent 70%); transition: transform .2s; }
+.adv-mood:hover { transform: scale(1.05); }
+.adv-hbar { transform-origin: left; }
+[dir="rtl"] .adv-hbar { transform-origin: right; }
+.adv-reveal .adv-hbar { transform: scaleX(0); transition: transform .9s cubic-bezier(.22, 1, .36, 1) calc(var(--d, 0ms) + 300ms); }
+.adv-reveal[data-in] .adv-hbar { transform: none; }
+.adv-fab {
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--c-violet) 45%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c-violet) 26%, var(--surface)), var(--surface));
+  animation: adv-ping 2.8s ease-out infinite;
+  transition: transform .2s;
+}
+.adv-fab:hover { transform: translateY(-3px); }
+@keyframes adv-ping {
+  0% { box-shadow: 0 16px 36px -16px color-mix(in srgb, var(--c-violet) 70%, transparent), 0 0 0 0 color-mix(in srgb, var(--c-violet) 45%, transparent); }
+  70%, 100% { box-shadow: 0 16px 36px -16px color-mix(in srgb, var(--c-violet) 70%, transparent), 0 0 0 14px transparent; }
+}
+.adv-scrim { opacity: 0; visibility: hidden; background: rgba(0, 0, 0, .45); transition: opacity .3s, visibility 0s linear .3s; }
+.adv-scrim[data-open] { opacity: 1; visibility: visible; transition: opacity .3s; }
+.adv-drawer {
+  border-left: 1px solid color-mix(in srgb, var(--tone) 32%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 10%, var(--surface)), var(--surface) 200px);
+  box-shadow: -30px 0 60px -30px rgba(0, 0, 0, .6);
+  transform: translateX(105%);
+  visibility: hidden;
+  transition: transform .38s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .38s;
+}
+.adv-drawer[data-open] { transform: none; visibility: visible; transition: transform .38s cubic-bezier(.22, 1, .36, 1), visibility 0s; }
+.adv-scroll { overscroll-behavior: contain; }
+.adv-caret { display: inline-block; width: .55em; height: 1.05em; margin-top: .4rem; border-radius: 2px; background: var(--tone); animation: adv-caret 1s steps(2) infinite; }
+@keyframes adv-caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .adv-fab, .adv-caret { animation: none; }
+  .adv-drawer, .adv-drawer[data-open], .adv-scrim, .adv-scrim[data-open] { transition: none; }
+  .adv-reveal .adv-hbar { transform: none; transition: none; }
+  .adv-tile:hover:not(:disabled), .adv-fab:hover, .adv-mood:hover { transform: none; }
+}
+
+/* The advisor's candle mascot (Mascot.tsx): it floats, breathes and blinks; each mood adds its own motion */
+.cs-wrap { display: inline-block; }
+.cs-wrap svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.cs-shadow { opacity: .3; transform-origin: 120px 266px; animation: cs-shadow 3s ease-in-out infinite; }
+.cs-all { transform-origin: 120px 262px; animation: cs-float 3s ease-in-out infinite; }
+.cs-trunk { transform-origin: 120px 198px; animation: cs-breathe 3s ease-in-out infinite; }
+.cs-eye { transform-box: fill-box; transform-origin: center; animation: cs-blink 4.2s infinite; }
+.cs-tuft { transform-origin: 120px 60px; animation: cs-tuft 2.4s ease-in-out infinite; }
+@keyframes cs-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes cs-shadow { 0%, 100% { transform: scaleX(1); opacity: .3; } 50% { transform: scaleX(.86); opacity: .18; } }
+@keyframes cs-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.02, .985); } }
+@keyframes cs-blink { 0%, 91%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.08); } }
+@keyframes cs-tuft { 0%, 100% { transform: rotate(5deg); } 50% { transform: rotate(-5deg); } }
+.cs-spark { transform-box: fill-box; transform-origin: center; animation: cs-twinkle 1.6s ease-in-out infinite; }
+@keyframes cs-twinkle { 0%, 100% { opacity: .25; transform: scale(.5) rotate(0); } 50% { opacity: 1; transform: scale(1.1) rotate(45deg); } }
+/* happy: bounces on its wick, waves, green arrows rise */
+.cs-happy .cs-all { animation: none; }
+.cs-happy .cs-hop { transform-origin: 120px 262px; animation: cs-hop 1.1s cubic-bezier(.3, 0, .3, 1) infinite; }
+.cs-happy .cs-shadow { animation-duration: 1.1s; }
+@keyframes cs-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 14% { transform: translateY(0) scale(1.06, .94); } 45% { transform: translateY(-18px) scale(.97, 1.04); } 78% { transform: translateY(0) scale(1.04, .96); } }
+.cs-happy .cs-arm-l { transform-origin: 78px 134px; animation: cs-wave 1.1s ease-in-out infinite; }
+.cs-happy .cs-arm-r { transform-origin: 162px 134px; animation: cs-wave 1.1s ease-in-out -.55s infinite; }
+@keyframes cs-wave { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.cs-up { transform-box: fill-box; transform-origin: center; animation: cs-rise 2s ease-out infinite; }
+@keyframes cs-rise { 0% { transform: translateY(14px) scale(.6); opacity: 0; } 25% { opacity: 1; } 100% { transform: translateY(-34px) scale(1); opacity: 0; } }
+/* sad: slow and drooping, a tear and a little rain cloud */
+.cs-sad .cs-all, .cs-sad .cs-shadow { animation-duration: 4.6s; }
+.cs-sad .cs-tuft { animation: cs-droop 4.6s ease-in-out infinite; }
+@keyframes cs-droop { 0%, 100% { transform: rotate(-24deg); } 50% { transform: rotate(-32deg); } }
+.cs-sad .cs-arm-l { transform-origin: 78px 142px; animation: cs-dangle 4.6s ease-in-out infinite; }
+.cs-sad .cs-arm-r { transform-origin: 162px 142px; animation: cs-dangle 4.6s ease-in-out -2.3s infinite; }
+@keyframes cs-dangle { 0%, 100% { transform: rotate(3deg); } 50% { transform: rotate(-3deg); } }
+.cs-tear { animation: cs-tear 2.4s ease-in infinite; }
+@keyframes cs-tear { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 80% { transform: translateY(26px); opacity: 1; } 100% { transform: translateY(32px); opacity: 0; } }
+.cs-cloud { animation: cs-drift 4.6s ease-in-out infinite; }
+@keyframes cs-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-5px); } }
+.cs-drop { animation: cs-rain 1.35s linear infinite; }
+@keyframes cs-rain { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(20px); opacity: 0; } }
+/* angry: shakes, fists up, steam */
+.cs-angry .cs-all { animation: cs-shake .34s linear infinite; }
+.cs-angry .cs-shadow { animation: none; }
+@keyframes cs-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2.5px) rotate(-.8deg); } 75% { transform: translateX(2.5px) rotate(.8deg); } }
+.cs-angry .cs-arm-l { transform-origin: 78px 138px; animation: cs-fist .34s linear infinite; }
+.cs-angry .cs-arm-r { transform-origin: 162px 138px; animation: cs-fist .34s linear -.17s infinite; }
+@keyframes cs-fist { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+.cs-steam { transform-box: fill-box; transform-origin: center bottom; animation: cs-steam 1.8s ease-out infinite; }
+@keyframes cs-steam { 0% { transform: translateY(8px) scale(.55); opacity: 0; } 30% { opacity: .95; } 100% { transform: translateY(-22px) scale(1.15); opacity: 0; } }
+.cs-vein { transform-box: fill-box; transform-origin: center; animation: cs-pulse .6s ease-in-out infinite; }
+@keyframes cs-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+/* jealous: hands on hips, rocks on its wick, keeps glancing at the plan's taller gold candle */
+.cs-jealous .cs-all { animation: cs-rock 3.2s ease-in-out infinite; }
+@keyframes cs-rock { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+.cs-jealous .cs-pupil { animation: cs-glance 3.2s ease-in-out infinite; }
+@keyframes cs-glance { 0%, 38%, 100% { transform: translateX(0); } 52%, 86% { transform: translateX(-4px); } }
+.cs-ghost { animation: cs-glow 3.2s ease-in-out infinite; }
+@keyframes cs-glow { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cs * { animation: none !important; } }
 
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
 @container (max-width: 140px) { .kpi-visual { display: none; } }

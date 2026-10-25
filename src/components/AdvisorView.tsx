@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { AlertTriangle, ArrowRight, ArrowUpDown, CircleCheck, Clock3, Coins, Crosshair, Eye, Flame, Footprints, Info, ListChecks, Lock, MessagesSquare, RotateCcw, Route, SendHorizontal, ShieldCheck, Sparkles, Star, TrendingUp, Wrench, type LucideIcon } from "lucide-react";
-import { SectionHead, type Tone } from "./profileUi";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowRight, ArrowUpDown, Check, CircleCheck, Clock3, Coins, Crosshair, Eye, Flag, Flame, Info, ListChecks, MessagesSquare, Route, ShieldCheck, Sparkles, Star, Wrench, X as Drop, type LucideIcon } from "lucide-react";
+import AdvisorChat, { dly, tint } from "./AdvisorChat";
+import Mascot, { MOODS, type Mood } from "./Mascot";
+import type { Tone } from "./profileUi";
 import { inputsFor, presetWhatIf } from "./WhatIfTab";
 import { advise, journalContext, MIN_TRADES, type Advice, type Plan, type Topic } from "../lib/advisor";
-import { askAdvisor, type AskError, type Turn } from "../lib/advisorChat";
+import { NO_RULES, simulate, type Rules, type SimInput } from "../lib/whatif";
 import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
 import { fmtHold } from "../lib/stats";
 import type { Account, Lang, Trade } from "../types";
@@ -14,10 +16,14 @@ const TXT = {
   title: X("Advisor", "المستشار", "Conseiller"),
   sub: X("What your trades say, and what to change first.", "ما تقوله صفقاتك، وما يجب تغييره أولاً.", "Ce que disent vos trades, et quoi changer en premier."),
   all: X("All accounts", "كل الحسابات", "Tous les comptes"),
+  nav: X("Advisor sections", "أقسام المستشار", "Sections du conseiller"),
+  tradesTile: X("Trades analysed", "صفقات محلَّلة", "Trades analysés"),
   analysed: X("{n} closed trades analysed", "تم تحليل {n} صفقة مغلقة", "{n} trades clôturés analysés"),
   yourPlan: X("Your plan", "خطتك", "Votre plan"),
   planCap: X("would have been added to your history by following these {n} rules together.", "كان سيُضاف إلى سجلك لو اتبعت هذه القواعد الـ{n} معاً.", "auraient été ajoutés à votre historique en suivant ces {n} règles ensemble."),
   planCap1: X("would have been added to your history by following this rule.", "كان سيُضاف إلى سجلك لو اتبعت هذه القاعدة.", "auraient été ajoutés à votre historique en suivant cette règle."),
+  actual: X("Your result", "نتيجتك الفعلية", "Votre résultat"),
+  withPlan: X("With the plan", "مع الخطة", "Avec le plan"),
   tryPlan: X("Try the plan in What if", "جرّب الخطة في «ماذا لو»", "Essayer le plan dans « Et si ? »"),
   tryOne: X("Try in What if", "جرّبها في «ماذا لو»", "Essayer dans « Et si ? »"),
   clean: X("No clear weakness in these trades. Keep going.", "لا يظهر ضعف واضح في هذه الصفقات. واصل.", "Aucune faiblesse nette dans ces trades. Continuez."),
@@ -30,232 +36,38 @@ const TXT = {
   weak: X("Weak evidence", "دليل ضعيف", "Preuve faible"),
   both: X("worked in both halves of your history", "نجحت في نصفي سجلك", "a marché sur les deux moitiés de votre historique"),
   oneHalf: X("worked in one half only", "نجحت في نصف واحد فقط", "n'a marché que sur une moitié"),
+  half1: X("1st half", "النصف الأول", "1re moitié"),
+  half2: X("2nd half", "النصف الثاني", "2e moitié"),
+  askIt: X("Ask about it", "اسأل عنها", "En parler"),
+  askQ: X("Explain my advice “{t}”: why it matters for me and how to apply it.", "اشرح لي نصيحة «{t}»: لماذا تهمّني وكيف أطبّقها؟", "Explique mon conseil « {t} » : pourquoi il compte pour moi et comment l'appliquer."),
+  adopt: X("Adopt", "تبنّها", "Adopter"),
+  adopted: X("Adopted", "متبنّاة", "Adoptée"),
+  rules: X("My rules", "قواعدي", "Mes règles"),
+  rulesSub: X("The rules you adopted, and how well you kept them since.", "القواعد التي تبنّيتها، ومدى التزامك بها منذ ذلك اليوم.", "Les règles adoptées, et comment vous les avez tenues depuis."),
+  since: X("since {d}", "منذ {d}", "depuis le {d}"),
+  kept: X("Kept in {k} of {n} trades", "التزمت بها في {k} من أصل {n}", "Tenue sur {k} des {n} trades"),
+  noneSince: X("No trade since you adopted it.", "لا صفقات منذ تبنّيتها.", "Aucun trade depuis son adoption."),
+  cost: X("Breaking it cost you {v}", "كسرُها كلّفك {v}", "L'enfreindre vous a coûté {v}"),
+  saved: X("Breaking it still made you {v}", "كسرُها أربحك {v} هذه المرة", "L'enfreindre vous a quand même rapporté {v}"),
+  perfect: X("Kept every time", "التزمت بها في كل مرة", "Tenue à chaque fois"),
+  drop: X("Stop following", "توقف عن اتباعها", "Ne plus suivre"),
   caveat: X("Every figure is measured on your own past trades. A rule picked to fit the past usually helps less in the future: trust advice backed by many trades that worked in both halves of your history.", "كل رقم هنا مقاس على صفقاتك السابقة. القاعدة المختارة لتناسب الماضي تفيد عادةً أقل في المستقبل: ثق بالنصائح المدعومة بصفقات كثيرة والتي نجحت في نصفي سجلك.", "Chaque chiffre est mesuré sur vos propres trades passés. Une règle choisie pour coller au passé aide en général moins à l'avenir : fiez-vous aux conseils appuyés par beaucoup de trades et qui ont marché sur les deux moitiés de votre historique."),
   few: X("The advisor needs at least {n} closed trades (you have {m}).", "يحتاج المستشار {n} صفقات مغلقة على الأقل (لديك {m}).", "Le conseiller a besoin d'au moins {n} trades clôturés (vous en avez {m})."),
   exitsHint: X("Exit advice (stop loss, take profit) needs price paths: open Reports › Trade path once.", "نصائح الخروج (وقف الخسارة وجني الربح) تحتاج مسارات الأسعار: افتح «التقارير › مسار الصفقة» مرة واحدة.", "Les conseils de sortie (stop, take profit) demandent les parcours de prix : ouvrez une fois Rapports › Parcours du trade."),
   openPath: X("Open Trade path", "افتح «مسار الصفقة»", "Ouvrir Parcours du trade"),
-  chat: X("Ask your advisor", "اسأل مستشارك", "Demandez à votre conseiller"),
-  chatSub: X("Answers by a free AI (Google Gemini), from a summary of your trades.", "يجيب ذكاء اصطناعي مجاني (Google Gemini) انطلاقاً من ملخّص صفقاتك.", "Réponses d'une IA gratuite (Google Gemini), à partir d'un résumé de vos trades."),
-  me: X("Mizan advisor", "مستشار ميزان", "Conseiller Mizan"),
-  thinking: X("Reading your trades…", "يقرأ صفقاتك…", "Lecture de vos trades…"),
-  placeholder: X("Ask about your trading…", "اسأل عن تداولك…", "Posez une question sur votre trading…"),
-  send: X("Send", "إرسال", "Envoyer"),
-  restart: X("New conversation", "محادثة جديدة", "Nouvelle conversation"),
-  privacy: X("Your question and a summary of your trades (no account numbers) are sent to Google Gemini to write the answer. On the free tier, Google may use them to improve its products and reviewers may read them. This is not financial advice.", "يُرسَل سؤالك وملخّص لصفقاتك (بلا أرقام حسابات) إلى Google Gemini لكتابة الجواب. في المستوى المجاني قد تستخدمها Google لتحسين منتجاتها وقد يطّلع عليها مراجعون. هذا ليس نصيحة مالية.", "Votre question et un résumé de vos trades (sans numéros de compte) sont envoyés à Google Gemini pour rédiger la réponse. En version gratuite, Google peut les utiliser pour améliorer ses produits et des réviseurs peuvent les lire. Ce n'est pas un conseil financier."),
-  notDeployed: X("The chat is not set up yet: deploy the \"advisor\" function in Supabase and add a free Gemini API key (GEMINI_API_KEY).", "المحادثة غير مفعّلة بعد: انشر الدالة advisor في Supabase وأضف مفتاح Gemini API المجاني باسم GEMINI_API_KEY.", "Le chat n'est pas encore installé : déployez la fonction « advisor » dans Supabase et ajoutez une clé API Gemini gratuite (GEMINI_API_KEY)."),
-  noKey: X("Add your free Gemini API key in Supabase › Edge Functions › Secrets, named GEMINI_API_KEY.", "أضف مفتاح Gemini API المجاني في Supabase › Edge Functions › Secrets باسم GEMINI_API_KEY.", "Ajoutez votre clé API Gemini gratuite dans Supabase › Edge Functions › Secrets, nommée GEMINI_API_KEY."),
-  busy: X("Today's free AI quota is used up. Try again tomorrow.", "انتهت حصة الذكاء الاصطناعي المجانية لهذا اليوم. حاول غداً.", "Le quota gratuit du jour est épuisé. Réessayez demain."),
-  signIn: X("Sign in to use the chat.", "سجّل الدخول لاستخدام المحادثة.", "Connectez-vous pour utiliser le chat."),
-  failed: X("The advisor could not answer right now. Try again in a moment.", "تعذّر على المستشار الإجابة الآن. حاول بعد قليل.", "Le conseiller n'a pas pu répondre. Réessayez dans un instant."),
+  // the candle's mood, from your last trading day
+  happy: X("Happy: your last trading day ({d}) closed {v}.", "سعيدة: آخر يوم تداول ({d}) أُغلق على {v}.", "Contente : votre dernier jour de trading ({d}) a fini à {v}."),
+  sad: X("Sad: your last trading day ({d}) closed {v}.", "حزينة: آخر يوم تداول ({d}) أُغلق على {v}.", "Triste : votre dernier jour de trading ({d}) a fini à {v}."),
+  noStop: X("Angry: on {d}, {n} without a stop loss.", "غاضبة: يوم {d}، {n} بلا وقف خسارة.", "En colère : le {d}, {n} sans stop loss."),
+  broke: X("Angry: on {d}, you broke your rule “{r}”.", "غاضبة: يوم {d}، كسرت قاعدتك «{r}».", "En colère : le {d}, vous avez enfreint votre règle « {r} »."),
+  jealous: X("Jealous: on {d}, your plan would have made {v} more.", "غيورة: يوم {d}، كانت خطتك ستربح {v} أكثر منك.", "Jalouse : le {d}, votre plan aurait gagné {v} de plus."),
+  hello: X("Happy to help: ask me about your trading.", "سعيدة بمساعدتك: اسألني عن تداولك.", "Ravie de vous aider : posez-moi vos questions."),
+  pvHappy: X("Happy after a winning day.", "سعيدة بعد يوم رابح.", "Contente après un jour gagnant."),
+  pvSad: X("Sad after a losing day.", "حزينة بعد يوم خاسر.", "Triste après un jour perdant."),
+  pvAngry: X("Angry at a trade without a stop loss, or a broken rule.", "غاضبة من صفقة بلا وقف خسارة أو قاعدة مكسورة.", "En colère contre un trade sans stop ou une règle enfreinte."),
+  pvJealous: X("Jealous when your plan would have done better.", "غيورة حين كانت خطتك ستفعل أفضل منك.", "Jalouse quand votre plan aurait fait mieux."),
+  tap: X("Tap the candle to see its moods", "اضغط الشمعة لترى حالاتها", "Touchez la bougie pour voir ses humeurs"),
 };
-/** Starter questions, each with its own colour. */
-const ASK: { q: L; tone: Tone; icon: LucideIcon }[] = [
-  { q: X("What is my costliest habit?", "ما أكثر عادة تكلّفني؟", "Quelle habitude me coûte le plus ?"), tone: "rose", icon: Flame },
-  { q: X("When should I stop trading in a day?", "متى يجب أن أتوقف عن التداول في اليوم؟", "Quand dois-je arrêter de trader dans la journée ?"), tone: "sky", icon: Clock3 },
-  { q: X("Which market should I focus on?", "على أي سوق يجب أن أركّز؟", "Sur quel marché me concentrer ?"), tone: "amber", icon: Coins },
-  { q: X("What changed in my last month?", "ما الذي تغيّر في شهري الأخير؟", "Qu'est-ce qui a changé le mois dernier ?"), tone: "emerald", icon: TrendingUp },
-];
-const dly = (ms: number) => ({ "--d": `${ms}ms` }) as CSSProperties;
-
-// ---- numbers: kept left to right inside any text (Arabic included); signed money is green or red ----
-const NUM = /(?<![⁦\w.,+\-−])[+\-−]?\d(?:[\d.,:/-]*\d)?(?: [A-Z]{2,}(?![A-Za-z])|[$€£¥₹₩₺₽₪₦₱₴₫₮%Rh](?![A-Za-z]))?/g;
-const numCls = (tok: string) => {
-  const money = /(?:[$€£¥₹₩₺₽₪₦₱₴₫₮R]| [A-Z]{2,})$/.test(tok);
-  if (money && tok.startsWith("+")) return "adv-up";
-  if (money && /^[-−]/.test(tok)) return "adv-down";
-  return money || tok.endsWith("%") ? "adv-num" : undefined;
-};
-function nums(s: string, k: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let at = 0, i = 0;
-  for (const m of s.matchAll(NUM)) {
-    const x = m.index ?? 0;
-    if (x > at) out.push(s.slice(at, x));
-    out.push(<bdi key={`${k}~${i++}`} dir="ltr" className={numCls(m[0])}>{m[0]}</bdi>);
-    at = x + m[0].length;
-  }
-  if (at < s.length) out.push(s.slice(at));
-  return out;
-}
-/** The same for the advisor's own texts, whose values ltrNumbers already wrapped in U+2066…U+2069. */
-const tint = (s: string): ReactNode[] => s.split(/⁦([^⁩]*)⁩/).map((p, i) => (i % 2 ? <bdi key={i} dir="ltr" className={numCls(p)}>{p}</bdi> : p));
-
-// ---- the AI's answer: sections (a "## …" line or a line all in bold opens one), lists, and the closing next step ----
-const INL = /(\*\*[^*]+\*\*|`[^`]+`|(?<![\w*])\*[^*\s][^*]*\*(?![\w*]))/;
-function inline(s: string, k: string): ReactNode[] {
-  return s.split(INL).filter((p) => p !== "").map((p, i) => {
-    const key = `${k}.${i}`;
-    if (p.length > 4 && p.startsWith("**") && p.endsWith("**")) return <strong key={key} className="font-semibold text-text">{nums(p.slice(2, -2), key)}</strong>;
-    if (p.length > 2 && p.startsWith("`") && p.endsWith("`")) return <code key={key} className="adv-code">{p.slice(1, -1)}</code>;
-    if (p.length > 2 && p.startsWith("*") && p.endsWith("*")) return <em key={key} className="font-medium not-italic text-text">{nums(p.slice(1, -1), key)}</em>;
-    return <span key={key}>{nums(p, key)}</span>;
-  });
-}
-type ListBlock = { t: "ul" | "ol"; items: string[] };
-type Block = { t: "p"; s: string } | ListBlock | { t: "next"; label: string; s: string };
-type Sec = { title: string | null; blocks: Block[] };
-const NEXT = /^(?:your |one |the )?(?:next (?:step|move)|action(?: step| plan)?|what to do(?: next)?|try this)\b|الخطوة (?:التالية|القادمة|الأولى)|خطوتك (?:التالية|القادمة)|ما (?:يجب|عليك) فعله|prochaine étape|étape suivante|première étape|à faire|plan d'action/i;
-const label = (s: string) => s.replace(/^\*\*|\*\*$/g, "").replace(/\s*[:：]\s*$/, "").trim();
-function parse(text: string): Sec[] {
-  const secs: Sec[] = [{ title: null, blocks: [] }];
-  let list: ListBlock | null = null;
-  const add = (b: Block) => secs[secs.length - 1].blocks.push(b);
-  const flush = () => { if (list) add(list); list = null; };
-  for (const raw of text.split("\n")) {
-    const l = raw.trim();
-    if (!l || /^([-*_])\1{2,}$/.test(l)) { flush(); continue; }
-    const head = /^#{1,6}\s+(.+?)\s*#*$/.exec(l)?.[1] ?? /^\*\*([^*]+)\*\*\s*[:：]?$/.exec(l)?.[1];
-    if (head) { flush(); secs.push({ title: label(head), blocks: [] }); continue; }
-    const li = /^(?:([-•*])|\d+[.)])\s+(.*)$/.exec(l);
-    if (li) {
-      const t = li[1] ? "ul" : "ol";
-      if (!list || list.t !== t) { flush(); list = { t, items: [] }; }
-      list.items.push(li[2]);
-      continue;
-    }
-    flush();
-    const lead = /^\*\*([^*]+?)\*\*\s*[:：]?\s*(.+)$/.exec(l);
-    if (lead && NEXT.test(label(lead[1]))) secs.push({ title: null, blocks: [{ t: "next", label: label(lead[1]), s: lead[2] }] }); // full width, out of the section above
-    else add({ t: "p", s: l });
-  }
-  flush();
-  return secs.filter((s) => s.title || s.blocks.length);
-}
-const ANS: Tone[] = ["violet", "sky", "amber", "emerald", "indigo"];
-function NextStep({ name, style, children }: { name: string; style: CSSProperties; children: ReactNode }) {
-  return (
-    <div dir="auto" className="tone-gold adv-pop adv-next flex items-start gap-3 rounded-xl p-3.5" style={style}>
-      <span className="tone-tile h-9 w-9 rounded-lg"><Footprints size={16} /></span>
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="tone-text text-xs font-bold">{name}</p>
-        {children}
-      </div>
-    </div>
-  );
-}
-function Answer({ text }: { text: string }) {
-  const secs = useMemo(() => parse(text), [text]);
-  let n = 0, h = 0;
-  const d = () => dly(Math.min(n++, 14) * 65); // the blocks come in one after the other
-  const body = (b: Block, k: string): ReactNode => {
-    if (b.t === "p") return <p key={k} dir="auto" className="adv-pop adv-p" style={d()}>{inline(b.s, k)}</p>;
-    if (b.t === "next") return <NextStep key={k} name={b.label} style={d()}><p className="font-medium leading-7 text-text">{inline(b.s, k)}</p></NextStep>;
-    const List = b.t;
-    return (
-      <List key={k} className="space-y-2">
-        {b.items.map((it, i) => (
-          <li key={i} dir="auto" className="adv-pop flex items-start gap-2.5" style={d()}>
-            {b.t === "ol" ? <span className="tone-chip mt-[3px] grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold">{i + 1}</span> : <span aria-hidden="true" className="adv-bullet" />}
-            <span className="adv-p min-w-0">{inline(it, `${k}.${i}`)}</span>
-          </li>
-        ))}
-      </List>
-    );
-  };
-  return (
-    <div className="space-y-5 text-[15px]">
-      {secs.map((s, si) => {
-        const k = `s${si}`;
-        if (s.title && NEXT.test(s.title)) return <NextStep key={k} name={s.title} style={d()}>{s.blocks.map((b, bi) => body(b, `${k}.${bi}`))}</NextStep>;
-        const tone = s.title ? ANS[h++ % ANS.length] : "violet";
-        return (
-          <section key={k} className={`tone-${tone} space-y-2.5`}>
-            {s.title && <h4 dir="auto" className="tone-text adv-pop flex items-center gap-2.5 font-heading font-semibold" style={d()}><span aria-hidden="true" className="adv-h-bar" />{inline(s.title, k)}</h4>}
-            {s.blocks.length > 0 && <div className={`space-y-2.5 ${s.title ? "adv-sec" : ""}`}>{s.blocks.map((b, bi) => body(b, `${k}.${bi}`))}</div>}
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function Chat({ lang, T, context }: { lang: Lang; T: (x: L) => string; context: () => unknown }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<AskError | null>(null);
-  const box = useRef<HTMLDivElement>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
-  // a new answer is read from its first line; otherwise follow the end of the conversation
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const last = el.lastElementChild as HTMLElement | null;
-    const top = !busy && last && turns[turns.length - 1]?.role === "assistant" ? last.offsetTop - 8 : el.scrollHeight;
-    el.scrollTo({ top, behavior: "smooth" });
-  }, [turns, busy]);
-  useEffect(() => { const el = area.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 160)}px`; } }, [draft]);
-  const ask = async (q: string) => {
-    const question = q.trim();
-    if (!question || busy) return;
-    const history = turns;
-    setTurns([...history, { role: "user", content: question }]); setDraft(""); setErr(null); setBusy(true);
-    const r = await askAdvisor(question, lang, context(), history);
-    setBusy(false);
-    if ("answer" in r) setTurns((t) => [...t, { role: "assistant", content: r.answer }]);
-    else { setErr(r.error); setTurns((t) => t.slice(0, -1)); setDraft(question); }
-  };
-  const errText = err && T(err === "notDeployed" ? TXT.notDeployed : err === "noKey" ? TXT.noKey : err === "signIn" ? TXT.signIn : err === "busy" ? TXT.busy : TXT.failed);
-  const avatar = (spin?: boolean) => <span className="tone-tile mt-0.5 h-9 w-9 rounded-xl max-sm:hidden"><Sparkles size={16} className={spin ? "adv-twinkle" : undefined} /></span>;
-  return (
-    <section className="tone-violet tone-panel relative overflow-hidden rounded-2xl p-4 sm:p-5 md:p-6">
-      <span aria-hidden="true" className="adv-orb pointer-events-none absolute -end-24 -top-28 h-72 w-72 rounded-full blur-3xl" style={{ background: "color-mix(in srgb, var(--c-violet) 20%, transparent)" }} />
-      <div className="relative">
-        <SectionHead tone="violet" icon={MessagesSquare} title={T(TXT.chat)} sub={T(TXT.chatSub)}
-          aside={turns.length > 0 ? <button type="button" onClick={() => { setTurns([]); setErr(null); }} className="tone-violet tone-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"><RotateCcw size={13} />{T(TXT.restart)}</button> : undefined} />
-        {(turns.length > 0 || busy) && (
-          <div ref={box} className="relative mt-5 max-h-[560px] space-y-5 overflow-y-auto pe-1">
-            {turns.map((m, i) => m.role === "user" ? (
-              <div key={i} className="adv-msg flex justify-end">
-                <div dir="auto" className="adv-user max-w-[85%] rounded-2xl rounded-ee-md px-4 py-2.5 text-sm leading-relaxed">{m.content}</div>
-              </div>
-            ) : (
-              <div key={i} className="adv-msg flex items-start gap-3">
-                {avatar()}
-                <div className="min-w-0 flex-1">
-                  <p className="tone-text mb-1.5 flex items-center gap-1.5 text-xs font-semibold"><Sparkles size={12} className="sm:hidden" />{T(TXT.me)}</p>
-                  <div className="adv-answer rounded-2xl rounded-ss-md p-3.5 sm:p-4 md:p-5"><Answer text={m.content} /></div>
-                </div>
-              </div>
-            ))}
-            {busy && (
-              <div className="adv-msg flex items-start gap-3">
-                {avatar(true)}
-                <div className="adv-answer flex items-center gap-3 rounded-2xl rounded-ss-md px-4 py-3" role="status">
-                  <span className="flex gap-1" aria-hidden="true">{[0, 1, 2].map((j) => <span key={j} className="adv-dot h-1.5 w-1.5 rounded-full" style={{ background: "var(--tone)", animationDelay: `${j * 160}ms` }} />)}</span>
-                  <span className="adv-shimmer text-sm font-medium">{T(TXT.thinking)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        {turns.length === 0 && !busy && (
-          <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
-            {ASK.map(({ q, tone, icon: Icon }, i) => (
-              <button key={q[0]} type="button" onClick={() => void ask(T(q))} className={`tone-${tone} adv-pop adv-ask group flex items-center gap-3 rounded-xl px-3.5 py-3 text-start`} style={dly(i * 70)}>
-                <span className="tone-tile h-8 w-8 rounded-lg"><Icon size={15} /></span>
-                <span className="min-w-0 flex-1 text-sm font-medium text-text">{T(q)}</span>
-                <ArrowRight size={15} className="tone-text shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 rtl:-scale-x-100" />
-              </button>
-            ))}
-          </div>
-        )}
-        {errText && (
-          <p className="tone-red mt-4 flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-xs text-text" style={{ border: "1px solid color-mix(in srgb, var(--tone) 45%, transparent)", background: "color-mix(in srgb, var(--tone) 9%, transparent)" }}>
-            <AlertTriangle size={14} className="tone-text mt-px shrink-0" />{errText}
-          </p>
-        )}
-        <form className="adv-input mt-5 flex items-end gap-2 rounded-2xl p-1.5" onSubmit={(e) => { e.preventDefault(); void ask(draft); }}>
-          <textarea ref={area} dir="auto" rows={1} value={draft} maxLength={1000} placeholder={T(TXT.placeholder)} aria-label={T(TXT.placeholder)} onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void ask(draft); } }}
-            className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted" />
-          <button type="submit" disabled={busy || !draft.trim()} aria-label={T(TXT.send)} className="tone-solid adv-send grid h-11 w-11 shrink-0 place-items-center rounded-xl disabled:opacity-40"><SendHorizontal size={17} className="rtl:-scale-x-100" /></button>
-        </form>
-        <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted"><Lock size={12} className="mt-0.5 shrink-0" />{T(TXT.privacy)}</p>
-      </div>
-    </section>
-  );
-}
 /** Title, finding, advice per advice id. */
 const COPY: Record<string, [L, L, L]> = {
   streak: [X("Stop after {nL}", "توقّف بعد {nL}", "Arrêtez après {nL}"), X("After {nL} the same day, your next trades averaged {avg} ({kT}).", "بعد {nL} في اليوم نفسه، كان متوسط الصفقات التالية {avg} ({kT}).", "Après {nL} dans la journée, les trades suivants ont fait en moyenne {avg} ({kT})."), X("End the day after {nL}.", "أنهِ يومك بعد {nL}.", "Arrêtez la journée après {nL}.")],
@@ -280,18 +92,57 @@ const COPY: Record<string, [L, L, L]> = {
 const VS = X(", against {b} with a stop", " مقابل {b} مع الوقف", ", contre {b} avec stop");
 const SIDE: Record<string, L> = { long: X("longs", "الشراء", "achats"), short: X("shorts", "البيع", "ventes") };
 const ICON: Record<Topic, LucideIcon> = { discipline: ShieldCheck, timing: Clock3, symbols: Coins, direction: ArrowUpDown, exits: Crosshair, behaviour: Flame, risk: AlertTriangle };
-/** One colour per kind of advice: its section heading, its cards and the plan's chips. */
-const KIND: Record<Advice["kind"], { tone: Tone; icon: LucideIcon; title: L }> = {
-  fix: { tone: "rose", icon: Wrench, title: TXT.fix },
-  watch: { tone: "amber", icon: Eye, title: TXT.watch },
-  strength: { tone: "emerald", icon: Star, title: TXT.strength },
+/** One colour per kind of advice: its section, its cards, its tile in the bar and the plan's chips. */
+const KIND: Record<Advice["kind"], { tone: Tone; icon: LucideIcon; title: L; id: string }> = {
+  fix: { tone: "rose", icon: Wrench, title: TXT.fix, id: "adv-fix" },
+  watch: { tone: "amber", icon: Eye, title: TXT.watch, id: "adv-watch" },
+  strength: { tone: "emerald", icon: Star, title: TXT.strength, id: "adv-works" },
 };
+const MOOD_TONE: Record<Mood, Tone> = { happy: "emerald", sad: "sky", angry: "rose", jealous: "violet" };
+const PREVIEW: Record<Mood, L> = { happy: TXT.pvHappy, sad: TXT.pvSad, angry: TXT.pvAngry, jealous: TXT.pvJealous };
+const still = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---- rules the trader adopted, kept (and synced) in "mizan-advisor-rules" ----
+type Adopted = { id: string; topic: Topic; rules: Partial<Rules>; data: Advice["data"]; at: string }; // at: YYYY-MM-DD
+const RULES = "mizan-advisor-rules";
+const keyOf = (x: { id: string; rules: Partial<Rules> | null }) => `${x.id}|${JSON.stringify(x.rules)}`;
+const readAdopted = (): Adopted[] => { try { const v = JSON.parse(localStorage.getItem(RULES) ?? "null"); return Array.isArray(v) ? v.filter((x) => x && typeof x.id === "string" && x.rules && typeof x.at === "string") : []; } catch { return []; } };
+const dayOf = (t: Trade) => (t.exitTime ?? t.entryTime ?? "").slice(0, 10);
+/** How a rule was kept since it was adopted: trades it would have skipped or closed differently count as broken. */
+function keptSince(inputs: SimInput[], r: Adopted) {
+  const since = inputs.filter((x) => (x.trade.entryTime ?? x.trade.exitTime ?? "").slice(0, 10) >= r.at);
+  const s = simulate(since, { ...NO_RULES, ...r.rules });
+  const broke = s.rows.filter((x) => x.skip || x.exit).length;
+  return { n: s.rows.length, kept: s.rows.length - broke, cost: s.sim.net - s.actual.net };
+}
+
+type MoodWhy = { mood: Mood; why: "none" | "day" | "noStop" | "broke" | "plan"; day?: string; v?: number; n?: number; rule?: Adopted };
+/** The candle's mood from the last trading day: a trade without a stop or a broken adopted rule makes it angry, a
+ *  losing day sad, a winning day the plan would have beaten jealous, any other winning day happy. */
+function moodOf(inputs: SimInput[], plan: Plan["plan"], adopted: Adopted[]): MoodWhy {
+  if (!inputs.length) return { mood: "happy", why: "none" };
+  const day = inputs.map((x) => dayOf(x.trade)).sort().pop() as string;
+  const today = inputs.filter((x) => dayOf(x.trade) === day);
+  const net = today.reduce((s, x) => s + (x.trade.pnl as number), 0);
+  const bare = today.filter((x) => !(x.trade.sl != null && x.trade.sl > 0)).length;
+  if (bare) return { mood: "angry", why: "noStop", day, n: bare };
+  for (const r of adopted) {
+    if (day < r.at) continue;
+    if (simulate(today, { ...NO_RULES, ...r.rules }).rows.some((x) => x.skip || x.exit)) return { mood: "angry", why: "broke", day, rule: r };
+  }
+  if (net < 0) return { mood: "sad", why: "day", day, v: net };
+  if (plan) {
+    const s = simulate(today, { ...NO_RULES, ...plan.rules }), gain = s.sim.net - s.actual.net;
+    if (gain > 0.5) return { mood: "jealous", why: "plan", day, v: gain };
+  }
+  return { mood: "happy", why: "day", day, v: net };
+}
 
 /** A figure that counts up to its value (at once for reduced-motion users). */
 function useCount(target: number, ms = 1100) {
   const [v, setV] = useState(0);
   useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setV(target); return; }
+    if (still()) { setV(target); return; }
     let raf = 0;
     const t0 = performance.now();
     const step = (t: number) => { const p = Math.min(1, (t - t0) / ms); setV(target * (1 - (1 - p) ** 3)); if (p < 1) raf = requestAnimationFrame(step); };
@@ -317,19 +168,32 @@ function useReveal(dep: unknown) {
 export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPath }: { lang: Lang; accounts: Account[]; trades: Trade[]; onWhatIf: (acc: string | null) => void; onOpenPath: () => void }) {
   const k = lang === "en" ? 0 : lang === "ar" ? 1 : 2, T = (x: L) => x[k];
   const [acc, setAcc] = useState("all");
+  const [adopted, setAdopted] = useState<Adopted[]>(readAdopted);
+  const [chat, setChat] = useState(false);
+  const [request, setRequest] = useState<{ q: string; n: number } | null>(null);
+  const [peek, setPeek] = useState<Mood | null>(null);
+  const [active, setActive] = useState("adv-plan");
   const list = useMemo(() => (acc === "all" ? trades : trades.filter((t) => t.accountId === acc)), [trades, acc]);
   const currency = commonCurrency(acc === "all" ? accounts : accounts.filter((a) => a.id === acc));
-  const res: Plan = useMemo(() => advise(inputsFor(list, trades)), [list, trades]);
+  const inputs = useMemo(() => inputsFor(list, trades), [list, trades]);
+  const res: Plan = useMemo(() => advise(inputs), [inputs]);
+  const actual = useMemo(() => inputs.reduce((s, x) => s + (x.trade.pnl as number), 0), [inputs]);
+  const mood = useMemo(() => moodOf(inputs, res.plan, adopted), [inputs, res, adopted]);
   const shown = useCount(res.plan?.impact ?? 0);
   const root = useReveal(res);
+  useEffect(() => { try { localStorage.setItem(RULES, JSON.stringify(adopted)); } catch { /* storage full or blocked */ } }, [adopted]);
+  useEffect(() => { if (!peek) return; const t = setTimeout(() => setPeek(null), 5000); return () => clearTimeout(t); }, [peek]);
+
+  const loc = lang === "ar" ? "ar-u-nu-latn" : lang;
   const money = (v: number, sign = false) => fmtMoney(v, { sign, currency });
+  const dateOf = (d: string) => new Intl.DateTimeFormat(loc, { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
   const wd = (d: number) => new Intl.DateTimeFormat(lang, { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + d)));
   const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
   const nTrades = (n: number) => (k === 1 ? (n === 1 ? "صفقة واحدة" : n === 2 ? "صفقتان" : n <= 10 ? `${n} صفقات` : `${n} صفقة`) : `${n} ${n === 1 ? "trade" : "trades"}`);
   const nLosses = (n: number) => (k === 1 ? (n === 1 ? "خسارة واحدة" : n === 2 ? "خسارتين متتاليتين" : n <= 10 ? `${n} خسائر متتالية` : `${n} خسارة متتالية`) : k === 2 ? `${n} pertes d'affilée` : `${n} losses in a row`);
   const iso = (s: string) => `⁦${s}⁩`; // a value kept left to right inside Arabic text
   const firstN = (n: number) => (k === 1 ? (n === 1 ? "الصفقة الأولى" : n === 2 ? "أول صفقتين" : n <= 10 ? `أول ${n} صفقات` : `أول ${n} صفقة`) : k === 2 ? (n === 1 ? "votre premier trade" : `vos ${n} premiers trades`) : n === 1 ? "your first trade" : `your first ${n} trades`);
-  const fill = (x: string, a: Advice) => {
+  const fill = (x: string, a: Pick<Advice, "id" | "data">) => {
     const d = a.data, lv = (v: number) => (d.unit === "R" ? `${v}R` : money(v));
     const map: Record<string, string> = {
       n: String(d.n ?? ""), k: String(d.k ?? ""), nT: nTrades(Number(d.n)), kT: nTrades(Number(d.k)), nL: nLosses(Number(d.n)), m: String(d.m ?? ""),
@@ -341,19 +205,50 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
     };
     return ltrNumbers(x.replace(/\{(\w+)\}/g, (_, key: string) => map[key] ?? ""));
   };
-  const text = (a: Advice, i: 0 | 1 | 2) => fill(T(COPY[a.id][i]), a);
+  const text = (a: Pick<Advice, "id" | "data">, i: 0 | 1 | 2) => fill(T(COPY[a.id][i]), a);
+  const plain = (s: string) => s.replace(/[⁦-⁩]/g, "");
   const tryRules = (r: Advice["rules"]) => { if (!r) return; presetWhatIf(r); onWhatIf(acc === "all" ? null : acc); }; // What if opens on the same account
+  const askAbout = (a: Advice) => { setRequest((r) => ({ q: T(TXT.askQ).replace("{t}", plain(text(a, 0))), n: (r?.n ?? 0) + 1 })); setChat(true); };
+  const isAdopted = (a: Advice) => adopted.some((x) => keyOf(x) === keyOf(a));
+  const toggleAdopt = (a: Advice) => {
+    if (!a.rules) return;
+    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    setAdopted((xs) => (xs.some((x) => keyOf(x) === keyOf(a)) ? xs.filter((x) => keyOf(x) !== keyOf(a)) : [...xs, { id: a.id, topic: a.topic, rules: a.rules as Partial<Rules>, data: a.data, at: today }]));
+  };
 
   const byKind = (kind: Advice["kind"]) => res.advice.filter((a) => a.kind === kind);
   const planned = res.plan ? byKind("fix").filter((a) => res.plan!.ids.includes(a.id)) : [];
+
+  // the section in view lights up in the bar
+  const ids = ["adv-plan", ...(["fix", "watch", "strength"] as const).filter((x) => byKind(x).length).map((x) => KIND[x].id)].join(",");
+  useEffect(() => {
+    const els = ids.split(",").map((id) => document.getElementById(id)).filter((e): e is HTMLElement => !!e);
+    if (!els.length || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => {
+      const top = es.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (top) setActive(top.target.id);
+    }, { rootMargin: "-30% 0px -60% 0px" });
+    els.forEach((e) => io.observe(e));
+    return () => io.disconnect();
+  }, [ids]);
+  const go = (id: string) => { setActive(id); document.getElementById(id)?.scrollIntoView({ behavior: still() ? "auto" : "smooth", block: "start" }); };
+
+  const face = peek ?? mood.mood;
+  const moodText = peek ? T(PREVIEW[peek]) : ltrNumbers(
+    mood.why === "none" ? T(TXT.hello)
+      : mood.why === "noStop" ? T(TXT.noStop).replace("{d}", dateOf(mood.day!)).replace("{n}", nTrades(mood.n!))
+        : mood.why === "broke" ? T(TXT.broke).replace("{d}", dateOf(mood.day!)).replace("{r}", text(mood.rule!, 0))
+          : mood.why === "plan" ? T(TXT.jealous).replace("{d}", dateOf(mood.day!)).replace("{v}", money(mood.v!))
+            : T(mood.mood === "sad" ? TXT.sad : TXT.happy).replace("{d}", dateOf(mood.day!)).replace("{v}", money(mood.v!, true)));
 
   const card = (a: Advice, i: number) => {
     const Icon = a.kind === "strength" ? Star : ICON[a.topic];
     const both = !!a.halves && a.halves[0] > 0 && a.halves[1] > 0;
     const lvl = a.proof === "strong" ? 3 : a.proof === "medium" ? 2 : 1, proofTone: Tone = lvl === 3 ? "emerald" : lvl === 2 ? "amber" : "slate";
+    const top = a.halves ? Math.max(Math.abs(a.halves[0]), Math.abs(a.halves[1])) : 0, on = isAdopted(a);
     return (
       <div key={a.id} className="adv-reveal" style={dly((i % 2) * 90)}>
-        <article data-advice={a.id} className={`tone-${KIND[a.kind].tone} adv-item adv-lift relative h-full overflow-hidden rounded-2xl p-4 sm:p-5`}>
+        <article data-advice={a.id} className={`tone-${KIND[a.kind].tone} adv-item adv-lift relative flex h-full flex-col overflow-hidden rounded-2xl p-4 sm:p-5`}>
           <span aria-hidden="true" className="absolute inset-y-0 start-0 w-1" style={{ background: "var(--tone)" }} />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
@@ -372,21 +267,38 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
             <ArrowRight size={15} className="tone-text mt-0.5 shrink-0 rtl:-scale-x-100" />
             <p className="text-sm font-medium leading-relaxed text-text">{tint(text(a, 2))}</p>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted">
-              <span className={`tone-${proofTone} tone-chip inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold`}>
-                <span aria-hidden="true" className="adv-meter flex items-end gap-0.5">
-                  {[0, 1, 2].map((j) => <span key={j} className="w-1 rounded-full" style={{ height: 6 + j * 2.5, background: j < lvl ? "currentColor" : "color-mix(in srgb, currentColor 25%, transparent)" }} />)}
-                </span>
-                {T(TXT[a.proof])}
-              </span>
-              {a.halves && <span className="inline-flex items-center gap-1">{both ? <CircleCheck size={12} className="tone-emerald tone-text" /> : <Info size={12} />}{T(both ? TXT.both : TXT.oneHalf)}</span>}
+          {a.halves && (
+            <div className="mt-3.5 space-y-1.5 text-[11px]">
+              <p className="flex items-center gap-1.5 text-muted">{both ? <CircleCheck size={12} className="tone-emerald tone-text" /> : <Info size={12} />}{T(both ? TXT.both : TXT.oneHalf)}</p>
+              {a.halves.map((v, j) => (
+                <div key={j} className="grid grid-cols-[4.75rem_1fr_auto] items-center gap-2.5">
+                  <span className="text-muted">{T(j ? TXT.half2 : TXT.half1)}</span>
+                  <span className="h-1.5 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--text) 8%, transparent)" }}>
+                    <span className="adv-hbar block h-full rounded-full" style={{ width: `${top ? Math.max(6, (Math.abs(v) / top) * 100) : 0}%`, background: v > 0 ? "var(--c-emerald)" : "var(--loss)" }} />
+                  </span>
+                  <bdi dir="ltr" className={v > 0 ? "adv-up" : "adv-down"}>{money(v, true)}</bdi>
+                </div>
+              ))}
             </div>
-            {a.rules && (
-              <button type="button" onClick={() => tryRules(a.rules)} className="tone-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold">
-                <Sparkles size={13} />{T(TXT.tryOne)}
-              </button>
-            )}
+          )}
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2.5 pt-4">
+            <span className={`tone-${proofTone} tone-chip inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold`}>
+              <span aria-hidden="true" className="adv-meter flex items-end gap-0.5">
+                {[0, 1, 2].map((j) => <span key={j} className="w-1 rounded-full" style={{ height: 6 + j * 2.5, background: j < lvl ? "currentColor" : "color-mix(in srgb, currentColor 25%, transparent)" }} />)}
+              </span>
+              {T(TXT[a.proof])}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => askAbout(a)} className="tone-violet tone-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"><MessagesSquare size={13} />{T(TXT.askIt)}</button>
+              {a.rules && a.kind === "fix" && (
+                <button type="button" aria-pressed={on} onClick={() => toggleAdopt(a)} className={`tone-gold ${on ? "tone-solid" : "tone-btn"} inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold`}>
+                  {on ? <Check size={13} /> : <Flag size={13} />}{T(on ? TXT.adopted : TXT.adopt)}
+                </button>
+              )}
+              {a.rules && (
+                <button type="button" onClick={() => tryRules(a.rules)} className="tone-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"><Sparkles size={13} />{T(TXT.tryOne)}</button>
+              )}
+            </div>
           </div>
         </article>
       </div>
@@ -395,7 +307,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
   const group = (kind: Advice["kind"]) => {
     const items = byKind(kind), K = KIND[kind], Icon = K.icon;
     return items.length > 0 && (
-      <section key={kind} className="space-y-4">
+      <section key={kind} id={K.id} className="scroll-mt-28 space-y-4">
         <div className={`tone-${K.tone} adv-reveal flex items-center gap-3`}>
           <span className="tone-tile h-10 w-10 rounded-xl"><Icon size={18} /></span>
           <h2 className="font-heading text-lg font-semibold text-text">{T(K.title)}</h2>
@@ -406,15 +318,70 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
       </section>
     );
   };
+  const tiles: { id: string; tone: Tone; icon: LucideIcon; label: L; n: number }[] = [
+    ...(["fix", "watch", "strength"] as const).map((x) => ({ id: KIND[x].id, tone: KIND[x].tone, icon: KIND[x].icon, label: KIND[x].title, n: byKind(x).length })),
+    { id: "adv-plan", tone: "sky", icon: ListChecks, label: TXT.tradesTile, n: res.trades },
+  ];
+  const myRules = adopted.map((r) => ({ r, s: keptSince(inputs, r) }));
+  let rulesEl: ReactNode = null;
+  if (myRules.length) rulesEl = (
+    <section id="adv-rules" className="tone-indigo tone-panel adv-pop scroll-mt-28 rounded-2xl p-4 sm:p-5">
+      <div className="flex items-center gap-3">
+        <span className="tone-tile h-10 w-10 rounded-xl"><Flag size={18} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-heading text-lg font-semibold text-text">{T(TXT.rules)}</h2>
+          <p className="text-xs text-muted">{T(TXT.rulesSub)}</p>
+        </div>
+        <span className="tone-chip rounded-full px-2.5 py-0.5 text-xs font-bold tnum">{myRules.length}</span>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {myRules.map(({ r, s }, i) => {
+          const Icon = ICON[r.topic], pct = s.n ? (s.kept / s.n) * 100 : 0, tone: Tone = !s.n ? "slate" : pct >= 80 ? "emerald" : pct >= 50 ? "amber" : "rose";
+          return (
+            <div key={keyOf(r)} className="adv-pop rounded-xl border border-border bg-[var(--bg)] p-3.5" style={dly(i * 80)}>
+              <div className="flex items-start gap-3">
+                <span className="tone-tile h-9 w-9 rounded-lg"><Icon size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-text">{text(r, 0)}</p>
+                  <p className="text-[11px] text-muted">{T(TXT.since).replace("{d}", dateOf(r.at))}</p>
+                </div>
+                <button type="button" onClick={() => setAdopted((xs) => xs.filter((x) => keyOf(x) !== keyOf(r)))} title={T(TXT.drop)} aria-label={T(TXT.drop)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-[var(--surface)] hover:text-text"><Drop size={15} /></button>
+              </div>
+              {s.n ? (
+                <div className={`tone-${tone} mt-3 space-y-1.5`}>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-text">{ltrNumbers(T(TXT.kept).replace("{k}", String(s.kept)).replace("{n}", String(s.n)))}</span>
+                    <bdi dir="ltr" className="tone-text font-bold tnum">{Math.round(pct)}%</bdi>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--tone) 15%, var(--border))" }}>
+                    <div className="adv-grow h-full rounded-full" style={{ width: `${Math.max(3, pct)}%`, background: "var(--tone)" }} />
+                  </div>
+                  <p className="text-[11px]">
+                    {s.kept === s.n ? <span className="tone-emerald tone-text font-semibold">{T(TXT.perfect)}</span>
+                      : s.cost > 0.5 ? <span className="text-muted">{tint(ltrNumbers(T(TXT.cost).replace("{v}", money(-s.cost, true))))}</span>
+                        : s.cost < -0.5 ? <span className="text-muted">{tint(ltrNumbers(T(TXT.saved).replace("{v}", money(-s.cost, true))))}</span> : null}
+                  </p>
+                </div>
+              ) : <p className="mt-3 text-xs text-muted">{T(TXT.noneSince)}</p>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 
   return (
-    <div ref={root} className="mx-auto max-w-6xl space-y-6 py-2 sm:space-y-8 sm:p-4 md:p-6">
+    <div ref={root} className="mx-auto max-w-6xl space-y-6 pb-24 pt-2 sm:space-y-8 sm:p-4 sm:pb-24 md:p-6 md:pb-24">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <span className="adv-logo grid h-12 w-12 shrink-0 place-items-center rounded-2xl"><Sparkles size={22} className="adv-twinkle" /></span>
-          <div>
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <button type="button" onClick={() => setPeek(MOODS[(MOODS.indexOf(face) + 1) % MOODS.length])} title={T(TXT.tap)} aria-label={T(TXT.tap)}
+            className={`tone-${MOOD_TONE[face]} adv-mood grid h-[88px] w-[80px] shrink-0 place-items-center rounded-2xl`}>
+            <Mascot mood={face} className="h-[78px] w-[67px]" />
+          </button>
+          <div className="min-w-0">
             <h1 className="font-heading text-2xl font-bold text-text">{T(TXT.title)}</h1>
             <p className="text-sm text-muted">{T(TXT.sub)}</p>
+            <p aria-live="polite" className={`tone-${MOOD_TONE[face]} tone-chip mt-2 inline-block rounded-2xl px-3 py-1 text-xs font-semibold leading-relaxed`}>{tint(moodText)}</p>
           </div>
         </div>
         {accounts.length > 1 && (
@@ -435,7 +402,22 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
         </div>
       ) : (
         <>
-          <section className="tone-gold adv-hero adv-pop relative overflow-hidden rounded-3xl p-5 sm:p-6 md:p-8">
+          <nav aria-label={T(TXT.nav)} className="adv-bar sticky top-0 z-20 -mx-4 overflow-x-auto px-4 py-2.5">
+            <div className="flex gap-2 sm:grid sm:grid-cols-4">
+              {tiles.map((x) => {
+                const Icon = x.icon;
+                return (
+                  <button key={x.id} type="button" disabled={!x.n} aria-current={active === x.id ? "true" : undefined} onClick={() => go(x.id)} className={`tone-${x.tone} adv-tile flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-start`}>
+                    <span className="tone-tile h-8 w-8 rounded-lg"><Icon size={15} /></span>
+                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-text">{T(x.label)}</span>
+                    <span className="tone-text font-heading text-lg font-bold tnum">{x.n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+
+          <section id="adv-plan" className="tone-gold adv-hero adv-pop relative scroll-mt-28 overflow-hidden rounded-3xl p-5 sm:p-6 md:p-8">
             <span aria-hidden="true" className="adv-orb pointer-events-none absolute -end-16 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "color-mix(in srgb, var(--c-gold) 26%, transparent)" }} />
             <span aria-hidden="true" className="adv-orb pointer-events-none absolute -bottom-28 start-1/4 h-64 w-64 rounded-full blur-3xl" style={{ background: "color-mix(in srgb, var(--c-violet) 16%, transparent)", animationDelay: "-4.5s" }} />
             <div className="relative flex flex-wrap items-center gap-8">
@@ -448,6 +430,20 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
                   <>
                     <div className="mt-5"><bdi dir="ltr" className="tone-emerald tone-text font-heading text-4xl font-bold leading-none tnum sm:text-5xl md:text-6xl">{money(Math.round(shown), true)}</bdi></div>
                     <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-muted">{ltrNumbers((planned.length > 1 ? T(TXT.planCap) : T(TXT.planCap1)).replace("{n}", String(planned.length)))}</p>
+                    <div className="mt-5 max-w-xl space-y-2.5">
+                      {([[TXT.actual, actual, "slate"], [TXT.withPlan, actual + res.plan.impact, "emerald"]] as const).map(([lb, v, tone], j) => {
+                        const top = Math.max(Math.abs(actual), Math.abs(actual + res.plan!.impact)) || 1;
+                        return (
+                          <div key={j} className="grid grid-cols-[6.5rem_1fr_auto] items-center gap-3 sm:grid-cols-[8rem_1fr_auto]">
+                            <span className="text-xs font-medium text-muted">{T(lb)}</span>
+                            <span className="h-2.5 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--text) 8%, transparent)" }}>
+                              <span className="adv-grow block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(v) / top) * 100)}%`, background: v < 0 ? "var(--loss)" : `var(--c-${tone})`, animationDelay: `${300 + j * 180}ms` }} />
+                            </span>
+                            <bdi dir="ltr" className="text-sm font-bold tnum" style={{ color: v < 0 ? "var(--loss)" : `var(--c-${tone})` }}>{money(v, true)}</bdi>
+                          </div>
+                        );
+                      })}
+                    </div>
                     <div className="mt-5 flex flex-wrap gap-2">
                       {planned.map((a, i) => {
                         const Icon = ICON[a.topic];
@@ -473,8 +469,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
             </div>
           </section>
 
-          <Chat lang={lang} T={T} context={() => journalContext(list, res, currency)} />
-
+          {rulesEl}
           {group("fix")}
           {group("watch")}
           {group("strength")}
@@ -492,6 +487,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
           </div>
         </>
       )}
+      <AdvisorChat lang={lang} mood={face} open={chat} onOpen={() => setChat(true)} onClose={() => setChat(false)} request={request} context={() => journalContext(list, res, currency)} />
     </div>
   );
 }

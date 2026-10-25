@@ -15,8 +15,18 @@ const system = (lang: string) => `You are the trading advisor inside Mizan, a tr
 - Answer in ${LANGS[lang] ?? "English"}.
 - Be concrete: quote numbers from the journal (money in the account currency, win rates, trade counts). Never invent data; when the journal cannot answer, say what is missing.
 - Stay on the trader's own process: risk, discipline, timing, exits, habits. Do not predict markets and do not tell them to buy or sell an asset: you are not a financial advisor.
-- Be short and practical: about 180 words at most, short paragraphs or "- " bullets, and end with one clear next step.
-- These are past trades: a finding backed by fewer than 20 trades is weak evidence, say so when it matters.`;
+- Be short and practical: about 180 words at most, short paragraphs or "- " bullets; when the answer has several parts, give each a short "## " heading.
+- End the answer with one clear next step, on its own line starting with the bold label "**Next step:**" written in ${LANGS[lang] ?? "English"}.
+- These are past trades: a finding backed by fewer than 20 trades is weak evidence, say so when it matters.
+- After the answer, add one last line that starts exactly with "FOLLOW-UPS:" (in English, whatever the language) followed by three short questions (at most 10 words each, in ${LANGS[lang] ?? "English"}) the trader could ask you next about their own trading, separated by " | ". Nothing after that line.`;
+// The last line of the answer: three follow-up questions for the app to offer as buttons.
+const FOLLOW = /(?:^|\n)[ \t*_>#-]*(?:FOLLOW-?UPS?|Follow-ups|أسئلة المتابعة|Questions de suivi)\s*\**\s*[:：]\s*\**([\s\S]*)$/;
+function splitFollowups(raw: string): { answer: string; followups: string[] } {
+  const m = FOLLOW.exec(raw);
+  if (!m) return { answer: raw, followups: [] };
+  const followups = m[1].split(/\s*\|\s*|\n+/).map((q) => q.replace(/^[\s\-*•\d.)]+/, "").replace(/\*\*/g, "").trim()).filter((q) => q && q.length <= 140).slice(0, 3);
+  return { answer: raw.slice(0, m.index).trim(), followups };
+}
 
 type Turn = { role: "user" | "assistant"; content: string };
 
@@ -51,8 +61,8 @@ Deno.serve(async (req) => {
     const err = Array.isArray(out) ? out[0]?.error : out?.error; // Gemini wraps some errors in a list
     if (r.status === 429) return json({ ok: false, error: "busy" }, 429); // the free daily quota is used up
     if (!r.ok) return json({ ok: false, error: err?.status ?? err?.code ?? err?.type ?? `status ${r.status}` }, 502);
-    const answer = String(out?.choices?.[0]?.message?.content ?? "").trim();
-    return json({ ok: !!answer, answer, usage: out?.usage ?? null });
+    const { answer, followups } = splitFollowups(String(out?.choices?.[0]?.message?.content ?? "").trim());
+    return json({ ok: !!answer, answer, followups, usage: out?.usage ?? null });
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);
   }
