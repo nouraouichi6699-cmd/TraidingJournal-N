@@ -11,11 +11,13 @@ import type { Replay } from "../lib/replay";
 import { usePrivacy } from "../usePrivacy";
 import { noteOf, saveNote } from "../lib/tradeNotes";
 import { readPlan } from "../lib/tradePlan";
+import { voiceOf } from "../lib/tradeVoice";
 
 type L3 = Record<Lang, string>;
 const T = {
   title: { en: "Trade replay", ar: "إعادة تشغيل الصفقة", fr: "Rejouer le trade" },
   note: { en: "Note", ar: "ملاحظة", fr: "Note" },
+  voice: { en: "Voice note from Telegram", ar: "ملاحظة صوتية من تيليغرام", fr: "Note vocale depuis Telegram" },
   notePh: { en: "Why did you take this trade? How did you feel?", ar: "لماذا دخلت هذه الصفقة؟ وبماذا شعرت؟", fr: "Pourquoi ce trade ? Qu'avez-vous ressenti ?" },
   planIn: { en: "In the plan", ar: "ضمن الخطة", fr: "Dans le plan" },
   planOut: { en: "Outside the plan", ar: "خارج الخطة", fr: "Hors plan" },
@@ -186,6 +188,7 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
   const L = (x: L3) => x[lang];
   const [note, setNote] = useState(() => noteOf(trade.key));
   const [inPlan] = useState<boolean | undefined>(() => readPlan()[trade.key]); // answered in Telegram
+  const [voices] = useState(() => voiceOf(trade.key)); // voice notes sent to the bot, as text
   const noteBox = useRef<HTMLTextAreaElement>(null);
   const [load, setLoad] = useState<ReplayLoad | { loading: [number, number] }>({ loading: [0, 1] });
   const [attempt, setAttempt] = useState(0);
@@ -342,6 +345,12 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
         <div className="border-b border-border px-4 py-3 sm:px-5">
           <label htmlFor="trade-note" className="text-xs font-semibold text-muted">{L(T.note)}</label>
           <textarea id="trade-note" ref={noteBox} value={note} rows={2} maxLength={2000} placeholder={L(T.notePh)} onChange={(ev) => { setNote(ev.target.value); saveNote(trade.key, ev.target.value); }} className="field mt-1.5 block w-full resize-y text-sm" />
+          {voices.map((v, i) => (
+            <p key={i} className="mt-2 rounded-lg bg-primary-tint px-3 py-2 text-sm">
+              <span className="mb-0.5 block text-xs font-semibold text-muted">🎙️ {L(T.voice)} · <bdi dir="ltr">{new Date(v.at).toLocaleString(lang === "ar" ? "ar-u-nu-latn" : lang, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {lang === "ar" ? `${v.d} ث` : `${v.d} s`}</bdi></span>
+              {v.t}
+            </p>
+          ))}
         </div>
 
         {"loading" in load && (

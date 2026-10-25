@@ -8,6 +8,8 @@
 //    reached), 3+ losses in a row, and open trades still without a stop loss after 2 minutes; each warning sent once.
 //    Trades just opened get a message each: "in my plan / outside my plan" buttons (a tap is saved in the synced setting
 //    "mizan-trade-plan") and, when the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning.
+//  - Voice notes: a voice note sent in reply to a trade's message (its plan or note button names the trade) is turned
+//    into text by the AI model and kept with the trade in the synced setting "mizan-trade-voice" (shown in Mizan).
 //  - Accountability partner: the app makes a one-time invite link (7 days); the partner sees what they would get and
 //    accepts or declines with buttons, /leave stops it. When the trader breaks a rule (a trade left without a stop loss,
 //    a new trade after 3+ losses in a row today, a new trade after a challenge's daily loss limit), the partner gets one
@@ -70,6 +72,11 @@ const TXT: Record<string, Record<Lang, string>> = {
   planYes: { en: "✅ In my plan", ar: "✅ ضمن خطتي", fr: "✅ Dans mon plan" },
   planNo: { en: "❌ Outside my plan", ar: "❌ خارج خطتي", fr: "❌ Hors de mon plan" },
   planSaved: { en: "Saved ✓", ar: "حُفظ ✓", fr: "Enregistré ✓" },
+  vSaved: { en: "🎙️ Voice note saved with your {s} trade ✓\n\n“{t}”", ar: "🎙️ حُفظت الملاحظة الصوتية مع صفقة {s} ✓\n\n«{t}»", fr: "🎙️ Note vocale enregistrée avec votre trade {s} ✓\n\n« {t} »" },
+  vReply: { en: "To keep a voice note with a trade, send it as a reply to that trade's message (swipe the message, or hold it and tap Reply).", ar: "لحفظ ملاحظة صوتية مع صفقة، أرسلها ردّاً على رسالة تلك الصفقة: اسحب الرسالة، أو اضغط عليها مطولاً ثم «رد».", fr: "Pour garder une note vocale avec un trade, envoyez-la en réponse au message de ce trade (glissez le message, ou appuyez longuement puis Répondre)." },
+  vMany: { en: "This message has several trades: reply to the “new trade” message of the one you mean.", ar: "هذه الرسالة فيها أكثر من صفقة: أرسل الملاحظة ردّاً على رسالة «صفقة جديدة» الخاصة بالصفقة التي تقصدها.", fr: "Ce message contient plusieurs trades : répondez au message « nouveau trade » de celui que vous visez." },
+  vLong: { en: "Voice notes can be up to 3 minutes long.", ar: "مدة الملاحظة الصوتية حتى 3 دقائق.", fr: "Les notes vocales peuvent durer jusqu'à 3 minutes." },
+  vFail: { en: "I couldn't turn this voice note into text. Try again, or write the note in Mizan.", ar: "تعذّر تحويل هذه الملاحظة الصوتية إلى نص. أعد المحاولة، أو اكتب الملاحظة في ميزان.", fr: "Impossible de transformer cette note vocale en texte. Réessayez, ou écrivez la note dans Mizan." },
   dsymHour: { en: "⚠️ Danger zone: your trades on {s} between {h1} and {h2} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك على {s} بين {h1} و{h2} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades sur {s} entre {h1} et {h2} ont perdu {l} sur {n} ({p})." },
   dsideSym: { en: "⚠️ Danger zone: your {d} trades on {s} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقات {d} عندك على {s} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades {d} sur {s} ont perdu {l} sur {n} ({p})." },
   dsym: { en: "⚠️ Danger zone: your trades on {s} lost {l} of {n} ({p}).", ar: "⚠️ منطقة خطر: صفقاتك على {s} خسرت {l} من {n} ({p}).", fr: "⚠️ Zone de danger : vos trades sur {s} ont perdu {l} sur {n} ({p})." },
@@ -322,6 +329,36 @@ async function weekTip(lang: Lang, facts: unknown) {
     return "";
   }
 }
+
+/** The words of a voice note, from the Gemini API (audio in); "" without a key or an answer. Uses GEMINI_API_KEY, or
+ *  AI_API_KEY when AI_BASE_URL is not set (the default base is Gemini's). */
+async function transcribe(audio: Uint8Array, mime: string) {
+  const other = !!Deno.env.get("AI_BASE_URL"), key = Deno.env.get("GEMINI_API_KEY") || (other ? "" : Deno.env.get("AI_API_KEY"));
+  if (!key) return "";
+  let bin = "";
+  for (let i = 0; i < audio.length; i += 0x8000) bin += String.fromCharCode(...audio.subarray(i, i + 0x8000));
+  const model = (!other && Deno.env.get("AI_MODEL")) || "gemini-3.5-flash-lite";
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": key, "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { text: "Transcribe this trader's voice note word for word, in the language it is spoken (Arabic, including Tunisian or other dialects, French or English). Return only the transcript, with no comment." },
+          { inline_data: { mime_type: mime, data: btoa(bin) } },
+        ] }],
+        generationConfig: { temperature: 0 },
+      }),
+      signal: AbortSignal.timeout(45000),
+    });
+    const out = await r.json().catch(() => null);
+    const parts: { text?: string }[] = r.ok ? out?.candidates?.[0]?.content?.parts ?? [] : [];
+    return parts.map((p) => p.text ?? "").join(" ").replace(/\s+/g, " ").trim().slice(0, 2000);
+  } catch {
+    return "";
+  }
+}
+type Voice = { t: string; at: string; d: number };
 
 const US_DST = (u: number) => { const y = new Date(u).getUTCFullYear(), sun = (m: number, k: number) => { const d = new Date(Date.UTC(y, m, 1)); return Date.UTC(y, m, 1 + ((7 - d.getUTCDay()) % 7) + 7 * (k - 1)); }; return u >= sun(2, 2) + 7 * 3600e3 && u < sun(10, 1) + 6 * 3600e3; };
 /** The broker's clock now (as UTC ms): from the last MT5 sync (its server time against ours), else UTC+2 / UTC+3 in US summer time. */
@@ -605,6 +642,30 @@ Deno.serve(async (req) => {
       const [cmd, arg] = text.split(/\s+/, 2);
       // the traders this chat is the accountability partner of (a partner needs no Mizan account)
       const partnerOf = () => rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->partner->>chat=eq.${chat}&deleted_at=is.null`);
+      const audio = msg?.voice ?? msg?.audio;
+      if (linked && audio?.file_id) {
+        // a voice note in reply to a trade's message: that message's plan or note button names the trade
+        const btns = ((msg.reply_to_message?.reply_markup?.inline_keyboard ?? []) as { callback_data?: string; url?: string }[][]).flat();
+        const keyOf = (b: { callback_data?: string; url?: string }) => { const m = String(b.callback_data ?? "").match(/^p[01]:(.+)$/); if (m) return m[1]; try { return b.url ? new URL(b.url).searchParams.get("trade") : null; } catch { return null; } };
+        const keys = [...new Set(btns.map(keyOf).filter((k): k is string => !!k))];
+        if (keys.length !== 1) { await send(chat, T(keys.length ? "vMany" : "vReply", lang)); return json({ ok: true }); }
+        if (Number(audio.duration ?? 0) > 180 || Number(audio.file_size ?? 0) > 20e6) { await send(chat, T("vLong", lang)); return json({ ok: true }); }
+        const tr = (await rows<{ key: string; symbol: string }>(`trades?select=key,symbol&user_id=eq.${linked.user_id}&key=eq.${encodeURIComponent(keys[0])}&limit=1`))[0];
+        if (!tr) { await send(chat, T("vReply", lang)); return json({ ok: true }); }
+        let words = "";
+        try {
+          const path = (await (await tg("getFile", { file_id: audio.file_id })).json().catch(() => null))?.result?.file_path;
+          const file = path ? await fetch(`https://api.telegram.org/file/bot${TOKEN}/${path}`, { signal: AbortSignal.timeout(20000) }) : null;
+          if (file?.ok) words = await transcribe(new Uint8Array(await file.arrayBuffer()), String(audio.mime_type || "audio/ogg"));
+        } catch { /* no text: told below */ }
+        if (!words) { await send(chat, T("vFail", lang)); return json({ ok: true }); }
+        const cur = (await rows<{ value: Record<string, Voice[]> | null }>(`user_settings?select=value&user_id=eq.${linked.user_id}&key=eq.mizan-trade-voice&deleted_at=is.null`))[0]?.value ?? {};
+        const list = [...(cur[tr.key] ?? []), { t: words, at: new Date().toISOString(), d: Math.round(Number(audio.duration ?? 0)) }].slice(-5);
+        const value = Object.fromEntries([...Object.entries(cur).filter(([k]) => k !== tr.key), [tr.key, list]].slice(-300)); // the 300 latest trades
+        const w = await db("user_settings?on_conflict=user_id,key", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ user_id: linked.user_id, key: "mizan-trade-voice", value, updated_at: null, deleted_at: null }) });
+        await send(chat, w.ok ? T("vSaved", lang, { s: tr.symbol, t: words }) : T("vFail", lang));
+        return json({ ok: true });
+      }
       if (cmd === "/start" && arg?.startsWith("partner_")) { // an invite link: show what the partner would get, then ask
         const code = arg.slice(8), inv = (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>pcodeHash=eq.${await sha256(code)}&deleted_at=is.null&limit=1`))[0];
         if (!inv?.value.chat || !inv.value.pcodeAt || Date.now() - Date.parse(inv.value.pcodeAt) > 7 * 864e5) await send(chat, T("pExpired", userLang));
