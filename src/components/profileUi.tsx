@@ -1,5 +1,5 @@
-// Building blocks of the Profile page: a section heading with its tone (icon tile, title, one line of help) and an
-// accessible on/off switch coloured by the tone around it.
+// Building blocks shared by the Profile and Advisor pages: a section heading with its tone (icon tile, title, one line
+// of help) and an accessible on/off switch coloured by the tone around it.
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 

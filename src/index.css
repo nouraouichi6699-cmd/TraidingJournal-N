@@ -605,49 +605,110 @@ h6 {
   }
 }
 
-/* Advisor: cards rise in one after the other */
-@keyframes adv-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
+/* Advisor: one colour per kind (rose to fix, amber to watch, emerald what works), violet for the chat, gold for the
+   plan (the tone tokens below). Cards rise in as they scroll into view and the plan's figure counts up; every motion
+   stops for reduced-motion users and everything shows when printing. */
+@keyframes adv-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes adv-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@keyframes adv-float { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-18px, 14px) scale(1.08); } }
+@keyframes adv-twinkle { 0%, 72%, 100% { transform: scale(1) rotate(0); } 80% { transform: scale(1.2) rotate(-10deg); } 88% { transform: scale(.94) rotate(5deg); } }
+@keyframes adv-spin { to { transform: rotate(360deg); } }
+@keyframes adv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes adv-shine { 0%, 62% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
+@keyframes adv-grow { from { transform: scaleX(0); } }
 
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.adv-dot { animation: adv-dot 1s ease-in-out infinite; }
+.adv-msg { animation: adv-in .3s cubic-bezier(.22, 1, .36, 1) both; }
+/* "backwards": once in, the element is plain again, so hover transforms still apply */
+.adv-pop { animation: adv-in .5s cubic-bezier(.22, 1, .36, 1) backwards; animation-delay: var(--d, 0ms); }
+.adv-reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0ms), transform .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0ms); }
+.adv-reveal[data-in] { opacity: 1; transform: none; }
+.adv-orb { animation: adv-float 10s ease-in-out infinite; }
+.adv-twinkle { animation: adv-twinkle 3.4s ease-in-out infinite; }
+
+.adv-logo {
+  color: var(--c-gold);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c-gold) 26%, transparent), color-mix(in srgb, var(--c-violet) 26%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-gold) 38%, transparent), 0 12px 30px -14px color-mix(in srgb, var(--c-gold) 60%, transparent);
+}
+.adv-hero {
+  border: 1px solid color-mix(in srgb, var(--tone) 32%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 13%, var(--surface)), var(--surface) 62%);
+  box-shadow: var(--shadow-card);
+}
+.adv-ring {
+  background: conic-gradient(var(--c-gold), transparent 28%, color-mix(in srgb, var(--c-violet) 85%, transparent) 52%, transparent 78%, var(--c-gold));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  animation: adv-spin 9s linear infinite;
+}
+.adv-ring-2 { opacity: .55; animation-duration: 14s; animation-direction: reverse; }
+.adv-cta { position: relative; overflow: hidden; box-shadow: 0 12px 26px -14px var(--tone); transition: transform .2s, box-shadow .2s; }
+.adv-cta:hover { transform: translateY(-2px); box-shadow: 0 18px 32px -14px var(--tone); }
+.adv-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, .38) 50%, transparent 65%);
+  transform: translateX(-130%);
+  animation: adv-shine 4s ease-in-out 1.2s infinite;
 }
 
-.adv-card {
-  animation: adv-in .45s cubic-bezier(.22, 1, .36, 1) both;
+/* the chat and the AI's answer: a coloured bar per heading, its text indented under a thin line of the same colour */
+.adv-answer { border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border)); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
+.adv-user { color: var(--text); background: color-mix(in srgb, var(--tone) 18%, var(--surface)); border: 1px solid color-mix(in srgb, var(--tone) 34%, transparent); }
+.adv-ask { border: 1px solid color-mix(in srgb, var(--tone) 24%, var(--border)); background: color-mix(in srgb, var(--tone) 6%, transparent); transition: transform .2s cubic-bezier(.22, 1, .36, 1), background-color .2s, border-color .2s; }
+.adv-ask:hover, .adv-ask:focus-visible { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tone) 55%, transparent); background: color-mix(in srgb, var(--tone) 12%, transparent); }
+.adv-input { border: 1px solid var(--border); background: var(--bg); transition: border-color .2s, box-shadow .2s; }
+.adv-input:focus-within { border-color: color-mix(in srgb, var(--tone) 70%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 16%, transparent); }
+.adv-input textarea:focus-visible { outline: none; } /* the box around it shows the focus */
+.adv-send { transition: transform .2s, box-shadow .2s, opacity .2s; }
+.adv-send:not(:disabled):hover { transform: scale(1.06); box-shadow: 0 8px 20px -8px var(--tone); }
+.adv-shimmer {
+  background: linear-gradient(90deg, var(--muted) 30%, var(--tone) 50%, var(--muted) 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: adv-shimmer 1.8s linear infinite;
 }
+.adv-p { line-height: 1.75; color: color-mix(in srgb, var(--text) 86%, var(--muted)); }
+.adv-h-bar { width: 4px; height: 1.05em; flex: none; border-radius: 99px; background: var(--tone); box-shadow: 0 0 12px color-mix(in srgb, var(--tone) 65%, transparent); }
+.adv-sec { margin-inline-start: 1.5px; padding-inline-start: 1.05rem; border-inline-start: 1px solid color-mix(in srgb, var(--tone) 28%, transparent); }
+@media (max-width: 639px) { .adv-sec { padding-inline-start: .75rem; } }
+.adv-bullet { width: 6px; height: 6px; flex: none; margin-top: .68em; border-radius: 99px; background: var(--tone); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 18%, transparent); }
+.adv-next { border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 15%, transparent), color-mix(in srgb, var(--tone) 4%, transparent)); }
+.adv-code { padding: .1em .35em; border-radius: .35rem; font-size: .88em; background: color-mix(in srgb, var(--text) 9%, transparent); }
+.adv-up, .adv-down, .adv-num { font-weight: 600; font-variant-numeric: tabular-nums; }
+.adv-up { color: var(--c-emerald); }
+.adv-down { color: var(--loss); }
+.adv-num { color: var(--text); }
 
-@keyframes adv-dot {
-  0%, 80%, 100% {
-    opacity: .25;
-    transform: translateY(0);
-  }
-
-  40% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
-}
-
-.adv-dot {
-  animation: adv-dot 1s ease-in-out infinite;
-}
-
-.adv-msg {
-  animation: adv-in .3s cubic-bezier(.22, 1, .36, 1) both;
-}
+/* advice cards and their section headings */
+.adv-item { border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border)); background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 8%, var(--surface)), var(--surface) 58%); box-shadow: var(--shadow-card); }
+.adv-lift { transition: transform .3s cubic-bezier(.22, 1, .36, 1), box-shadow .3s, border-color .3s; }
+.adv-lift:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--tone) 50%, var(--border)); box-shadow: 0 20px 40px -26px color-mix(in srgb, var(--tone) 75%, transparent); }
+.adv-do { background: color-mix(in srgb, var(--tone) 9%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 20%, transparent); }
+.adv-rule { height: 1px; background: linear-gradient(to right, color-mix(in srgb, var(--tone) 55%, transparent), transparent); transform-origin: left; }
+[dir="rtl"] .adv-rule { background: linear-gradient(to left, color-mix(in srgb, var(--tone) 55%, transparent), transparent); transform-origin: right; }
+.adv-reveal .adv-rule { transform: scaleX(0); transition: transform 1s cubic-bezier(.22, 1, .36, 1) .15s; }
+.adv-reveal[data-in] .adv-rule { transform: none; }
+.adv-meter span { transform-origin: bottom; }
+.adv-reveal .adv-meter span { transform: scaleY(.3); transition: transform .5s cubic-bezier(.34, 1.56, .64, 1) calc(var(--d, 0ms) + 250ms); }
+.adv-reveal[data-in] .adv-meter span { transform: none; }
+.adv-reveal[data-in] .adv-meter span:nth-child(2) { transition-delay: calc(var(--d, 0ms) + 330ms); }
+.adv-reveal[data-in] .adv-meter span:nth-child(3) { transition-delay: calc(var(--d, 0ms) + 410ms); }
+.adv-grow { animation: adv-grow 1.2s cubic-bezier(.22, 1, .36, 1) .2s backwards; transform-origin: left; }
+[dir="rtl"] .adv-grow { transform-origin: right; }
 
 @media (prefers-reduced-motion: reduce) {
-  .adv-card,
-  .adv-dot,
-  .adv-msg {
-    animation: none;
-  }
+  .adv-dot, .adv-msg, .adv-pop, .adv-orb, .adv-twinkle, .adv-ring, .adv-shimmer, .adv-grow, .adv-cta::after { animation: none; }
+  .adv-reveal, .adv-reveal .adv-rule, .adv-reveal .adv-meter span { opacity: 1; transform: none; transition: none; }
+  .adv-lift:hover, .adv-ask:hover, .adv-ask:focus-visible, .adv-cta:hover, .adv-send:not(:disabled):hover { transform: none; }
+}
+@media print {
+  .adv-reveal, .adv-reveal .adv-rule, .adv-reveal .adv-meter span { opacity: 1 !important; transform: none !important; }
 }
 
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
