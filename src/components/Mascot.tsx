@@ -1,6 +1,6 @@
 // The advisor's mascot: a trading candlestick with a face (body = the candle, top wick = a tuft, bottom wick = its leg),
 // always moving. Four moods; the drawing is here, the motion in index.css (.cs-*).
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 
 export type Mood = "happy" | "sad" | "angry" | "jealous";
 export const MOODS: Mood[] = ["happy", "sad", "angry", "jealous"];
@@ -89,8 +89,8 @@ function extras(mood: Mood) {
     </g>`;
 }
 
-function svg(mood: Mood, g: string) {
-  const P = PAL[mood], front = mood === "jealous" ? extras(mood) : "";
+function svg(mood: Mood, g: string, bare: boolean) {
+  const P = PAL[mood], front = mood === "jealous" && !bare ? extras(mood) : "";
   return `<svg class="cs cs-${mood}" viewBox="0 0 240 280" aria-hidden="true" focusable="false">
   <defs><linearGradient id="${g}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${P[0]}"/><stop offset=".45" stop-color="${P[1]}"/><stop offset="1" stop-color="${P[2]}"/></linearGradient></defs>
   <ellipse class="cs-shadow" cx="120" cy="266" rx="40" ry="7" fill="#000"/>
@@ -116,8 +116,26 @@ function svg(mood: Mood, g: string) {
 </svg>`;
 }
 
-/** The candle in a mood; size it with className (the drawing keeps a 6:7 ratio). Static drawing, no user text. */
-export default function Mascot({ mood, className = "" }: { mood: Mood; className?: string }) {
+/** The candle in a mood; size it with className (the drawing keeps a 6:7 ratio). Static drawing, no user text.
+ *  `bare`: without the plan's gold candle beside the jealous one (when it stands with the others). */
+export default function Mascot({ mood, className = "", bare = false }: { mood: Mood; className?: string; bare?: boolean }) {
   const g = `cs${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  return <span aria-hidden="true" className={`cs-wrap ${className}`} dangerouslySetInnerHTML={{ __html: svg(mood, g) }} />;
+  return <span aria-hidden="true" className={`cs-wrap ${className}`} dangerouslySetInnerHTML={{ __html: svg(mood, g, bare) }} />;
+}
+
+// where each spark of gold flies when the candle is full
+const SPARKS: [number, number][] = [[-7, -2], [-5, -6], [0, -8], [5, -6], [7, -2], [-3, -9], [3, -9]];
+/** The Advisor's icon: a candle that fills up like a rising price, then scatters gold; drawn in currentColor, so it
+ *  follows the menu's colours (motion in index.css, .ci-*). Same props as the menu's other icons. */
+export function CandleIcon({ size = 24, strokeWidth = 2, className = "" }: { size?: number; strokeWidth?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={`ci ${className}`} aria-hidden="true" style={{ overflow: "visible" }}>
+      <path d="M12 2.6V6.5M12 19.5V22" />
+      <rect x="8" y="6.5" width="8" height="13" rx="1.6" />
+      <rect className="ci-fill" x="8" y="6.5" width="8" height="13" rx="1.6" fill="currentColor" stroke="none" />
+      <g className="ci-burst" fill="currentColor" stroke="none">
+        {SPARKS.map(([dx, dy], i) => <circle key={i} cx="12" cy="4" r="1.15" style={{ "--dx": `${dx}px`, "--dy": `${dy}px`, animationDelay: `${(i % 3) * 40}ms` } as CSSProperties} />)}
+      </g>
+    </svg>
+  );
 }

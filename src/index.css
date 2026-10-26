@@ -610,9 +610,7 @@ h6 {
    stops for reduced-motion users and everything shows when printing. */
 @keyframes adv-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes adv-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
-@keyframes adv-float { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-18px, 14px) scale(1.08); } }
 @keyframes adv-twinkle { 0%, 72%, 100% { transform: scale(1) rotate(0); } 80% { transform: scale(1.2) rotate(-10deg); } 88% { transform: scale(.94) rotate(5deg); } }
-@keyframes adv-spin { to { transform: rotate(360deg); } }
 @keyframes adv-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @keyframes adv-shine { 0%, 62% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
 @keyframes adv-grow { from { transform: scaleX(0); } }
@@ -623,37 +621,7 @@ h6 {
 .adv-pop { animation: adv-in .5s cubic-bezier(.22, 1, .36, 1) backwards; animation-delay: var(--d, 0ms); }
 .adv-reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0ms), transform .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0ms); }
 .adv-reveal[data-in] { opacity: 1; transform: none; }
-.adv-orb { animation: adv-float 10s ease-in-out infinite; }
 .adv-twinkle { animation: adv-twinkle 3.4s ease-in-out infinite; }
-
-.adv-logo {
-  color: var(--c-gold);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--c-gold) 26%, transparent), color-mix(in srgb, var(--c-violet) 26%, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-gold) 38%, transparent), 0 12px 30px -14px color-mix(in srgb, var(--c-gold) 60%, transparent);
-}
-.adv-hero {
-  border: 1px solid color-mix(in srgb, var(--tone) 32%, var(--border));
-  background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 13%, var(--surface)), var(--surface) 62%);
-  box-shadow: var(--shadow-card);
-}
-.adv-ring {
-  background: conic-gradient(var(--c-gold), transparent 28%, color-mix(in srgb, var(--c-violet) 85%, transparent) 52%, transparent 78%, var(--c-gold));
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
-  animation: adv-spin 9s linear infinite;
-}
-.adv-ring-2 { opacity: .55; animation-duration: 14s; animation-direction: reverse; }
-.adv-cta { position: relative; overflow: hidden; box-shadow: 0 12px 26px -14px var(--tone); transition: transform .2s, box-shadow .2s; }
-.adv-cta:hover { transform: translateY(-2px); box-shadow: 0 18px 32px -14px var(--tone); }
-.adv-cta::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, .38) 50%, transparent 65%);
-  transform: translateX(-130%);
-  animation: adv-shine 4s ease-in-out 1.2s infinite;
-}
 
 /* the chat and the AI's answer: a coloured bar per heading, its text indented under a thin line of the same colour */
 .adv-answer { border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border)); background: color-mix(in srgb, var(--bg) 60%, var(--surface)); }
@@ -703,9 +671,9 @@ h6 {
 [dir="rtl"] .adv-grow { transform-origin: right; }
 
 @media (prefers-reduced-motion: reduce) {
-  .adv-dot, .adv-msg, .adv-pop, .adv-orb, .adv-twinkle, .adv-ring, .adv-shimmer, .adv-grow, .adv-cta::after { animation: none; }
+  .adv-dot, .adv-msg, .adv-pop, .adv-twinkle, .adv-shimmer, .adv-grow { animation: none; }
   .adv-reveal, .adv-reveal .adv-rule, .adv-reveal .adv-meter span { opacity: 1; transform: none; transition: none; }
-  .adv-lift:hover, .adv-ask:hover, .adv-ask:focus-visible, .adv-cta:hover, .adv-send:not(:disabled):hover { transform: none; }
+  .adv-lift:hover, .adv-ask:hover, .adv-ask:focus-visible, .adv-send:not(:disabled):hover { transform: none; }
 }
 @media print {
   .adv-reveal, .adv-reveal .adv-rule, .adv-reveal .adv-meter span, .adv-reveal .adv-hbar { opacity: 1 !important; transform: none !important; }
@@ -815,6 +783,124 @@ h6 {
 .cs-ghost { animation: cs-glow 3.2s ease-in-out infinite; }
 @keyframes cs-glow { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cs * { animation: none !important; } }
+
+/* The Advisor's menu icon (CandleIcon): the candle fills up like a rising price, then scatters gold */
+.ci-fill { transform-box: fill-box; transform-origin: bottom; animation: ci-fill 3.2s cubic-bezier(.45, 0, .2, 1) infinite; }
+@keyframes ci-fill { 0% { transform: scaleY(.06); opacity: .8; } 46% { transform: scaleY(1); opacity: .9; } 52% { opacity: 1; } 88% { transform: scaleY(1); opacity: .9; } 100% { transform: scaleY(.06); opacity: .8; } }
+.ci-burst circle { opacity: 0; transform-box: fill-box; transform-origin: center; animation: ci-burst 3.2s ease-out infinite; }
+@keyframes ci-burst { 0%, 46% { opacity: 0; transform: translate(0, 0) scale(.6); } 52% { opacity: 1; transform: translate(0, 0) scale(1.25); } 84%, 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.45); } }
+@media (prefers-reduced-motion: reduce) { .ci-fill { animation: none; } .ci-burst { display: none; } }
+
+/* The Advisor's plan card (PlanCard.tsx): dark and gold in every theme, the page's centre of attention */
+.pc {
+  color: #fff;
+  border: 1px solid rgba(245, 184, 61, .3);
+  background:
+    radial-gradient(70% 90% at 82% 8%, rgba(245, 184, 61, .17), transparent 62%),
+    radial-gradient(50% 70% at 10% 110%, rgba(167, 139, 250, .1), transparent 70%),
+    linear-gradient(160deg, #16120a 0%, #0b0a07 46%, #060606 100%);
+  box-shadow: 0 34px 70px -34px rgba(30, 20, 2, .65), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+[dir="rtl"] .pc {
+  background:
+    radial-gradient(70% 90% at 18% 8%, rgba(245, 184, 61, .17), transparent 62%),
+    radial-gradient(50% 70% at 90% 110%, rgba(167, 139, 250, .1), transparent 70%),
+    linear-gradient(200deg, #16120a 0%, #0b0a07 46%, #060606 100%);
+}
+.pc-grid {
+  background-image: linear-gradient(rgba(245, 184, 61, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(245, 184, 61, .055) 1px, transparent 1px);
+  background-size: 34px 34px;
+  -webkit-mask-image: linear-gradient(to left, #000 25%, transparent 80%);
+  mask-image: linear-gradient(to left, #000 25%, transparent 80%);
+}
+[dir="rtl"] .pc-grid { -webkit-mask-image: linear-gradient(to right, #000 25%, transparent 80%); mask-image: linear-gradient(to right, #000 25%, transparent 80%); }
+.pc-chip-gold { color: #f5c25a; background: rgba(245, 184, 61, .12); border: 1px solid rgba(245, 184, 61, .38); }
+.pc-chip-gray { color: #b9b3a4; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); }
+.pc-big { background: linear-gradient(180deg, #ffe9a8 0%, #f5b83d 55%, #c98a12 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 22px rgba(245, 184, 61, .35)); }
+.pc-cap { color: #c9bf9f; }
+.pc-muted { color: #a39d8e; }
+.pc-now { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); }
+.pc-plan { background: rgba(245, 184, 61, .1); border: 1px solid rgba(245, 184, 61, .45); box-shadow: 0 0 24px -8px rgba(245, 184, 61, .5); }
+.pc-chev span { opacity: .25; animation: pc-chev 1.4s ease-in-out infinite; }
+.pc-chev span:nth-child(2) { animation-delay: .18s; }
+.pc-chev span:nth-child(3) { animation-delay: .36s; }
+@keyframes pc-chev { 0%, 100% { opacity: .2; } 40% { opacity: 1; } }
+.pc-step { color: #f1ead8; background: rgba(255, 255, 255, .035); border: 1px solid rgba(245, 184, 61, .26); }
+.pc-num { color: #1a1200; background: linear-gradient(180deg, #ffd36b, #e0a32c); }
+.pc-ico { color: #5ab8f0; background: rgba(90, 184, 240, .14); }
+.pc-cta {
+  position: relative;
+  overflow: hidden;
+  color: #1a1200;
+  background: linear-gradient(180deg, #ffd36b, #f5b83d 60%, #d99a1c);
+  box-shadow: 0 14px 30px -14px rgba(245, 184, 61, .9), inset 0 1px 0 rgba(255, 255, 255, .5);
+  transition: transform .2s;
+}
+.pc-cta:hover { transform: translateY(-2px); }
+.pc-cta::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, .55) 50%, transparent 65%); transform: translateX(-130%); animation: adv-shine 4s ease-in-out 1.6s infinite; }
+.pc-board { background: rgba(255, 255, 255, .035); border: 1px solid rgba(245, 184, 61, .2); }
+.pc-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pc-draw 1.6s cubic-bezier(.45, 0, .2, 1) .25s forwards; }
+@keyframes pc-draw { to { stroke-dashoffset: 0; } }
+.pc-gap { opacity: 0; animation: pc-fade .9s ease 1.4s forwards; }
+.pc-endl { opacity: 0; animation: pc-fade .5s ease 1.7s forwards; }
+@keyframes pc-fade { to { opacity: 1; } }
+.pc-pulse { transform-box: fill-box; transform-origin: center; animation: pc-pulse 1.6s ease-in-out 1.8s infinite; }
+@keyframes pc-pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.9); opacity: .15; } }
+/* the candles take turns talking: one bubble after another, then the happy one's bulb lights up */
+.pc-bub {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: 172px;
+  padding: 6px 11px;
+  border: 2px solid var(--tone);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #1c1024;
+  background: #fff;
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, .6);
+  transform-origin: bottom center;
+  opacity: 0;
+  animation: pc-talk 8s ease-in-out infinite;
+}
+.pc-bub::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--tone); }
+.pc-s1 .pc-bub { animation-delay: 1.6s; }
+.pc-s2 .pc-bub { animation-delay: 3s; }
+.pc-s3 .pc-bub { animation-delay: 4.4s; }
+.pc-s4 .pc-bub { animation-delay: 5.8s; }
+@keyframes pc-talk {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(.8); }
+  4%, 28% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  33%, 100% { opacity: 0; transform: translate(-50%, -6px) scale(.95); }
+}
+.pc-bulb { position: absolute; bottom: calc(100% + 44px); left: 50%; margin-left: -15px; opacity: 0; filter: drop-shadow(0 0 12px rgba(255, 214, 90, .9)); animation: pc-bulb 8s ease-in-out 5.8s infinite; }
+@keyframes pc-bulb { 0% { opacity: 0; transform: translateY(10px) scale(.4); } 5% { opacity: 1; transform: translateY(0) scale(1.15); } 8%, 30% { opacity: 1; transform: none; } 36%, 100% { opacity: 0; } }
+@media (max-width: 639px) {
+  /* narrow seats: one bubble at a time */
+  .pc-bub { max-width: 118px; padding: 5px 8px; font-size: 11px; animation-name: pc-talk-sm; }
+  .pc-s1 .pc-bub { animation-delay: 1.2s; }
+  .pc-s2 .pc-bub { animation-delay: 2.9s; }
+  .pc-s3 .pc-bub { animation-delay: 4.6s; }
+  .pc-s4 .pc-bub { animation-delay: 6.3s; }
+  .pc-bulb { animation-delay: 6.3s; }
+  @keyframes pc-talk-sm {
+    0% { opacity: 0; transform: translate(-50%, 8px) scale(.8); }
+    3%, 17% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    20%, 100% { opacity: 0; transform: translate(-50%, -6px) scale(.95); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc *, .pc *::after { animation: none !important; }
+  .pc-draw { stroke-dashoffset: 0; }
+  .pc-gap, .pc-endl, .pc-bub, .pc-bulb { opacity: 1; }
+  .pc-bub { transform: translateX(-50%); }
+  .pc-cta:hover { transform: none; }
+}
 
 /* Dashboard KPI cards: hide the small gauge when the card content is narrow so the value is never truncated */
 @container (max-width: 140px) { .kpi-visual { display: none; } }

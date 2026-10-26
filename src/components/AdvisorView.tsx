@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowRight, ArrowUpDown, Check, CircleCheck, Clock3, Coins, Crosshair, Eye, Flag, Flame, Info, ListChecks, MessagesSquare, Route, ShieldCheck, Sparkles, Star, Wrench, X as Drop, type LucideIcon } from "lucide-react";
 import AdvisorChat, { dly, tint } from "./AdvisorChat";
 import Mascot, { MOODS, type Mood } from "./Mascot";
+import PlanCard from "./PlanCard";
 import type { Tone } from "./profileUi";
 import { inputsFor, presetWhatIf } from "./WhatIfTab";
 import { advise, journalContext, MIN_TRADES, type Advice, type Plan, type Topic } from "../lib/advisor";
-import { NO_RULES, simulate, type Rules, type SimInput } from "../lib/whatif";
+import { curves, NO_RULES, simulate, type Rules, type SimInput } from "../lib/whatif";
 import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
 import { fmtHold } from "../lib/stats";
 import type { Account, Lang, Trade } from "../types";
@@ -94,7 +95,7 @@ const SIDE: Record<string, L> = { long: X("longs", "الشراء", "achats"), sh
 const ICON: Record<Topic, LucideIcon> = { discipline: ShieldCheck, timing: Clock3, symbols: Coins, direction: ArrowUpDown, exits: Crosshair, behaviour: Flame, risk: AlertTriangle };
 /** One colour per kind of advice: its section, its cards, its tile in the bar and the plan's chips. */
 const KIND: Record<Advice["kind"], { tone: Tone; icon: LucideIcon; title: L; id: string }> = {
-  fix: { tone: "rose", icon: Wrench, title: TXT.fix, id: "adv-fix" },
+  fix: { tone: "sky", icon: Wrench, title: TXT.fix, id: "adv-fix" },
   watch: { tone: "amber", icon: Eye, title: TXT.watch, id: "adv-watch" },
   strength: { tone: "emerald", icon: Star, title: TXT.strength, id: "adv-works" },
 };
@@ -138,19 +139,6 @@ function moodOf(inputs: SimInput[], plan: Plan["plan"], adopted: Adopted[]): Moo
   return { mood: "happy", why: "day", day, v: net };
 }
 
-/** A figure that counts up to its value (at once for reduced-motion users). */
-function useCount(target: number, ms = 1100) {
-  const [v, setV] = useState(0);
-  useEffect(() => {
-    if (still()) { setV(target); return; }
-    let raf = 0;
-    const t0 = performance.now();
-    const step = (t: number) => { const p = Math.min(1, (t - t0) / ms); setV(target * (1 - (1 - p) ** 3)); if (p < 1) raf = requestAnimationFrame(step); };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, ms]);
-  return v;
-}
 /** Elements with .adv-reveal rise in the first time they scroll into view. */
 function useReveal(dep: unknown) {
   const root = useRef<HTMLDivElement>(null);
@@ -178,8 +166,15 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
   const inputs = useMemo(() => inputsFor(list, trades), [list, trades]);
   const res: Plan = useMemo(() => advise(inputs), [inputs]);
   const actual = useMemo(() => inputs.reduce((s, x) => s + (x.trade.pnl as number), 0), [inputs]);
+  const losing = useMemo(() => inputs.filter((x) => (x.trade.pnl as number) < 0).length, [inputs]);
+  // both running totals for the plan card: yours, and with the plan's rules (or yours alone when there is no plan)
+  const curve = useMemo(() => {
+    if (res.plan) { const c = curves(simulate(inputs, { ...NO_RULES, ...res.plan.rules })); return { a: c.a, b: c.b }; }
+    const order = [...inputs].sort((x, y) => (x.trade.exitTime ?? "").localeCompare(y.trade.exitTime ?? "") || x.trade.no - y.trade.no);
+    let run = 0;
+    return { a: [0, ...order.map((x) => (run += x.trade.pnl as number))], b: null };
+  }, [inputs, res]);
   const mood = useMemo(() => moodOf(inputs, res.plan, adopted), [inputs, res, adopted]);
-  const shown = useCount(res.plan?.impact ?? 0);
   const root = useReveal(res);
   useEffect(() => { try { localStorage.setItem(RULES, JSON.stringify(adopted)); } catch { /* storage full or blocked */ } }, [adopted]);
   useEffect(() => { if (!peek) return; const t = setTimeout(() => setPeek(null), 5000); return () => clearTimeout(t); }, [peek]);
@@ -320,7 +315,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
   };
   const tiles: { id: string; tone: Tone; icon: LucideIcon; label: L; n: number }[] = [
     ...(["fix", "watch", "strength"] as const).map((x) => ({ id: KIND[x].id, tone: KIND[x].tone, icon: KIND[x].icon, label: KIND[x].title, n: byKind(x).length })),
-    { id: "adv-plan", tone: "sky", icon: ListChecks, label: TXT.tradesTile, n: res.trades },
+    { id: "adv-plan", tone: "gold", icon: ListChecks, label: TXT.tradesTile, n: res.trades },
   ];
   const myRules = adopted.map((r) => ({ r, s: keptSince(inputs, r) }));
   let rulesEl: ReactNode = null;
@@ -417,57 +412,8 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
             </div>
           </nav>
 
-          <section id="adv-plan" className="tone-gold adv-hero adv-pop relative scroll-mt-28 overflow-hidden rounded-3xl p-5 sm:p-6 md:p-8">
-            <span aria-hidden="true" className="adv-orb pointer-events-none absolute -end-16 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "color-mix(in srgb, var(--c-gold) 26%, transparent)" }} />
-            <span aria-hidden="true" className="adv-orb pointer-events-none absolute -bottom-28 start-1/4 h-64 w-64 rounded-full blur-3xl" style={{ background: "color-mix(in srgb, var(--c-violet) 16%, transparent)", animationDelay: "-4.5s" }} />
-            <div className="relative flex flex-wrap items-center gap-8">
-              <div className="min-w-0 flex-1 basis-80">
-                <div className="flex flex-wrap gap-2">
-                  <span className="tone-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"><Sparkles size={13} />{T(TXT.yourPlan)}</span>
-                  <span className="tone-slate tone-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"><ListChecks size={13} />{ltrNumbers(T(TXT.analysed).replace("{n}", String(res.trades)))}</span>
-                </div>
-                {res.plan ? (
-                  <>
-                    <div className="mt-5"><bdi dir="ltr" className="tone-emerald tone-text font-heading text-4xl font-bold leading-none tnum sm:text-5xl md:text-6xl">{money(Math.round(shown), true)}</bdi></div>
-                    <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-muted">{ltrNumbers((planned.length > 1 ? T(TXT.planCap) : T(TXT.planCap1)).replace("{n}", String(planned.length)))}</p>
-                    <div className="mt-5 max-w-xl space-y-2.5">
-                      {([[TXT.actual, actual, "slate"], [TXT.withPlan, actual + res.plan.impact, "emerald"]] as const).map(([lb, v, tone], j) => {
-                        const top = Math.max(Math.abs(actual), Math.abs(actual + res.plan!.impact)) || 1;
-                        return (
-                          <div key={j} className="grid grid-cols-[6.5rem_1fr_auto] items-center gap-3 sm:grid-cols-[8rem_1fr_auto]">
-                            <span className="text-xs font-medium text-muted">{T(lb)}</span>
-                            <span className="h-2.5 overflow-hidden rounded-full" style={{ background: "color-mix(in srgb, var(--text) 8%, transparent)" }}>
-                              <span className="adv-grow block h-full rounded-full" style={{ width: `${Math.max(4, (Math.abs(v) / top) * 100)}%`, background: v < 0 ? "var(--loss)" : `var(--c-${tone})`, animationDelay: `${300 + j * 180}ms` }} />
-                            </span>
-                            <bdi dir="ltr" className="text-sm font-bold tnum" style={{ color: v < 0 ? "var(--loss)" : `var(--c-${tone})` }}>{money(v, true)}</bdi>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {planned.map((a, i) => {
-                        const Icon = ICON[a.topic];
-                        return <span key={a.id} className="tone-rose tone-chip adv-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium" style={dly(250 + i * 90)}><Icon size={13} />{text(a, 0)}</span>;
-                      })}
-                    </div>
-                    <button type="button" onClick={() => tryRules(res.plan!.rules)} className="tone-solid adv-cta mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold">
-                      <Sparkles size={15} />{T(TXT.tryPlan)}
-                    </button>
-                  </>
-                ) : (
-                  <div className="mt-5 flex items-center gap-3">
-                    <span className="tone-emerald tone-tile h-11 w-11 rounded-xl"><CircleCheck size={20} /></span>
-                    <p className="font-heading text-lg font-semibold text-text">{T(TXT.clean)}</p>
-                  </div>
-                )}
-              </div>
-              <div aria-hidden="true" className="relative hidden h-36 w-36 shrink-0 place-items-center sm:grid">
-                <span className="adv-ring absolute inset-0 rounded-full" />
-                <span className="adv-ring adv-ring-2 absolute inset-3 rounded-full" />
-                <span className="tone-tile relative h-24 w-24 rounded-full"><Sparkles size={34} className="adv-twinkle" /></span>
-              </div>
-            </div>
-          </section>
+          <PlanCard lang={lang} currency={currency} trades={res.trades} impact={res.plan?.impact ?? null} actual={actual} losing={losing} curve={curve}
+            steps={planned.map((a) => ({ key: a.id, title: text(a, 0), icon: ICON[a.topic] }))} onTry={() => tryRules(res.plan?.rules ?? null)} />
 
           {rulesEl}
           {group("fix")}
