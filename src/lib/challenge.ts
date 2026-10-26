@@ -26,7 +26,7 @@ export interface Challenge {
   own?: OwnRules; // own: the rules in force
   ownNext?: { rules: OwnRules; from: string }; // own: a loosened set, in force from this time (broker clock, "YYYY-MM-DDTHH:MM")
   ownPast?: { until: string; rules: OwnRules }[]; // own: the earlier sets, each in force until a time (broker clock), oldest first
-  signed?: { name: string; at: string; notify: boolean; rules: string }; // own: the contract with oneself, and the rules it was signed for
+  signed?: { name: string; at: string; notify: boolean; rules: string; sig?: string }; // own: the contract with oneself, the rules it was signed for, the hand-drawn signature (SVG path, 600 × 200)
 }
 
 export type Rule = "daily" | "max" | "time";

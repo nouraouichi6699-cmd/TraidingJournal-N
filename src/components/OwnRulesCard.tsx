@@ -8,6 +8,9 @@ import type { Challenge } from "../lib/challenge";
 import { amount, fromAdvisor, OWN_KEYS, ownState, rulesAt, tidy, type Limit, type OwnKey, type OwnRules } from "../lib/ownRules";
 import { currencySymbol, fmtMoney, ltrNumbers } from "../lib/money";
 import { Bar, BalanceChart, dangerColor, dayLabel, fill, loc, nowFor } from "./challengeUi";
+import SignaturePad, { Signature } from "./SignaturePad";
+import SymbolPicker from "./SymbolPicker";
+import { cleanSymbol } from "../lib/symbols";
 
 type L3 = Record<Lang, string>;
 const X3 = (en: string, ar: string, fr: string): L3 => ({ en, ar, fr });
@@ -74,6 +77,9 @@ export const OT = {
   signedOn: X3("Signed by {n} on {d}", "وقّعه {n} في {d}", "Signé par {n} le {d}"),
   notifyOn: X3("Your partner and coach are told when a rule breaks.", "يُبلَّغ شريكك ومدرّبك عند كسر قاعدة.", "Votre partenaire et votre coach sont prévenus quand une règle est enfreinte."),
   changed: X3("Your rules changed since you signed.", "تغيّرت قواعدك منذ توقيعك.", "Vos règles ont changé depuis votre signature."),
+  sigLabel: X3("Your signature", "توقيعك", "Votre signature"),
+  sigHint: X3("Sign here with your mouse or your finger", "وقّع هنا بالفأرة أو بإصبعك", "Signez ici à la souris ou au doigt"),
+  sigClear: X3("Clear and sign again", "امسح وأعد", "Effacer et recommencer"),
   signAgain: X3("Sign again", "وقّع من جديد", "Signer à nouveau"),
   note: X3("Loss limits on closed trades, by the broker's day. Deposits and withdrawals count as neither profit nor loss.", "حدود الخسارة على الصفقات المغلقة، بحسب يوم الوسيط. الإيداع والسحب لا يُحتسبان ربحاً ولا خسارة.", "Limites de perte sur les trades clôturés, par jour du courtier. Dépôts et retraits ne comptent ni en gain ni en perte."),
   balance: X3("Balance", "الرصيد", "Solde"),
@@ -101,8 +107,10 @@ export const OT = {
   fHours: X3("Trade only between", "التداول فقط بين", "Trader seulement entre"),
   fAnd: X3("and", "و", "et"),
   fDaysOff: X3("Days off", "أيام الراحة", "Jours de repos"),
-  fOnly: X3("Only these markets (empty = all)", "هذه الأسواق فقط (فارغ = الكل)", "Seulement ces marchés (vide = tous)"),
+  fOnly: X3("Only these markets", "هذه الأسواق فقط", "Seulement ces marchés"),
   fAvoid: X3("Never these markets", "تجنّب هذه الأسواق", "Jamais ces marchés"),
+  allMarkets: X3("All markets", "كل الأسواق", "Tous les marchés"),
+  noMarket: X3("None", "لا شيء", "Aucun"),
   fSide: X3("Direction", "الاتجاه", "Sens"),
   sideBoth: X3("Buys and sells", "شراء وبيع", "Achats et ventes"),
   sideLong: X3("Buys only", "الشراء فقط", "Achats uniquement"),
@@ -191,7 +199,7 @@ export function toDraft(r: OwnRules): OwnDraft {
   for (const k of LIMS) { const l = r[k]; d[k] = l ? String(l.v) : ""; d[`${k}U`] = l?.unit ?? "money"; }
   return d;
 }
-const list = (s: string) => [...new Set(s.split(/[\s,;،]+/).map((x) => x.trim().toUpperCase()).filter(Boolean))].slice(0, 40);
+const list = (s: string) => [...new Set(s.split(/[\s,;،]+/).map(cleanSymbol).filter(Boolean))].slice(0, 40);
 /** The rules from the editor, and the fields that do not read. */
 export function fromDraft(d: OwnDraft): { rules: OwnRules; bad: Set<string> } {
   const bad = new Set<string>(), r: OwnRules = { onBreak: d.onBreak };
@@ -241,15 +249,11 @@ export function OwnFields({ lang, d, set, bad, tried, cur, size, symbols }: { la
     </label>
   );
   const whole = (k: "maxTrades" | "streak" | "cool" | "lots", label: string) => <label key={k} className={lbl}>{label}<input className={cls(k)} inputMode={k === "lots" ? "decimal" : "numeric"} dir="ltr" value={d[k]} onChange={(e) => set({ ...d, [k]: e.target.value })} /></label>;
-  const markets = (k: "only" | "avoid", label: string) => {
-    const have = list(d[k]), rest = symbols.filter((s) => !have.includes(s)).slice(0, 8);
-    return (
-      <div className={`${lbl} sm:col-span-2`}>
-        <label className={lbl}>{label}<input className={cls(k)} dir="ltr" placeholder="XAUUSD, EURUSD" value={d[k]} onChange={(e) => set({ ...d, [k]: e.target.value })} /></label>
-        {rest.length > 0 && <span className="flex flex-wrap gap-1.5">{rest.map((s) => <button key={s} type="button" onClick={() => set({ ...d, [k]: [...have, s].join(", ") })} className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-text" dir="ltr">+ {s}</button>)}</span>}
-      </div>
-    );
-  };
+  const markets = (k: "only" | "avoid", label: string) => (
+    <div key={k} className={`${lbl} sm:col-span-2`}>{label}
+      <SymbolPicker multi inline lang={lang} mine={symbols} value={list(d[k])} onChange={(v) => set({ ...d, [k]: v.join(", ") })} label={label} placeholder={L(k === "only" ? OT.allMarkets : OT.noMarket)} />
+    </div>
+  );
   const importAdvisor = () => {
     const cur0 = fromDraft(d).rules;
     set(toDraft({ ...fromAdvisor(adopted as { rules: Partial<import("../lib/whatif").Rules> }[], cur0, size), goal: cur0.goal }));
@@ -340,7 +344,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
   const rules = rulesAt(c, now);
   const s = useMemo(() => ownState(c, c, trades, today, now), [c, trades, today, now]);
   const [ask, setAsk] = useState(false), [all, setAll] = useState(false);
-  const [who, setWho] = useState(c.signed?.name || profileName || ""), [notify, setNotify] = useState(c.signed?.notify ?? true);
+  const [who, setWho] = useState(c.signed?.name || profileName || ""), [notify, setNotify] = useState(c.signed?.notify ?? true), [sig, setSig] = useState("");
   const cur = account.currency, m = (v: number, sign = false) => fmtMoney(v, { sign, currency: cur });
   const pending = c.start > today, ended = s.status === "failed";
   const room = (k: string) => s.rooms.find((x) => x.key === k);
@@ -363,7 +367,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
   const next = c.ownNext && c.ownNext.from > now ? c.ownNext.from : null; // broker clock
   const when = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(loc(lang), o).format(d);
   const signedFor = c.signed && c.signed.rules === JSON.stringify(tidy(rules));
-  const sign = () => onChange({ ...c, signed: { name: who.trim().slice(0, 60), at: new Date().toISOString(), notify, rules: JSON.stringify(tidy(rules)) } });
+  const sign = () => onChange({ ...c, signed: { name: who.trim().slice(0, 60), at: new Date().toISOString(), notify, rules: JSON.stringify(tidy(rules)), sig } });
   const detail = (v: (typeof s.violations)[number]) => {
     const d = (en: string, a: string, fr: string) => ({ en, ar: a, fr })[lang];
     switch (v.key) {
@@ -509,15 +513,16 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
         <p className="mt-2 text-sm text-muted">{L(rules.onBreak === "warn" ? OT.onWarn : rules.onBreak === "day" ? OT.onDay : OT.onEnd)}</p>
         {signedFor && c.signed ? (
           <div className="mt-3 border-t border-dashed border-border pt-3">
-            <p className="font-heading text-lg italic text-primary">{c.signed.name}</p>
+            {c.signed.sig ? <Signature d={c.signed.sig} className="h-16 w-48 sm:h-20 sm:w-60" /> : <p className="font-heading text-lg italic text-primary">{c.signed.name}</p>}
             <p className="text-xs text-muted">{tx(fill(L(OT.signedOn), { n: c.signed.name, d: when(new Date(c.signed.at), { day: "numeric", month: "long", year: "numeric" }) }))}{c.signed.notify ? ` · ${L(OT.notifyOn)}` : ""}</p>
           </div>
         ) : (
           <div className="mt-3 flex flex-col gap-2 border-t border-dashed border-border pt-3">
             {c.signed && <p className="text-xs font-semibold text-[#f59e0b]">{L(OT.changed)}</p>}
             <label className="flex flex-col gap-1.5 text-xs font-medium text-muted">{L(OT.signName)}<input className="field" value={who} maxLength={60} onChange={(e) => setWho(e.target.value)} /></label>
+            <div className="flex flex-col gap-1.5 text-xs font-medium text-muted">{L(OT.sigLabel)}<SignaturePad onChange={setSig} label={L(OT.sigLabel)} hint={L(OT.sigHint)} clearLabel={L(OT.sigClear)} /></div>
             <label className="flex items-start gap-2 text-xs"><input type="checkbox" className="mt-0.5 accent-[var(--icon)]" checked={notify} onChange={(e) => setNotify(e.target.checked)} />{L(OT.notify)}</label>
-            <button type="button" disabled={!who.trim() || !keys.length} onClick={sign} className="inline-flex items-center gap-1.5 self-start rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"><PenLine size={15} />{L(c.signed ? OT.signAgain : OT.sign)}</button>
+            <button type="button" disabled={!who.trim() || !sig || !keys.length} onClick={sign} className="inline-flex items-center gap-1.5 self-start rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"><PenLine size={15} />{L(c.signed ? OT.signAgain : OT.sign)}</button>
           </div>
         )}
       </div>

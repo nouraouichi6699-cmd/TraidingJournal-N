@@ -14,6 +14,7 @@ import { readClock } from "../lib/pathData";
 import { ctxAt, entryBreaks, rulesAt } from "../lib/ownRules";
 import { readChallenges } from "./ChallengeView";
 import { ruleLine } from "./OwnRulesCard";
+import SymbolPicker from "./SymbolPicker";
 import type { Account, Lang, Trade } from "../types";
 
 type L = [string, string, string]; // en, ar, fr
@@ -79,7 +80,7 @@ export default function TradeCheck({ lang, accounts, acc, trades, currency, adop
   const [side, setSide] = useState<"long" | "short">("long");
   const [hour, setHour] = useState(now.getUTCHours());
   const [ahead, setAhead] = useState(0); // 0 = today, then the next six days
-  const symbol = pick && symbols.includes(pick) ? pick : symbols[0] ?? "";
+  const symbol = pick || symbols[0] || "";
   const day = addDays(today, ahead), weekday = weekdayOf(day);
   const res = useMemo(() => checkTrade({ day, hour, weekday, symbol, side }, trades, adopted, plan), [day, hour, weekday, symbol, side, trades, adopted, plan]);
   // the rules of the account's "My own rules" challenges that have started (Challenges page)
@@ -119,9 +120,9 @@ export default function TradeCheck({ lang, accounts, acc, trades, currency, adop
       {!symbols.length ? <p className="mt-4 text-sm text-muted">{T(TXT.none)}</p> : (
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
           <div className="grid content-start gap-3.5 sm:grid-cols-2 lg:grid-cols-1">
-            <label className={lbl}>{T(TXT.market)}
-              <select className="field" value={symbol} onChange={(e) => setPick(e.target.value)}>{symbols.map((s) => <option key={s} value={s}>{s}</option>)}</select>
-            </label>
+            <div className={lbl}>{T(TXT.market)}
+              <SymbolPicker lang={lang} mine={symbols} value={symbol} onChange={setPick} label={T(TXT.market)} />
+            </div>
             <div className={lbl}>{T(TXT.side)}
               <div className="grid grid-cols-2 gap-2" role="group" aria-label={T(TXT.side)}>
                 {(["long", "short"] as const).map((s) => (

@@ -2,6 +2,7 @@
 // trading days, a balance chart against the floor, and the chance to pass from here. A personal challenge runs the
 // trader's own account on the same rules, from its real balance, with a new attempt after a failure.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Building2, Check, Flag, Mountain, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, UserRound, X } from "lucide-react";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import { challengeState, retryStart, TEMPLATES, type Challenge, type ChallengeState } from "../lib/challenge";
@@ -10,6 +11,7 @@ import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import { propOdds } from "../lib/tradeLab";
 import { Bar, BalanceChart, dangerColor, dayLabel, fill, nowFor, todayFor } from "./challengeUi";
+import DateInput, { dayFirst } from "./DateInput";
 import { fromDraft, hasRule, OT, OwnCard, OwnFields, toDraft, type OwnDraft } from "./OwnRulesCard";
 import { loosens, NO_OWN, rulesAt, stricter, tidy, type OwnRules } from "../lib/ownRules";
 
@@ -75,6 +77,7 @@ const T = {
   name: { en: "Name", ar: "الاسم", fr: "Nom" },
   size: { en: "Account size", ar: "حجم الحساب", fr: "Taille du compte" },
   start: { en: "Start day", ar: "يوم البداية", fr: "Jour de début" },
+  calendar: { en: "Calendar", ar: "التقويم", fr: "Calendrier" },
   fTarget: { en: "Profit target % (empty = none)", ar: "هدف الربح % (فارغ = بلا هدف)", fr: "Objectif % (vide = aucun)" },
   fDaily: { en: "Max daily loss %", ar: "أقصى خسارة يومية %", fr: "Perte journalière max %" },
   ofSize: { en: "of the account size", ar: "من حجم الحساب", fr: "de la taille du compte" },
@@ -336,7 +339,8 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
   const field = (k: keyof typeof bad) => `field ${tried && bad[k] ? "!border-[var(--loss)]" : ""}`;
   const lbl = "flex flex-col gap-1.5 text-sm font-medium";
   const firstTrade = (id: string) => trades.filter((t) => t.accountId === id && t.entryTime).map((t) => (t.entryTime as string).slice(0, 10)).sort()[0];
-  return (
+  // on document.body: the page sits in a transformed container, which would pin a fixed overlay to the content area
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ch-form-title" className={`max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-border bg-surface p-6 outline-none ${d.kind === "own" ? "max-w-2xl" : "max-w-xl"}`}>
         <div className="mb-4 flex items-start justify-between gap-4">
@@ -381,8 +385,8 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
                 : <button type="button" onClick={() => setD({ ...d, sizeAuto: true })} className="self-start text-start text-xs font-semibold text-icon hover:underline">{tx(`↺ ${fill(L(T.balAuto), { d: dayLabel(d.start, lang) })}: ${fmtMoney(auto, { currency: acc?.currency ?? null })}`)}</button>)}
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className={lbl}>{L(T.start)}<input className={field("start")} type="date" dir="ltr" value={d.start} onChange={(e) => setD({ ...d, start: e.target.value })} /></label>
-              {firstTrade(d.accountId) && firstTrade(d.accountId) < d.start && <button type="button" onClick={() => setD({ ...d, start: firstTrade(d.accountId) })} className="self-start text-xs font-semibold text-icon hover:underline"><span dir="ltr">↺ {firstTrade(d.accountId)}</span></button>}
+              <label className={lbl}>{L(T.start)}<DateInput className={field("start")} value={d.start} onChange={(v) => setD({ ...d, start: v })} calendarLabel={L(T.calendar)} /></label>
+              {firstTrade(d.accountId) && firstTrade(d.accountId) < d.start && <button type="button" onClick={() => setD({ ...d, start: firstTrade(d.accountId) })} className="self-start text-xs font-semibold text-icon hover:underline"><span dir="ltr">↺ {dayFirst(firstTrade(d.accountId))}</span></button>}
             </div>
             {prop && (
               <>
@@ -413,7 +417,8 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

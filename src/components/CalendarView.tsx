@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
 import HeartButton from "./HeartButton";
+import DateInput from "./DateInput";
 import { evKey, type Interests } from "../useInterests";
 import fUS from "flag-icons/flags/1x1/us.svg?url";
 import fEU from "flag-icons/flags/1x1/eu.svg?url";
@@ -251,8 +252,8 @@ export default function CalendarView({ t, lang, interests }: { t: (k: Key) => st
           </button>
           {pickDate && (
             <div className="absolute end-0 z-30 mt-2 flex w-64 flex-col gap-2 rounded-xl border border-border bg-surface p-3 shadow-xl">
-              <label className="flex flex-col gap-1 text-xs text-muted">{t("calFrom")}<input type="date" className="field" value={from} onChange={(e) => { setFrom(e.target.value); setQuick("custom"); }} /></label>
-              <label className="flex flex-col gap-1 text-xs text-muted">{t("calTo")}<input type="date" className="field" value={to} min={from} onChange={(e) => { setTo(e.target.value); setQuick("custom"); }} /></label>
+              <label className="flex flex-col gap-1 text-xs text-muted">{t("calFrom")}<DateInput value={from} onChange={(v) => { setFrom(v); setQuick("custom"); }} calendarLabel={t("calRange")} /></label>
+              <label className="flex flex-col gap-1 text-xs text-muted">{t("calTo")}<DateInput value={to} min={from} onChange={(v) => { setTo(v); setQuick("custom"); }} calendarLabel={t("calRange")} /></label>
               <button type="button" className={pill(false)} onClick={() => setPickDate(false)}>OK</button>
             </div>
           )}

@@ -15,7 +15,7 @@ export function nowFor(a: Account | undefined, now = Date.now()) {
 /** Today in the account's clock (YYYY-MM-DD). */
 export const todayFor = (a: Account | undefined, now = Date.now()) => nowFor(a, now).slice(0, 10);
 export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
-export const loc = (lang: Lang) => (lang === "ar" ? "ar-u-nu-latn" : lang);
+export const loc = (lang: Lang) => (lang === "ar" ? "ar-u-nu-latn" : lang === "en" ? "en-GB" : lang); // day before month in every language
 export const dayLabel = (d: string, lang: Lang) => new Intl.DateTimeFormat(loc(lang), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
 export const dangerColor = (u: number) => (u >= 0.8 ? "#f87171" : u >= 0.5 ? "#f59e0b" : "var(--icon)");
 

@@ -5,6 +5,7 @@ import { signed } from "../lib/cashflow";
 import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
+import DateInput from "./DateInput";
 import type { Account, Lang } from "../types";
 
 type L = [string, string, string];
@@ -53,7 +54,7 @@ export default function CashFlowPanel({ lang, accounts, flows, onAdd, onRemove }
               <select value={acc} onChange={(e) => setAccountId(e.target.value)} className={field}>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
             </label>
           )}
-          <label className="grid gap-1 text-[11px] text-muted">{T(X.date)}<input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={field} /></label>
+          <label className="grid gap-1 text-[11px] text-muted">{T(X.date)}<DateInput required value={date} onChange={setDate} className={field} wrapClass="w-40" calendarLabel={T(X.date)} /></label>
           <label className="grid gap-1 text-[11px] text-muted">{T(X.type)}
             <select value={type} onChange={(e) => setType(e.target.value as CashFlowType)} className={field}>{TYPES.map((x) => <option key={x} value={x}>{T(X[x])}</option>)}</select>
           </label>
