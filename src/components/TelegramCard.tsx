@@ -1,7 +1,7 @@
 // Profile › Telegram alerts: link a Telegram chat, choose the alerts by group (each group has its own colour), test,
 // unlink; then the people who help: the accountability partner and the coach (invite, who it is, what the coach gets).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarCheck, CalendarRange, CandlestickChart, ClipboardCheck, Flag, GraduationCap, Handshake, Mic, Newspaper, Radar, Receipt, Send, ShieldAlert, ShieldOff, Sunrise, TrendingDown, Users, WifiOff, type LucideIcon } from "lucide-react";
+import { CalendarCheck, CalendarRange, CandlestickChart, ClipboardCheck, Flag, GraduationCap, Handshake, ListChecks, Mic, Newspaper, Radar, Receipt, Send, ShieldAlert, ShieldOff, Sunrise, TrendingDown, Users, WifiOff, type LucideIcon } from "lucide-react";
 import type { Lang } from "../types";
 import { TG_COACH, TG_PREFS, tgCoachInvite, tgCoachPrefs, tgCoachRemove, tgInfo, tgLink, tgLinked, tgPartnerInvite, tgPartnerRemove, tgPrefs, tgTest, tgUnlink, tgWatcherNow, type TgCoach, type TgCoachPrefs, type TgError, type TgPartner, type TgPrefs, type TgRole } from "../lib/telegram";
 import { SectionHead, Switch, type Tone } from "./profileUi";
@@ -42,6 +42,8 @@ const T = {
   streak_d: { en: "A reminder to stop and take a break before the next trade.", ar: "تذكير بالتوقف وأخذ استراحة قبل الصفقة القادمة.", fr: "Un rappel pour arrêter et faire une pause avant le prochain trade." },
   stale: { en: "MT5 stopped syncing", ar: "توقف مزامنة MT5", fr: "Synchro MT5 arrêtée" },
   stale_d: { en: "When the sync stops for an hour while trades are open.", ar: "عندما تتوقف المزامنة ساعة كاملة وعندك صفقات مفتوحة.", fr: "Quand la synchro s'arrête une heure avec des trades ouverts." },
+  myRules: { en: "My Advisor rules", ar: "قواعدي من المستشار", fr: "Mes règles du conseiller" },
+  myRules_d: { en: "The rules you adopted, each morning at 08:00, and a warning when a new trade breaks one.", ar: "القواعد التي تبنّيتها كل صباح في الثامنة، وتحذير عندما تكسر صفقة جديدة إحداها.", fr: "Vos règles adoptées chaque matin à 8 h, et un avertissement quand un nouveau trade en enfreint une." },
   rules: { en: "Challenge warnings", ar: "تنبيهات التحديات", fr: "Alertes de challenge" },
   rules_d: { en: "At half and at 80% of a loss limit, when a limit is passed, and at the target.", ar: "عند استهلاك نصف حد الخسارة و80% منه، وعند تجاوزه، وعند بلوغ الهدف.", fr: "À la moitié et à 80 % d'une limite de perte, quand une limite est dépassée, et à l'objectif." },
   morning: { en: "Morning plan", ar: "خطة الصباح", fr: "Plan du matin" },
@@ -93,7 +95,7 @@ const T = {
 /** The alerts in four groups, each with its colour and an icon per alert. */
 const GROUPS: { tone: Tone; icon: LucideIcon; title: L3; items: { k: keyof TgPrefs; icon: LucideIcon }[] }[] = [
   { tone: "sky", icon: CandlestickChart, title: T.gTrades, items: [{ k: "trades", icon: Receipt }, { k: "entry", icon: ClipboardCheck }, { k: "danger", icon: Radar }] },
-  { tone: "rose", icon: ShieldAlert, title: T.gProtect, items: [{ k: "nosl", icon: ShieldOff }, { k: "streak", icon: TrendingDown }, { k: "stale", icon: WifiOff }] },
+  { tone: "rose", icon: ShieldAlert, title: T.gProtect, items: [{ k: "nosl", icon: ShieldOff }, { k: "streak", icon: TrendingDown }, { k: "stale", icon: WifiOff }, { k: "myRules", icon: ListChecks }] },
   { tone: "amber", icon: Flag, title: T.gProp, items: [{ k: "rules", icon: Flag }, { k: "morning", icon: Sunrise }] },
   { tone: "violet", icon: Newspaper, title: T.gSum, items: [{ k: "daily", icon: CalendarCheck }, { k: "weekly", icon: CalendarRange }, { k: "news", icon: Newspaper }] },
 ];

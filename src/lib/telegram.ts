@@ -3,7 +3,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { Lang } from "../types";
 
-export const TG_PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true, morning: true };
+export const TG_PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true, morning: true, myRules: true };
 export type TgPrefs = typeof TG_PREFS;
 export type TgPartner = { name: string | null; since: string };
 export const TG_COACH = { nosl: true, streak: true, limit: true, daily: true }; // what the coach gets

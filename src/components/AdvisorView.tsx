@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, ArrowRight, ArrowUpDown, Check, CircleCheck, Clock3, Coins, Crosshair, Eye, Flag, Flame, Info, ListChecks, MessagesSquare, Route, ShieldCheck, Sparkles, Star, Wrench, X as Drop, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUpDown, Check, CircleCheck, Clock3, Coins, Crosshair, Eye, Flag, Flame, Info, ListChecks, MessagesSquare, Route, ScanSearch, ShieldCheck, Sparkles, Star, Wrench, X as Drop, type LucideIcon } from "lucide-react";
 import AdvisorChat, { dly, tint } from "./AdvisorChat";
 import Mascot, { MOODS, type Mood } from "./Mascot";
 import PlanCard from "./PlanCard";
+import TradeCheck, { type CheckRule } from "./TradeCheck";
 import type { Tone } from "./profileUi";
 import { inputsFor, presetWhatIf } from "./WhatIfTab";
 import { advise, journalContext, MIN_TRADES, type Advice, type Plan, type Topic } from "../lib/advisor";
@@ -68,6 +69,7 @@ const TXT = {
   pvAngry: X("Angry at a trade without a stop loss, or a broken rule.", "غاضبة من صفقة بلا وقف خسارة أو قاعدة مكسورة.", "En colère contre un trade sans stop ou une règle enfreinte."),
   pvJealous: X("Jealous when your plan would have done better.", "غيورة حين كانت خطتك ستفعل أفضل منك.", "Jalouse quand votre plan aurait fait mieux."),
   tap: X("Tap the candle to see its moods", "اضغط الشمعة لترى حالاتها", "Touchez la bougie pour voir ses humeurs"),
+  checkBtn: X("Check a trade", "افحص صفقة", "Vérifier un trade"),
 };
 /** Title, finding, advice per advice id. */
 const COPY: Record<string, [L, L, L]> = {
@@ -213,6 +215,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
 
   const byKind = (kind: Advice["kind"]) => res.advice.filter((a) => a.kind === kind);
   const planned = res.plan ? byKind("fix").filter((a) => res.plan!.ids.includes(a.id)) : [];
+  const planRules = useMemo<CheckRule[]>(() => (res.plan ? res.advice.filter((a) => a.kind === "fix" && a.rules && res.plan!.ids.includes(a.id)).map((a) => ({ id: a.id, rules: a.rules as Partial<Rules>, data: a.data, topic: a.topic })) : []), [res]);
 
   // the section in view lights up in the bar
   const ids = ["adv-plan", ...(["fix", "watch", "strength"] as const).filter((x) => byKind(x).length).map((x) => KIND[x].id)].join(",");
@@ -379,11 +382,16 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
             <p aria-live="polite" className={`tone-${MOOD_TONE[face]} tone-chip mt-2 inline-block rounded-2xl px-3 py-1 text-xs font-semibold leading-relaxed`}>{tint(moodText)}</p>
           </div>
         </div>
-        {accounts.length > 1 && (
-          <select className="field !w-auto" value={acc} onChange={(e) => setAcc(e.target.value)}>
-            {[{ value: "all", label: T(TXT.all) }, ...accounts.map((a) => ({ value: a.id, label: a.name }))].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {res.trades >= MIN_TRADES && (
+            <button type="button" onClick={() => go("adv-check")} className="tone-emerald tone-btn inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold"><ScanSearch size={15} />{T(TXT.checkBtn)}</button>
+          )}
+          {accounts.length > 1 && (
+            <select className="field !w-auto" value={acc} onChange={(e) => setAcc(e.target.value)}>
+              {[{ value: "all", label: T(TXT.all) }, ...accounts.map((a) => ({ value: a.id, label: a.name }))].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          )}
+        </div>
       </header>
 
       {res.trades < MIN_TRADES ? (
@@ -414,6 +422,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
 
           <PlanCard lang={lang} currency={currency} trades={res.trades} impact={res.plan?.impact ?? null} actual={actual} losing={losing} curve={curve}
             steps={planned.map((a) => ({ key: a.id, title: text(a, 0), icon: ICON[a.topic] }))} onTry={() => tryRules(res.plan?.rules ?? null)} />
+          <TradeCheck lang={lang} accounts={accounts} acc={acc} trades={list} currency={currency} adopted={adopted} plan={planRules} titleOf={(r) => text(r, 0)} />
 
           {rulesEl}
           {group("fix")}

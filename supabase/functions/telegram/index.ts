@@ -25,14 +25,16 @@
 //    runs at most every 4 minutes): MT5 sync stopped for an hour with open trades, yesterday's summary just after the
 //    broker's midnight, the week's summary on Sunday from 10:00 (with a tip from the AI model, no account names or
 //    numbers sent to it), high-impact news 15 minutes ahead for the currencies the user trades, and on weekdays from
-//    08:00 the morning plan of each running challenge (room, a safe risk per trade, the pace to the target).
+//    08:00 the morning plan of each running challenge (room, a safe risk per trade, the pace to the target) and the rules
+//    the trader adopted in the Advisor (synced setting "mizan-advisor-rules"); a trade just opened that breaks one of
+//    those rules is named in its message.
 // Stored in user_settings "telegram": { chat, name, lang, prefs, codeHash, codeAt, sent, site, tz } (no bot token anywhere
 // but here). Setup once: create a bot with @BotFather, add its token as the secret TELEGRAM_BOT_TOKEN, deploy with
 // "Verify JWT" off; for the scheduled alerts run the migration once. The weekly tip uses GEMINI_API_KEY (as "advisor").
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 type Lang = "en" | "ar" | "fr";
-const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true, morning: true };
+const PREFS = { trades: true, rules: true, streak: true, nosl: true, stale: true, daily: true, weekly: true, news: true, entry: true, danger: true, morning: true, myRules: true };
 type Prefs = typeof PREFS;
 const prefsOf = (p?: Partial<Prefs> | null): Prefs => ({ ...PREFS, ...(p ?? {}) });
 type Partner = { chat: number; name: string | null; lang: Lang; since: string };
@@ -52,6 +54,10 @@ type Btn = { text: string; url?: string; callback_data?: string };
 type Hist = { symbol: string; side: string; pnl: number | null; entry_time: string | null };
 type Danger = { kind: "symHour" | "sideSym" | "sym" | "hour" | "day"; n: number; lost: number; net: number };
 type Cal = { id: string; time: string; currency: string; title: string; forecast: string; previous: string };
+type Level = { v: number; unit: "money" | "R" };
+/** A rule adopted in the Advisor: the What-if rules it stands for (only those set), from day `at` (YYYY-MM-DD). */
+type WRules = { streak?: number | null; dayLoss?: number | null; dayGain?: number | null; maxDay?: number | null; skipDays?: number[]; hours?: [number, number] | null; skipSymbols?: string[]; side?: "both" | "long" | "short"; sl?: Level | null; tp?: Level | null };
+type MyRule = { id: string; rules: WRules; at: string };
 
 const TXT: Record<string, Record<Lang, string>> = {
   linked: { en: "Connected ✓ Mizan alerts will come here. /status shows your challenges, /stop turns the alerts off.", ar: "تم الربط ✓ ستصلك تنبيهات ميزان هنا. ‏/status لعرض تحدياتك، و‏/stop لإيقاف التنبيهات.", fr: "Connecté ✓ Les alertes Mizan arriveront ici. /status montre vos challenges, /stop coupe les alertes." },
@@ -140,6 +146,9 @@ const TXT: Record<string, Record<Lang, string>> = {
   bRule: { en: "🤝 {n} broke a rule: {r} ({s}, {h}). A short message from you can help.", ar: "🤝 {n} كسر قاعدة: {r} ({s}، {h}). رسالة قصيرة منك قد تساعده.", fr: "🤝 {n} a enfreint une règle : {r} ({s}, {h}). Un petit message de votre part peut l'aider." },
   tTold: { en: "🤝 Your partner {p} was told: {r}.", ar: "🤝 أُبلغ شريكك {p}: {r}.", fr: "🤝 Votre partenaire {p} a été prévenu : {r}." },
   mHead: { en: "☀️ Morning plan · {d}", ar: "☀️ خطة الصباح · {d}", fr: "☀️ Plan du matin · {d}" },
+  myHead: { en: "📌 Your rules today", ar: "📌 قواعدك اليوم", fr: "📌 Vos règles aujourd'hui" },
+  noTrading: { en: "⛔ No trading today: it is one of your rules.", ar: "⛔ لا تداول اليوم: هذه إحدى قواعدك.", fr: "⛔ Pas de trading aujourd'hui : c'est une de vos règles." },
+  breaks: { en: "⛔ This trade breaks your rule: {r}", ar: "⛔ هذه الصفقة تكسر قاعدتك: {r}", fr: "⛔ Ce trade enfreint votre règle : {r}" },
   mDay: { en: "room today {r}", ar: "الهامش اليوم {r}", fr: "marge du jour {r}" },
   mAll: { en: "overall room {r}", ar: "الهامش الكلي {r}", fr: "marge totale {r}" },
   mRisk: { en: "Max risk per trade: {r} (3 losses in a row stay inside your limits)", ar: "أقصى مخاطرة للصفقة: {r} (حتى ثلاث خسائر متتالية تبقيك داخل حدودك)", fr: "Risque max par trade : {r} (3 pertes d'affilée restent dans vos limites)" },
@@ -294,6 +303,39 @@ const WEEKDAY: Record<Lang, string[]> = {
   ar: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
   fr: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
 };
+/** An adopted Advisor rule in words (the app's wording, short); a time range is kept left to right in Arabic. */
+export function ruleText(r: WRules, lang: Lang, cur: string | null): string {
+  const L = (en: string, ar: string, fr: string) => (lang === "ar" ? ar : lang === "fr" ? fr : en);
+  const m = (v: number) => money(v, { cur, lang }), lv = (l: Level) => (l.unit === "R" ? `${l.v}R` : m(l.v));
+  const hhm = (h: number) => `${String(((h % 24) + 24) % 24).padStart(2, "0")}:00`;
+  const range = (a: number, b: number) => (lang === "ar" ? `\u2066${hhm(a)}–${hhm(b)}\u2069` : `${hhm(a)}–${hhm(b)}`);
+  const out: string[] = [];
+  if (r.streak != null) { const n = r.streak; out.push(L(`Stop after ${n} losses in a row`, `توقّف بعد ${n === 2 ? "خسارتين متتاليتين" : n <= 10 ? `${n} خسائر متتالية` : `${n} خسارة متتالية`}`, `Arrêtez après ${n} pertes d'affilée`)); }
+  if (r.maxDay != null) { const n = r.maxDay; out.push(L(`At most ${n} trade${n === 1 ? "" : "s"} a day`, `${n === 1 ? "صفقة واحدة" : n === 2 ? "صفقتان" : n <= 10 ? `${n} صفقات` : `${n} صفقة`} كحد أقصى في اليوم`, `Au plus ${n} trade${n === 1 ? "" : "s"} par jour`)); }
+  if (r.dayLoss != null) out.push(L(`Stop for the day once you are down ${m(r.dayLoss)}`, `توقّف لبقية اليوم عندما تخسر ${m(r.dayLoss)}`, `Arrêtez la journée dès ${m(r.dayLoss)} de perte`));
+  if (r.dayGain != null) out.push(L(`Stop for the day once you are up ${m(r.dayGain)}`, `توقّف لبقية اليوم عندما تربح ${m(r.dayGain)}`, `Arrêtez la journée dès ${m(r.dayGain)} de gain`));
+  if (r.skipDays?.length) { const d = r.skipDays.map((x) => WEEKDAY[lang][(x + 1) % 7]).join(lang === "ar" ? "، " : ", "); out.push(L(`No trading on ${d}`, `لا تداول يوم ${d}`, `Pas de trading le ${d}`)); }
+  if (r.hours && r.hours[0] !== r.hours[1]) { const [a, b] = r.hours; out.push(a < b ? L(`Trade only ${range(a, b)}`, `تداول فقط بين ${range(a, b)}`, `Tradez seulement ${range(a, b)}`) : L(`Avoid ${range(b, a)}`, `تجنّب ${range(b, a)}`, `Évitez ${range(b, a)}`)); }
+  if (r.skipSymbols?.length) { const x = r.skipSymbols.join(", "); out.push(L(`Leave ${x} aside`, `اترك ${x} جانباً`, `Mettez ${x} de côté`)); }
+  if (r.side && r.side !== "both") out.push(L(`Only ${r.side === "long" ? "longs" : "shorts"}`, `اكتفِ بصفقات ${r.side === "long" ? "الشراء" : "البيع"}`, `Seulement les ${r.side === "long" ? "achats" : "ventes"}`));
+  if (r.sl) out.push(L(`Stop loss at ${lv(r.sl)}`, `وقف خسارة عند ${lv(r.sl)}`, `Stop loss à ${lv(r.sl)}`));
+  if (r.tp) out.push(L(`Take profit at ${lv(r.tp)}`, `جني الربح عند ${lv(r.tp)}`, `Take profit à ${lv(r.tp)}`));
+  return out.join(" · ");
+}
+/** Whether a trade just opened breaks an adopted rule, after the day's trades so far (opened before it, closed today: their
+ *  result and the losses in a row at the end). A stop or target rule is about the exit, not about taking the trade. */
+export function ruleBroken(r: WRules, x: { symbol: string; side: string; entry_time: string }, today: { n: number; net: number; run: number }) {
+  const t = x.entry_time.replace(" ", "T"), h = Number(t.slice(11, 13)), wd = (new Date(`${t.slice(0, 10)}T00:00:00Z`).getUTCDay() + 6) % 7;
+  if (r.skipSymbols?.includes(x.symbol)) return true;
+  if (r.side && r.side !== "both" && r.side !== x.side) return true;
+  if (r.skipDays?.includes(wd)) return true;
+  if (r.hours) { const [a, b] = r.hours; if (a !== b && !(a < b ? h >= a && h < b : h >= a || h < b)) return true; }
+  if (r.maxDay != null && today.n >= r.maxDay) return true;
+  if (r.streak != null && today.run >= r.streak) return true;
+  if (r.dayLoss != null && today.net <= -r.dayLoss + 1e-9) return true;
+  if (r.dayGain != null && today.net >= r.dayGain - 1e-9) return true;
+  return false;
+}
 const newest = <T extends { entry_time: string }>(l: T[]) => l.reduce((a, b) => (b.entry_time > a.entry_time ? b : a)); // the latest entry
 const CURS = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "CNY"];
 const IDX: [RegExp, string][] = [[/^(US|NAS|SPX|SP500|DJ|DOW|WS30)/, "USD"], [/^(GER|DE[0-9]|DAX|EU50|EUSTX|STOXX|FRA|ESP|IT[0-9]|NETH)/, "EUR"], [/^(UK|FTSE)/, "GBP"], [/^(JP|NIK)/, "JPY"], [/^(AUS|ASX)/, "AUD"], [/^(HK|CHINA|CN)/, "CNY"],
@@ -464,6 +506,9 @@ Deno.serve(async (req) => {
     const h = Number(x.entry_time.replace(" ", "T").slice(11, 13));
     return T(`d${d.kind}`, lang, { s: x.symbol, d: side(x.side, lang), w: WEEKDAY[lang][new Date(naive(x.entry_time)).getUTCDay()], h1: hh(h), h2: hh(h + 1), l: d.lost, n: d.n, p: money(d.net, { cur: a.currency, lang }) });
   };
+  /** The rules the trader adopted in the Advisor (synced from the app). */
+  const myRules = async (uid: string): Promise<MyRule[]> => ((await rows<{ value: MyRule[] | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-advisor-rules&deleted_at=is.null`))[0]?.value ?? [])
+    .filter((r) => r && typeof r.id === "string" && r.rules && typeof r.rules === "object" && typeof r.at === "string").slice(0, 20);
   /** The trader's name as the partner sees it: the Mizan profile name, else the first word of their Telegram name. */
   const traderName = async (uid: string, t: Tg) => {
     const p = (await rows<{ value: { name?: unknown } | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-profile&deleted_at=is.null`))[0]?.value?.name;
@@ -665,11 +710,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // the morning plan of each running challenge, on weekdays from 08:00 the user's time
-    if (prefs.morning) {
+    // the morning plan of each running challenge and the rules adopted in the Advisor, on weekdays from 08:00 the user's time
+    if (prefs.morning || prefs.myRules) {
       const lp = localParts(now, tz), k = `morning:${lp.date}:`;
       if (lp.wd >= 1 && lp.wd <= 5 && lp.hour >= 8 && lp.hour < 12 && !sent[k]) {
-        const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId);
+        const chs = prefs.morning ? ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId) : [];
         const parts: string[] = [];
         for (const c of chs) {
           const a = accs.find((x) => x.id === c.accountId), today = brokerToday(syncOf(c.accountId), now);
@@ -682,6 +727,11 @@ Deno.serve(async (req) => {
           parts.push([`🏁 ${c.name} · ${a.name}`, ...(room ? [`• ${room}`] : []), ...(p.risk != null ? [`• ${T("mRisk", lang, { r: m0(p.risk) })}`] : []),
             ...(p.reached ? [`• ${T("mReached", lang, { d: p.days, m: p.minDays })}`] : p.left != null ? [`• ${T("mLeft", lang, { l: m0(p.left) })}${p.tdLeft && p.pace != null ? T("mPace", lang, { t: p.tdLeft, p: m0(p.pace), w: p.tdLeft >= 3 && p.tdLeft <= 10 ? "أيام" : p.tdLeft <= 2 ? "يوم" : "يوماً" }) : ""}`] : []),
             ...(!p.reached && p.minDays > 0 && p.days < p.minDays ? [`• ${T("mDays", lang, { d: p.days, m: p.minDays })}`] : [])].join("\n"));
+        }
+        const mine = prefs.myRules ? await myRules(uid) : [];
+        if (mine.length) {
+          const wd = (lp.wd + 6) % 7, cur = accs[0]?.currency ?? null; // the rules' weekdays: 0 = Monday
+          parts.push([T("myHead", lang), ...(mine.some((r) => r.rules.skipDays?.includes(wd)) ? [T("noTrading", lang)] : []), ...mine.map((r) => `• ${ruleText(r.rules, lang, cur)}`)].join("\n"));
         }
         if (parts.length) out.push({ text: [T("mHead", lang, { d: dayName(lp.date) }), ...parts].join("\n\n"), keys: [k] });
         else quiet.push(k);
@@ -928,15 +978,25 @@ Deno.serve(async (req) => {
       }
       // trades just opened (30 minutes at most): one message each, with the plan question and the danger-zone warning
       const entries: { text: string; kb: Btn[][]; k: string }[] = [];
-      if ((prefs.entry || prefs.danger) && Array.isArray(body.opened)) {
-        const fresh = (body.opened as OpenRow[]).filter((x) => typeof x?.key === "string" && x.key.length <= 60 && typeof x.symbol === "string" && typeof x.entry_time === "string"
+      const opened = Array.isArray(body.opened) ? (body.opened as OpenRow[]) : [];
+      const mine = prefs.myRules && opened.length ? (await myRules(uid)).filter((r) => r.at <= today) : [];
+      if ((prefs.entry || prefs.danger || mine.length) && opened.length) {
+        const fresh = opened.filter((x) => typeof x?.key === "string" && x.key.length <= 60 && typeof x.symbol === "string" && typeof x.entry_time === "string"
           && Date.parse(`${now}Z`) - naive(x.entry_time) <= 30 * 60e3 && !sent[`entry:${x.entry_time.slice(0, 10)}:${x.key}`]).slice(0, 3);
         const hist = fresh.length && prefs.danger ? await rows<Hist>(`trades?select=symbol,side,pnl,entry_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=exit_time.desc&limit=1000`) : [];
+        // the day so far, for the daily rules: trades opened today, and those closed today (result, losses in a row)
+        const opens = fresh.length && mine.length ? await rows<{ key: string; entry_time: string | null }>(`trades?select=key,entry_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null&entry_time=gte.${today}`) : [];
+        const shut = fresh.length && mine.length ? await rows<TradeRow>(`trades?select=key,pnl,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&exit_time=gte.${today}&order=exit_time.asc&limit=500`) : [];
+        const dayNet = shut.reduce((a, r) => a + Number(r.pnl ?? 0), 0);
+        let run = 0;
+        for (let i = shut.length - 1; i >= 0 && Number(shut[i].pnl) < 0; i--) run++;
         for (const x of fresh) {
           const d = prefs.danger ? dangerOf(x, hist) : null;
-          if (!prefs.entry && !d) continue;
+          const n = opens.filter((r) => r.key !== x.key && (r.entry_time ?? "") < x.entry_time).length;
+          const broke = mine.filter((r) => ruleBroken(r.rules, x, { n, net: dayNet, run })).map((r) => T("breaks", lang, { r: ruleText(r.rules, lang, acc.currency) }));
+          if (!prefs.entry && !d && !broke.length) continue;
           const head = T("entry", lang, { a: acc.name, s: x.symbol, d: side(x.side, lang), q: Number(x.qty).toLocaleString("en-US"), h: x.entry_time.replace(" ", "T").slice(11, 16) });
-          entries.push({ text: [head, ...(d ? [dangerLine(d, x, lang, acc)] : []), ...(prefs.entry ? [T("ask", lang)] : [])].join("\n"), kb: prefs.entry ? [planButtons(x.key, lang)] : [], k: `entry:${x.entry_time.slice(0, 10)}:${x.key}` });
+          entries.push({ text: [head, ...(d ? [dangerLine(d, x, lang, acc)] : []), ...broke, ...(prefs.entry ? [T("ask", lang)] : [])].join("\n"), kb: prefs.entry ? [planButtons(x.key, lang)] : [], k: `entry:${x.entry_time.slice(0, 10)}:${x.key}` });
         }
       }
       const keep: string[] = [];
