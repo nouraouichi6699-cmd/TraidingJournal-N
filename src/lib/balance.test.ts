@@ -1,4 +1,4 @@
-import { balanceSeries, currentBalance, ledgerReconciles } from "./balance";
+import { balanceBefore, balanceSeries, currentBalance, ledgerReconciles } from "./balance";
 import type { CashFlow } from "./cashflow";
 import type { Account, Trade } from "../types";
 let pass = 0, fail = 0;
@@ -38,4 +38,15 @@ is("unrecorded withdrawal: the ledger does not reconcile (deposits are unknown, 
 is("once the withdrawal is recorded it reconciles", ledgerReconciles(M, mt, hist, [F("2026-09-08T09:00", "withdrawal", 1000, "m")]) === true);
 is("flows after the last snapshot are not part of the check", ledgerReconciles(M, mt, hist, [F("2026-09-08T09:00", "withdrawal", 1000, "m"), F("2026-09-20T00:00", "deposit", 7, "m")]) === true);
 is("no imported history: nothing to check", ledgerReconciles(M, mt, []) === null);
+console.log("-- Balance at the start of a day (a personal challenge's starting balance)");
+{
+  const tr = [T("2026-09-01T10:00", 300), T("2026-09-02T15:00", -100), T("2026-09-03T09:00", 50)];
+  const fl = [F("2026-09-02 00:00:00", "deposit", 1000), F("2026-09-03T08:00", "withdrawal", 200)];
+  t("before any trade: the starting balance", balanceBefore(A, tr, "2026-09-01", [], fl), 10000);
+  t("start of Sep 2: + the Sep 1 trade", balanceBefore(A, tr, "2026-09-02", [], fl), 10300);
+  t("start of Sep 3: + the Sep 2 deposit and trade", balanceBefore(A, tr, "2026-09-03", [], fl), 11200);
+  t("start of Sep 4: + the Sep 3 withdrawal and trade", balanceBefore(A, tr, "2026-09-04", [], fl), 11050);
+  t("the day's own trades are not in it", balanceBefore(A, [...tr, T("2026-09-04T10:00", 999)], "2026-09-04", [], fl), 11050);
+  t("other accounts are ignored", balanceBefore(A, [...tr, T("2026-09-01T11:00", 77, "b")], "2026-09-02", [], fl), 10300);
+}
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

@@ -38,6 +38,13 @@ export function currentBalance(a: Account, trades: Trade[], points: BalancePoint
   return s.length ? s[s.length - 1].v : a.startBalance || 0;
 }
 
+/** The balance at the start of a day (YYYY-MM-DD, on the account's clock): the last point of its history before that day,
+ *  else the starting balance. A personal challenge starts from it. */
+export function balanceBefore(a: Account, trades: Trade[], day: string, points: BalancePoint[] = [], flows: CashFlow[] = []): number {
+  const s = balanceSeries(a, trades, points, flows).filter((p) => p.t < day);
+  return s.length ? s[s.length - 1].v : a.startBalance || 0;
+}
+
 /**
  * True when the account's ledger (starting balance + realised P&L + recorded cash flows) reproduces its imported balance
  * history at the last snapshot, i.e. no deposit/withdrawal is missing. Null when there is no imported history to check against.

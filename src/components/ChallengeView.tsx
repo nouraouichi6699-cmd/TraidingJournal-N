@@ -1,9 +1,12 @@
 // Challenges: prop-firm evaluations tracked on the account's trades — the room left today and overall, the target, the
-// trading days, a balance chart against the floor, and the chance to pass from here.
+// trading days, a balance chart against the floor, and the chance to pass from here. A personal challenge runs the
+// trader's own account on the same rules, from its real balance, with a new attempt after a failure.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, Flag, Pencil, Plus, Trash2, X } from "lucide-react";
-import type { Account, Lang, Trade } from "../types";
-import { challengeState, TEMPLATES, type Challenge, type ChallengeState } from "../lib/challenge";
+import { Building2, Check, Flag, Mountain, Pencil, Plus, RotateCcw, Trash2, UserRound, X } from "lucide-react";
+import type { Account, BalancePoint, Lang, Trade } from "../types";
+import { challengeState, retryStart, TEMPLATES, type Challenge, type ChallengeState } from "../lib/challenge";
+import { balanceBefore } from "../lib/balance";
+import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import { offsetMs, parseModel, type TimeModel } from "../lib/path";
 import { readClock } from "../lib/pathData";
@@ -11,12 +14,12 @@ import { propOdds } from "../lib/tradeLab";
 
 type L3 = Record<Lang, string>;
 const T = {
-  title: { en: "Prop challenges", ar: "تحديات التمويل", fr: "Challenges prop" },
+  title: { en: "Challenges", ar: "التحديات", fr: "Challenges" },
   telegram: { en: "Get these warnings on Telegram →", ar: "استلم هذه التنبيهات على تيليغرام ←", fr: "Recevez ces alertes sur Telegram →" },
-  lead: { en: "Your funded-account evaluation, checked on every trade: the target, the daily and overall loss limits, the trading days.", ar: "تقييم حسابك الممول مفحوصاً مع كل صفقة: الهدف، وحدّا الخسارة اليومية والكلية، وأيام التداول.", fr: "Votre évaluation de compte financé, vérifiée à chaque trade : l'objectif, les pertes max journalière et totale, les jours de trading." },
+  lead: { en: "A prop-firm evaluation, or your own account on the same rules, checked on every trade: the target, the daily and overall loss limits, the trading days.", ar: "تقييمك لدى شركة تمويل، أو حسابك الشخصي بالقواعد نفسها، مفحوصاً مع كل صفقة: الهدف، وحدّا الخسارة اليومية والكلية، وأيام التداول.", fr: "Une évaluation de prop firm, ou votre propre compte aux mêmes règles, vérifiée à chaque trade : l'objectif, les pertes max journalière et totale, les jours de trading." },
   new: { en: "New challenge", ar: "تحدٍّ جديد", fr: "Nouveau challenge" },
   emptyTitle: { en: "No challenge yet", ar: "لا يوجد تحدٍّ بعد", fr: "Aucun challenge" },
-  emptyText: { en: "Enter your evaluation's rules once: Mizan checks them on every trade and shows how much you can still risk today.", ar: "أدخل قواعد تقييمك مرة واحدة، ويفحصها ميزان مع كل صفقة ويريك كم يمكنك أن تخاطر به اليوم.", fr: "Saisissez une fois les règles de votre évaluation : Mizan les vérifie à chaque trade et montre ce que vous pouvez encore risquer aujourd'hui." },
+  emptyText: { en: "Track a prop-firm evaluation, or challenge yourself: run your own account on the same rules. Mizan checks them on every trade and shows how much you can still risk today.", ar: "تابع تقييمك لدى شركة تمويل، أو تحدَّ نفسك وأدِر حسابك الشخصي بالقواعد نفسها. يفحصها ميزان مع كل صفقة ويريك كم يمكنك أن تخاطر به اليوم.", fr: "Suivez une évaluation de prop firm, ou lancez-vous un défi : votre propre compte aux mêmes règles. Mizan les vérifie à chaque trade et montre ce que vous pouvez encore risquer aujourd'hui." },
   noAccounts: { en: "Connect an account first.", ar: "اربط حساباً أولاً.", fr: "Connectez d'abord un compte." },
   active: { en: "In progress", ar: "قيد التقدم", fr: "En cours" },
   passed: { en: "Passed", ar: "ناجح", fr: "Réussi" },
@@ -84,6 +87,24 @@ const T = {
   formNote: { en: "Use your firm's exact rules: these are only typical starting values.", ar: "استعمل قواعد شركتك بدقة: هذه قيم شائعة للبداية فقط.", fr: "Utilisez les règles exactes de votre société : ce ne sont que des valeurs typiques." },
   save: { en: "Save", ar: "حفظ", fr: "Enregistrer" },
   invalid: { en: "Check the highlighted fields.", ar: "تحقّق من الحقول المحددة.", fr: "Vérifiez les champs signalés." },
+  kindProp: { en: "Prop-firm challenge", ar: "تحدي شركة تمويل", fr: "Challenge de prop firm" },
+  kindPropD: { en: "Your evaluation, with your firm's rules.", ar: "تقييمك لدى الشركة، بقواعدها.", fr: "Votre évaluation, avec les règles de votre société." },
+  kindSelf: { en: "Challenge myself", ar: "أتحدّى نفسي", fr: "Me lancer un défi" },
+  kindSelfD: { en: "My own account on prop-firm rules, from my real balance.", ar: "حسابي الشخصي بقواعد شركات التمويل، من رصيدي الحقيقي.", fr: "Mon propre compte aux règles des prop firms, depuis mon solde réel." },
+  self: { en: "Personal", ar: "شخصي", fr: "Personnel" },
+  attemptN: { en: "attempt {n}", ar: "المحاولة {n}", fr: "tentative {n}" },
+  selfName: { en: "Personal challenge", ar: "تحدٍّ شخصي", fr: "Défi personnel" },
+  selfFailed: { en: "At a prop firm, this account would have been closed here.", ar: "في شركة تمويل كان هذا الحساب سيُغلق هنا.", fr: "Dans une prop firm, ce compte aurait été clôturé ici." },
+  selfPassed: { en: "You're ready for a real prop-firm challenge.", ar: "أنت جاهز لتحدٍّ حقيقي لدى شركة تمويل.", fr: "Vous êtes prêt pour un vrai challenge de prop firm." },
+  retry: { en: "New attempt", ar: "محاولة جديدة", fr: "Nouvelle tentative" },
+  retryToday: { en: "Same rules, from today's opening balance.", ar: "بالقواعد نفسها، من رصيد بداية اليوم.", fr: "Mêmes règles, depuis le solde d'ouverture du jour." },
+  retryTomorrow: { en: "Same rules, from tomorrow: today is a rest day.", ar: "بالقواعد نفسها، ابتداءً من الغد: اليوم استراحة.", fr: "Mêmes règles, dès demain : aujourd'hui, repos." },
+  starts: { en: "Starts {d}", ar: "يبدأ في {d}", fr: "Commence le {d}" },
+  pending: { en: "Starts on {d}: trades from that day count.", ar: "يبدأ في {d}: تُحتسب الصفقات ابتداءً من ذلك اليوم.", fr: "Commence le {d} : les trades comptent à partir de ce jour." },
+  noteSelf: { en: "Closed trades only, by the broker's day. Deposits and withdrawals count as neither profit nor loss.", ar: "على الصفقات المغلقة فقط، بحسب يوم الوسيط. الإيداع والسحب لا يُحتسبان ربحاً ولا خسارة.", fr: "Trades clôturés uniquement, par jour du courtier. Dépôts et retraits ne comptent ni en gain ni en perte." },
+  startBal: { en: "Starting balance", ar: "رصيد البداية", fr: "Solde de départ" },
+  balAuto: { en: "Your balance at the start of {d}", ar: "رصيدك في بداية {d}", fr: "Votre solde au début du {d}" },
+  formNoteSelf: { en: "Typical prop-firm rules: make them as strict as you like.", ar: "قواعد شائعة لدى شركات التمويل: شدّدها كما تشاء.", fr: "Règles typiques des prop firms : durcissez-les à votre guise." },
 } satisfies Record<string, L3>;
 
 const KEY = "mizan-challenges";
@@ -169,10 +190,11 @@ function BalanceChart({ c, s, money, lang }: { c: Challenge; s: ChallengeState; 
   );
 }
 
-function Card({ c, account, trades, lang, onEdit, onRemove }: { c: Challenge; account: Account; trades: Trade[]; lang: Lang; onEdit: () => void; onRemove: () => void }) {
+function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Challenge; account: Account; trades: Trade[]; lang: Lang; onEdit: () => void; onRemove: () => void; onRetry: (start: string) => void }) {
   const L = (x: L3) => x[lang];
   const today = todayFor(account);
   const s = useMemo(() => challengeState(c, trades, today), [c, trades, today]);
+  const self = c.kind === "self", pending = c.start > today;
   const [ask, setAsk] = useState(false);
   const cur = account.currency;
   const m = (v: number, sign = false) => fmtMoney(v, { sign, currency: cur });
@@ -191,22 +213,24 @@ function Card({ c, account, trades, lang, onEdit, onRemove }: { c: Challenge; ac
   const pill = s.status === "passed" ? ["border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]", <Check key="i" size={13} />] : s.status === "failed" ? ["border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]", <X key="i" size={13} />]
     : ["border-border text-text", <span key="i" className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full rounded-full bg-[var(--icon)] opacity-60 motion-safe:animate-ping" /><span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--icon)]" /></span>];
   const first = s.breaches[0];
-  const banner = s.status === "failed" && first
-    ? [first.rule === "daily" ? fill(L(T.failedDaily), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : first.rule === "max" ? fill(L(T.failedMax), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : fill(L(T.failedTime), { d: dayLabel(first.day, lang), l: first.limit }), "border-[#f87171]/50 bg-[#f87171]/10"]
-    : s.status === "passed" && s.passedOn ? [fill(L(T.passedOn), { d: dayLabel(s.passedOn, lang) }), "border-[#22c55e]/50 bg-[#22c55e]/10"]
+  const banner = pending ? [fill(L(T.pending), { d: dayLabel(c.start, lang) }), "border-[var(--icon)] bg-primary-tint"]
+    : s.status === "failed" && first
+    ? [(first.rule === "daily" ? fill(L(T.failedDaily), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : first.rule === "max" ? fill(L(T.failedMax), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : fill(L(T.failedTime), { d: dayLabel(first.day, lang), l: first.limit })) + (self ? ` ${L(T.selfFailed)}` : ""), "border-[#f87171]/50 bg-[#f87171]/10"]
+    : s.status === "passed" && s.passedOn ? [fill(L(T.passedOn), { d: dayLabel(s.passedOn, lang) }) + (self ? ` ${L(T.selfPassed)}` : ""), "border-[#22c55e]/50 bg-[#22c55e]/10"]
       : s.waiting.length ? [s.waiting.includes("days") ? fill(L(T.waitDays), { n: c.minDays - s.tradingDays, m: c.minDays }) : fill(L(T.waitCons), { p: Math.round((s.consistency?.share ?? 0) * 100), m: c.consistency ?? 0 }), "border-[var(--icon)] bg-primary-tint"]
         : s.risk ? [s.risk.amount <= 0 ? L(T.riskZero) : fill(L(s.risk.rule === "daily" ? T.riskDaily : T.riskMax), { m: m(s.risk.amount) }), s.risk.amount <= 0 || (s.risk.rule === "daily" ? s.today?.used ?? 0 : s.maxLoss?.used ?? 0) >= 0.8 ? "border-[#f87171]/50 bg-[#f87171]/10" : "border-[var(--icon)] bg-primary-tint"] : null;
 
   return (
     <article className="ch-card rounded-2xl border border-border p-5">
       <div className="flex flex-wrap items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon"><Flag size={18} /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon">{self ? <Mountain size={18} /> : <Flag size={18} />}</span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h3 className="font-heading text-base font-semibold">{account.name} · {c.name}</h3>
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${pill[0]}`}>{pill[1]}{L(T[s.status])}</span>
+            {self && <span className="tone-sky tone-chip inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"><UserRound size={12} />{tx(`${L(T.self)}${(c.attempt ?? 1) > 1 ? ` · ${fill(L(T.attemptN), { n: c.attempt as number })}` : ""}`)}</span>}
           </div>
-          <p className="mt-0.5 text-xs text-muted">{tx(`${fill(L(T.started), { d: dayLabel(c.start, lang) })} · ${c.limitDays ? fill(L(T.dayNofM), { n: s.daysUsed, m: c.limitDays }) : fill(L(T.dayN), { n: s.daysUsed })} · ${m(c.size)}`)}</p>
+          <p className="mt-0.5 text-xs text-muted">{tx(pending ? `${fill(L(T.starts), { d: dayLabel(c.start, lang) })} · ${m(c.size)}` : `${fill(L(T.started), { d: dayLabel(c.start, lang) })} · ${c.limitDays ? fill(L(T.dayNofM), { n: s.daysUsed, m: c.limitDays }) : fill(L(T.dayN), { n: s.daysUsed })} · ${m(c.size)}`)}</p>
         </div>
         {!ask && (
           <div className="flex gap-1.5">
@@ -224,6 +248,12 @@ function Card({ c, account, trades, lang, onEdit, onRemove }: { c: Challenge; ac
       )}
 
       {banner && <p className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${banner[1]}`}>{tx(banner[0])}</p>}
+      {self && !pending && s.status === "failed" && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <button type="button" onClick={() => onRetry(retryStart(s, today))} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><RotateCcw size={15} />{L(T.retry)}</button>
+          <span className="text-xs text-muted">{L(retryStart(s, today) > today ? T.retryTomorrow : T.retryToday)}</span>
+        </div>
+      )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-border p-4">
@@ -284,25 +314,40 @@ function Card({ c, account, trades, lang, onEdit, onRemove }: { c: Challenge; ac
       <BalanceChart c={c} s={s} money={(v) => m(v)} lang={lang} />
 
       {s.daysToTarget != null && s.avgDay != null && <p className="mt-2 text-xs text-muted">{tx(fill(L(T.pace), { m: m(s.avgDay, true), n: s.daysToTarget }))}</p>}
-      <p className="mt-2 text-[11px] leading-relaxed text-muted">{L(T.note)}{odds ? ` ${L(T.oddsHint)}` : ""}</p>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted">{L(self ? T.noteSelf : T.note)}{odds ? ` ${L(T.oddsHint)}` : ""}</p>
     </article>
   );
 }
 
-type Draft = { accountId: string; tpl: keyof typeof TEMPLATES | "custom"; name: string; size: string; start: string; target: string; daily: string; dailyBase: "size" | "dayStart"; max: string; trailing: boolean; trailLock: boolean; minDays: string; limitDays: string; consistency: string };
+type Kind = "prop" | "self";
+type Draft = { kind: Kind; sizeAuto: boolean; attempt?: number; accountId: string; tpl: keyof typeof TEMPLATES | "custom"; name: string; size: string; start: string; target: string; daily: string; dailyBase: "size" | "dayStart"; max: string; trailing: boolean; trailLock: boolean; minDays: string; limitDays: string; consistency: string };
 const s2 = (v: number | null | undefined) => (v == null ? "" : String(v));
-const fromChallenge = (c: Challenge): Draft => ({ accountId: c.accountId, tpl: "custom", name: c.name, size: String(c.size), start: c.start, target: s2(c.target), daily: s2(c.daily), dailyBase: c.dailyBase, max: s2(c.max), trailing: c.trailing, trailLock: c.trailLock, minDays: String(c.minDays), limitDays: s2(c.limitDays), consistency: s2(c.consistency) });
+const fromChallenge = (c: Challenge): Draft => ({ kind: c.kind === "self" ? "self" : "prop", sizeAuto: !!c.sizeAuto, attempt: c.attempt, accountId: c.accountId, tpl: "custom", name: c.name, size: String(c.size), start: c.start, target: s2(c.target), daily: s2(c.daily), dailyBase: c.dailyBase, max: s2(c.max), trailing: c.trailing, trailLock: c.trailLock, minDays: String(c.minDays), limitDays: s2(c.limitDays), consistency: s2(c.consistency) });
+const r2 = (v: number) => Math.round(v * 100) / 100;
 
-function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang; accounts: Account[]; trades: Trade[]; initial: Challenge | null; onSave: (c: Challenge) => void; onClose: () => void }) {
+function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, onClose }: { lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; flows: CashFlow[]; initial: Challenge | null; kind: Kind; onSave: (c: Challenge) => void; onClose: () => void }) {
   const L = (x: L3) => x[lang];
+  const tx = (v: string) => (lang === "ar" ? ltrNumbers(v) : v);
   const panel = useRef<HTMLDivElement>(null);
   const tplName = (k: keyof typeof TEMPLATES) => ({ twoStep1: "Phase 1", twoStep2: "Phase 2", oneStep: "1-step", funded: "Funded" })[k];
-  const applyTpl = (d: Draft, k: keyof typeof TEMPLATES): Draft => { const t = TEMPLATES[k]; return { ...d, tpl: k, name: tplName(k), target: s2(t.target), daily: s2(t.daily), dailyBase: t.dailyBase, max: s2(t.max), trailing: t.trailing, trailLock: t.trailLock, minDays: String(t.minDays), limitDays: s2(t.limitDays), consistency: s2(t.consistency) }; };
+  const applyTpl = (d: Draft, k: keyof typeof TEMPLATES): Draft => { const t = TEMPLATES[k]; return { ...d, tpl: k, name: d.kind === "self" ? d.name : tplName(k), target: s2(t.target), daily: s2(t.daily), dailyBase: t.dailyBase, max: s2(t.max), trailing: t.trailing, trailLock: t.trailLock, minDays: String(t.minDays), limitDays: s2(t.limitDays), consistency: s2(t.consistency) }; };
   const [d, setD] = useState<Draft>(() => {
     if (initial) return fromChallenge(initial);
     const a = accounts[0];
-    return applyTpl({ accountId: a.id, tpl: "twoStep1", name: "", size: String(a.startBalance > 0 ? a.startBalance : 100000), start: todayFor(a), target: "", daily: "", dailyBase: "size", max: "", trailing: false, trailLock: true, minDays: "0", limitDays: "", consistency: "" }, "twoStep1");
+    return applyTpl({ kind, sizeAuto: kind === "self", accountId: a.id, tpl: "twoStep1", name: kind === "self" ? L(T.selfName) : "", size: String(a.startBalance > 0 ? a.startBalance : 100000), start: todayFor(a), target: "", daily: "", dailyBase: "size", max: "", trailing: false, trailLock: true, minDays: "0", limitDays: "", consistency: "" }, "twoStep1");
   });
+  // a personal challenge starts from the account's real balance at the start of its first day
+  const acc = accounts.find((x) => x.id === d.accountId);
+  const auto = acc && /^\d{4}-\d{2}-\d{2}$/.test(d.start) ? r2(balanceBefore(acc, trades, d.start, balances[acc.id], flows)) : 0;
+  const useAuto = d.kind === "self" && d.sizeAuto && auto > 0;
+  const size = useAuto ? String(auto) : d.size;
+  const isDefaultName = (n: string) => !n.trim() || ["Phase 1", "Phase 2", "1-step", "Funded"].includes(n) || Object.values(T.selfName).includes(n);
+  const setKind = (k: Kind) => {
+    if (k === d.kind) return;
+    setD(k === "self"
+      ? { ...d, kind: k, sizeAuto: true, name: isDefaultName(d.name) ? L(T.selfName) : d.name }
+      : { ...d, kind: k, sizeAuto: false, size: acc && acc.startBalance > 0 ? String(acc.startBalance) : d.size, name: isDefaultName(d.name) ? (d.tpl === "custom" ? "" : tplName(d.tpl)) : d.name });
+  };
   const [tried, setTried] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -314,7 +359,7 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
   const pct = (v: string, opt: boolean) => { const n = num(v); return n == null ? opt : Number.isFinite(n) && n > 0 && n < 100; };
   const int = (v: string, opt: boolean) => { const n = num(v); return n == null ? opt : Number.isInteger(n) && n >= 0 && n <= 3650; };
   const bad = {
-    name: !d.name.trim(), size: !(Number(num(d.size)) > 0), start: !/^\d{4}-\d{2}-\d{2}$/.test(d.start), target: !pct(d.target, true), daily: !pct(d.daily, true), max: !pct(d.max, true),
+    name: !d.name.trim(), size: !(Number(num(size)) > 0), start: !/^\d{4}-\d{2}-\d{2}$/.test(d.start), target: !pct(d.target, true), daily: !pct(d.daily, true), max: !pct(d.max, true),
     minDays: !int(d.minDays, true), limitDays: !int(d.limitDays, true) || num(d.limitDays) === 0, consistency: !pct(d.consistency, true),
   };
   const ok = !Object.values(bad).some(Boolean);
@@ -323,8 +368,9 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
     setTried(true);
     if (!ok) return;
     onSave({
-      id: initial?.id ?? crypto.randomUUID(), accountId: d.accountId, name: d.name.trim(), start: d.start, size: Number(num(d.size)), target: num(d.target), daily: num(d.daily), dailyBase: d.dailyBase,
+      id: initial?.id ?? crypto.randomUUID(), accountId: d.accountId, name: d.name.trim(), start: d.start, size: Number(num(size)), target: num(d.target), daily: num(d.daily), dailyBase: d.dailyBase,
       max: num(d.max), trailing: d.trailing && num(d.max) != null, trailLock: d.trailLock, minDays: num(d.minDays) ?? 0, limitDays: num(d.limitDays), consistency: num(d.consistency),
+      ...(d.kind === "self" ? { kind: "self" as const, ...(useAuto ? { sizeAuto: true } : {}), ...(d.attempt ? { attempt: d.attempt } : {}) } : {}),
     });
   };
   const field = (k: keyof typeof bad) => `field ${tried && bad[k] ? "!border-[var(--loss)]" : ""}`;
@@ -338,8 +384,22 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
           <button type="button" aria-label={L(T.cancel)} onClick={onClose} className="icon-btn -m-1.5"><X size={20} /></button>
         </div>
         <form onSubmit={save} className="flex flex-col gap-4" noValidate>
+          <div role="radiogroup" aria-label={L(T.formNew)} className="grid gap-2 sm:grid-cols-2">
+            {(["prop", "self"] as const).map((k) => {
+              const Icon = k === "self" ? Mountain : Building2, on = d.kind === k;
+              return (
+                <button key={k} type="button" role="radio" aria-checked={on} onClick={() => setKind(k)} className={`flex items-start gap-3 rounded-xl border p-3 text-start transition-colors ${on ? "border-[var(--icon)] bg-primary-tint" : "border-border hover:border-[var(--icon)]"}`}>
+                  <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${on ? "bg-primary text-on-primary" : "bg-primary-tint text-icon"}`}><Icon size={16} /></span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{L(k === "self" ? T.kindSelf : T.kindProp)}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted">{L(k === "self" ? T.kindSelfD : T.kindPropD)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           <label className={lbl}>{L(T.account)}
-            <select className="field" value={d.accountId} onChange={(e) => { const a = accounts.find((x) => x.id === e.target.value); setD({ ...d, accountId: e.target.value, size: a && a.startBalance > 0 ? String(a.startBalance) : d.size }); }}>
+            <select className="field" value={d.accountId} onChange={(e) => { const a = accounts.find((x) => x.id === e.target.value); setD({ ...d, accountId: e.target.value, size: d.kind === "prop" && a && a.startBalance > 0 ? String(a.startBalance) : d.size }); }}>
               {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </label>
@@ -352,7 +412,12 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={lbl}>{L(T.name)}<input className={field("name")} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value, tpl: d.tpl })} /></label>
-            <label className={lbl}>{L(T.size)}<input className={field("size")} inputMode="decimal" dir="ltr" value={d.size} onChange={(e) => setD({ ...d, size: e.target.value })} /></label>
+            <div className="flex flex-col gap-1.5">
+              <label className={lbl}>{L(d.kind === "self" ? T.startBal : T.size)}<input className={field("size")} inputMode="decimal" dir="ltr" value={size} onChange={(e) => setD({ ...d, size: e.target.value, sizeAuto: false })} /></label>
+              {d.kind === "self" && auto > 0 && (useAuto
+                ? <span className="text-xs text-muted">{tx(`✓ ${fill(L(T.balAuto), { d: dayLabel(d.start, lang) })}`)}</span>
+                : <button type="button" onClick={() => setD({ ...d, sizeAuto: true })} className="self-start text-start text-xs font-semibold text-icon hover:underline">{tx(`↺ ${fill(L(T.balAuto), { d: dayLabel(d.start, lang) })}: ${fmtMoney(auto, { currency: acc?.currency ?? null })}`)}</button>)}
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className={lbl}>{L(T.start)}<input className={field("start")} type="date" dir="ltr" value={d.start} onChange={(e) => setD({ ...d, start: e.target.value })} /></label>
               {firstTrade(d.accountId) && firstTrade(d.accountId) < d.start && <button type="button" onClick={() => setD({ ...d, start: firstTrade(d.accountId) })} className="self-start text-xs font-semibold text-icon hover:underline"><span dir="ltr">↺ {firstTrade(d.accountId)}</span></button>}
@@ -373,7 +438,7 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
             <label className={lbl}>{L(T.fLimit)}<input className={field("limitDays")} inputMode="numeric" dir="ltr" value={d.limitDays} onChange={(e) => setD({ ...d, limitDays: e.target.value, tpl: "custom" })} /></label>
             <label className={`${lbl} sm:col-span-2`}>{L(T.fCons)}<input className={field("consistency")} inputMode="decimal" dir="ltr" value={d.consistency} onChange={(e) => setD({ ...d, consistency: e.target.value, tpl: "custom" })} /></label>
           </div>
-          <p className="text-xs text-muted">{L(T.formNote)}</p>
+          <p className="text-xs text-muted">{L(d.kind === "self" ? T.formNoteSelf : T.formNote)}</p>
           {tried && !ok && <p className="text-sm text-loss" role="alert">{L(T.invalid)}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-muted hover:text-text">{L(T.cancel)}</button>
@@ -385,12 +450,33 @@ function Form({ lang, accounts, trades, initial, onSave, onClose }: { lang: Lang
   );
 }
 
-export default function ChallengeView({ lang, accounts, trades, onOpenProfile }: { lang: Lang; accounts: Account[]; trades: Trade[]; onOpenProfile?: () => void }) {
+const NONE: never[] = [], NO_POINTS: Record<string, BalancePoint[]> = {};
+export default function ChallengeView({ lang, accounts, trades, balances = NO_POINTS, flows = NONE, onOpenProfile }: { lang: Lang; accounts: Account[]; trades: Trade[]; balances?: Record<string, BalancePoint[]>; flows?: CashFlow[]; onOpenProfile?: () => void }) {
   const L = (x: L3) => x[lang];
   const [list, setList] = useChallenges();
-  const [editing, setEditing] = useState<Challenge | "new" | null>(null);
+  const [editing, setEditing] = useState<Challenge | Kind | null>(null);
   const byId = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
   const shown = list.filter((c) => byId.has(c.accountId));
+  const startBal = (a: Account, day: string) => r2(balanceBefore(a, trades, day, balances[a.id], flows));
+  // personal challenges keep the real balance at the start of their first day (trades synced late, flows recorded later)
+  useEffect(() => {
+    if (!trades.length) return;
+    let changed = false;
+    const next = list.map((c) => {
+      const a = byId.get(c.accountId);
+      if (c.kind !== "self" || !c.sizeAuto || !a) return c;
+      const v = startBal(a, c.start);
+      if (!(v > 0) || Math.abs(v - c.size) < 0.005) return c;
+      changed = true;
+      return { ...c, size: v };
+    });
+    if (changed) setList(next);
+  }, [list, trades, balances, flows, byId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a new attempt after a failure: the same rules under a new id (its Telegram warnings start over), from its balance then
+  const retry = (c: Challenge, start: string) => {
+    const a = byId.get(c.accountId), v = a ? startBal(a, start) : 0;
+    setList(list.map((x) => (x.id === c.id ? { ...c, id: crypto.randomUUID(), start, size: v > 0 ? v : c.size, sizeAuto: v > 0, attempt: (c.attempt ?? 1) + 1 } : x)));
+  };
   return (
     <section className="mx-auto flex max-w-5xl flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -400,7 +486,7 @@ export default function ChallengeView({ lang, accounts, trades, onOpenProfile }:
           {onOpenProfile && shown.length > 0 && <button type="button" onClick={onOpenProfile} className="mt-1.5 text-xs font-semibold text-icon hover:underline">{L(T.telegram)}</button>}
         </div>
         {accounts.length > 0 && shown.length > 0 && (
-          <button type="button" onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><Plus size={16} />{L(T.new)}</button>
+          <button type="button" onClick={() => setEditing("prop")} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><Plus size={16} />{L(T.new)}</button>
         )}
       </header>
       {shown.length === 0 ? (
@@ -408,16 +494,21 @@ export default function ChallengeView({ lang, accounts, trades, onOpenProfile }:
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-tint text-icon"><Flag size={22} /></span>
           <p className="font-heading text-lg font-semibold">{L(T.emptyTitle)}</p>
           <p className="max-w-md text-sm text-muted">{accounts.length ? L(T.emptyText) : L(T.noAccounts)}</p>
-          {accounts.length > 0 && <button type="button" onClick={() => setEditing("new")} className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><Plus size={16} />{L(T.new)}</button>}
+          {accounts.length > 0 && (
+            <div className="mt-1 flex flex-wrap justify-center gap-2">
+              <button type="button" onClick={() => setEditing("prop")} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><Building2 size={16} />{L(T.kindProp)}</button>
+              <button type="button" onClick={() => setEditing("self")} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-4 py-2 text-sm font-semibold text-primary hover:bg-primary-tint"><Mountain size={16} />{L(T.kindSelf)}</button>
+            </div>
+          )}
         </div>
       ) : (
         shown.map((c) => (
-          <Card key={c.id} c={c} account={byId.get(c.accountId) as Account} trades={trades} lang={lang} onEdit={() => setEditing(c)} onRemove={() => setList(list.filter((x) => x.id !== c.id))} />
+          <Card key={c.id} c={c} account={byId.get(c.accountId) as Account} trades={trades} lang={lang} onEdit={() => setEditing(c)} onRemove={() => setList(list.filter((x) => x.id !== c.id))} onRetry={(start) => retry(c, start)} />
         ))
       )}
       {editing && accounts.length > 0 && (
-        <Form lang={lang} accounts={accounts} trades={trades} initial={editing === "new" ? null : editing} onClose={() => setEditing(null)}
-          onSave={(c) => { setList(editing === "new" ? [c, ...list] : list.map((x) => (x.id === c.id ? c : x))); setEditing(null); }} />
+        <Form lang={lang} accounts={accounts} trades={trades} balances={balances} flows={flows} initial={typeof editing === "string" ? null : editing} kind={typeof editing === "string" ? editing : "prop"} onClose={() => setEditing(null)}
+          onSave={(c) => { setList(typeof editing === "string" ? [c, ...list] : list.map((x) => (x.id === c.id ? c : x))); setEditing(null); }} />
       )}
     </section>
   );

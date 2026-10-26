@@ -28,7 +28,7 @@ const T = {
   onOf: { en: "{n} of {m} on", ar: "{n} من {m} مفعّلة", fr: "{n} sur {m} actives" },
   gTrades: { en: "Your trades", ar: "صفقاتك", fr: "Vos trades" },
   gProtect: { en: "Protection", ar: "حماية الحساب", fr: "Protection" },
-  gProp: { en: "Prop challenges", ar: "تحديات التمويل", fr: "Challenges de financement" },
+  gProp: { en: "Challenges", ar: "التحديات", fr: "Challenges" },
   gSum: { en: "Summaries and news", ar: "الملخصات والأخبار", fr: "Bilans et annonces" },
   trades: { en: "Each closed trade", ar: "كل صفقة مغلقة", fr: "Chaque trade clôturé" },
   trades_d: { en: "The result of every trade MT5 closes, with a button to add a note.", ar: "نتيجة كل صفقة يغلقها MT5، مع زر لإضافة ملاحظة.", fr: "Le résultat de chaque trade fermé par MT5, avec un bouton pour ajouter une note." },

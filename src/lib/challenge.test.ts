@@ -2,7 +2,7 @@
 // on handmade trade lists (pass, intraday daily breach, trailing floor, day-start base, time limit, consistency, minimum
 // days, funded account). Run: npx tsx src/lib/challenge.test.ts
 import type { Trade } from "../types";
-import { challengeState, type Challenge } from "./challenge";
+import { challengeState, retryStart, type Challenge } from "./challenge";
 
 let pass = 0, fail = 0;
 const near = (a: number | null | undefined, b: number | null | undefined, tol = 0.01) => (a == null || b == null ? a == b : Math.abs(a - b) <= tol); // eslint-disable-line eqeqeq
@@ -34,6 +34,21 @@ for (const k of CASES) {
     if (!g || g.day !== e.day || !near(g.pnl, e.pnl) || !near(g.low, e.low) || !near(g.end, e.end) || !near(g.floor, e.floor) || !near(g.limit, e.limit) || !same(g.breach, e.breach)) { bad++; console.log("   row", JSON.stringify(g), "expected", JSON.stringify(e)); }
   });
   is("day rows (result, low, balance, floor, daily limit, breaches)", bad === 0, `${bad} differ`);
+}
+
+// ---- personal challenge: when a new attempt starts (tomorrow after a loss limit broke today, else today)
+{
+  console.log("-- personal challenge: new attempt");
+  const C: Challenge = { id: "p", accountId: "A", name: "Personal", start: "2026-10-19", size: 1000, target: 10, daily: 5, dailyBase: "size", max: 10, trailing: false, trailLock: true, minDays: 0, limitDays: null, consistency: null, kind: "self", sizeAuto: true };
+  const tr = (d: string, pnl: number, no: number) => ({ key: `A:${no}`, accountId: "A", no, symbol: "XAUUSD", side: "long", qty: 1, entryTime: `${d}T10:00`, entryPrice: 1, exitTime: `${d}T11:00`, exitPrice: 1, pnl, returnPct: null, commission: 0, status: "closed" }) as Trade;
+  const failToday = challengeState(C, [tr("2026-10-21", -60, 1)], "2026-10-21"); // -60 is past the 50 daily limit
+  is("daily limit broken today: failed", failToday.status === "failed" && failToday.breaches[0]?.rule === "daily", failToday.status);
+  is("a new attempt the same day: from tomorrow", retryStart(failToday, "2026-10-21") === "2026-10-22", retryStart(failToday, "2026-10-21"));
+  is("a new attempt two days later: from that day", retryStart(challengeState(C, [tr("2026-10-21", -60, 1)], "2026-10-23"), "2026-10-23") === "2026-10-23");
+  const timeUp = challengeState({ ...C, limitDays: 2 }, [tr("2026-10-19", 5, 2)], "2026-10-21");
+  is("after the time limit: from today", timeUp.status === "failed" && timeUp.breaches[0]?.rule === "time" && retryStart(timeUp, "2026-10-21") === "2026-10-21", `${timeUp.status} ${timeUp.breaches[0]?.rule}`);
+  const later = challengeState({ ...C, start: "2026-10-22" }, [tr("2026-10-21", -60, 1)], "2026-10-21");
+  is("not started yet: nothing counted, the balance is the size", later.status === "active" && later.balance === 1000 && later.daysUsed === 0, JSON.stringify([later.status, later.balance, later.daysUsed]));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -68,7 +68,7 @@ const dict = {
   invalidNumber: { en: "Enter a valid number", ar: "أدخل رقمًا صحيحًا", fr: "Saisissez un nombre valide" },
   import: { en: "Import", ar: "استيراد", fr: "Importer" },
   advisor: { en: "Advisor", ar: "المستشار", fr: "Conseiller" },
-  challenges: { en: "Challenges", ar: "تحديات التمويل", fr: "Challenges" },
+  challenges: { en: "Challenges", ar: "التحديات", fr: "Challenges" },
   strategies: { en: "Strategies", ar: "الاستراتيجيات", fr: "Stratégies" },
   achievements: { en: "Achievements", ar: "الإنجازات", fr: "Succès" },
   importTitle: { en: "Import trades", ar: "استيراد الصفقات", fr: "Importer des trades" },

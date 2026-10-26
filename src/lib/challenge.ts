@@ -19,6 +19,9 @@ export interface Challenge {
   minDays: number; // trading days needed (days with a trade opened)
   limitDays: number | null; // calendar days allowed (null: no limit)
   consistency: number | null; // the best day may bring at most this % of the total profit
+  kind?: "self"; // a personal account run on prop-firm rules (absent: a prop-firm evaluation)
+  sizeAuto?: boolean; // personal: the size follows the balance at the start of the start day
+  attempt?: number; // personal: the attempt number (absent: the first)
 }
 
 export type Rule = "daily" | "max" | "time";
@@ -127,6 +130,13 @@ export function challengeState(c: Challenge, trades: Trade[], today: string): Ch
     consistency, breaches, status, passedOn, waiting, avgDay, daysToTarget,
     days: rows.map((x) => ({ ...x, pnl: r2(x.pnl), low: r2(x.low), end: r2(x.end), floor: x.floor == null ? null : r2(x.floor), limit: x.limit == null ? null : r2(x.limit) })),
   };
+}
+
+/** When a failed personal challenge can start again: tomorrow when a loss limit broke today (a firm would close the
+ *  account for the day), else today. */
+export function retryStart(s: ChallengeState, today: string): string {
+  const b = s.breaches[0];
+  return b && b.rule !== "time" && b.day >= today ? addDays(today, 1) : today;
 }
 
 /** Typical rule sets to start from (each firm has its own numbers: they are meant to be edited). */
