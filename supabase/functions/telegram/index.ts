@@ -26,8 +26,10 @@
 //    broker's midnight, the week's summary on Sunday from 10:00 (with a tip from the AI model, no account names or
 //    numbers sent to it), high-impact news 15 minutes ahead for the currencies the user trades, and on weekdays from
 //    08:00 the morning plan of each running challenge (room, a safe risk per trade, the pace to the target) and the rules
-//    the trader adopted in the Advisor (synced setting "mizan-advisor-rules"); a trade just opened that breaks one of
-//    those rules is named in its message.
+//    the trader adopted in the Advisor (synced setting "mizan-advisor-rules") and of their "My own rules" challenges; a
+//    trade just opened that breaks one of those rules is named in its message (and, when the trader signed the contract
+//    with that wish, the partner and the coach hear of it, without amounts). The loss limits of an own-rules challenge
+//    warn at 50%, 80% and past them like a prop challenge's.
 // Stored in user_settings "telegram": { chat, name, lang, prefs, codeHash, codeAt, sent, site, tz } (no bot token anywhere
 // but here). Setup once: create a bot with @BotFather, add its token as the secret TELEGRAM_BOT_TOKEN, deploy with
 // "Verify JWT" off; for the scheduled alerts run the migration once. The weekly tip uses GEMINI_API_KEY (as "advisor").
@@ -42,8 +44,14 @@ const COACH = { nosl: true, streak: true, limit: true, daily: true }; // what th
 type Coach = Partner & { prefs?: Partial<typeof COACH> };
 type Tg = { chat?: number | null; name?: string | null; lang?: Lang; prefs?: Partial<Prefs>; codeHash?: string | null; codeAt?: string | null; sent?: Record<string, string>; site?: string | null; tz?: string | null;
   partner?: Partner | null; pcodeHash?: string | null; pcodeAt?: string | null; coach?: Coach | null; ccodeHash?: string | null; ccodeAt?: string | null };
-type Rule = "nosl" | "streak" | "limit";
-type Ch = { id: string; accountId: string; name: string; start: string; size: number; target: number | null; daily: number | null; dailyBase: "size" | "dayStart"; max: number | null; trailing: boolean; trailLock?: boolean; minDays: number; limitDays?: number | null };
+type Rule = "nosl" | "streak" | "limit" | "own";
+type Ch = { id: string; accountId: string; name: string; start: string; size: number; target: number | null; daily: number | null; dailyBase: "size" | "dayStart"; max: number | null; trailing: boolean; trailLock?: boolean; minDays: number; limitDays?: number | null;
+  kind?: "self" | "own"; own?: ORules; ownNext?: { rules: ORules; from: string }; ownPast?: { until: string; rules: ORules }[]; signed?: { name?: string; notify?: boolean } };
+/** The rules of a "My own rules" challenge (the app's lib/ownRules.ts): limits in money or % of the size; times and the
+ *  changes of the rules on the broker's clock. */
+type Lim = { v: number; unit: "money" | "pct" };
+type ORules = { daily?: Lim; weekly?: Lim; monthly?: Lim; overall?: Lim; perTrade?: Lim; lots?: number; sl?: boolean; maxTrades?: number; streak?: number; lock?: Lim; cool?: number;
+  hours?: [number, number]; daysOff?: number[]; only?: string[]; avoid?: string[]; side?: "long" | "short"; goal?: Lim; onBreak?: "warn" | "day" | "end" };
 type TradeRow = { key?: string; symbol: string; side: string; pnl: number | null; status: string; entry_time: string | null; exit_time: string | null; sl?: number | null };
 type OpenRow = { key: string; symbol: string; side: string; qty: number; entry_time: string };
 type Acc = { id: string; name: string; currency: string | null };
@@ -149,6 +157,16 @@ const TXT: Record<string, Record<Lang, string>> = {
   myHead: { en: "📌 Your rules today", ar: "📌 قواعدك اليوم", fr: "📌 Vos règles aujourd'hui" },
   noTrading: { en: "⛔ No trading today: it is one of your rules.", ar: "⛔ لا تداول اليوم: هذه إحدى قواعدك.", fr: "⛔ Pas de trading aujourd'hui : c'est une de vos règles." },
   breaks: { en: "⛔ This trade breaks your rule: {r}", ar: "⛔ هذه الصفقة تكسر قاعدتك: {r}", fr: "⛔ Ce trade enfreint votre règle : {r}" },
+  oWeek: { en: "Stop for the week once you are down {v}", ar: "توقّف لبقية الأسبوع عندما تخسر {v}", fr: "Arrêtez la semaine dès {v} de perte" },
+  oMonth: { en: "Stop for the month once you are down {v}", ar: "توقّف لبقية الشهر عندما تخسر {v}", fr: "Arrêtez le mois dès {v} de perte" },
+  oAll: { en: "Stop once you are down {v} in all", ar: "توقّف عندما تبلغ خسارتك الكلية {v}", fr: "Arrêtez dès {v} de perte au total" },
+  oTrade: { en: "Lose at most {v} on one trade", ar: "لا تخسر أكثر من {v} في الصفقة الواحدة", fr: "Pas plus de {v} de perte par trade" },
+  oLots: { en: "At most {v} lots a trade", ar: "{v} لوت كحد أقصى للصفقة", fr: "Au plus {v} lots par trade" },
+  oSl: { en: "A stop loss on every trade", ar: "وقف خسارة لكل صفقة", fr: "Un stop loss sur chaque trade" },
+  oCool: { en: "Wait {v} min after a loss", ar: "انتظر {v} دقيقة بعد كل خسارة", fr: "Attendez {v} min après une perte" },
+  oOnly: { en: "Trade only {v}", ar: "تداول فقط {v}", fr: "Tradez seulement {v}" },
+  rown: { en: "their own rule “{k}”", ar: "قاعدته الخاصة «{k}»", fr: "sa propre règle « {k} »" },
+  rownMe: { en: "your own rule “{k}”", ar: "قاعدتك الخاصة «{k}»", fr: "votre propre règle « {k} »" },
   mDay: { en: "room today {r}", ar: "الهامش اليوم {r}", fr: "marge du jour {r}" },
   mAll: { en: "overall room {r}", ar: "الهامش الكلي {r}", fr: "marge totale {r}" },
   mRisk: { en: "Max risk per trade: {r} (3 losses in a row stay inside your limits)", ar: "أقصى مخاطرة للصفقة: {r} (حتى ثلاث خسائر متتالية تبقيك داخل حدودك)", fr: "Risque max par trade : {r} (3 pertes d'affilée restent dans vos limites)" },
@@ -336,6 +354,93 @@ export function ruleBroken(r: WRules, x: { symbol: string; side: string; entry_t
   if (r.dayGain != null && today.net >= r.dayGain - 1e-9) return true;
   return false;
 }
+// ---------- "My own rules" challenges (as the app's lib/ownRules.ts) ----------
+const OKEYS = ["daily", "weekly", "monthly", "overall", "perTrade", "lots", "sl", "maxTrades", "streak", "lock", "cool", "hours", "daysOff", "only", "avoid", "side"] as const;
+type OKey = (typeof OKEYS)[number];
+const ONAME: Record<OKey, Record<Lang, string>> = {
+  daily: { en: "daily loss limit", ar: "حد الخسارة اليومية", fr: "perte max du jour" }, weekly: { en: "weekly loss limit", ar: "حد الخسارة الأسبوعية", fr: "perte max de la semaine" },
+  monthly: { en: "monthly loss limit", ar: "حد الخسارة الشهرية", fr: "perte max du mois" }, overall: { en: "overall loss limit", ar: "حد الخسارة الكلية", fr: "perte max totale" },
+  perTrade: { en: "max loss per trade", ar: "أقصى خسارة للصفقة", fr: "perte max par trade" }, lots: { en: "max volume", ar: "أقصى حجم", fr: "volume max" },
+  sl: { en: "a stop loss on every trade", ar: "وقف خسارة لكل صفقة", fr: "un stop loss sur chaque trade" }, maxTrades: { en: "trades a day", ar: "عدد الصفقات في اليوم", fr: "trades par jour" },
+  streak: { en: "losses in a row", ar: "الخسائر المتتالية", fr: "pertes d'affilée" }, lock: { en: "profit lock", ar: "قفل الربح", fr: "verrou de gain" },
+  cool: { en: "pause after a loss", ar: "الاستراحة بعد الخسارة", fr: "pause après une perte" }, hours: { en: "trading hours", ar: "ساعات التداول", fr: "heures de trading" },
+  daysOff: { en: "a day off", ar: "يوم الراحة", fr: "jour de repos" }, only: { en: "allowed markets", ar: "الأسواق المسموحة", fr: "marchés autorisés" },
+  avoid: { en: "an avoided market", ar: "سوق يتجنّبه", fr: "marché évité" }, side: { en: "direction", ar: "الاتجاه", fr: "sens" },
+};
+const lim = (l: Lim | undefined, size: number) => (l && Number.isFinite(l.v) && l.v > 0 ? (l.unit === "pct" ? (size * l.v) / 100 : l.v) : null);
+const tm = (s: string | null | undefined) => (s ? s.trim().replace(" ", "T").slice(0, 16) : "");
+/** The own rules in force at `at` (broker clock): an earlier set until it changed, a loosened set from its time on. */
+export const ownAt = (c: Pick<Ch, "own" | "ownNext" | "ownPast">, at: string): ORules => {
+  for (const p of c.ownPast ?? []) if (at < p.until) return p.rules;
+  return (c.ownNext && c.ownNext.from <= at ? c.ownNext.rules : c.own) ?? {};
+};
+export type OCtx = { n: number; run: number; day: number; week: number; month: number; total: number; lastLoss: string | null };
+/** The day so far before a trade at `at` (trades opened today before it, losses in a row today, the closed result today,
+ *  this week from Monday, this month and since `start`, the last losing exit), leaving the trade `skip` out. */
+export function ownCtx(trades: TradeRow[], start: string, at: string, skip?: string): OCtx {
+  const d = at.slice(0, 10), wd = (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7, wk = addDays(d, -wd), mo = d.slice(0, 7);
+  const mine = trades.filter((t) => tm(t.entry_time).slice(0, 10) >= start && t.key !== skip);
+  const shut = mine.filter((t) => t.status === "closed" && t.pnl != null && Number.isFinite(Number(t.pnl)) && t.exit_time && tm(t.exit_time) <= at).sort((a, b) => tm(a.exit_time).localeCompare(tm(b.exit_time)));
+  const sum = (f: (x: string) => boolean) => Math.round(shut.filter((t) => f(tm(t.exit_time).slice(0, 10))).reduce((a, t) => a + Number(t.pnl), 0) * 100) / 100;
+  const todays = shut.filter((t) => tm(t.exit_time).slice(0, 10) === d);
+  let run = 0;
+  for (let i = todays.length - 1; i >= 0 && Number(todays[i].pnl) < 0; i--) run++;
+  const loss = [...shut].reverse().find((t) => Number(t.pnl) < 0);
+  return { n: mine.filter((t) => tm(t.entry_time).slice(0, 10) === d && tm(t.entry_time) < at).length, run, day: sum((x) => x === d), week: sum((x) => x >= wk && x <= d), month: sum((x) => x.slice(0, 7) === mo), total: sum(() => true), lastLoss: loss ? tm(loss.exit_time) : null };
+}
+/** The own rules a trade breaks as it opens (as lib/ownRules entryBreaks): market, side, volume, day, hour, and the limits
+ *  already reached. A missing stop loss is the no-SL alert's, 2 minutes later. */
+export function ownBroken(r: ORules, x: { symbol: string; side: string; qty?: number | null; entry_time: string }, c: OCtx, size: number): OKey[] {
+  const out: OKey[] = [], at = tm(x.entry_time), h = Number(at.slice(11, 13)), wd = (new Date(`${at.slice(0, 10)}T00:00:00Z`).getUTCDay() + 6) % 7;
+  const hit = (l: Lim | undefined, v: number) => { const m = lim(l, size); return m != null && v <= -m + 1e-9; };
+  if (r.only?.length && !r.only.includes(x.symbol)) out.push("only");
+  if (r.avoid?.includes(x.symbol)) out.push("avoid");
+  if (r.side && r.side !== x.side) out.push("side");
+  if (r.lots != null && x.qty != null && Number(x.qty) > r.lots + 1e-9) out.push("lots");
+  if (r.daysOff?.includes(wd)) out.push("daysOff");
+  if (r.hours) { const [a, b] = r.hours; if (a !== b && !(a < b ? h >= a && h < b : h >= a || h < b)) out.push("hours"); }
+  if (r.maxTrades != null && c.n >= r.maxTrades) out.push("maxTrades");
+  if (r.streak && c.run >= r.streak) out.push("streak");
+  if (hit(r.daily, c.day)) out.push("daily");
+  if (hit(r.weekly, c.week)) out.push("weekly");
+  if (hit(r.monthly, c.month)) out.push("monthly");
+  if (hit(r.overall, c.total)) out.push("overall");
+  const lk = lim(r.lock, size);
+  if (lk != null && c.day >= lk - 1e-9) out.push("lock");
+  if (r.cool && c.lastLoss && (Date.parse(`${at}Z`) - Date.parse(`${c.lastLoss}Z`)) / 6e4 < r.cool) out.push("cool");
+  return out;
+}
+/** One own rule in words (the morning list, the entry warning): the What-if wording where there is one. */
+export function ownText(k: OKey, r: ORules, size: number, lang: Lang, cur: string | null): string {
+  const m = (l?: Lim) => money(lim(l, size) ?? 0, { cur, lang }), T = (key: string, l: Lang, v: Record<string, string | number> = {}) => fill(TXT[key][l], v);
+  switch (k) {
+    case "daily": return ruleText({ dayLoss: lim(r.daily, size) }, lang, cur);
+    case "lock": return ruleText({ dayGain: lim(r.lock, size) }, lang, cur);
+    case "maxTrades": return ruleText({ maxDay: r.maxTrades }, lang, cur);
+    case "streak": return ruleText({ streak: r.streak }, lang, cur);
+    case "hours": return ruleText({ hours: r.hours }, lang, cur);
+    case "daysOff": return ruleText({ skipDays: r.daysOff }, lang, cur);
+    case "avoid": return ruleText({ skipSymbols: r.avoid }, lang, cur);
+    case "side": return ruleText({ side: r.side }, lang, cur);
+    case "weekly": return T("oWeek", lang, { v: m(r.weekly) });
+    case "monthly": return T("oMonth", lang, { v: m(r.monthly) });
+    case "overall": return T("oAll", lang, { v: m(r.overall) });
+    case "perTrade": return T("oTrade", lang, { v: m(r.perTrade) });
+    case "lots": return T("oLots", lang, { v: String(r.lots) });
+    case "sl": return T("oSl", lang);
+    case "cool": return T("oCool", lang, { v: String(r.cool) });
+    case "only": return T("oOnly", lang, { v: (r.only ?? []).join(", ") });
+  }
+}
+/** The keys of the rules that are set, in order. */
+export const ownKeys = (r: ORules): OKey[] => OKEYS.filter((k) => { const v = r[k]; return Array.isArray(v) ? v.length > 0 : typeof v === "object" ? lim(v as Lim, 1) != null : v != null && v !== false; });
+/** An own-rules challenge as a prop one, for the loss-limit alerts, the morning room and /status: its daily and overall
+ *  limits and its goal as % of the size, in force at `at`. */
+export function asProp(c: Ch, at: string): Ch {
+  if (c.kind !== "own") return c;
+  const r = ownAt(c, at), pc = (l?: Lim) => { const v = lim(l, c.size); return v != null && c.size > 0 ? (v / c.size) * 100 : null; };
+  return { ...c, daily: pc(r.daily), dailyBase: "size", max: pc(r.overall), trailing: false, target: pc(r.goal), minDays: 0, limitDays: null };
+}
 const newest = <T extends { entry_time: string }>(l: T[]) => l.reduce((a, b) => (b.entry_time > a.entry_time ? b : a)); // the latest entry
 const CURS = ["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "CNY"];
 const IDX: [RegExp, string][] = [[/^(US|NAS|SPX|SP500|DJ|DOW|WS30)/, "USD"], [/^(GER|DE[0-9]|DAX|EU50|EUSTX|STOXX|FRA|ESP|IT[0-9]|NETH)/, "EUR"], [/^(UK|FTSE)/, "GBP"], [/^(JP|NIK)/, "JPY"], [/^(AUS|ASX)/, "AUD"], [/^(HK|CHINA|CN)/, "CNY"],
@@ -516,8 +621,8 @@ Deno.serve(async (req) => {
   };
   /** A broken rule: the partner, and the coach when the trader allows that rule, get one message per rule per day (no
    *  amounts, no account) and the trader a line saying so. Returns the keys to remember. Whoever blocked the bot is let go. */
-  const tellPartner = async (uid: string, t: Tg, rule: Rule, x: { symbol: string; entry_time: string }, day: string, sent: Record<string, string>, k = 3) => {
-    const keys: string[] = [], why = (l: Lang) => T(`r${rule}`, l, { k });
+  const tellPartner = async (uid: string, t: Tg, rule: Rule, x: { symbol: string; entry_time: string }, day: string, sent: Record<string, string>, k: number | string = 3) => {
+    const keys: string[] = [], why = (l: Lang, me = false) => (rule === "own" ? T(me ? "rownMe" : "rown", l, { k: ONAME[k as OKey]?.[l] ?? String(k) }) : T(`r${rule}`, l, { k }));
     for (const role of ["partner", "coach"] as const) {
       const p = t[role], key = `${role}:${day}:${rule}`;
       if (!p?.chat || sent[key] || (role === "coach" && t.coach?.prefs?.[rule] === false)) continue;
@@ -528,7 +633,7 @@ Deno.serve(async (req) => {
         continue;
       }
       if (!res.ok) continue;
-      if (t.chat) await send(t.chat, T(role === "partner" ? "tTold" : "cTold", t.lang ?? "en", { p: p.name ?? "", r: why(t.lang ?? "en") }));
+      if (t.chat) await send(t.chat, T(role === "partner" ? "tTold" : "cTold", t.lang ?? "en", { p: p.name ?? "", r: why(t.lang ?? "en", true) }));
       sent[key] = day; // the rest of this call does not tell twice
       keys.push(key);
     }
@@ -543,7 +648,7 @@ Deno.serve(async (req) => {
 
   /** Each member's discipline score on the given broker days (see disciplineDay), with the name others see. */
   const scoresFor = (uids: string[], days: string[]) => Promise.all(uids.slice(0, 50).map(async (uid) => {
-    const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId && c.daily != null);
+    const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId).map((c) => asProp(c, `${days[days.length - 1]}T23:59`)).filter((c) => c.daily != null);
     const from = [addDays(days[0], -3), ...chs.map((c) => c.start)].sort()[0];
     const trades = await rows<DayTrade>(`trades?select=key,account_id,symbol,side,pnl,status,entry_time,exit_time,sl&user_id=eq.${uid}&deleted_at=is.null&entry_time=gte.${from}&limit=5000`);
     const plan = (await rows<{ value: Record<string, boolean> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-plan&deleted_at=is.null`))[0]?.value ?? {};
@@ -613,7 +718,7 @@ Deno.serve(async (req) => {
       if (!a) continue;
       const today = brokerToday(syncs.find((s) => s.key === `mt5-sync:${a.id}`)?.value);
       const trades = await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${a.id}&deleted_at=is.null&entry_time=gte.${c.start}`);
-      const n = challengeNow(c, trades, today), m = (v: number, sign = false) => money(v, { sign, cur: a.currency, lang });
+      const n = challengeNow(asProp(c, `${today}T23:59`), trades, today), m = (v: number, sign = false) => money(v, { sign, cur: a.currency, lang });
       parts.push([`🏁 ${a.name} · ${c.name}`, T("stResult", lang, { p: m(n.pnl, true) }) + (n.goal != null ? T("stTarget", lang, { g: m(n.goal) }) : ""),
         ...(n.limit != null ? [T("stToday", lang, { t: m(n.todayPnl, true), r: m(Math.max(0, n.limit + n.todayPnl)), l: m(n.limit) })] : []),
         ...(n.floor != null ? [T("stOverall", lang, { r: m(Math.max(0, n.bal - n.floor)), f: m(n.floor) })] : [])].join("\n"));
@@ -714,7 +819,8 @@ Deno.serve(async (req) => {
     if (prefs.morning || prefs.myRules) {
       const lp = localParts(now, tz), k = `morning:${lp.date}:`;
       if (lp.wd >= 1 && lp.wd <= 5 && lp.hour >= 8 && lp.hour < 12 && !sent[k]) {
-        const chs = prefs.morning ? ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId) : [];
+        const every = prefs.morning || prefs.myRules ? ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId) : [];
+        const chs = prefs.morning ? every.filter((c) => c.kind !== "own") : [], owns = prefs.myRules ? every.filter((c) => c.kind === "own") : [];
         const parts: string[] = [];
         for (const c of chs) {
           const a = accs.find((x) => x.id === c.accountId), today = brokerToday(syncOf(c.accountId), now);
@@ -732,6 +838,16 @@ Deno.serve(async (req) => {
         if (mine.length) {
           const wd = (lp.wd + 6) % 7, cur = accs[0]?.currency ?? null; // the rules' weekdays: 0 = Monday
           parts.push([T("myHead", lang), ...(mine.some((r) => r.rules.skipDays?.includes(wd)) ? [T("noTrading", lang)] : []), ...mine.map((r) => `• ${ruleText(r.rules, lang, cur)}`)].join("\n"));
+        }
+        for (const c of owns) {
+          const a = accs.find((x) => x.id === c.accountId), at = new Date(brokerClock(syncOf(c.accountId), now)).toISOString().slice(0, 16), today = at.slice(0, 10);
+          if (!a || c.start > today) continue;
+          const r = ownAt(c, at), keys = ownKeys(r), wd = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
+          if (!keys.length) continue;
+          const p = r.daily || r.overall ? morningPlan(asProp(c, at), challengeNow(asProp(c, at), await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${a.id}&deleted_at=is.null&entry_time=gte.${c.start}`), today), today) : null;
+          const m0 = (v: number) => money(v, { cur: a.currency, lang });
+          const room = p ? [p.dayRoom != null ? T("mDay", lang, { r: m0(p.dayRoom) }) : "", p.allRoom != null ? T("mAll", lang, { r: m0(p.allRoom) }) : ""].filter(Boolean).join(" · ") : "";
+          parts.push([`📌 ${c.name} · ${a.name}`, ...(r.daysOff?.includes(wd) ? [T("noTrading", lang)] : []), ...(room ? [`• ${room}`] : []), ...keys.map((k) => `• ${ownText(k, r, c.size, lang, a.currency)}`)].join("\n"));
         }
         if (parts.length) out.push({ text: [T("mHead", lang, { d: dayName(lp.date) }), ...parts].join("\n\n"), keys: [k] });
         else quiet.push(k);
@@ -947,7 +1063,7 @@ Deno.serve(async (req) => {
         if (k && !sent[k]) { alerts.push(T("streak", lang, { a: acc.name, n: s.n, s: money(s.sum, { cur: acc.currency, lang }) })); newKeys.push(k); }
       }
       // open trades still without a stop loss 2 minutes after the entry (once per trade); the partner hears of it too
-      const todo: { rule: Rule; x: OpenRow; k?: number }[] = [];
+      const todo: { rule: Rule; x: OpenRow; k?: number | string }[] = [];
       if ((prefs.nosl || t.partner?.chat || t.coach?.chat) && Array.isArray(body.open)) {
         const due = noSlDue(body.open as OpenRow[], Date.parse(`${now}Z`), sent).slice(0, 5);
         if (prefs.nosl) for (const x of due) { alerts.push(noSlLine(acc, x, lang)); newKeys.push(x.k); }
@@ -959,14 +1075,14 @@ Deno.serve(async (req) => {
         const last = await rows<TradeRow>(`trades?select=key,pnl,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=exit_time.desc&limit=30`);
         const s = lossStreak(last.filter((x) => day(x.exit_time) === today)); // losses in a row today
         if (s.n >= 3) todo.push({ rule: "streak", x: newOne, k: s.n });
-        const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId === accountId && c.daily != null);
+        const chs = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId === accountId).map((c) => asProp(c, now)).filter((c) => c.daily != null);
         if (chs.length) {
           const all = await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null`);
           if (chs.some((c) => { const n = challengeNow(c, all, today); return n.limit != null && n.limit > 0 && -n.todayPnl >= n.limit - 1e-9; })) todo.push({ rule: "limit", x: newOne });
         }
       }
       if (prefs.rules && closed.length) {
-        const list = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId === accountId);
+        const list = ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.accountId === accountId).map((c) => asProp(c, now));
         if (list.length) {
           const trades = await rows<TradeRow>(`trades?select=symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null`);
           const m = (v: number) => money(v, { cur: acc.currency, lang });
@@ -980,7 +1096,8 @@ Deno.serve(async (req) => {
       const entries: { text: string; kb: Btn[][]; k: string }[] = [];
       const opened = Array.isArray(body.opened) ? (body.opened as OpenRow[]) : [];
       const mine = prefs.myRules && opened.length ? (await myRules(uid)).filter((r) => r.at <= today) : [];
-      if ((prefs.entry || prefs.danger || mine.length) && opened.length) {
+      const owns = opened.length && (prefs.myRules || t.partner?.chat || t.coach?.chat) ? ((await rows<{ value: Ch[] }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-challenges&deleted_at=is.null`))[0]?.value ?? []).filter((c) => c?.kind === "own" && c.accountId === accountId && c.start <= today) : [];
+      if ((prefs.entry || prefs.danger || mine.length || owns.length) && opened.length) {
         const fresh = opened.filter((x) => typeof x?.key === "string" && x.key.length <= 60 && typeof x.symbol === "string" && typeof x.entry_time === "string"
           && Date.parse(`${now}Z`) - naive(x.entry_time) <= 30 * 60e3 && !sent[`entry:${x.entry_time.slice(0, 10)}:${x.key}`]).slice(0, 3);
         const hist = fresh.length && prefs.danger ? await rows<Hist>(`trades?select=symbol,side,pnl,entry_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&order=exit_time.desc&limit=1000`) : [];
@@ -988,12 +1105,19 @@ Deno.serve(async (req) => {
         const opens = fresh.length && mine.length ? await rows<{ key: string; entry_time: string | null }>(`trades?select=key,entry_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null&entry_time=gte.${today}`) : [];
         const shut = fresh.length && mine.length ? await rows<TradeRow>(`trades?select=key,pnl,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&status=eq.closed&deleted_at=is.null&exit_time=gte.${today}&order=exit_time.asc&limit=500`) : [];
         const dayNet = shut.reduce((a, r) => a + Number(r.pnl ?? 0), 0);
+        const since = owns.length ? owns.map((c) => c.start).sort()[0] : "";
+        const ownTrades = fresh.length && owns.length ? await rows<TradeRow>(`trades?select=key,symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null&entry_time=gte.${since}&limit=5000`) : [];
         let run = 0;
         for (let i = shut.length - 1; i >= 0 && Number(shut[i].pnl) < 0; i--) run++;
         for (const x of fresh) {
           const d = prefs.danger ? dangerOf(x, hist) : null;
           const n = opens.filter((r) => r.key !== x.key && (r.entry_time ?? "") < x.entry_time).length;
           const broke = mine.filter((r) => ruleBroken(r.rules, x, { n, net: dayNet, run })).map((r) => T("breaks", lang, { r: ruleText(r.rules, lang, acc.currency) }));
+          for (const c of owns) {
+            const at = tm(x.entry_time), r = ownAt(c, at), hits = ownBroken(r, x, ownCtx(ownTrades, c.start, at, x.key), c.size);
+            if (prefs.myRules) broke.push(...hits.map((k) => T("breaks", lang, { r: ownText(k, r, c.size, lang, acc.currency) })));
+            if (hits.length && c.signed?.notify) todo.push({ rule: "own", x, k: hits[0] }); // the contract: the partner and the coach hear of it
+          }
           if (!prefs.entry && !d && !broke.length) continue;
           const head = T("entry", lang, { a: acc.name, s: x.symbol, d: side(x.side, lang), q: Number(x.qty).toLocaleString("en-US"), h: x.entry_time.replace(" ", "T").slice(11, 16) });
           entries.push({ text: [head, ...(d ? [dangerLine(d, x, lang, acc)] : []), ...broke, ...(prefs.entry ? [T("ask", lang)] : [])].join("\n"), kb: prefs.entry ? [planButtons(x.key, lang)] : [], k: `entry:${x.entry_time.slice(0, 10)}:${x.key}` });

@@ -1,16 +1,17 @@
 // Challenges: prop-firm evaluations tracked on the account's trades — the room left today and overall, the target, the
 // trading days, a balance chart against the floor, and the chance to pass from here. A personal challenge runs the
 // trader's own account on the same rules, from its real balance, with a new attempt after a failure.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Building2, Check, Flag, Mountain, Pencil, Plus, RotateCcw, Trash2, UserRound, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Building2, Check, Flag, Mountain, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, UserRound, X } from "lucide-react";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import { challengeState, retryStart, TEMPLATES, type Challenge, type ChallengeState } from "../lib/challenge";
 import { balanceBefore } from "../lib/balance";
 import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney, ltrNumbers } from "../lib/money";
-import { offsetMs, parseModel, type TimeModel } from "../lib/path";
-import { readClock } from "../lib/pathData";
 import { propOdds } from "../lib/tradeLab";
+import { Bar, BalanceChart, dangerColor, dayLabel, fill, nowFor, todayFor } from "./challengeUi";
+import { fromDraft, hasRule, OT, OwnCard, OwnFields, toDraft, type OwnDraft } from "./OwnRulesCard";
+import { loosens, NO_OWN, rulesAt, stricter, tidy, type OwnRules } from "../lib/ownRules";
 
 type L3 = Record<Lang, string>;
 const T = {
@@ -118,77 +119,7 @@ function useChallenges() {
   return [list, (next: Challenge[]) => { setList(next); write(next); }] as const;
 }
 
-const GUESS: TimeModel = { base: 2, dst: "us" };
-/** Today in the account's clock: the broker's (Trade path's clock, else UTC+2/+3) for MT5, the device's for others. */
-export function todayFor(a: Account | undefined, now = Date.now()) {
-  if (a?.platform !== "mt5") return new Date(now - new Date(now).getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-  const c = readClock(), m = (c.override && parseModel(c.override)) || (c.auto[a.id] && parseModel(c.auto[a.id].m)) || GUESS;
-  return new Date(now + offsetMs(m, now)).toISOString().slice(0, 10);
-}
-const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
-const loc = (lang: Lang) => (lang === "ar" ? "ar-u-nu-latn" : lang);
-const dayLabel = (d: string, lang: Lang) => new Intl.DateTimeFormat(loc(lang), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
-const dangerColor = (u: number) => (u >= 0.8 ? "#f87171" : u >= 0.5 ? "#f59e0b" : "var(--icon)");
-
-function useWidth() {
-  const ref = useRef<HTMLDivElement>(null), [w, setW] = useState(0);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)));
-    ro.observe(el);
-    setW(Math.round(el.getBoundingClientRect().width));
-    return () => ro.disconnect();
-  }, []);
-  return [ref, w] as const;
-}
-
-function Bar({ value, color }: { value: number; color: string }) {
-  return (
-    <div className="mt-2 h-2 overflow-hidden rounded-full bg-skeleton">
-      <div className="h-full rounded-full transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${Math.max(0, Math.min(100, value * 100))}%`, background: color }} />
-    </div>
-  );
-}
-
-function BalanceChart({ c, s, money, lang }: { c: Challenge; s: ChallengeState; money: (v: number) => string; lang: Lang }) {
-  const [ref, W] = useWidth();
-  const rows = s.days, H = 150, L = 8, R = 70, TOP = 10, B = 20;
-  if (rows.length < 1) return null;
-  const goal = c.target != null ? c.size * (1 + c.target / 100) : null;
-  const vals = [c.size, ...rows.map((r) => r.end), ...rows.flatMap((r) => (r.floor != null ? [r.floor] : [])), ...(goal != null ? [goal] : [])];
-  let lo = Math.min(...vals), hi = Math.max(...vals);
-  const pad = (hi - lo || c.size * 0.01) * 0.08; lo -= pad; hi += pad;
-  const pw = Math.max(10, W - L - R), ph = H - TOP - B, n = rows.length;
-  const x = (i: number) => L + ((i + 1) / n) * pw, y = (v: number) => TOP + ((hi - v) / (hi - lo)) * ph; // x(-1): the start
-  const line = [`M${L},${y(c.size)}`, ...rows.map((r, i) => `L${x(i)},${y(r.end)}`)].join(" ");
-  const floors = rows.map((r) => r.floor);
-  const floorPath = floors.some((f) => f != null) ? [`M${L},${y(floors.find((f) => f != null) as number)}`, ...rows.map((r, i) => (r.floor == null ? "" : `L${x(i - 1) + (x(i) - x(i - 1)) / 2},${y(r.floor)} L${x(i)},${y(r.floor)}`))].join(" ") : null;
-  const tag = (v: number, color: string, label: string) => (
-    <g>
-      <rect x={L + pw + 4} y={y(v) - 9} width={R - 6} height={18} rx={5} fill="var(--surface)" stroke={color} strokeWidth={1} />
-      <text x={L + pw + 8} y={y(v) + 3.5} fontSize={9.5} fontWeight={700} fill={color}>{label}</text>
-    </g>
-  );
-  return (
-    <div ref={ref} dir="ltr" className="mt-4 w-full">
-      {W > 0 && (
-        <svg width={W} height={H} role="img" aria-label={T.balance[lang]}>
-          <line x1={L} x2={L + pw} y1={y(c.size)} y2={y(c.size)} stroke="var(--border)" strokeDasharray="2 3" />
-          {goal != null && <line x1={L} x2={L + pw} y1={y(goal)} y2={y(goal)} stroke="var(--profit)" strokeDasharray="5 4" />}
-          {floorPath && <path d={floorPath} fill="none" stroke="#f87171" strokeWidth={1.2} strokeDasharray="5 4" />}
-          <path d={line} fill="none" stroke="var(--icon)" strokeWidth={2} strokeLinejoin="round" />
-          {rows.map((r, i) => <circle key={r.day} cx={x(i)} cy={y(r.end)} r={r.breach.length ? 4.5 : 2.5} fill={r.breach.length ? "#f87171" : "var(--icon)"} stroke="var(--surface)" strokeWidth={r.breach.length ? 1.5 : 0}><title>{`${r.day} · ${money(r.pnl)}`}</title></circle>)}
-          {goal != null && tag(goal, "var(--profit)", money(goal).replace(/^\+/, ""))}
-          {s.maxLoss && tag(s.maxLoss.floor, "#f87171", money(s.maxLoss.floor).replace(/^\+/, ""))}
-          <circle cx={L} cy={y(c.size)} r={2.5} fill="var(--muted)" />
-          <text x={L} y={H - 5} fontSize={10} fill="var(--muted)">{dayLabel(c.start, lang)}</text>
-          {n > 1 && <text x={L + pw} y={H - 5} fontSize={10} fill="var(--muted)" textAnchor="end">{dayLabel(rows[n - 1].day, lang)}</text>}
-        </svg>
-      )}
-    </div>
-  );
-}
+export { todayFor };
 
 function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Challenge; account: Account; trades: Trade[]; lang: Lang; onEdit: () => void; onRemove: () => void; onRetry: (start: string) => void }) {
   const L = (x: L3) => x[lang];
@@ -228,7 +159,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h3 className="font-heading text-base font-semibold">{account.name} · {c.name}</h3>
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${pill[0]}`}>{pill[1]}{L(T[s.status])}</span>
-            {self && <span className="tone-sky tone-chip inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"><UserRound size={12} />{tx(`${L(T.self)}${(c.attempt ?? 1) > 1 ? ` · ${fill(L(T.attemptN), { n: c.attempt as number })}` : ""}`)}</span>}
+            {self && <span className="tone-sky tone-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold"><UserRound size={12} />{tx(`${L(T.self)}${(c.attempt ?? 1) > 1 ? ` · ${fill(L(T.attemptN), { n: c.attempt as number })}` : ""}`)}</span>}
           </div>
           <p className="mt-0.5 text-xs text-muted">{tx(pending ? `${fill(L(T.starts), { d: dayLabel(c.start, lang) })} · ${m(c.size)}` : `${fill(L(T.started), { d: dayLabel(c.start, lang) })} · ${c.limitDays ? fill(L(T.dayNofM), { n: s.daysUsed, m: c.limitDays }) : fill(L(T.dayN), { n: s.daysUsed })} · ${m(c.size)}`)}</p>
         </div>
@@ -311,7 +242,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
         )}
       </div>
 
-      <BalanceChart c={c} s={s} money={(v) => m(v)} lang={lang} />
+      <BalanceChart size={c.size} goal={c.target != null ? c.size * (1 + c.target / 100) : null} floor={s.maxLoss?.floor ?? null} start={c.start} rows={s.days.map((r) => ({ day: r.day, pnl: r.pnl, end: r.end, floor: r.floor, bad: r.breach.length > 0 }))} money={(v) => m(v)} lang={lang} label={L(T.balance)} />
 
       {s.daysToTarget != null && s.avgDay != null && <p className="mt-2 text-xs text-muted">{tx(fill(L(T.pace), { m: m(s.avgDay, true), n: s.daysToTarget }))}</p>}
       <p className="mt-2 text-[11px] leading-relaxed text-muted">{L(self ? T.noteSelf : T.note)}{odds ? ` ${L(T.oddsHint)}` : ""}</p>
@@ -319,35 +250,45 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
   );
 }
 
-type Kind = "prop" | "self";
-type Draft = { kind: Kind; sizeAuto: boolean; attempt?: number; accountId: string; tpl: keyof typeof TEMPLATES | "custom"; name: string; size: string; start: string; target: string; daily: string; dailyBase: "size" | "dayStart"; max: string; trailing: boolean; trailLock: boolean; minDays: string; limitDays: string; consistency: string };
+type Kind = "prop" | "self" | "own";
+type Draft = { kind: Kind; sizeAuto: boolean; attempt?: number; accountId: string; tpl: keyof typeof TEMPLATES | "custom"; name: string; size: string; start: string; target: string; daily: string; dailyBase: "size" | "dayStart"; max: string; trailing: boolean; trailLock: boolean; minDays: string; limitDays: string; consistency: string; own: OwnDraft };
 const s2 = (v: number | null | undefined) => (v == null ? "" : String(v));
-const fromChallenge = (c: Challenge): Draft => ({ kind: c.kind === "self" ? "self" : "prop", sizeAuto: !!c.sizeAuto, attempt: c.attempt, accountId: c.accountId, tpl: "custom", name: c.name, size: String(c.size), start: c.start, target: s2(c.target), daily: s2(c.daily), dailyBase: c.dailyBase, max: s2(c.max), trailing: c.trailing, trailLock: c.trailLock, minDays: String(c.minDays), limitDays: s2(c.limitDays), consistency: s2(c.consistency) });
+const fromChallenge = (c: Challenge): Draft => ({ kind: c.kind === "self" || c.kind === "own" ? c.kind : "prop", sizeAuto: !!c.sizeAuto, attempt: c.attempt, accountId: c.accountId, tpl: "custom", name: c.name, size: String(c.size), start: c.start, target: s2(c.target), daily: s2(c.daily), dailyBase: c.dailyBase, max: s2(c.max), trailing: c.trailing, trailLock: c.trailLock, minDays: String(c.minDays), limitDays: s2(c.limitDays), consistency: s2(c.consistency), own: toDraft(c.ownNext?.rules ?? c.own ?? NO_OWN) });
 const r2 = (v: number) => Math.round(v * 100) / 100;
+const KINDS: { k: Kind; icon: typeof Flag; title: L3; sub: L3 }[] = [
+  { k: "prop", icon: Building2, title: T.kindProp, sub: T.kindPropD },
+  { k: "self", icon: Mountain, title: T.kindSelf, sub: T.kindSelfD },
+  { k: "own", icon: SlidersHorizontal, title: OT.kind, sub: OT.kindD },
+];
 
 function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, onClose }: { lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; flows: CashFlow[]; initial: Challenge | null; kind: Kind; onSave: (c: Challenge) => void; onClose: () => void }) {
   const L = (x: L3) => x[lang];
   const tx = (v: string) => (lang === "ar" ? ltrNumbers(v) : v);
   const panel = useRef<HTMLDivElement>(null);
   const tplName = (k: keyof typeof TEMPLATES) => ({ twoStep1: "Phase 1", twoStep2: "Phase 2", oneStep: "1-step", funded: "Funded" })[k];
-  const applyTpl = (d: Draft, k: keyof typeof TEMPLATES): Draft => { const t = TEMPLATES[k]; return { ...d, tpl: k, name: d.kind === "self" ? d.name : tplName(k), target: s2(t.target), daily: s2(t.daily), dailyBase: t.dailyBase, max: s2(t.max), trailing: t.trailing, trailLock: t.trailLock, minDays: String(t.minDays), limitDays: s2(t.limitDays), consistency: s2(t.consistency) }; };
+  const applyTpl = (d: Draft, k: keyof typeof TEMPLATES): Draft => { const t = TEMPLATES[k]; return { ...d, tpl: k, name: d.kind === "prop" ? tplName(k) : d.name, target: s2(t.target), daily: s2(t.daily), dailyBase: t.dailyBase, max: s2(t.max), trailing: t.trailing, trailLock: t.trailLock, minDays: String(t.minDays), limitDays: s2(t.limitDays), consistency: s2(t.consistency) }; };
   const [d, setD] = useState<Draft>(() => {
     if (initial) return fromChallenge(initial);
     const a = accounts[0];
-    return applyTpl({ kind, sizeAuto: kind === "self", accountId: a.id, tpl: "twoStep1", name: kind === "self" ? L(T.selfName) : "", size: String(a.startBalance > 0 ? a.startBalance : 100000), start: todayFor(a), target: "", daily: "", dailyBase: "size", max: "", trailing: false, trailLock: true, minDays: "0", limitDays: "", consistency: "" }, "twoStep1");
+    const base = applyTpl({ kind, sizeAuto: kind !== "prop", accountId: a.id, tpl: "twoStep1", name: "", size: String(a.startBalance > 0 ? a.startBalance : 100000), start: todayFor(a), target: "", daily: "", dailyBase: "size", max: "", trailing: false, trailLock: true, minDays: "0", limitDays: "", consistency: "", own: toDraft(NO_OWN) }, "twoStep1");
+    return { ...base, name: kind === "self" ? L(T.selfName) : kind === "own" ? L(OT.name) : base.name };
   });
   // a personal challenge starts from the account's real balance at the start of its first day
   const acc = accounts.find((x) => x.id === d.accountId);
   const auto = acc && /^\d{4}-\d{2}-\d{2}$/.test(d.start) ? r2(balanceBefore(acc, trades, d.start, balances[acc.id], flows)) : 0;
-  const useAuto = d.kind === "self" && d.sizeAuto && auto > 0;
+  const useAuto = d.kind !== "prop" && d.sizeAuto && auto > 0;
   const size = useAuto ? String(auto) : d.size;
-  const isDefaultName = (n: string) => !n.trim() || ["Phase 1", "Phase 2", "1-step", "Funded"].includes(n) || Object.values(T.selfName).includes(n);
+  const isDefaultName = (n: string) => !n.trim() || ["Phase 1", "Phase 2", "1-step", "Funded"].includes(n) || Object.values(T.selfName).includes(n) || Object.values(OT.name).includes(n);
   const setKind = (k: Kind) => {
     if (k === d.kind) return;
-    setD(k === "self"
-      ? { ...d, kind: k, sizeAuto: true, name: isDefaultName(d.name) ? L(T.selfName) : d.name }
-      : { ...d, kind: k, sizeAuto: false, size: acc && acc.startBalance > 0 ? String(acc.startBalance) : d.size, name: isDefaultName(d.name) ? (d.tpl === "custom" ? "" : tplName(d.tpl)) : d.name });
+    const name = isDefaultName(d.name) ? (k === "self" ? L(T.selfName) : k === "own" ? L(OT.name) : d.tpl === "custom" ? "" : tplName(d.tpl)) : d.name;
+    setD(k === "prop" ? { ...d, kind: k, sizeAuto: false, size: acc && acc.startBalance > 0 ? String(acc.startBalance) : d.size, name } : { ...d, kind: k, sizeAuto: true, name });
   };
+  const symbols = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const t of trades) if (t.accountId === d.accountId) n.set(t.symbol, (n.get(t.symbol) ?? 0) + 1);
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([s]) => s);
+  }, [trades, d.accountId]);
   const [tried, setTried] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -358,17 +299,36 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
   const num = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
   const pct = (v: string, opt: boolean) => { const n = num(v); return n == null ? opt : Number.isFinite(n) && n > 0 && n < 100; };
   const int = (v: string, opt: boolean) => { const n = num(v); return n == null ? opt : Number.isInteger(n) && n >= 0 && n <= 3650; };
+  const own = d.kind === "own" ? fromDraft(d.own) : null, prop = d.kind !== "own";
   const bad = {
-    name: !d.name.trim(), size: !(Number(num(size)) > 0), start: !/^\d{4}-\d{2}-\d{2}$/.test(d.start), target: !pct(d.target, true), daily: !pct(d.daily, true), max: !pct(d.max, true),
-    minDays: !int(d.minDays, true), limitDays: !int(d.limitDays, true) || num(d.limitDays) === 0, consistency: !pct(d.consistency, true),
+    name: !d.name.trim(), size: !(Number(num(size)) > 0), start: !/^\d{4}-\d{2}-\d{2}$/.test(d.start), target: prop && !pct(d.target, true), daily: prop && !pct(d.daily, true), max: prop && !pct(d.max, true),
+    minDays: prop && !int(d.minDays, true), limitDays: prop && (!int(d.limitDays, true) || num(d.limitDays) === 0), consistency: prop && !pct(d.consistency, true),
+    own: !!own && (own.bad.size > 0 || !hasRule(own.rules)),
   };
   const ok = !Object.values(bad).some(Boolean);
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     setTried(true);
     if (!ok) return;
+    const base = { id: initial?.id ?? crypto.randomUUID(), accountId: d.accountId, name: d.name.trim(), start: d.start, size: Number(num(size)) };
+    if (own) {
+      // the rule lock: what tightens counts now; what loosens waits a day, with the stricter of both meanwhile. Times on the
+      // broker's clock; trades before a change keep the rules they were made under (ownPast).
+      const now = nowFor(acc), next = own.rules, kept = initial?.kind === "own" && initial.start === d.start && initial.accountId === d.accountId;
+      const old = kept && initial ? rulesAt(initial, now) : null, same = (a: OwnRules, b: OwnRules) => JSON.stringify(tidy(a)) === JSON.stringify(tidy(b));
+      const later = !!old && loosens(old, next, base.size);
+      const from = initial?.ownNext && same(initial.ownNext.rules, next) ? initial.ownNext.from : new Date(Date.parse(`${now}Z`) + 864e5).toISOString().slice(0, 16);
+      const inForce = later && old ? stricter(old, next, base.size) : next;
+      const past = kept && initial && old && !same(old, inForce) ? [...(initial.ownPast ?? []), { until: now, rules: old }].slice(-20) : kept ? initial?.ownPast : undefined;
+      onSave({
+        ...base, target: null, daily: null, dailyBase: "size", max: null, trailing: false, trailLock: true, minDays: 0, limitDays: null, consistency: null,
+        kind: "own", ...(useAuto ? { sizeAuto: true } : {}), ...(d.attempt ? { attempt: d.attempt } : {}),
+        own: inForce, ...(later ? { ownNext: { rules: next, from } } : {}), ...(past?.length ? { ownPast: past } : {}), ...(initial?.signed ? { signed: initial.signed } : {}),
+      });
+      return;
+    }
     onSave({
-      id: initial?.id ?? crypto.randomUUID(), accountId: d.accountId, name: d.name.trim(), start: d.start, size: Number(num(size)), target: num(d.target), daily: num(d.daily), dailyBase: d.dailyBase,
+      ...base, target: num(d.target), daily: num(d.daily), dailyBase: d.dailyBase,
       max: num(d.max), trailing: d.trailing && num(d.max) != null, trailLock: d.trailLock, minDays: num(d.minDays) ?? 0, limitDays: num(d.limitDays), consistency: num(d.consistency),
       ...(d.kind === "self" ? { kind: "self" as const, ...(useAuto ? { sizeAuto: true } : {}), ...(d.attempt ? { attempt: d.attempt } : {}) } : {}),
     });
@@ -378,21 +338,21 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
   const firstTrade = (id: string) => trades.filter((t) => t.accountId === id && t.entryTime).map((t) => (t.entryTime as string).slice(0, 10)).sort()[0];
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ch-form-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-surface p-6 outline-none">
+      <div ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ch-form-title" className={`max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-border bg-surface p-6 outline-none ${d.kind === "own" ? "max-w-2xl" : "max-w-xl"}`}>
         <div className="mb-4 flex items-start justify-between gap-4">
           <h2 id="ch-form-title" className="font-heading text-xl font-semibold">{L(initial ? T.formEdit : T.formNew)}</h2>
           <button type="button" aria-label={L(T.cancel)} onClick={onClose} className="icon-btn -m-1.5"><X size={20} /></button>
         </div>
         <form onSubmit={save} className="flex flex-col gap-4" noValidate>
-          <div role="radiogroup" aria-label={L(T.formNew)} className="grid gap-2 sm:grid-cols-2">
-            {(["prop", "self"] as const).map((k) => {
-              const Icon = k === "self" ? Mountain : Building2, on = d.kind === k;
+          <div role="radiogroup" aria-label={L(T.formNew)} className="grid gap-2 sm:grid-cols-3">
+            {KINDS.map(({ k, icon: Icon, title, sub }) => {
+              const on = d.kind === k;
               return (
                 <button key={k} type="button" role="radio" aria-checked={on} onClick={() => setKind(k)} className={`flex items-start gap-3 rounded-xl border p-3 text-start transition-colors ${on ? "border-[var(--icon)] bg-primary-tint" : "border-border hover:border-[var(--icon)]"}`}>
                   <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${on ? "bg-primary text-on-primary" : "bg-primary-tint text-icon"}`}><Icon size={16} /></span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold">{L(k === "self" ? T.kindSelf : T.kindProp)}</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-muted">{L(k === "self" ? T.kindSelfD : T.kindPropD)}</span>
+                    <span className="block text-sm font-semibold">{L(title)}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted">{L(sub)}</span>
                   </span>
                 </button>
               );
@@ -403,18 +363,20 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
               {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </label>
-          <div className="flex flex-col gap-1.5 text-sm font-medium">{L(T.from)}
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).map((k) => (
-                <button key={k} type="button" aria-pressed={d.tpl === k} onClick={() => setD(applyTpl(d, k))} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${d.tpl === k ? "border-[var(--icon)] bg-primary-tint text-primary" : "border-border text-muted hover:text-text"}`}>{L(T[k])}</button>
-              ))}
+          {prop && (
+            <div className="flex flex-col gap-1.5 text-sm font-medium">{L(T.from)}
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).map((k) => (
+                  <button key={k} type="button" aria-pressed={d.tpl === k} onClick={() => setD(applyTpl(d, k))} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${d.tpl === k ? "border-[var(--icon)] bg-primary-tint text-primary" : "border-border text-muted hover:text-text"}`}>{L(T[k])}</button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={lbl}>{L(T.name)}<input className={field("name")} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value, tpl: d.tpl })} /></label>
             <div className="flex flex-col gap-1.5">
-              <label className={lbl}>{L(d.kind === "self" ? T.startBal : T.size)}<input className={field("size")} inputMode="decimal" dir="ltr" value={size} onChange={(e) => setD({ ...d, size: e.target.value, sizeAuto: false })} /></label>
-              {d.kind === "self" && auto > 0 && (useAuto
+              <label className={lbl}>{L(d.kind !== "prop" ? T.startBal : T.size)}<input className={field("size")} inputMode="decimal" dir="ltr" value={size} onChange={(e) => setD({ ...d, size: e.target.value, sizeAuto: false })} /></label>
+              {d.kind !== "prop" && auto > 0 && (useAuto
                 ? <span className="text-xs text-muted">{tx(`✓ ${fill(L(T.balAuto), { d: dayLabel(d.start, lang) })}`)}</span>
                 : <button type="button" onClick={() => setD({ ...d, sizeAuto: true })} className="self-start text-start text-xs font-semibold text-icon hover:underline">{tx(`↺ ${fill(L(T.balAuto), { d: dayLabel(d.start, lang) })}: ${fmtMoney(auto, { currency: acc?.currency ?? null })}`)}</button>)}
             </div>
@@ -422,24 +384,29 @@ function Form({ lang, accounts, trades, balances, flows, initial, kind, onSave, 
               <label className={lbl}>{L(T.start)}<input className={field("start")} type="date" dir="ltr" value={d.start} onChange={(e) => setD({ ...d, start: e.target.value })} /></label>
               {firstTrade(d.accountId) && firstTrade(d.accountId) < d.start && <button type="button" onClick={() => setD({ ...d, start: firstTrade(d.accountId) })} className="self-start text-xs font-semibold text-icon hover:underline"><span dir="ltr">↺ {firstTrade(d.accountId)}</span></button>}
             </div>
-            <label className={lbl}>{L(T.fTarget)}<input className={field("target")} inputMode="decimal" dir="ltr" value={d.target} onChange={(e) => setD({ ...d, target: e.target.value, tpl: "custom" })} /></label>
-            <div className="flex flex-col gap-1.5">
-              <label className={lbl}>{L(T.fDaily)}<input className={field("daily")} inputMode="decimal" dir="ltr" value={d.daily} onChange={(e) => setD({ ...d, daily: e.target.value, tpl: "custom" })} /></label>
-              <select className="field" aria-label={`${L(T.fDaily)}: ${L(T.ofSize)} / ${L(T.ofDay)}`} value={d.dailyBase} onChange={(e) => setD({ ...d, dailyBase: e.target.value as Draft["dailyBase"], tpl: "custom" })}>
-                <option value="size">{L(T.ofSize)}</option><option value="dayStart">{L(T.ofDay)}</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className={lbl}>{L(T.fMax)}<input className={field("max")} inputMode="decimal" dir="ltr" value={d.max} onChange={(e) => setD({ ...d, max: e.target.value, tpl: "custom" })} /></label>
-              <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-[var(--icon)]" checked={d.trailing} onChange={(e) => setD({ ...d, trailing: e.target.checked, tpl: "custom" })} />{L(T.fTrailing)}</label>
-              {d.trailing && <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-[var(--icon)]" checked={d.trailLock} onChange={(e) => setD({ ...d, trailLock: e.target.checked, tpl: "custom" })} />{L(T.fLock)}</label>}
-            </div>
-            <label className={lbl}>{L(T.fMinDays)}<input className={field("minDays")} inputMode="numeric" dir="ltr" value={d.minDays} onChange={(e) => setD({ ...d, minDays: e.target.value, tpl: "custom" })} /></label>
-            <label className={lbl}>{L(T.fLimit)}<input className={field("limitDays")} inputMode="numeric" dir="ltr" value={d.limitDays} onChange={(e) => setD({ ...d, limitDays: e.target.value, tpl: "custom" })} /></label>
-            <label className={`${lbl} sm:col-span-2`}>{L(T.fCons)}<input className={field("consistency")} inputMode="decimal" dir="ltr" value={d.consistency} onChange={(e) => setD({ ...d, consistency: e.target.value, tpl: "custom" })} /></label>
+            {prop && (
+              <>
+                <label className={lbl}>{L(T.fTarget)}<input className={field("target")} inputMode="decimal" dir="ltr" value={d.target} onChange={(e) => setD({ ...d, target: e.target.value, tpl: "custom" })} /></label>
+                <div className="flex flex-col gap-1.5">
+                  <label className={lbl}>{L(T.fDaily)}<input className={field("daily")} inputMode="decimal" dir="ltr" value={d.daily} onChange={(e) => setD({ ...d, daily: e.target.value, tpl: "custom" })} /></label>
+                  <select className="field" aria-label={`${L(T.fDaily)}: ${L(T.ofSize)} / ${L(T.ofDay)}`} value={d.dailyBase} onChange={(e) => setD({ ...d, dailyBase: e.target.value as Draft["dailyBase"], tpl: "custom" })}>
+                    <option value="size">{L(T.ofSize)}</option><option value="dayStart">{L(T.ofDay)}</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={lbl}>{L(T.fMax)}<input className={field("max")} inputMode="decimal" dir="ltr" value={d.max} onChange={(e) => setD({ ...d, max: e.target.value, tpl: "custom" })} /></label>
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-[var(--icon)]" checked={d.trailing} onChange={(e) => setD({ ...d, trailing: e.target.checked, tpl: "custom" })} />{L(T.fTrailing)}</label>
+                  {d.trailing && <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="accent-[var(--icon)]" checked={d.trailLock} onChange={(e) => setD({ ...d, trailLock: e.target.checked, tpl: "custom" })} />{L(T.fLock)}</label>}
+                </div>
+                <label className={lbl}>{L(T.fMinDays)}<input className={field("minDays")} inputMode="numeric" dir="ltr" value={d.minDays} onChange={(e) => setD({ ...d, minDays: e.target.value, tpl: "custom" })} /></label>
+                <label className={lbl}>{L(T.fLimit)}<input className={field("limitDays")} inputMode="numeric" dir="ltr" value={d.limitDays} onChange={(e) => setD({ ...d, limitDays: e.target.value, tpl: "custom" })} /></label>
+                <label className={`${lbl} sm:col-span-2`}>{L(T.fCons)}<input className={field("consistency")} inputMode="decimal" dir="ltr" value={d.consistency} onChange={(e) => setD({ ...d, consistency: e.target.value, tpl: "custom" })} /></label>
+              </>
+            )}
           </div>
-          <p className="text-xs text-muted">{L(d.kind === "self" ? T.formNoteSelf : T.formNote)}</p>
-          {tried && !ok && <p className="text-sm text-loss" role="alert">{L(T.invalid)}</p>}
+          {own && <OwnFields lang={lang} d={d.own} set={(o) => setD({ ...d, own: o })} bad={own.bad} tried={tried} cur={acc?.currency ?? null} size={Number(num(size)) || 0} symbols={symbols} />}
+          <p className="text-xs text-muted">{L(d.kind === "own" ? OT.lockNote : d.kind === "self" ? T.formNoteSelf : T.formNote)}</p>
+          {tried && !ok && <p className="text-sm text-loss" role="alert">{L(own && !hasRule(own.rules) && own.bad.size === 0 ? OT.needRule : T.invalid)}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-muted hover:text-text">{L(T.cancel)}</button>
             <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary">{L(T.save)}</button>
@@ -458,17 +425,24 @@ export default function ChallengeView({ lang, accounts, trades, balances = NO_PO
   const byId = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
   const shown = list.filter((c) => byId.has(c.accountId));
   const startBal = (a: Account, day: string) => r2(balanceBefore(a, trades, day, balances[a.id], flows));
+  const profileName = useMemo(() => { try { const n = JSON.parse(localStorage.getItem("mizan-profile") ?? "{}")?.name; return typeof n === "string" ? n : ""; } catch { return ""; } }, []);
   // personal challenges keep the real balance at the start of their first day (trades synced late, flows recorded later)
   useEffect(() => {
     if (!trades.length) return;
     let changed = false;
     const next = list.map((c) => {
       const a = byId.get(c.accountId);
-      if (c.kind !== "self" || !c.sizeAuto || !a) return c;
-      const v = startBal(a, c.start);
-      if (!(v > 0) || Math.abs(v - c.size) < 0.005) return c;
+      let x = c;
+      if (x.ownNext && a && x.ownNext.from <= nowFor(a)) { // a loosened set whose day came: the stricter one becomes the past
+        const { ownNext, ...rest } = x;
+        x = { ...rest, own: ownNext.rules, ownPast: [...(x.ownPast ?? []), ...(x.own ? [{ until: ownNext.from, rules: x.own }] : [])].slice(-20) };
+        changed = true;
+      }
+      if ((x.kind !== "self" && x.kind !== "own") || !x.sizeAuto || !a) return x;
+      const v = startBal(a, x.start);
+      if (!(v > 0) || Math.abs(v - x.size) < 0.005) return x;
       changed = true;
-      return { ...c, size: v };
+      return { ...x, size: v };
     });
     if (changed) setList(next);
   }, [list, trades, balances, flows, byId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -498,12 +472,14 @@ export default function ChallengeView({ lang, accounts, trades, balances = NO_PO
             <div className="mt-1 flex flex-wrap justify-center gap-2">
               <button type="button" onClick={() => setEditing("prop")} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><Building2 size={16} />{L(T.kindProp)}</button>
               <button type="button" onClick={() => setEditing("self")} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-4 py-2 text-sm font-semibold text-primary hover:bg-primary-tint"><Mountain size={16} />{L(T.kindSelf)}</button>
+              <button type="button" onClick={() => setEditing("own")} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-4 py-2 text-sm font-semibold text-primary hover:bg-primary-tint"><SlidersHorizontal size={16} />{L(OT.kind)}</button>
             </div>
           )}
         </div>
       ) : (
-        shown.map((c) => (
-          <Card key={c.id} c={c} account={byId.get(c.accountId) as Account} trades={trades} lang={lang} onEdit={() => setEditing(c)} onRemove={() => setList(list.filter((x) => x.id !== c.id))} onRetry={(start) => retry(c, start)} />
+        shown.map((c) => (c.kind === "own"
+          ? <OwnCard key={c.id} c={c} account={byId.get(c.accountId) as Account} trades={trades} lang={lang} profileName={profileName} onEdit={() => setEditing(c)} onRemove={() => setList(list.filter((x) => x.id !== c.id))} onChange={(n) => setList(list.map((x) => (x.id === c.id ? n : x)))} onRetry={(start) => retry(c, start)} />
+          : <Card key={c.id} c={c} account={byId.get(c.accountId) as Account} trades={trades} lang={lang} onEdit={() => setEditing(c)} onRemove={() => setList(list.filter((x) => x.id !== c.id))} onRetry={(start) => retry(c, start)} />
         ))
       )}
       {editing && accounts.length > 0 && (

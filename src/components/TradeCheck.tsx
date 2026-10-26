@@ -11,6 +11,9 @@ import { checkTrade, weekdayOf, type RuleRef, type Sign } from "../lib/tradeChec
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import { offsetMs, parseModel, type TimeModel } from "../lib/path";
 import { readClock } from "../lib/pathData";
+import { ctxAt, entryBreaks, rulesAt } from "../lib/ownRules";
+import { readChallenges } from "./ChallengeView";
+import { ruleLine } from "./OwnRulesCard";
 import type { Account, Lang, Trade } from "../types";
 
 type L = [string, string, string]; // en, ar, fr
@@ -79,6 +82,12 @@ export default function TradeCheck({ lang, accounts, acc, trades, currency, adop
   const symbol = pick && symbols.includes(pick) ? pick : symbols[0] ?? "";
   const day = addDays(today, ahead), weekday = weekdayOf(day);
   const res = useMemo(() => checkTrade({ day, hour, weekday, symbol, side }, trades, adopted, plan), [day, hour, weekday, symbol, side, trades, adopted, plan]);
+  // the rules of the account's "My own rules" challenges that have started (Challenges page)
+  const owns = useMemo(() => readChallenges().filter((c) => c.kind === "own" && c.accountId === account?.id && c.start <= day), [account, day]);
+  const ownHits = useMemo(() => owns.flatMap((c) => {
+    const at = `${day}T${String(hour).padStart(2, "0")}:00`, r = rulesAt(c, at);
+    return entryBreaks(r, { at, symbol, side, qty: null }, ctxAt(trades, c, at), c.size).map((k) => ruleLine(k, r, c.size, account?.currency ?? null, lang));
+  }), [owns, day, hour, symbol, side, trades, account, lang]);
 
   const loc = lang === "ar" ? "ar-u-nu-latn" : lang;
   const wd = (d: string) => new Intl.DateTimeFormat(loc, { weekday: "long", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
@@ -92,6 +101,7 @@ export default function TradeCheck({ lang, accounts, acc, trades, currency, adop
     return T(tpl).replace(/\{(\w+)\}/g, (_, key: string) => (v as Record<string, string>)[key] ?? "");
   };
   const reasons: { tone: Tone; icon: LucideIcon; text: string }[] = [
+    ...ownHits.map((t) => ({ tone: "rose" as Tone, icon: Ban, text: T(TXT.broken).replace("{r}", t) })),
     ...res.broken.map((r) => ({ tone: "rose" as Tone, icon: Ban, text: T(TXT.broken).replace("{r}", titleOf(r)) })),
     ...res.plan.map((r) => ({ tone: "amber" as Tone, icon: Sparkles, text: T(TXT.plan).replace("{r}", titleOf(r)) })),
     ...(res.today.run >= 2 ? [{ tone: "amber" as Tone, icon: TrendingDown, text: run(res.today.run) }] : []),
@@ -100,7 +110,7 @@ export default function TradeCheck({ lang, accounts, acc, trades, currency, adop
     ...(ahead === 0 && res.today.closed ? [{ tone: "slate" as Tone, icon: Clock3, text: T(TXT.todayNet).replace("{v}", money(res.today.net, true)) }] : []),
     ...(res.noStop >= 0.2 ? [{ tone: "slate" as Tone, icon: ShieldCheck, text: T(TXT.tipStop) }] : []),
   ];
-  const V = VERDICT[res.verdict];
+  const verdict = ownHits.length ? "stop" : res.verdict, V = VERDICT[verdict];
   const lbl = "flex flex-col gap-1.5 text-xs font-semibold text-muted";
 
   return (
@@ -131,7 +141,7 @@ export default function TradeCheck({ lang, accounts, acc, trades, currency, adop
             </label>
           </div>
 
-          <div key={`${res.verdict}|${symbol}|${side}|${hour}|${ahead}`} aria-live="polite" className={`tone-${V.tone} tone-panel adv-pop rounded-2xl p-4 sm:p-5`}>
+          <div key={`${verdict}|${symbol}|${side}|${hour}|${ahead}`} aria-live="polite" className={`tone-${V.tone} tone-panel adv-pop rounded-2xl p-4 sm:p-5`}>
             <div className="flex items-center gap-4">
               <span className="grid h-[84px] w-[76px] shrink-0 place-items-center rounded-2xl" style={{ background: "radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--tone) 26%, transparent), transparent 70%)" }}>
                 <Mascot mood={V.mood} className="h-[74px] w-[63px]" />

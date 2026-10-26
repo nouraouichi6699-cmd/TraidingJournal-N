@@ -3,6 +3,7 @@
 // Only closed results are known here: firms also count floating losses, so the real room can be smaller.
 // A limit is broken when the loss goes past it (as in Charts › Prop rules): ending a day exactly at the limit is allowed.
 import type { Trade } from "../types";
+import type { OwnRules } from "./ownRules";
 
 export interface Challenge {
   id: string;
@@ -19,9 +20,13 @@ export interface Challenge {
   minDays: number; // trading days needed (days with a trade opened)
   limitDays: number | null; // calendar days allowed (null: no limit)
   consistency: number | null; // the best day may bring at most this % of the total profit
-  kind?: "self"; // a personal account run on prop-firm rules (absent: a prop-firm evaluation)
-  sizeAuto?: boolean; // personal: the size follows the balance at the start of the start day
-  attempt?: number; // personal: the attempt number (absent: the first)
+  kind?: "self" | "own"; // a personal account on prop-firm rules, or on the trader's own rules (absent: a prop-firm evaluation)
+  sizeAuto?: boolean; // personal and own: the size follows the balance at the start of the start day
+  attempt?: number; // personal and own: the attempt number (absent: the first)
+  own?: OwnRules; // own: the rules in force
+  ownNext?: { rules: OwnRules; from: string }; // own: a loosened set, in force from this time (broker clock, "YYYY-MM-DDTHH:MM")
+  ownPast?: { until: string; rules: OwnRules }[]; // own: the earlier sets, each in force until a time (broker clock), oldest first
+  signed?: { name: string; at: string; notify: boolean; rules: string }; // own: the contract with oneself, and the rules it was signed for
 }
 
 export type Rule = "daily" | "max" | "time";
