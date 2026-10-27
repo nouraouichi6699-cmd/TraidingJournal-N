@@ -28,6 +28,7 @@ export interface Portfolio {
   selected: number; active: number; traded: number; start: number; closed: number; // traded: accounts with closed trades
   accounts: Share[]; symbols: Share[]; // best first
   accConc: Conc | null; symConc: Conc | null;
+  strategies: Share[]; stratConc: Conc | null; // only the trades linked to a strategy
   dd: Drawdown | null; // null without a positive start balance or closed trades
   days: number; // trading days in the daily series
   corr: { avg: number | null; max: { a: string; b: string; v: number } | null; pairs: number };
@@ -67,7 +68,7 @@ export function pointValues(trades: Trade[]): Map<string, number> {
  * with trades form the portfolio, as on the Overview); `flows`: recorded cash flows of the period; `history`: all trades,
  * used only to measure point values; `now`: end of still-open positions.
  */
-export function portfolioStats(trades: Trade[], accounts: Account[], flows: CashFlow[], history: Trade[] = trades, now = Date.now()): Portfolio {
+export function portfolioStats(trades: Trade[], accounts: Account[], flows: CashFlow[], history: Trade[] = trades, now = Date.now(), strategyOf?: (t: Trade) => string | undefined): Portfolio {
   const closed = trades.filter(isClosed).sort((a, b) => (a.exitTime as string).localeCompare(b.exitTime as string) || a.no - b.no);
   const act = accounts.filter((a) => trades.some((t) => t.accountId === a.id));
   const ids = act.map((a) => a.id), name = (id: string) => accounts.find((a) => a.id === id)?.name || id;
@@ -83,6 +84,7 @@ export function portfolioStats(trades: Trade[], accounts: Account[], flows: Cash
   };
   const accShares = shares(ids, (t) => t.accountId, name);
   const symShares = shares([], (t) => t.symbol, (s) => s);
+  const stratShares = strategyOf ? shares([], (t) => strategyOf(t) ?? "", (s) => s).filter((s) => s.key) : [];
 
   // ----- combined balance drawdown (as the Overview): flows are excluded, start balance is the first peak
   let dd: Drawdown | null = null;
@@ -221,6 +223,7 @@ export function portfolioStats(trades: Trade[], accounts: Account[], flows: Cash
   return {
     selected: accounts.length, active: act.length, traded: accIds.length, start, closed: closed.length,
     accounts: accShares, symbols: symShares, accConc: conc(accShares), symConc: conc(symShares),
+    strategies: stratShares, stratConc: conc(stratShares),
     dd, days: grid.length,
     corr: { avg: pairs.length ? mean(pairs.map((p) => p.v)) : null, max: maxPair, pairs: pairs.length },
     divRatio, risk,

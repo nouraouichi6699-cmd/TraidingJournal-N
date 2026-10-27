@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { ShieldAlert, PieChart } from "lucide-react";
 import { MetricSection, ViewHeader, type Item, type View } from "./metricUi";
 import { MIN_DAYS, portfolioStats } from "../lib/portfolio";
+import { readLinks } from "../lib/myStrategies";
+import { STRATEGIES } from "../lib/strategies";
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import type { Account, Lang, Trade } from "../types";
@@ -64,7 +66,11 @@ export default function PortfolioTab({ lang, trades, accounts, flows, history, c
   const k = i(lang), T = (x: L) => x[k];
   const [view, setView] = useState<View>("grid");
   const [now] = useState(() => Date.now());
-  const p = useMemo(() => portfolioStats(trades, accounts, flows, history, now), [trades, accounts, flows, history, now]);
+  // The strategy of each trade, as picked in the journal (short names: "SMC", "ORB 15m").
+  const p = useMemo(() => {
+    const links = readLinks(), short = new Map(STRATEGIES.map((s) => [s.id as string, s.short]));
+    return portfolioStats(trades, accounts, flows, history, now, (t) => (links[t.key] ? short.get(links[t.key]) : undefined));
+  }, [trades, accounts, flows, history, now]);
 
   const f = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/^-(?=0(\.0+)?$)/, ""); // no "-0.00"
   const sgn = (n: number, d = 2) => { const s = f(n, d); return `${n > 0 && /[1-9]/.test(s) ? "+" : ""}${s}%`; };
@@ -89,7 +95,8 @@ export default function PortfolioTab({ lang, trades, accounts, flows, history, c
       case "topAccDD": return !p.dd ? none(T(TXT.needStart)) : !p.dd.shares.length ? ["—", NEUTRAL, T(TXT.noDD)] : [mix(`${p.dd.shares[0].name} ${f(p.dd.shares[0].share, 0)}%`), RED, undefined];
       case "topSym": return contribution(p.symbols[0]);
       case "worstSym": return symCount < 2 ? none(T(TXT.need2Sym)) : contribution(p.symbols[symCount - 1]);
-      case "topStrat": case "stratConc": return none(T(TXT.noStrat));
+      case "topStrat": return p.strategies.length ? contribution(p.strategies[0]) : none(T(TXT.noStrat));
+      case "stratConc": return p.stratConc ? concentration(p.stratConc) : none(T(TXT.noStrat));
       case "accConc": return concentration(p.accConc);
       case "symConc": return concentration(p.symConc);
     }

@@ -1,15 +1,19 @@
 // Strategies: the trading strategies most used today, in a list with search and five groups. Each one has its page:
 // a picture that plays, the idea, the key concepts, the markets, timeframes and sessions, the entry checklist, the
-// stop and the target, and the usual mistakes. On a phone the list folds above the page.
+// stop and the target, and the usual mistakes. The trader keeps their own strategies at the top of the list, and a
+// strategy linked to trades in the journal shows their results. On a phone the list folds above the page.
 import { useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { AlertTriangle, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Droplets, Goal, Layers, RotateCcw, Search, ShieldAlert, Waves, X } from "lucide-react";
-import type { Lang } from "../types";
+import { AlertTriangle, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Droplets, Goal, Layers, PenLine, RotateCcw, Search, ShieldAlert, Star, Waves, X } from "lucide-react";
+import type { Account, Lang, Trade } from "../types";
+import type { Key } from "../i18n";
 import { GROUPS, STRATEGIES, searchStrategies, type Group, type Id, type Market, type Session, type StrategyText, type Style } from "../lib/strategies";
 import { EN } from "../lib/strategyText.en";
 import { AR } from "../lib/strategyText.ar";
 import { FR } from "../lib/strategyText.fr";
-import { ltrNumbers } from "../lib/money";
+import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
+import { readLinks, readMine, resultsOf, setMine } from "../lib/myStrategies";
+import Private from "./Private";
 import StrategyDiagram from "./StrategyDiagram";
 
 type L3 = Record<Lang, string>;
@@ -35,6 +39,16 @@ const T = {
   mistakes: { en: "Common mistakes", ar: "أخطاء شائعة", fr: "Erreurs fréquentes" },
   prev: { en: "Previous", ar: "السابقة", fr: "Précédente" },
   next: { en: "Next", ar: "التالية", fr: "Suivante" },
+  addMine: { en: "Add to my strategies", ar: "أضف إلى استراتيجياتي", fr: "Ajouter à mes stratégies" },
+  inMine: { en: "In my strategies", ar: "ضمن استراتيجياتي", fr: "Dans mes stratégies" },
+  mine: { en: "My strategies", ar: "استراتيجياتي", fr: "Mes stratégies" },
+  results: { en: "Your results", ar: "نتائجك", fr: "Vos résultats" },
+  closed: { en: "Closed trades", ar: "صفقات مغلقة", fr: "Trades clôturés" },
+  winRate: { en: "Win rate", ar: "نسبة الربح", fr: "Taux de réussite" },
+  net: { en: "Net P&L", ar: "صافي الربح", fr: "P&L net" },
+  openN: { en: "+ {n} open", ar: "+ {n} مفتوحة", fr: "+ {n} ouvert(s)" },
+  linkHint: { en: "Link your trades to this strategy in the Journal (the Strategy column): its results will show here.", ar: "اربط صفقاتك بهذه الاستراتيجية من اليوميات (عمود الاستراتيجية)، وستظهر نتائجها هنا.", fr: "Liez vos trades à cette stratégie dans le Journal (colonne Stratégie) : ses résultats s'afficheront ici." },
+  toJournal: { en: "Open the Journal", ar: "افتح اليوميات", fr: "Ouvrir le Journal" },
   note: { en: "For education only, not financial advice. Test a strategy on a demo account and in your journal before you risk real money.", ar: "محتوى تعليمي فقط وليس نصيحة مالية. جرّب أي استراتيجية على حساب تجريبي وفي سجلّك قبل أن تخاطر بمال حقيقي.", fr: "Contenu éducatif, pas un conseil financier. Testez une stratégie sur un compte démo et dans votre journal avant de risquer de l'argent réel." },
 };
 const GROUP: Record<Group, { icon: typeof Droplets; label: L3 }> = {
@@ -68,7 +82,7 @@ const Card = ({ title, icon: Icon, tone = "text-icon", children }: { title: stri
   </section>
 );
 
-export default function StrategiesView({ lang }: { lang: Lang }) {
+export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJournal }: { lang: Lang; t: (k: Key) => string; trades: Trade[]; accounts: Account[]; onOpenJournal: () => void }) {
   const L = (x: L3) => x[lang];
   const tx = TEXT[lang];
   const n = (s: string) => (lang === "ar" ? ltrNumbers(s) : s); // numbers keep their order inside Arabic text
@@ -81,6 +95,11 @@ export default function StrategiesView({ lang }: { lang: Lang }) {
   const s = STRATEGIES.find((x) => x.id === id) ?? STRATEGIES[0], t = tx[s.id];
   const at = STRATEGIES.indexOf(s), prev = STRATEGIES[at - 1], next = STRATEGIES[at + 1];
   const G = GROUP[s.group];
+  const [mine, setMineState] = useState(readMine);
+  const links = useMemo(readLinks, []);
+  const res = useMemo(() => resultsOf(s.id, trades, links), [s.id, trades, links]);
+  const cur = commonCurrency([...new Set(trades.filter((x) => links[x.key] === s.id).map((x) => x.accountId))].map((a) => ({ currency: accounts.find((y) => y.id === a)?.currency ?? "" })));
+  const isMine = mine.includes(s.id);
 
   const pick = (v: Id) => {
     setId(v);
@@ -99,20 +118,18 @@ export default function StrategiesView({ lang }: { lang: Lang }) {
         {q && <button type="button" onClick={() => setQ("")} aria-label={L(T.clear)} className="absolute end-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-lg text-muted hover:text-text"><X size={14} /></button>}
       </label>
       {!found.length && <p className="px-2 py-6 text-center text-sm text-muted">{L(T.none)}</p>}
-      {GROUPS.map((g) => {
-        const items = found.filter((x) => x.group === g);
+      {([["mine", Star, L(T.mine), mine.map((m) => found.find((x) => x.id === m)).filter((x) => !!x)], ...GROUPS.map((g) => [g, GROUP[g].icon, L(GROUP[g].label), found.filter((x) => x.group === g)])] as [string, typeof Star, string, typeof STRATEGIES][]).map(([g, Icon, label, items]) => {
         if (!items.length) return null;
-        const Icon = GROUP[g].icon;
         return (
           <div key={g}>
-            <div className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted"><Icon size={12} className="text-icon" />{L(GROUP[g].label)}<span className="ms-auto tabular-nums">{items.length}</span></div>
+            <div className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted"><Icon size={12} className="text-icon" />{label}<span className="ms-auto tabular-nums">{items.length}</span></div>
             <div className="flex flex-col gap-0.5">
               {items.map((x) => {
                 const on = x.id === s.id;
                 return (
                   <button key={x.id} type="button" onClick={() => pick(x.id)} aria-current={on ? "page" : undefined}
                     className={`group relative flex items-center gap-2 rounded-xl px-2.5 py-2 text-start transition-colors ${on ? "" : "hover:bg-primary-tint"}`}>
-                    {on && <motion.span layoutId="strategy-pill" className="absolute inset-0 rounded-xl border border-[var(--icon)] bg-primary-tint" transition={{ type: "spring", stiffness: 260, damping: 30 }} />}
+                    {on && <motion.span layoutId={`strategy-pill-${g === "mine" ? "mine" : "all"}`} className="absolute inset-0 rounded-xl border border-[var(--icon)] bg-primary-tint" transition={{ type: "spring", stiffness: 260, damping: 30 }} />}
                     <span className="relative min-w-0 flex-1">
                       <span dir="ltr" className={`block truncate text-sm font-medium rtl:text-right ${on ? "text-icon" : ""}`}>{x.name}</span>
                       <span className="block truncate text-xs text-muted">{n(tx[x.id].tag)}</span>
@@ -155,7 +172,13 @@ export default function StrategiesView({ lang }: { lang: Lang }) {
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 font-medium"><Dots n={s.level} />{L(LEVEL[s.level])}</span>
                 {s.styles.map((y) => <span key={y} className="rounded-full border border-border px-2.5 py-1 text-muted">{L(STYLE[y])}</span>)}
               </div>
-              <h2 className="mt-3 font-heading text-2xl font-semibold"><span dir="ltr">{s.name}</span></h2>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-heading text-2xl font-semibold"><span dir="ltr">{s.name}</span></h2>
+                <motion.button type="button" whileTap={{ scale: 0.94 }} aria-pressed={isMine} onClick={() => setMineState(setMine(s.id, !isMine))}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${isMine ? "bg-primary text-on-primary" : "border border-[var(--icon)] text-primary hover:bg-primary-tint"}`}>
+                  <Star size={15} className={isMine ? "fill-current" : ""} />{L(isMine ? T.inMine : T.addMine)}
+                </motion.button>
+              </div>
               <p className="mt-1 text-sm text-muted">{n(t.tag)}</p>
               <div className="relative mt-4 rounded-xl border border-border bg-bg px-1 pb-1 pt-7 sm:p-3" style={{ "--sd-bg": "var(--bg)" } as React.CSSProperties}>
                 <div className="mx-auto max-w-[640px]"><StrategyDiagram key={`${s.id}:${play}`} d={s.dia} words={WORDS[lang]} label={`${s.name}: ${t.tag}`} /></div>
@@ -164,6 +187,31 @@ export default function StrategiesView({ lang }: { lang: Lang }) {
                 </button>
               </div>
             </div>
+
+            {(isMine || res.linked > 0) && (
+              <Card title={L(T.results)} icon={Star}>
+                {res.linked > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      [L(T.closed), String(res.closed), res.linked > res.closed ? L(T.openN).replace("{n}", String(res.linked - res.closed)) : "", ""],
+                      [L(T.winRate), res.winRate == null ? "—" : `${Math.round(res.winRate)}%`, "", ""],
+                      [L(T.net), res.closed ? fmtMoney(res.net, { sign: true, currency: cur }) : "—", "", res.net > 0 ? "text-[#22c55e]" : res.net < 0 ? "text-[#f87171]" : ""],
+                    ] as [string, string, string, string][]).map(([label, value, sub, tone], i) => (
+                      <div key={label} className="min-w-0 rounded-xl border border-border bg-bg/60 p-3">
+                        <p className="truncate text-xs text-muted">{label}</p>
+                        <p className={`mt-1 truncate font-heading text-lg font-semibold tabular-nums ${tone}`}><span dir="ltr">{i === 2 && res.closed ? <Private hint={tr("privacyReveal")}>{value}</Private> : value}</span></p>
+                        {sub && <p className="truncate text-[11px] text-muted">{n(sub)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="min-w-[12rem] flex-1 text-sm text-muted">{L(T.linkHint)}</p>
+                    <button type="button" onClick={onOpenJournal} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary-tint"><PenLine size={15} />{L(T.toJournal)}</button>
+                  </div>
+                )}
+              </Card>
+            )}
 
             <Card title={L(T.idea)} icon={BookOpen}><p className="text-sm leading-relaxed">{n(t.idea)}</p></Card>
 

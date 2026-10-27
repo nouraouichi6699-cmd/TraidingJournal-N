@@ -3,6 +3,8 @@ import SymbolIcon from "./SymbolIcon";
 import Private from "./Private";
 import { Eye, EyeOff, ChevronDown, Play } from "lucide-react";
 import TradeReplay from "./TradeReplay";
+import StrategyPicker from "./StrategyPicker";
+import { linkTrade, readLinks, readMine } from "../lib/myStrategies";
 import { planSplit, readPlan } from "../lib/tradePlan";
 import { canReplay } from "../lib/replayData";
 import { fmt } from "../lib/stats";
@@ -23,6 +25,7 @@ interface Props {
   onOpened?: () => void;
 }
 const REPLAY = { en: "Replay this trade", ar: "أعد تشغيل هذه الصفقة", fr: "Rejouer ce trade" };
+const STRATEGY = { en: "Strategy", ar: "الاستراتيجية", fr: "Stratégie" };
 const PLAN = {
   title: { en: "Your plan", ar: "خطتك", fr: "Votre plan" },
   yes: { en: "In the plan", ar: "ضمن الخطة", fr: "Dans le plan" },
@@ -62,6 +65,9 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport, o
     if (tr) { setReplay(tr); setFocusNote(true); onOpened?.(); }
   }, [openKey, trades]); // eslint-disable-line react-hooks/exhaustive-deps
   const [hidden, setHidden] = useState<Numeric[]>(loadHidden);
+  // The strategy of each trade, picked on its row (synced setting); a strategy used joins the trader's own.
+  const [links, setLinks] = useState(readLinks);
+  const [mine, setMine] = useState(readMine);
   const setHide = (next: Numeric[]) => {
     setHidden(next);
     try { localStorage.setItem(COLS_KEY, JSON.stringify(next)); } catch {}
@@ -104,11 +110,12 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport, o
 
   const renderTable = (list: Trade[]) => (
         <div className="relative overflow-x-auto rounded-2xl border border-border bg-surface">
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[920px] text-sm">
             <thead>
               <tr className="border-b border-icon/40 bg-primary-tint">
                 <th scope="col" className={th}>{t("symbol")}</th>
                 <th scope="col" className={th}>{t("side")}</th>
+                <th scope="col" className={th}>{STRATEGY[lang]}</th>
                 {show("entry") && <th scope="col" className={th}>{t("entry")}</th>}
                 {show("exit") && <th scope="col" className={th}>{t("exit")}</th>}
                 {show("size") && <th scope="col" className={th}>{t("size")}</th>}
@@ -129,6 +136,7 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport, o
                     <td className="px-4 py-3">
                       <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${x.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{t(x.side)}</span>
                     </td>
+                    <td className="px-4 py-3"><StrategyPicker value={links[x.key]} mine={mine} lang={lang} onChange={(id) => { setLinks(linkTrade(x.key, id)); setMine(readMine()); }} /></td>
                     {show("entry") && <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>}
                     {show("exit") && <td className="px-4 py-3 tnum" dir="ltr">{x.exitPrice != null ? fmt(x.exitPrice, x.exitPrice < 10 ? 5 : 2) : "—"}<span className="block text-xs text-muted">{when(x.exitTime)}</span></td>}
                     {show("size") && <td className="px-4 py-3 tnum" dir="ltr"><Private hint={t("privacyReveal")}>{x.qty.toLocaleString("en-US")}</Private></td>}
