@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
@@ -21,6 +21,7 @@ import AdvisorView from "./components/AdvisorView";
 import JournalView from "./components/JournalView";
 import ChallengeView from "./components/ChallengeView";
 import { Watermark } from "./components/Brand";
+const StrategiesView = lazy(() => import("./components/StrategiesView"));
 import { useJournal } from "./useJournal";
 import CalendarView from "./components/CalendarView";
 import NewsView from "./components/NewsView";
@@ -139,6 +140,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} />}
               {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "advisor" && <AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} />}
+              {view === "strategies" && <Suspense fallback={<div className="p-6 text-sm text-muted">{t("loadingData")}</div>}><StrategiesView lang={lang} /></Suspense>}
               {view === "challenges" && <ChallengeView lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenProfile={() => setView("profile")} />}
               {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} openKey={openTrade} onOpened={tradeOpened} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} />}
               {view === "import" && (
