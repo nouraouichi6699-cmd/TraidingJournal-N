@@ -662,7 +662,7 @@ Deno.serve(async (req) => {
     const keys: string[] = [], why = (l: Lang, me = false) => (rule === "own" ? T(me ? "rownMe" : "rown", l, { k: ONAME[k as OKey]?.[l] ?? String(k) }) : T(`r${rule}`, l, { k }));
     for (const role of ["partner", "coach"] as const) {
       const p = t[role], key = `${role}:${day}:${rule}`;
-      if (!p?.chat || sent[key] || (role === "coach" && t.coach?.prefs?.[rule] === false)) continue;
+      if (!p?.chat || sent[key] || (role === "coach" && (t.coach?.prefs as Partial<Record<Rule, boolean>> | undefined)?.[rule] === false)) continue;
       const res = await send(p.chat, T(role === "partner" ? "bRule" : "cRule", p.lang, { n: await traderName(uid, t), r: why(p.lang), s: x.symbol, h: x.entry_time.replace(" ", "T").slice(11, 16) }));
       if (res.status === 403) {
         await saveTg(uid, { ...((await getTg(uid)) ?? t), [role]: null });
