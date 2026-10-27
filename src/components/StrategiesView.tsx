@@ -18,6 +18,7 @@ import StrategyDiagram from "./StrategyDiagram";
 
 type L3 = Record<Lang, string>;
 const TEXT: Record<Lang, Record<Id, StrategyText>> = { en: EN, ar: AR, fr: FR };
+const SHUT = "mizan-strategy-groups"; // the list's folded groups, on this device
 const ALL = [EN, AR, FR];
 
 const T = {
@@ -90,6 +91,13 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false); // the list, on a phone
   const [play, setPlay] = useState(0);
+  // Each group of the list opens and closes like a window, remembered on this device; a search opens every group with a match.
+  const [shut, setShut] = useState<string[]>(() => { try { const v = JSON.parse(localStorage.getItem(SHUT) ?? "[]"); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; } });
+  const fold = (g: string) => setShut((was) => {
+    const next = was.includes(g) ? was.filter((x) => x !== g) : [...was, g];
+    try { localStorage.setItem(SHUT, JSON.stringify(next)); } catch { /* kept for this visit */ }
+    return next;
+  });
   const top = useRef<HTMLDivElement>(null);
   const found = useMemo(() => searchStrategies(q, ALL), [q]);
   const s = STRATEGIES.find((x) => x.id === id) ?? STRATEGIES[0], t = tx[s.id];
@@ -109,7 +117,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   };
 
   const list = (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <label className="relative block">
         <Search size={15} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted" />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={L(T.search)} aria-label={L(T.search)}
@@ -120,10 +128,18 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
       {!found.length && <p className="px-2 py-6 text-center text-sm text-muted">{L(T.none)}</p>}
       {([["mine", Star, L(T.mine), mine.map((m) => found.find((x) => x.id === m)).filter((x) => !!x)], ...GROUPS.map((g) => [g, GROUP[g].icon, L(GROUP[g].label), found.filter((x) => x.group === g)])] as [string, typeof Star, string, typeof STRATEGIES][]).map(([g, Icon, label, items]) => {
         if (!items.length) return null;
+        const open = !!q || !shut.includes(g);
         return (
-          <div key={g}>
-            <div className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted"><Icon size={12} className="text-icon" />{label}<span className="ms-auto tabular-nums">{items.length}</span></div>
-            <div className="flex flex-col gap-0.5">
+          <div key={g} className="overflow-hidden rounded-xl border border-border bg-bg/40">
+            <button type="button" onClick={() => fold(g)} disabled={!!q} aria-expanded={open} aria-controls={`sg-${g}`}
+              className="flex w-full items-center gap-1.5 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted transition-colors hover:bg-primary-tint hover:text-text disabled:cursor-default disabled:hover:bg-transparent">
+              <Icon size={12} className="shrink-0 text-icon" /><span className="truncate">{label}</span>
+              <span className="ms-auto tabular-nums">{items.length}</span>
+              <ChevronDown size={14} className={`shrink-0 transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} />
+            </button>
+            <div id={`sg-${g}`} className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+            <div className={`min-h-0 overflow-hidden transition-[visibility] duration-300 motion-reduce:transition-none ${open ? "visible" : "invisible"}`}>
+            <div className="flex flex-col gap-0.5 border-t border-border p-1">
               {items.map((x) => {
                 const on = x.id === s.id;
                 return (
@@ -138,6 +154,8 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
                   </button>
                 );
               })}
+            </div>
+            </div>
             </div>
           </div>
         );
