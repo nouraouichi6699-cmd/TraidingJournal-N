@@ -9,12 +9,17 @@ import type { Trade } from "../types";
 
 export type AnyId = Id | CustomId;
 export const MINE_KEY = "mizan-my-strategies", LINK_KEY = "mizan-trade-strategy";
+/** The event sent when the trader's strategies change (their list, links, or their own strategies). */
+export const CHANGED = "mizan-strategies";
 const LIBRARY = new Set<string>(STRATEGIES.map((s) => s.id));
 const valid = (v: unknown): v is AnyId => (typeof v === "string" && LIBRARY.has(v)) || isCustomId(v);
 const known = () => { const c = new Set<string>(readCustom().map((x) => x.id)); return (v: AnyId) => LIBRARY.has(v) || c.has(v); };
 
 const read = (k: string): unknown => { try { return JSON.parse(localStorage.getItem(k) ?? "null"); } catch { return null; } };
-const write = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage full or blocked: kept on screen only */ } };
+const write = (k: string, v: unknown) => {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage full or blocked: kept on screen only */ }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGED)); // the rules sent to the Telegram bot follow
+};
 const rawMine = (): AnyId[] => { const v = read(MINE_KEY); return Array.isArray(v) ? [...new Set(v.filter(valid))] : []; };
 const rawLinks = (): Record<string, AnyId> => {
   const v = read(LINK_KEY);

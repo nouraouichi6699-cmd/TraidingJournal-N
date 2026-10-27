@@ -29,6 +29,8 @@ import ProfileView from "./components/ProfileView";
 import { useProfile } from "./useProfile";
 import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
+import { publishBotRules } from "./lib/tradeRules";
+import { CHANGED } from "./lib/myStrategies";
 import type { Lang, Theme } from "./types";
 
 const read = <T extends string>(key: string, allowed: readonly T[], fallback: T, migrate: Record<string, T> = {}): T => {
@@ -45,6 +47,13 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const t = makeT(lang);
   useEffect(() => startRowSync(userId), [userId]);
   useEffect(() => startSettingsSync(userId), [userId]);
+  // The rules of the trader's strategies, for the Telegram question under each new trade: sent again on every change.
+  useEffect(() => {
+    const go = () => void publishBotRules(lang);
+    go();
+    window.addEventListener(CHANGED, go);
+    return () => window.removeEventListener(CHANGED, go);
+  }, [lang]);
   const { accounts, add, remove, resolveMt5, setStartBalance } = useAccounts();
   const journal = useJournal();
   // Edge alerts: accounts whose expectancy over the last 20 trades turned negative ring the bell (one notice per losing run).

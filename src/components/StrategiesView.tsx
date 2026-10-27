@@ -15,6 +15,7 @@ import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
 import { deleteCustom, readLinks, readMine, resultsOf, setMine, type AnyId } from "../lib/myStrategies";
 import { inkOn, readCustom, saveCustom, type CustomStrategy } from "../lib/customStrategies";
 import { TOOL_BY_ID, TOOL_GROUPS, TOOL_GROUP_LABEL, toolName } from "../lib/tools";
+import { readAnswers, ruleResults, type Part } from "../lib/tradeRules";
 import Private from "./Private";
 import CustomStrategyForm, { TOOL_ICON } from "./CustomStrategyForm";
 import { Dot } from "./StrategyPicker";
@@ -61,6 +62,13 @@ const T = {
   noTools: { en: "No indicator chosen yet.", ar: "لم تختر أي مؤشر بعد.", fr: "Aucun indicateur choisi pour l'instant." },
   notesT: { en: "Notes", ar: "ملاحظات", fr: "Notes" },
   addRules: { en: "Add your entry checklist, stop and target with Edit.", ar: "أضف شروط الدخول والوقف والهدف من زر التعديل.", fr: "Ajoutez votre check-list, votre stop et votre objectif avec Modifier." },
+  rulesT: { en: "Rules and results", ar: "القواعد والنتائج", fr: "Règles et résultats" },
+  keptAll: { en: "All rules kept", ar: "كل القواعد محترمة", fr: "Toutes les règles respectées" },
+  brokeAny: { en: "A rule broken", ar: "قاعدة مكسورة أو أكثر", fr: "Une règle enfreinte" },
+  brokeList: { en: "The rules you break", ar: "القواعد التي تكسرها", fr: "Les règles que vous enfreignez" },
+  costs: { en: "costs you the most", ar: "الأكثر كلفة عليك", fr: "vous coûte le plus" },
+  nTrades: { en: "{n} trades", ar: "{n} صفقة", fr: "{n} trades" },
+  askHint: { en: "Answer \u201cDid you break any of your rules?\u201d under each new trade on Telegram: you will see here which rule costs you the most.", ar: "أجب عن سؤال «هل كسرت أيّاً من قواعدك؟» تحت كل صفقة جديدة في تيليغرام، وسترى هنا أيّ قاعدة تكلّفك أكثر.", fr: "Répondez à « Avez-vous enfreint une de vos règles ? » sous chaque nouveau trade sur Telegram : vous verrez ici quelle règle vous coûte le plus." },
   note: { en: "For education only, not financial advice. Test a strategy on a demo account and in your journal before you risk real money.", ar: "محتوى تعليمي فقط وليس نصيحة مالية. جرّب أي استراتيجية على حساب تجريبي وفي سجلّك قبل أن تخاطر بمال حقيقي.", fr: "Contenu éducatif, pas un conseil financier. Testez une stratégie sur un compte démo et dans votre journal avant de risquer de l'argent réel." },
 };
 const GROUP: Record<Group, { icon: typeof Droplets; label: L3 }> = {
@@ -120,6 +128,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   const G = GROUP[s.group];
   const [mine, setMineState] = useState(readMine);
   const links = useMemo(readLinks, []);
+  const answers = useMemo(readAnswers, []);
   const res = useMemo(() => resultsOf(curId, trades, links), [curId, trades, links]);
   const cur = commonCurrency([...new Set(trades.filter((x) => links[x.key] === curId).map((x) => x.accountId))].map((a) => ({ currency: accounts.find((y) => y.id === a)?.currency ?? "" })));
   const toolsLine = (c: CustomStrategy) => c.tools.slice(0, 3).map((x) => toolName(TOOL_BY_ID.get(x)!, lang)).join(" · ") + (c.tools.length > 3 ? ` +${c.tools.length - 3}` : "");
@@ -194,6 +203,49 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
     </div>
   );
 
+  // Rules and results: the answers to the Telegram question under each new trade, for this strategy.
+  const ruleTexts = own ? own.check : t.check;
+  const rr = ruleResults(curId, trades, answers, ruleTexts.length);
+  const partLine = (p: Part) => (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+      <span>{n(L(T.nTrades).replace("{n}", String(p.n)))}</span>
+      <span dir="ltr">{p.winRate == null ? "—" : `${Math.round(p.winRate)}%`}</span>
+      <span dir="ltr" className={`font-semibold ${p.net > 0 ? "text-[#22c55e]" : p.net < 0 ? "text-[#f87171]" : ""}`}><Private hint={tr("privacyReveal")}>{fmtMoney(p.net, { sign: true, currency: cur })}</Private></span>
+    </span>
+  );
+  const rulesCard = ruleTexts.length > 0 && (
+    <Card title={L(T.rulesT)} icon={CircleCheck}>
+      {rr.answered === 0 ? <p className="text-sm text-muted">{L(T.askHint)}</p> : (
+        <div className="flex flex-col gap-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {([[T.keptAll, rr.kept, "border-[#22c55e]/40"], [T.brokeAny, rr.broke, "border-[#f87171]/40"]] as [L3, Part, string][]).map(([h, p, b]) => (
+              <div key={L(h)} className={`rounded-xl border bg-bg/60 p-3 ${b}`}>
+                <p className="mb-1 text-sm font-semibold">{L(h)}</p>
+                {partLine(p)}
+              </div>
+            ))}
+          </div>
+          {rr.each.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-muted">{L(T.brokeList)}</p>
+              <ol className="flex flex-col gap-1.5">
+                {rr.each.map((r, k) => (
+                  <li key={r.i} className={`flex flex-col gap-1 rounded-xl border p-2.5 ${k === 0 && r.net < 0 ? "border-[#f87171]/50 bg-[#f87171]/5" : "border-border"}`}>
+                    <span className="flex items-start gap-2 text-sm">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#f87171]/15 text-[11px] font-bold text-[#f87171] tabular-nums">{r.i + 1}</span>
+                      <span className="min-w-0 flex-1" dir="auto">{n(ruleTexts[r.i])}</span>
+                      {k === 0 && r.net < 0 && <span className="shrink-0 rounded-full bg-[#f87171]/15 px-2 py-0.5 text-[10px] font-semibold text-[#f87171]">{L(T.costs)}</span>}
+                    </span>
+                    <span className="ps-7">{partLine(r)}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
   const results = (
               <Card title={L(T.results)} icon={Star}>
                 {res.linked > 0 ? (
@@ -254,6 +306,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
           </div>
         </div>
         {results}
+        {rulesCard}
         {own.check.length > 0 && (
           <Card title={L(T.check)} icon={CircleCheck}>
             <ol className="flex flex-col gap-2">
@@ -327,6 +380,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
             </div>
 
             {(isMine || res.linked > 0) && results}
+            {(isMine || rr.answered > 0) && rulesCard}
 
             <Card title={L(T.idea)} icon={BookOpen}><p className="text-sm leading-relaxed">{n(t.idea)}</p></Card>
 

@@ -6,8 +6,11 @@
 //  - From mt5-sync (service role): the trades the MT5 sync just closed -> one message with the trades (each with a "note"
 //    button that opens it in Mizan), the prop-rule warnings (half / 80% of a loss limit used, limit passed, target
 //    reached), 3+ losses in a row, and open trades still without a stop loss after 2 minutes; each warning sent once.
-//    Trades just opened get a message each: "in my plan / outside my plan" buttons (a tap is saved in the synced setting
-//    "mizan-trade-plan") and, when the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning.
+//    Trades just opened get a message each: "did you break any of your rules?" with the numbers of the rules of the
+//    trader's strategies (sent by the app in the synced setting "mizan-rules-bot"; first "which strategy?" when they have
+//    several, which also links the trade to it). The answer is kept in "mizan-trade-rules" and, as before, in
+//    "mizan-trade-plan" (no rule broken = in the plan). A trader with no rules gets "in my plan / outside my plan".
+//    When the trade matches the trader's worst pattern (symbol, hour, weekday, side), a warning too.
 //  - Voice notes: a voice note sent in reply to a trade's message (its plan or note button names the trade) is turned
 //    into text by the AI model and kept with the trade in the synced setting "mizan-trade-voice" (shown in Mizan).
 //  - Coach: like the partner, from a one-time invite ("coach_<code>"); one coach can follow many traders. The coach gets
@@ -59,6 +62,8 @@ type Grp = { title?: string; lang?: Lang; members: string[]; day?: string; week?
 type DayTrade = TradeRow & { key: string; account_id: string };
 type Sync = { brokerNow?: string; last?: string };
 type Btn = { text: string; url?: string; callback_data?: string };
+type BotStrat = { id: string; name: string; rules: string[] }; // a strategy of the trader and its entry rules (from the app)
+type RuleState = { s: string; b: number[]; at: string; done?: boolean }; // the strategy of a trade, the rules broken (indexes)
 type Hist = { symbol: string; side: string; pnl: number | null; entry_time: string | null };
 type Danger = { kind: "symHour" | "sideSym" | "sym" | "hour" | "day"; n: number; lost: number; net: number };
 type Cal = { id: string; time: string; currency: string; title: string; forecast: string; previous: string };
@@ -97,6 +102,13 @@ const TXT: Record<string, Record<Lang, string>> = {
   planYes: { en: "✅ In my plan", ar: "✅ ضمن خطتي", fr: "✅ Dans mon plan" },
   planNo: { en: "❌ Outside my plan", ar: "❌ خارج خطتي", fr: "❌ Hors de mon plan" },
   planSaved: { en: "Saved ✓", ar: "حُفظ ✓", fr: "Enregistré ✓" },
+  askRules: { en: "❓ Did you break any of your rules ({s})? Tap the ones you broke:", ar: "❓ هل كسرت أيّاً من قواعدك ({s})؟ اضغط على ما كسرته:", fr: "❓ Avez-vous enfreint une de vos règles ({s}) ? Touchez celles que vous avez enfreintes :" },
+  askStrat: { en: "❓ Which strategy is this trade?", ar: "❓ ما استراتيجية هذه الصفقة؟", fr: "❓ Quelle stratégie pour ce trade ?" },
+  rNone: { en: "✅ None broken", ar: "✅ لم أكسر أي قاعدة", fr: "✅ Aucune enfreinte" },
+  rDone: { en: "Done ✓", ar: "تم ✓", fr: "Terminé ✓" },
+  rKept: { en: "✅ No rule broken · change", ar: "✅ لم تُكسر أي قاعدة · تعديل", fr: "✅ Aucune règle enfreinte · modifier" },
+  rBroke: { en: "❌ Broke {r} · change", ar: "❌ كُسرت {r} · تعديل", fr: "❌ Enfreintes : {r} · modifier" },
+  rPick: { en: "Choose the strategy first.", ar: "اختر الاستراتيجية أولاً.", fr: "Choisissez d'abord la stratégie." },
   gIntro: { en: "📋 Mizan discipline board\nEach day I post a discipline score out of 100 for every member who joins: a stop loss on every trade, trades in the plan, stopping after 3 losses in a row, and respecting a challenge's daily loss limit. Never amounts or account details.\nTo join, link your Telegram to Mizan first (Profile › Telegram alerts), then tap Join.", ar: "📋 لوحة الانضباط من ميزان\nكل يوم أنشر درجة انضباط من 100 لكل عضو ينضم، تُحسب من: وقف الخسارة في كل صفقة، والصفقات ضمن الخطة، والتوقف بعد 3 خسائر متتالية، واحترام حد الخسارة اليومي في التحديات. بلا أي مبالغ أو تفاصيل حسابات.\nللانضمام: اربط تيليغرام بميزان أولاً (الحساب الشخصي › تنبيهات تيليغرام)، ثم اضغط «انضمام».", fr: "📋 Tableau de discipline Mizan\nChaque jour, je publie une note de discipline sur 100 pour chaque membre inscrit : un stop loss sur chaque trade, des trades dans le plan, l'arrêt après 3 pertes d'affilée et le respect de la limite de perte journalière des challenges. Jamais de montants ni de détails de compte.\nPour rejoindre : liez d'abord votre Telegram à Mizan (Profil › Alertes Telegram), puis appuyez sur Rejoindre." },
   gJoin: { en: "✅ Join", ar: "✅ انضمام", fr: "✅ Rejoindre" },
   gLeave: { en: "Leave", ar: "مغادرة", fr: "Quitter" },
@@ -606,6 +618,31 @@ Deno.serve(async (req) => {
     { text: `${chosen === true ? "● " : ""}${T("planYes", lang)}`, callback_data: `p1:${key}` },
     { text: `${chosen === false ? "● " : ""}${T("planNo", lang)}`, callback_data: `p0:${key}` },
   ];
+  // "did you break a rule?" under a new trade: the trader's strategies first when they have several (qs<i>), then the
+  // numbers of the rules (qr<i>: a tap marks or unmarks one), "none broken" (qn) and "done" (qd); once answered, one
+  // button shows the answer and opens the question again (qe). Callback data: q…:<trade key>, 64 bytes at most.
+  const rows2 = (list: Btn[], n: number) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
+  const stratButtons = (key: string, list: BotStrat[]): Btn[][] => rows2(list.map((x, i) => ({ text: x.name, callback_data: `qs${i}:${key}` })), 2);
+  const ruleButtons = (key: string, n: number, broken: number[], lang: Lang): Btn[][] => [
+    [{ text: T("rNone", lang), callback_data: `qn:${key}` }],
+    ...rows2(Array.from({ length: n }, (_, i) => ({ text: `${broken.includes(i) ? "❌ " : ""}${i + 1}`, callback_data: `qr${i}:${key}` })), 6),
+    [{ text: T("rDone", lang), callback_data: `qd:${key}` }],
+  ];
+  const answered = (key: string, broken: number[], lang: Lang): Btn[][] => [[{ text: broken.length ? T("rBroke", lang, { r: broken.map((i) => i + 1).join(", ") }) : T("rKept", lang), callback_data: `qe:${key}` }]];
+  const ruleQuestion = (x: BotStrat, lang: Lang) => [T("askRules", lang, { s: x.name }), ...x.rules.map((r, i) => `${i + 1}. ${r}`)].join("\n");
+  /** The trader's strategies and their rules, as the app sent them (only those with rules; 8 at most). */
+  const stratsOf = async (uid: string): Promise<BotStrat[]> => {
+    const v = (await rows<{ value: { list?: unknown } | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-rules-bot&deleted_at=is.null`))[0]?.value;
+    return (Array.isArray(v?.list) ? (v.list as BotStrat[]) : [])
+      .filter((x) => x && typeof x.id === "string" && typeof x.name === "string" && Array.isArray(x.rules))
+      .map((x) => ({ id: x.id.slice(0, 40), name: x.name.slice(0, 40), rules: x.rules.filter((r) => typeof r === "string" && r.trim()).map((r) => r.trim().slice(0, 200)).slice(0, 12) }))
+      .filter((x) => x.rules.length).slice(0, 8);
+  };
+  /** Reads one of a user's settings (a map), changes it and writes it back. */
+  const mergeSetting = async <V,>(uid: string, key: string, change: (cur: Record<string, V>) => Record<string, V>) => {
+    const cur = (await rows<{ value: Record<string, V> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.${key}&deleted_at=is.null`))[0]?.value ?? {};
+    return (await db("user_settings?on_conflict=user_id,key", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ user_id: uid, key, value: change({ ...cur }), updated_at: null, deleted_at: null }) })).ok;
+  };
   const hh = (h: number) => `${String(h % 24).padStart(2, "0")}:00`;
   const dangerLine = (d: Danger, x: OpenRow, lang: Lang, a: Acc) => {
     const h = Number(x.entry_time.replace(" ", "T").slice(11, 13));
@@ -923,6 +960,50 @@ Deno.serve(async (req) => {
         await tg("answerCallbackQuery", { callback_query_id: cq.id, text: T(!who ? "gLink" : cq.data === "gj" ? "gJoined" : "gLeft", l), show_alert: !who });
         return json({ ok: true });
       }
+      const qm = cq ? String(cq.data ?? "").match(/^q(s\d|r\d{1,2}|n|d|e):(.{3,58})$/) : null;
+      if (cq && qm) { // the rules question under a new trade (see stratButtons / ruleButtons)
+        const qChat = cq.message?.chat?.id, key = qm[2], act = qm[1], mid = cq.message?.message_id;
+        const who = typeof qChat === "number" ? (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${qChat}&deleted_at=is.null&limit=1`))[0] : undefined;
+        const qLang = who?.value.lang ?? "en";
+        let note = "";
+        if (who && (await rows<{ key: string }>(`trades?select=key&user_id=eq.${who.user_id}&key=eq.${encodeURIComponent(key)}&limit=1`)).length) {
+          const uid = who.user_id, list = await stratsOf(uid), at = new Date().toISOString();
+          const st = ((await rows<{ value: Record<string, RuleState> | null }>(`user_settings?select=value&user_id=eq.${uid}&key=eq.mizan-trade-rules&deleted_at=is.null`))[0]?.value ?? {})[key];
+          const edit = (kb: Btn[][]) => tg("editMessageReplyMarkup", { chat_id: qChat, message_id: mid, reply_markup: { inline_keyboard: kb } });
+          // the answer, and as before whether the trade was in the plan (no rule broken; unset while nothing is chosen)
+          const save = async (next: RuleState) => {
+            const ok = await mergeSetting<RuleState>(uid, "mizan-trade-rules", (cur) => Object.fromEntries([...Object.entries(cur).filter(([k]) => k !== key), [key, next]].slice(-2000)));
+            await mergeSetting<boolean>(uid, "mizan-trade-plan", (cur) => { if (next.b.length) cur[key] = false; else if (next.done) cur[key] = true; else delete cur[key]; return cur; });
+            if (!st || st.s !== next.s) await mergeSetting<string>(uid, "mizan-trade-strategy", (cur) => ({ ...cur, [key]: next.s })); // the trade now has this strategy
+            return ok;
+          };
+          if (act[0] === "s") {
+            const x = list[Number(act.slice(1))];
+            if (x && (await save({ s: x.id, b: [], at }))) {
+              const base = String(cq.message?.text ?? ""), qq = ruleQuestion(x, qLang);
+              await tg("editMessageText", { chat_id: qChat, message_id: mid, text: (base.includes(T("askStrat", qLang)) ? base.replace(T("askStrat", qLang), qq) : [base, qq].filter(Boolean).join("\n")).slice(0, 4000), reply_markup: { inline_keyboard: ruleButtons(key, x.rules.length, [], qLang) } });
+              note = T("planSaved", qLang);
+            }
+          } else {
+            const x = list.find((y) => y.id === st?.s) ?? (list.length === 1 ? list[0] : undefined);
+            if (!x) note = T("rPick", qLang); // several strategies, none chosen yet
+            else {
+              const b = st?.s === x.id ? [...st.b] : [];
+              if (act === "e") await edit(ruleButtons(key, x.rules.length, b, qLang));
+              else {
+                if (act[0] === "r") { const i = Number(act.slice(1)), j = b.indexOf(i); if (i < x.rules.length) { if (j >= 0) b.splice(j, 1); else b.push(i); b.sort((u, v) => u - v); } }
+                const done = act === "n" || act === "d", kept = act === "n" ? [] : b;
+                if (await save({ s: x.id, b: kept, at, ...(done ? { done: true } : {}) })) {
+                  await edit(done ? answered(key, kept, qLang) : ruleButtons(key, x.rules.length, kept, qLang));
+                  note = T("planSaved", qLang);
+                }
+              }
+            }
+          }
+        }
+        await tg("answerCallbackQuery", { callback_query_id: cq.id, ...(note ? { text: note } : {}) });
+        return json({ ok: true });
+      }
       if (cq) {
         const qChat = cq.message?.chat?.id, m = String(cq.data ?? "").match(/^p([01]):(.{3,61})$/);
         const who = typeof qChat === "number" ? (await rows<{ user_id: string; value: Tg }>(`user_settings?select=user_id,value&key=eq.telegram&value->>chat=eq.${qChat}&deleted_at=is.null&limit=1`))[0] : undefined;
@@ -964,7 +1045,7 @@ Deno.serve(async (req) => {
       if (linked && audio?.file_id) {
         // a voice note in reply to a trade's message: that message's plan or note button names the trade
         const btns = ((msg.reply_to_message?.reply_markup?.inline_keyboard ?? []) as { callback_data?: string; url?: string }[][]).flat();
-        const keyOf = (b: { callback_data?: string; url?: string }) => { const m = String(b.callback_data ?? "").match(/^p[01]:(.+)$/); if (m) return m[1]; try { return b.url ? new URL(b.url).searchParams.get("trade") : null; } catch { return null; } };
+        const keyOf = (b: { callback_data?: string; url?: string }) => { const m = String(b.callback_data ?? "").match(/^(?:p[01]|q(?:s\d|r\d{1,2}|n|d|e)):(.+)$/); if (m) return m[1]; try { return b.url ? new URL(b.url).searchParams.get("trade") : null; } catch { return null; } };
         const keys = [...new Set(btns.map(keyOf).filter((k): k is string => !!k))];
         if (keys.length !== 1) { await send(chat, T(keys.length ? "vMany" : "vReply", lang)); return json({ ok: true }); }
         if (Number(audio.duration ?? 0) > 180 || Number(audio.file_size ?? 0) > 20e6) { await send(chat, T("vLong", lang)); return json({ ok: true }); }
@@ -1109,6 +1190,7 @@ Deno.serve(async (req) => {
         const ownTrades = fresh.length && owns.length ? await rows<TradeRow>(`trades?select=key,symbol,side,pnl,status,entry_time,exit_time&user_id=eq.${uid}&account_id=eq.${accountId}&deleted_at=is.null&entry_time=gte.${since}&limit=5000`) : [];
         let run = 0;
         for (let i = shut.length - 1; i >= 0 && Number(shut[i].pnl) < 0; i--) run++;
+        const strats = fresh.length && prefs.entry ? await stratsOf(uid) : [];
         for (const x of fresh) {
           const d = prefs.danger ? dangerOf(x, hist) : null;
           const n = opens.filter((r) => r.key !== x.key && (r.entry_time ?? "") < x.entry_time).length;
@@ -1120,7 +1202,10 @@ Deno.serve(async (req) => {
           }
           if (!prefs.entry && !d && !broke.length) continue;
           const head = T("entry", lang, { a: acc.name, s: x.symbol, d: side(x.side, lang), q: Number(x.qty).toLocaleString("en-US"), h: x.entry_time.replace(" ", "T").slice(11, 16) });
-          entries.push({ text: [head, ...(d ? [dangerLine(d, x, lang, acc)] : []), ...broke, ...(prefs.entry ? [T("ask", lang)] : [])].join("\n"), kb: prefs.entry ? [planButtons(x.key, lang)] : [], k: `entry:${x.entry_time.slice(0, 10)}:${x.key}` });
+          // the question: the rules of the trader's strategy (which strategy first, when several), else "in my plan?"
+          const q = !prefs.entry ? null : !strats.length || x.key.length > 58 ? { text: T("ask", lang), kb: [planButtons(x.key, lang)] }
+            : strats.length === 1 ? { text: ruleQuestion(strats[0], lang), kb: ruleButtons(x.key, strats[0].rules.length, [], lang) } : { text: T("askStrat", lang), kb: stratButtons(x.key, strats) };
+          entries.push({ text: [head, ...(d ? [dangerLine(d, x, lang, acc)] : []), ...broke, ...(q ? [q.text] : [])].join("\n"), kb: q ? q.kb : [], k: `entry:${x.entry_time.slice(0, 10)}:${x.key}` });
         }
       }
       const keep: string[] = [];

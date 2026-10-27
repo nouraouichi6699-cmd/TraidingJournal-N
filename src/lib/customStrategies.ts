@@ -40,7 +40,10 @@ export function readCustom(): CustomStrategy[] {
     return [];
   }
 }
-const write = (list: CustomStrategy[]) => { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch { /* storage full or blocked */ } };
+const write = (list: CustomStrategy[]) => {
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch { /* storage full or blocked */ }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("mizan-strategies")); // see myStrategies.CHANGED
+};
 
 /** Black or white, whichever reads better on a color. */
 export function inkOn(hex: string): string {
