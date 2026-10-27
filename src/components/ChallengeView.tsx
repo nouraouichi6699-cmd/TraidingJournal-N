@@ -10,7 +10,8 @@ import { balanceBefore } from "../lib/balance";
 import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import { propOdds } from "../lib/tradeLab";
-import { Bar, BalanceChart, dangerColor, dayLabel, fill, nowFor, todayFor } from "./challengeUi";
+import { BalanceChart, DayMap, dangerColor, dayLabel, fill, MascotSay, nowFor, Ring, todayFor } from "./challengeUi";
+import type { Mood } from "./Mascot";
 import DateInput, { dayFirst } from "./DateInput";
 import { fromDraft, hasRule, OT, OwnCard, OwnFields, toDraft, type OwnDraft } from "./OwnRulesCard";
 import { loosens, NO_OWN, rulesAt, stricter, tidy, type OwnRules } from "../lib/ownRules";
@@ -104,6 +105,7 @@ const T = {
   retryToday: { en: "Same rules, from today's opening balance.", ar: "بالقواعد نفسها، من رصيد بداية اليوم.", fr: "Mêmes règles, depuis le solde d'ouverture du jour." },
   retryTomorrow: { en: "Same rules, from tomorrow: today is a rest day.", ar: "بالقواعد نفسها، ابتداءً من الغد: اليوم استراحة.", fr: "Mêmes règles, dès demain : aujourd'hui, repos." },
   starts: { en: "Starts {d}", ar: "يبدأ في {d}", fr: "Commence le {d}" },
+  onTrack: { en: "On track: every rule kept so far.", ar: "على الطريق: كل القواعد محترمة حتى الآن.", fr: "En bonne voie : toutes les règles respectées jusqu'ici." },
   pending: { en: "Starts on {d}: trades from that day count.", ar: "يبدأ في {d}: تُحتسب الصفقات ابتداءً من ذلك اليوم.", fr: "Commence le {d} : les trades comptent à partir de ce jour." },
   noteSelf: { en: "Closed trades only, by the broker's day. Deposits and withdrawals count as neither profit nor loss.", ar: "على الصفقات المغلقة فقط، بحسب يوم الوسيط. الإيداع والسحب لا يُحتسبان ربحاً ولا خسارة.", fr: "Trades clôturés uniquement, par jour du courtier. Dépôts et retraits ne comptent ni en gain ni en perte." },
   startBal: { en: "Starting balance", ar: "رصيد البداية", fr: "Solde de départ" },
@@ -153,9 +155,14 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
     : s.status === "passed" && s.passedOn ? [fill(L(T.passedOn), { d: dayLabel(s.passedOn, lang) }) + (self ? ` ${L(T.selfPassed)}` : ""), "border-[#22c55e]/50 bg-[#22c55e]/10"]
       : s.waiting.length ? [s.waiting.includes("days") ? fill(L(T.waitDays), { n: c.minDays - s.tradingDays, m: c.minDays }) : fill(L(T.waitCons), { p: Math.round((s.consistency?.share ?? 0) * 100), m: c.consistency ?? 0 }), "border-[var(--icon)] bg-primary-tint"]
         : s.risk ? [s.risk.amount <= 0 ? L(T.riskZero) : fill(L(s.risk.rule === "daily" ? T.riskDaily : T.riskMax), { m: m(s.risk.amount) }), s.risk.amount <= 0 || (s.risk.rule === "daily" ? s.today?.used ?? 0 : s.maxLoss?.used ?? 0) >= 0.8 ? "border-[#f87171]/50 bg-[#f87171]/10" : "border-[var(--icon)] bg-primary-tint"] : null;
+  // the candle's mood: gold flying on a pass, anger on a fail, worry near a limit, joy near the target, else eyeing the target
+  const used = Math.max(s.today?.used ?? 0, s.maxLoss?.used ?? 0);
+  const mood: Mood = pending ? "jealous" : s.status === "passed" ? "happy" : s.status === "failed" ? "angry"
+    : (s.risk && s.risk.amount <= 0) || used >= 0.8 ? "sad" : (s.target && s.target.progress >= 0.7) || s.waiting.length ? "happy" : "jealous";
+  const pct = (v: number) => `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
 
   return (
-    <article className="ch-card rounded-2xl border border-border p-5">
+    <article className="ch-card overflow-hidden rounded-2xl border border-border p-5">
       <div className="flex flex-wrap items-start gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon">{self ? <Mountain size={18} /> : <Flag size={18} />}</span>
         <div className="min-w-0 flex-1">
@@ -181,7 +188,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
         </div>
       )}
 
-      {banner && <p className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${banner[1]}`}>{tx(banner[0])}</p>}
+      <MascotSay mood={mood} party={s.status === "passed"} text={tx(banner ? banner[0] : L(T.onTrack))} tone={banner ? banner[1] : "border-[var(--icon)] bg-primary-tint"} />
       {self && !pending && s.status === "failed" && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           <button type="button" onClick={() => onRetry(retryStart(s, today))} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><RotateCcw size={15} />{L(T.retry)}</button>
@@ -190,35 +197,41 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
       )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-border p-4">
-          <p className="text-xs font-medium text-muted">{L(T.target)}</p>
-          {s.target ? (
-            <>
-              <p className={`mt-1 text-lg font-semibold tnum ${s.pnl >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.target.amount)}</span></p>
-              <Bar value={s.status === "passed" ? 1 : s.target.progress} color="var(--profit)" />
-              <p className="mt-1.5 text-xs text-muted">{s.status === "passed" || s.target.left <= 0 ? L(T.reached) : tx(fill(L(T.toGo), { p: Math.round(s.target.progress * 100), m: m(s.target.left) }))}</p>
-            </>
-          ) : <p className="mt-1 text-sm text-muted">{L(T.noTarget)}</p>}
+        <div className="flex items-center gap-3 rounded-xl border border-border p-4">
+          {s.target && <Ring value={s.status === "passed" ? 1 : s.target.progress} color="var(--profit)" text={pct(s.status === "passed" ? 1 : s.target.progress)} label={L(T.target)} />}
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted">{L(T.target)}</p>
+            {s.target ? (
+              <>
+                <p className={`mt-1 text-lg font-semibold tnum ${s.pnl >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.target.amount)}</span></p>
+                <p className="mt-0.5 text-xs text-muted">{s.status === "passed" || s.target.left <= 0 ? L(T.reached) : tx(fill(L(T.toGo), { p: Math.round(s.target.progress * 100), m: m(s.target.left) }))}</p>
+              </>
+            ) : <p className="mt-1 text-sm text-muted">{L(T.noTarget)}</p>}
+          </div>
         </div>
-        <div className="rounded-xl border border-border p-4">
-          <p className="text-xs font-medium text-muted">{L(T.daily)}</p>
-          {s.today ? (
-            <>
-              <p className={`mt-1 text-lg font-semibold tnum ${s.today.pnl > 0 ? "text-[#22c55e]" : s.today.pnl < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(s.today.pnl, true)}</p>
-              <Bar value={s.today.used} color={dangerColor(s.today.used)} />
-              <p className="mt-1.5 text-xs text-muted">{tx(`${fill(L(T.used), { u: m(Math.max(0, -s.today.pnl)), l: m(s.today.limit) })} · ${fill(L(T.room), { m: m(s.today.room) })}`)}</p>
-            </>
-          ) : <p className="mt-1 text-sm text-muted">{L(T.none)}</p>}
+        <div className="flex items-center gap-3 rounded-xl border border-border p-4">
+          {s.today && <Ring value={1 - s.today.used} color={dangerColor(s.today.used)} text={pct(1 - s.today.used)} label={`${L(T.daily)}: ${fill(L(T.room), { m: m(s.today.room) })}`} pulse={s.status === "active" && s.today.used >= 0.8} />}
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted">{L(T.daily)}</p>
+            {s.today ? (
+              <>
+                <p className={`mt-1 text-lg font-semibold tnum ${s.today.pnl > 0 ? "text-[#22c55e]" : s.today.pnl < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(s.today.pnl, true)}</p>
+                <p className="mt-0.5 text-xs text-muted">{tx(`${fill(L(T.used), { u: m(Math.max(0, -s.today.pnl)), l: m(s.today.limit) })} · ${fill(L(T.room), { m: m(s.today.room) })}`)}</p>
+              </>
+            ) : <p className="mt-1 text-sm text-muted">{L(T.none)}</p>}
+          </div>
         </div>
-        <div className="rounded-xl border border-border p-4">
-          <p className="flex items-center gap-2 text-xs font-medium text-muted">{L(T.overall)}{c.trailing && c.max != null && <span className="rounded-full border border-border px-1.5 text-[10px]">{L(T.trailing)}</span>}</p>
-          {s.maxLoss ? (
-            <>
-              <p className="mt-1 text-lg font-semibold tnum" dir="ltr">{m(s.maxLoss.room)}</p>
-              <Bar value={s.maxLoss.used} color={dangerColor(s.maxLoss.used)} />
-              <p className="mt-1.5 text-xs text-muted">{tx(`${fill(L(T.room), { m: m(s.maxLoss.room) })} · ${fill(L(T.floor), { m: m(s.maxLoss.floor) })}`)}</p>
-            </>
-          ) : <p className="mt-1 text-sm text-muted">{L(T.none)}</p>}
+        <div className="flex items-center gap-3 rounded-xl border border-border p-4">
+          {s.maxLoss && <Ring value={1 - s.maxLoss.used} color={dangerColor(s.maxLoss.used)} text={pct(1 - s.maxLoss.used)} label={`${L(T.overall)}: ${fill(L(T.room), { m: m(s.maxLoss.room) })}`} pulse={s.status === "active" && s.maxLoss.used >= 0.8} />}
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-xs font-medium text-muted">{L(T.overall)}{c.trailing && c.max != null && <span className="rounded-full border border-border px-1.5 text-[10px]">{L(T.trailing)}</span>}</p>
+            {s.maxLoss ? (
+              <>
+                <p className="mt-1 text-lg font-semibold tnum" dir="ltr">{m(s.maxLoss.room)}</p>
+                <p className="mt-0.5 text-xs text-muted">{tx(`${fill(L(T.room), { m: m(s.maxLoss.room) })} · ${fill(L(T.floor), { m: m(s.maxLoss.floor) })}`)}</p>
+              </>
+            ) : <p className="mt-1 text-sm text-muted">{L(T.none)}</p>}
+          </div>
         </div>
       </div>
 
@@ -245,6 +258,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
         )}
       </div>
 
+      {!pending && <DayMap start={c.start} today={today} days={s.days.map((r) => ({ day: r.day, bad: r.breach.length > 0, pnl: r.pnl }))} lang={lang} money={(v) => m(v, true)} />}
       <BalanceChart size={c.size} goal={c.target != null ? c.size * (1 + c.target / 100) : null} floor={s.maxLoss?.floor ?? null} start={c.start} rows={s.days.map((r) => ({ day: r.day, pnl: r.pnl, end: r.end, floor: r.floor, bad: r.breach.length > 0 }))} money={(v) => m(v)} lang={lang} label={L(T.balance)} />
 
       {s.daysToTarget != null && s.avgDay != null && <p className="mt-2 text-xs text-muted">{tx(fill(L(T.pace), { m: m(s.avgDay, true), n: s.daysToTarget }))}</p>}

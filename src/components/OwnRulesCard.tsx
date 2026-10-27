@@ -7,7 +7,8 @@ import type { Account, Lang, Trade } from "../types";
 import type { Challenge } from "../lib/challenge";
 import { amount, fromAdvisor, OWN_KEYS, ownState, rulesAt, tidy, type Limit, type OwnKey, type OwnRules } from "../lib/ownRules";
 import { currencySymbol, fmtMoney, ltrNumbers } from "../lib/money";
-import { Bar, BalanceChart, dangerColor, dayLabel, fill, loc, nowFor } from "./challengeUi";
+import { BalanceChart, DayMap, dangerColor, dayLabel, fill, loc, MascotSay, nowFor, Ring } from "./challengeUi";
+import type { Mood } from "./Mascot";
 import SignaturePad, { Signature } from "./SignaturePad";
 import SymbolPicker from "./SymbolPicker";
 import { cleanSymbol } from "../lib/symbols";
@@ -363,6 +364,9 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
   else if (rules.maxTrades != null && s.today.n >= rules.maxTrades) banner = [fill(L(OT.tradesHit), { n: s.today.n, m: rules.maxTrades }), AMBER];
   else if (rules.streak && s.today.run >= rules.streak) banner = [fill(L(OT.streakHit), { k: nLosses(s.today.run, lang) }), AMBER];
   else banner = [L(OT.allGood), PLAIN];
+  // the candle's mood follows the banner: anger at the end, worry when a limit or a pause holds, joy when all is well
+  const mood: Mood = pending ? "jealous" : ended ? "angry" : banner[1] === ROSE || banner[1] === AMBER ? "sad" : s.score == null || s.score >= 50 ? "happy" : "jealous";
+  const pct = (v: number) => `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
 
   const next = c.ownNext && c.ownNext.from > now ? c.ownNext.from : null; // broker clock
   const when = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(loc(lang), o).format(d);
@@ -390,7 +394,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
   ];
 
   return (
-    <article className="ch-card rounded-2xl border border-border p-5">
+    <article className="ch-card overflow-hidden rounded-2xl border border-border p-5">
       <div className="flex flex-wrap items-start gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon"><SlidersHorizontal size={18} /></span>
         <div className="min-w-0 flex-1">
@@ -420,7 +424,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
         </div>
       )}
 
-      <p className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${banner[1]}`}>{tx(banner[0])}</p>
+      <MascotSay mood={mood} party={!!s.goal?.reached || banner[1] === GREEN} text={tx(banner[0])} tone={banner[1]} />
       {ended && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           <button type="button" onClick={() => onRetry((s.endedOn ?? "") >= today ? addDay(today) : today)} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary"><RotateCcw size={15} />{L(OT.retry)}</button>
@@ -435,12 +439,14 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
       )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-border p-4">
-          <p className="text-xs font-medium text-muted">{L(OT.score)}</p>
-          <p className="mt-1 text-lg font-semibold tnum" dir="ltr"><span style={{ color: scoreColor }}>{s.score ?? "—"}</span> <span className="text-sm font-medium text-muted">/ 100</span></p>
-          <Bar value={(s.score ?? 0) / 100} color={scoreColor} />
-          <p className="mt-1.5 text-xs text-muted">{tx(fill(L(OT.scoreSub), { c: s.cleanDays, n: s.activeDays }))}</p>
-          <p className="text-xs text-muted">{tx(fill(L(OT.inRow), { n: s.streak, b: s.best }))}</p>
+        <div className="flex items-center gap-3 rounded-xl border border-border p-4">
+          <Ring value={(s.score ?? 0) / 100} color={scoreColor} text={s.score == null ? "—" : String(s.score)} label={`${L(OT.score)}: ${s.score ?? "—"} / 100`} />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted">{L(OT.score)}</p>
+            <p className="mt-1 text-lg font-semibold tnum" dir="ltr"><span style={{ color: scoreColor }}>{s.score ?? "—"}</span> <span className="text-sm font-medium text-muted">/ 100</span></p>
+            <p className="mt-0.5 text-xs text-muted">{tx(fill(L(OT.scoreSub), { c: s.cleanDays, n: s.activeDays }))}</p>
+            <p className="text-xs text-muted">{tx(fill(L(OT.inRow), { n: s.streak, b: s.best }))}</p>
+          </div>
         </div>
         <div className="rounded-xl border border-border p-4">
           <p className="text-xs font-medium text-muted">{L(OT.cost)}</p>
@@ -451,20 +457,22 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
             </div>
           )}
         </div>
-        <div className="rounded-xl border border-border p-4">
+        <div className="flex items-center gap-3 rounded-xl border border-border p-4">
           {s.goal ? (
             <>
-              <p className="text-xs font-medium text-muted">{L(OT.goal)}</p>
-              <p className={`mt-1 text-lg font-semibold tnum ${s.pnl >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.goal.amount)}</span></p>
-              <Bar value={s.goal.progress} color="var(--profit)" />
-              <p className="mt-1.5 text-xs text-muted">{s.goal.reached ? L(OT.reached) : tx(fill(L(OT.toGo), { p: Math.round(s.goal.progress * 100), m: m(s.goal.left) }))}</p>
+              <Ring value={s.goal.progress} color="var(--profit)" text={pct(s.goal.progress)} label={L(OT.goal)} />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted">{L(OT.goal)}</p>
+                <p className={`mt-1 text-lg font-semibold tnum ${s.pnl >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.goal.amount)}</span></p>
+                <p className="mt-0.5 text-xs text-muted">{s.goal.reached ? L(OT.reached) : tx(fill(L(OT.toGo), { p: Math.round(s.goal.progress * 100), m: m(s.goal.left) }))}</p>
+              </div>
             </>
           ) : (
-            <>
+            <div className="min-w-0">
               <p className="text-xs font-medium text-muted">{L(OT.today)}</p>
               <p className={`mt-1 text-lg font-semibold tnum ${s.today.net > 0 ? "text-[#22c55e]" : s.today.net < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(s.today.net, true)}</p>
-              <p className="mt-1.5 text-xs text-muted">{tx(nTrades(s.today.n, lang))}</p>
-            </>
+              <p className="mt-0.5 text-xs text-muted">{tx(nTrades(s.today.n, lang))}</p>
+            </div>
           )}
         </div>
       </div>
@@ -472,17 +480,21 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
       {s.rooms.length > 0 && (
         <div className={`mt-3 grid gap-3 ${s.rooms.length > 1 ? "sm:grid-cols-2" : ""} ${s.rooms.length > 2 ? "lg:grid-cols-4" : ""}`}>
           {s.rooms.map((x) => (
-            <div key={x.key} className="rounded-xl border border-border p-4">
-              <p className="text-xs font-medium text-muted">{L(x.key === "daily" ? OT.roomDaily : x.key === "weekly" ? OT.roomWeekly : x.key === "monthly" ? OT.roomMonthly : OT.roomOverall)}</p>
-              <p className={`mt-1 text-lg font-semibold tnum ${x.net > 0 ? "text-[#22c55e]" : x.net < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(x.net, true)}</p>
-              <Bar value={x.used} color={dangerColor(x.used)} />
-              <p className="mt-1.5 text-xs text-muted">{tx(fill(L(OT.used), { u: m(x.used * x.limit), l: m(x.limit), r: m(x.room) }))}</p>
+            <div key={x.key} className="flex items-center gap-3 rounded-xl border border-border p-4">
+              <Ring value={1 - x.used} color={dangerColor(x.used)} text={pct(1 - x.used)} pulse={!ended && x.used >= 0.8} size={52}
+                label={tx(fill(L(OT.used), { u: m(x.used * x.limit), l: m(x.limit), r: m(x.room) }))} />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted">{L(x.key === "daily" ? OT.roomDaily : x.key === "weekly" ? OT.roomWeekly : x.key === "monthly" ? OT.roomMonthly : OT.roomOverall)}</p>
+                <p className={`mt-1 text-lg font-semibold tnum ${x.net > 0 ? "text-[#22c55e]" : x.net < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(x.net, true)}</p>
+                <p className="mt-0.5 text-xs text-muted">{tx(fill(L(OT.used), { u: m(x.used * x.limit), l: m(x.limit), r: m(x.room) }))}</p>
+              </div>
             </div>
           ))}
         </div>
       )}
       {chips.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{chips.map((t) => <span key={t} className="rounded-full border border-border px-3 py-1 text-xs font-semibold">{tx(t)}</span>)}</div>}
 
+      {!pending && <DayMap start={c.start} today={today} days={s.days.map((d) => ({ day: d.day, bad: d.bad, pnl: d.pnl }))} lang={lang} money={(v) => m(v, true)} />}
       <BalanceChart size={c.size} goal={s.goal ? c.size + s.goal.amount : null} floor={floor} start={c.start} rows={s.days.map((d) => ({ ...d, floor }))} money={(v) => m(v)} lang={lang} label={L(OT.balance)} />
 
       <div className="mt-4">

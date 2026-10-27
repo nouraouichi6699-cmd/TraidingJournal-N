@@ -1,7 +1,8 @@
-// Pieces shared by the challenge cards (prop firm, personal, own rules): the account's clock, labels, a progress bar and
-// the balance chart.
-import { useLayoutEffect, useRef, useState } from "react";
+// Pieces shared by the challenge cards (prop firm, personal, own rules): the account's clock, labels, a progress bar, a
+// ring, the candle that speaks the card's news, the map of the days and the balance chart.
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { Account, Lang } from "../types";
+import Mascot, { type Mood } from "./Mascot";
 import { offsetMs, parseModel, type TimeModel } from "../lib/path";
 import { readClock } from "../lib/pathData";
 
@@ -76,6 +77,79 @@ export function BalanceChart({ size, goal, floor, start, rows, money, lang, labe
           {n > 1 && <text x={L + pw} y={H - 5} fontSize={10} fill="var(--muted)" textAnchor="end">{dayLabel(rows[n - 1].day, lang)}</text>}
         </svg>
       )}
+    </div>
+  );
+}
+
+/** A ring filling to `value` (0..1) as it appears, then following it; it pulses softly when `pulse` (little room left). */
+export function Ring({ value, color, text, label, pulse = false, size = 58 }: { value: number; color: string; text: string; label: string; pulse?: boolean; size?: number }) {
+  const r = 24, c = 2 * Math.PI * r, [v, setV] = useState(0);
+  useEffect(() => { const id = requestAnimationFrame(() => setV(Math.max(0, Math.min(1, value)))); return () => cancelAnimationFrame(id); }, [value]);
+  return (
+    <span className={`relative grid shrink-0 place-items-center ${pulse ? "ch-ring-low" : ""}`} style={{ width: size, height: size, "--ring": color } as CSSProperties} role="img" aria-label={label}>
+      <svg viewBox="0 0 60 60" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
+        <circle cx="30" cy="30" r={r} fill="none" stroke="var(--skeleton)" strokeWidth="6" />
+        <circle cx="30" cy="30" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - v)} opacity={v > 0.004 ? 1 : 0}
+          style={{ transition: "stroke-dashoffset .95s cubic-bezier(.22,1,.36,1), stroke .4s" }} />
+      </svg>
+      <span className="relative text-[11px] font-bold tnum" dir="ltr" style={{ color }}>{text}</span>
+    </span>
+  );
+}
+
+/** The candle saying the card's news, in the mood of the moment; gold flies around it on a success (`party`). */
+export function MascotSay({ mood, text, tone, party = false }: { mood: Mood; text: string; tone: string; party?: boolean }) {
+  return (
+    <div className="mt-4 flex items-center gap-3">
+      <span className="relative grid h-[70px] w-[60px] shrink-0 place-items-center sm:h-[78px] sm:w-[67px]">
+        <Mascot mood={mood} className="h-full w-full" />
+        {party && <span className="ch-party" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ "--a": `${i * 30}deg`, animationDelay: `${(i % 4) * 150}ms` } as CSSProperties} />)}</span>}
+      </span>
+      <p key={text} className={`ch-say min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm font-medium leading-relaxed ${tone}`}>{text}</p>
+    </div>
+  );
+}
+
+const MAP = {
+  title: { en: "Discipline map", ar: "خريطة الانضباط", fr: "Carte de discipline" },
+  kept: { en: "Within the rules", ar: "ملتزم", fr: "Dans les règles" },
+  broke: { en: "A rule broken", ar: "كسر قاعدة", fr: "Règle enfreinte" },
+  none: { en: "No trades", ar: "بلا تداول", fr: "Sans trade" },
+  today: { en: "today", ar: "اليوم", fr: "aujourd'hui" },
+} satisfies Record<string, Record<Lang, string>>;
+const addD = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+const wdOf = (d: string) => (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7; // 0 = Monday
+/** A square for each day since the start (18 weeks at most), in weeks from Monday that wrap like words: green within
+ *  the rules, rose with a broken rule, an outline without trades; they come in one after the other. */
+export function DayMap({ start, today, days, lang, money }: { start: string; today: string; days: { day: string; bad: boolean; pnl: number }[]; lang: Lang; money: (v: number) => string }) {
+  const by = new Map(days.map((d) => [d.day, d]));
+  const from = start > addD(today, -125) ? start : addD(today, -125), first = addD(from, -wdOf(from));
+  const weeks: string[][] = [];
+  for (let d = first; d <= today; d = addD(d, 1)) { if (wdOf(d) === 0) weeks.push([]); weeks[weeks.length - 1].push(d); }
+  const sq = "h-3.5 w-3.5 rounded-[4px]";
+  let n = 0;
+  return (
+    <div className="mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+        <p className="text-xs font-medium text-muted">{MAP.title[lang]}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+          <span className="flex items-center gap-1.5"><span className={`${sq} bg-[#22c55e]/80`} />{MAP.kept[lang]}</span>
+          <span className="flex items-center gap-1.5"><span className={`${sq} bg-[#f87171]/90`} />{MAP.broke[lang]}</span>
+          <span className="flex items-center gap-1.5"><span className={`${sq} border border-border`} />{MAP.none[lang]}</span>
+        </div>
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-2">
+        {weeks.map((w) => (
+          <div key={w[0]} className="flex gap-1">
+            {w.map((d) => {
+              const info = by.get(d), before = d < from;
+              const cls = before ? "" : info ? (info.bad ? "bg-[#f87171]/90" : "bg-[#22c55e]/80") : `border border-border ${wdOf(d) >= 5 ? "opacity-50" : ""}`;
+              const tip = before ? undefined : `${dayLabel(d, lang)}${d === today ? ` (${MAP.today[lang]})` : ""} · ${info ? `${MAP[info.bad ? "broke" : "kept"][lang]} · ${money(info.pnl)}` : MAP.none[lang]}`;
+              return <span key={d} title={tip} className={`ch-cell ${sq} ${cls} ${d === today ? "outline outline-1 outline-offset-1 outline-[var(--icon)]" : ""}`} style={{ animationDelay: `${Math.min(n++, 120) * 10}ms` }} />;
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

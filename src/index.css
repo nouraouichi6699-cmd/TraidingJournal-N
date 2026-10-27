@@ -914,7 +914,21 @@ h6 {
 /* Challenges */
 @keyframes ch-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .ch-card { animation: ch-in 0.35s ease-out both; }
-@media (prefers-reduced-motion: reduce) { .ch-card { animation: none; } }
+/* the ring pulses when little room is left; the days of the map pop in one after the other; the candle's words come in */
+@keyframes ch-pulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); } 50% { transform: scale(1.07); filter: drop-shadow(0 0 7px color-mix(in srgb, var(--ring) 65%, transparent)); } }
+.ch-ring-low { animation: ch-pulse 1.7s ease-in-out infinite; }
+@keyframes ch-cell { from { opacity: 0; transform: scale(.3); } }
+.ch-cell { animation: ch-cell .35s cubic-bezier(.22, 1, .36, 1) backwards; }
+@keyframes ch-say { from { opacity: 0; transform: translateX(var(--say-x, -8px)); } }
+[dir="rtl"] .ch-say { --say-x: 8px; }
+.ch-say { animation: ch-say .45s cubic-bezier(.22, 1, .36, 1) backwards; }
+/* gold flying around the candle on a success */
+.ch-party { position: absolute; inset: 0; pointer-events: none; }
+.ch-party i { position: absolute; left: 50%; top: 42%; width: 6px; height: 6px; margin: -3px; border-radius: 2px; background: var(--icon); opacity: 0; animation: ch-party 2.6s ease-out infinite; }
+.ch-party i:nth-child(3n) { background: #22c55e; }
+.ch-party i:nth-child(3n + 1) { background: #fde68a; border-radius: 50%; }
+@keyframes ch-party { 0% { opacity: 0; transform: rotate(var(--a)) translateY(-8px) scale(.4); } 18%, 62% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-50px) scale(1) rotate(160deg); } }
+@media (prefers-reduced-motion: reduce) { .ch-card, .ch-ring-low, .ch-cell, .ch-say, .ch-party i { animation: none; } .ch-party { display: none; } }
 
 /* Profile page: one tone per section and per alert group (icon tile, chip, panel tint, switch). The hues keep their
    meaning in every theme: sky Telegram, rose protection, amber challenges, violet summaries, emerald partner, indigo coach, gold yours. */
