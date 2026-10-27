@@ -2,9 +2,9 @@
 // a picture that plays, the idea, the key concepts, the markets, timeframes and sessions, the entry checklist, the
 // stop and the target, and the usual mistakes. The trader keeps their own strategies at the top of the list, and a
 // strategy linked to trades in the journal shows their results. On a phone the list folds above the page.
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { AlertTriangle, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Droplets, Goal, Layers, Pencil, PenLine, Plus, RotateCcw, Search, ShieldAlert, Star, StickyNote, Waves, X } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Droplets, Goal, Layers, Pencil, PenLine, Plus, RotateCcw, Search, ShieldAlert, Star, StickyNote, TrendingDown, TrendingUp, Waves, X } from "lucide-react";
 import type { Account, Lang, Trade } from "../types";
 import type { Key } from "../i18n";
 import { GROUPS, STRATEGIES, norm, searchStrategies, type Group, type Id, type Market, type Session, type StrategyText, type Style } from "../lib/strategies";
@@ -16,7 +16,7 @@ import { deleteCustom, readLinks, readMine, resultsOf, setMine, type AnyId } fro
 import { inkOn, readCustom, saveCustom, type CustomStrategy } from "../lib/customStrategies";
 import { TOOL_BY_ID, TOOL_GROUPS, TOOL_GROUP_LABEL, toolName } from "../lib/tools";
 import { readAnswers, ruleResults, type Part } from "../lib/tradeRules";
-import { strategyStats } from "../lib/strategyStats";
+import { conditionsOf, strategyStats, type Group as CondGroup } from "../lib/strategyStats";
 import { fmtHold } from "../lib/stats";
 import Private from "./Private";
 import CustomStrategyForm, { TOOL_ICON } from "./CustomStrategyForm";
@@ -67,6 +67,14 @@ const T = {
   sLong: { en: "Long", ar: "شراء", fr: "Achat" },
   sShort: { en: "Short", ar: "بيع", fr: "Vente" },
   sCurve: { en: "Cumulative P&L", ar: "الربح التراكمي", fr: "P&L cumulé" },
+  wTitle: { en: "When it works", ar: "متى تنجح", fr: "Quand elle marche" },
+  wBest: { en: "Best", ar: "الأفضل", fr: "Le meilleur" },
+  wWorst: { en: "Worst", ar: "الأسوأ", fr: "Le pire" },
+  wNone: { en: "Not enough trades yet: a condition is named once it has 3 trades or more.", ar: "الصفقات غير كافية بعد: لا تُذكر حالة إلا إذا كان فيها 3 صفقات أو أكثر.", fr: "Pas encore assez de trades : une condition est citée à partir de 3 trades." },
+  wTap: { en: "Tap a square to see its trades.", ar: "المس خانة لترى صفقاتها.", fr: "Touchez une case pour voir ses trades." },
+  wSess: { en: "By session", ar: "حسب الجلسة", fr: "Par session" },
+  wDays: { en: "By day", ar: "حسب اليوم", fr: "Par jour" },
+  wSyms: { en: "By symbol (top 3)", ar: "حسب الرمز (أفضل 3)", fr: "Par symbole (top 3)" },
   sFew: { en: "Fewer than 20 closed trades: these numbers are not reliable yet.", ar: "أقل من 20 صفقة مغلقة: هذه الأرقام غير موثوقة بعد.", fr: "Moins de 20 trades clôturés : ces chiffres ne sont pas encore fiables." },
   linkHint: { en: "Link your trades to this strategy in the Journal (the Strategy column): its results will show here.", ar: "اربط صفقاتك بهذه الاستراتيجية من اليوميات (عمود الاستراتيجية)، وستظهر نتائجها هنا.", fr: "Liez vos trades à cette stratégie dans le Journal (colonne Stratégie) : ses résultats s'afficheront ici." },
   toJournal: { en: "Open the Journal", ar: "افتح اليوميات", fr: "Ouvrir le Journal" },
@@ -146,6 +154,8 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   const answers = useMemo(readAnswers, []);
   const res = useMemo(() => resultsOf(curId, trades, links), [curId, trades, links]);
   const st = useMemo(() => strategyStats(trades.filter((t) => links[t.key] === curId)), [curId, trades, links]);
+  const cond = useMemo(() => conditionsOf(trades.filter((t) => links[t.key] === curId)), [curId, trades, links]);
+  const [cell, setCell] = useState<[number, number] | null>(null);
   const cur = commonCurrency([...new Set(trades.filter((x) => links[x.key] === curId).map((x) => x.accountId))].map((a) => ({ currency: accounts.find((y) => y.id === a)?.currency ?? "" })));
   const toolsLine = (c: CustomStrategy) => c.tools.slice(0, 3).map((x) => toolName(TOOL_BY_ID.get(x)!, lang)).join(" · ") + (c.tools.length > 3 ? ` +${c.tools.length - 3}` : "");
   const customFound = useMemo(() => {
@@ -313,6 +323,61 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
       {st.n < 20 && <p className="text-[11px] text-muted">{n(L(T.sFew))}</p>}
     </div>
   );
+  // When it works: the best and worst condition, weekday x hour, and by session, day and symbol (same hours as the Charts).
+  const dayName = (d: number, weekday: "long" | "short") => new Intl.DateTimeFormat(lang, { weekday, timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + d)));
+  const groupName = (g: CondGroup) => (g.kind === "session" ? tr(g.s) : g.kind === "day" ? dayName(g.d, "long") : g.kind === "symbol" ? g.sym : `${g.sym} · ${tr(g.s)}`);
+  const rowsD = [...new Set([0, 1, 2, 3, 4, ...cond.days])].sort((a, b) => a - b);
+  const maxAbs = Math.max(1e-9, ...rowsD.flatMap((d) => cond.hours.map((h) => Math.abs(cond.heat[d][h].net))));
+  const selC = cell && cond.heat[cell[0]]?.[cell[1]]?.n ? cond.heat[cell[0]][cell[1]] : null;
+  const whenCard = cond.n > 0 && (
+    <Card title={L(T.wTitle)} icon={Clock}>
+      <div className="flex flex-col gap-4">
+        {cond.best || cond.worst ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {([[T.wBest, cond.best, "border-[#22c55e]/40", TrendingUp, "text-[#22c55e]"], [T.wWorst, cond.worst, "border-[#f87171]/40", TrendingDown, "text-[#f87171]"]] as const).map(([h, x, b, Icon, c]) => x && (
+              <div key={L(h)} className={`rounded-xl border bg-bg/60 p-3 ${b}`}>
+                <p className={`mb-1 flex items-center gap-1.5 text-xs font-semibold ${c}`}><Icon size={14} />{L(h)}</p>
+                <p className="mb-1 text-sm font-semibold" dir="auto">{groupName(x.g)}</p>
+                {partLine(x.p)}
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-sm text-muted">{n(L(T.wNone))}</p>}
+        <div>
+          <div dir="ltr" className="overflow-x-auto">
+            <div className="grid gap-[3px]" style={{ gridTemplateColumns: `auto repeat(${cond.hours.length}, minmax(14px, 1fr))` }}>
+              <span />
+              {cond.hours.map((h, i) => <span key={h} className="text-center text-[9px] text-muted tabular-nums">{cond.hours.length <= 12 || i % 2 === 0 ? h : ""}</span>)}
+              {rowsD.map((d) => (
+                <Fragment key={d}>
+                  <span className="pe-1.5 text-[10px] leading-5 text-muted">{dayName(d, "short")}</span>
+                  {cond.hours.map((h) => {
+                    const c = cond.heat[d][h], a = c.n ? 0.18 + (0.82 * Math.abs(c.net)) / maxAbs : 0, on = cell?.[0] === d && cell?.[1] === h;
+                    return <button key={h} type="button" disabled={!c.n} aria-label={`${dayName(d, "long")} ${h}:00`} onClick={() => setCell([d, h])} onMouseEnter={() => setCell([d, h])}
+                      className={`h-5 rounded-[4px] border ${on ? "border-[var(--icon)]" : c.n ? "border-transparent" : "border-border"}`}
+                      style={{ background: c.n ? (c.net >= 0 ? `rgba(34,197,94,${a})` : `rgba(248,113,113,${a})`) : "transparent" }} />;
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2 min-h-[1.25rem] text-xs text-muted">
+            {selC && cell ? <span className="flex flex-wrap items-center gap-x-3"><span className="font-semibold">{n(`${dayName(cell[0], "long")} ${String(cell[1]).padStart(2, "0")}:00`)}</span>{partLine({ n: selC.n, wins: selC.wins, net: selC.net, winRate: (selC.wins / selC.n) * 100 })}</span> : L(T.wTap)}
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {([[T.wSess, cond.sessions.map(({ s, p }) => [tr(s), p])], [T.wDays, cond.byDay.map(({ d, p }) => [dayName(d, "long"), p])], [T.wSyms, cond.symbols.map(({ sym, p }) => [sym, p])]] as [L3, [string, Part][]][]).map(([h, rows]) => (
+            <div key={L(h)}>
+              <p className="mb-1.5 text-xs font-semibold text-muted">{L(h)}</p>
+              <ul className="flex flex-col gap-1.5">
+                {rows.map(([name, p]) => <li key={name} className="flex flex-col gap-0.5 rounded-xl border border-border bg-bg/60 px-3 py-2"><span className="text-sm font-semibold" dir="auto">{name}</span>{partLine(p)}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
   const results = (
               <Card title={L(T.results)} icon={Star}>
                 {res.linked > 0 ? (<>
@@ -374,6 +439,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
           </div>
         </div>
         {results}
+        {whenCard}
         {rulesCard}
         {own.check.length > 0 && (
           <Card title={L(T.check)} icon={CircleCheck}>
@@ -448,6 +514,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
             </div>
 
             {(isMine || res.linked > 0) && results}
+            {whenCard}
             {(isMine || rr.answered > 0) && rulesCard}
 
             <Card title={L(T.idea)} icon={BookOpen}><p className="text-sm leading-relaxed">{n(t.idea)}</p></Card>

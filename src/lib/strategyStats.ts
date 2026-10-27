@@ -34,7 +34,7 @@ export function strategyStats(trades: Trade[]): StrategyStats {
 
 // ---------- When it works ----------
 
-export type SessionKey = ReturnType<typeof sessionOf>;
+export type SessionKey = "sessTK" | "sessLN" | "sessNY" | "sessSY"; // lib/tradeLab sessionOf
 export const SESSIONS: SessionKey[] = ["sessTK", "sessLN", "sessNY", "sessSY"];
 export type Group = { kind: "session"; s: SessionKey } | { kind: "day"; d: number } | { kind: "symbol"; sym: string } | { kind: "symbolSession"; sym: string; s: SessionKey };
 export interface Conditions {
@@ -53,8 +53,8 @@ export function conditionsOf(trades: Trade[], min = 3): Conditions {
   const closed = trades.filter(isClosed);
   const hourOf = (t: Trade) => new Date(entryMs(t)).getUTCHours(), dayOf = (t: Trade) => (new Date(entryMs(t)).getUTCDay() + 6) % 7;
   const group = <K,>(key: (t: Trade) => K) => { const m = new Map<K, Trade[]>(); for (const t of closed) { const k = key(t); m.set(k, [...(m.get(k) ?? []), t]); } return m; };
-  const bySess = group((t) => sessionOf(hourOf(t))), byDay = group(dayOf), bySym = group((t) => t.symbol), byCombo = group((t) => `${t.symbol}\u0000${sessionOf(hourOf(t))}`);
-  const sessions = SESSIONS.filter((s) => bySess.has(s)).map((s) => ({ s, p: partOf(bySess.get(s) as Trade[]) }));
+  const bySess = group((t) => sessionOf(hourOf(t)) as SessionKey), byDay = group(dayOf), bySym = group((t) => t.symbol), byCombo = group((t) => `${t.symbol}\u0000${sessionOf(hourOf(t))}`);
+  const sessions: Conditions["sessions"] = SESSIONS.filter((s) => bySess.has(s)).map((s) => ({ s, p: partOf(bySess.get(s) as Trade[]) }));
   const days = [...byDay.keys()].sort((a, b) => a - b), byDayP = days.map((d) => ({ d, p: partOf(byDay.get(d) as Trade[]) }));
   const symbols = [...bySym].map(([sym, l]) => ({ sym, p: partOf(l) }));
   const all: { g: Group; p: SideStats }[] = [
