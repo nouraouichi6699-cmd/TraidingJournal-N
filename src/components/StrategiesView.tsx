@@ -4,16 +4,20 @@
 // strategy linked to trades in the journal shows their results. On a phone the list folds above the page.
 import { useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { AlertTriangle, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Droplets, Goal, Layers, PenLine, RotateCcw, Search, ShieldAlert, Star, Waves, X } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Droplets, Goal, Layers, Pencil, PenLine, Plus, RotateCcw, Search, ShieldAlert, Star, StickyNote, Waves, X } from "lucide-react";
 import type { Account, Lang, Trade } from "../types";
 import type { Key } from "../i18n";
-import { GROUPS, STRATEGIES, searchStrategies, type Group, type Id, type Market, type Session, type StrategyText, type Style } from "../lib/strategies";
+import { GROUPS, STRATEGIES, norm, searchStrategies, type Group, type Id, type Market, type Session, type StrategyText, type Style } from "../lib/strategies";
 import { EN } from "../lib/strategyText.en";
 import { AR } from "../lib/strategyText.ar";
 import { FR } from "../lib/strategyText.fr";
 import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
-import { readLinks, readMine, resultsOf, setMine } from "../lib/myStrategies";
+import { deleteCustom, readLinks, readMine, resultsOf, setMine, type AnyId } from "../lib/myStrategies";
+import { inkOn, readCustom, saveCustom, type CustomStrategy } from "../lib/customStrategies";
+import { TOOL_BY_ID, TOOL_GROUPS, TOOL_GROUP_LABEL, toolName } from "../lib/tools";
 import Private from "./Private";
+import CustomStrategyForm, { TOOL_ICON } from "./CustomStrategyForm";
+import { Dot } from "./StrategyPicker";
 import StrategyDiagram from "./StrategyDiagram";
 
 type L3 = Record<Lang, string>;
@@ -50,6 +54,13 @@ const T = {
   openN: { en: "+ {n} open", ar: "+ {n} مفتوحة", fr: "+ {n} ouvert(s)" },
   linkHint: { en: "Link your trades to this strategy in the Journal (the Strategy column): its results will show here.", ar: "اربط صفقاتك بهذه الاستراتيجية من اليوميات (عمود الاستراتيجية)، وستظهر نتائجها هنا.", fr: "Liez vos trades à cette stratégie dans le Journal (colonne Stratégie) : ses résultats s'afficheront ici." },
   toJournal: { en: "Open the Journal", ar: "افتح اليوميات", fr: "Ouvrir le Journal" },
+  newOwn: { en: "New strategy", ar: "استراتيجية جديدة", fr: "Nouvelle stratégie" },
+  yours: { en: "Your strategy", ar: "استراتيجيتك", fr: "Votre stratégie" },
+  nTools: { en: "{n} indicators and tools", ar: "{n} من المؤشرات والأدوات", fr: "{n} indicateurs et outils" },
+  edit: { en: "Edit", ar: "تعديل", fr: "Modifier" },
+  noTools: { en: "No indicator chosen yet.", ar: "لم تختر أي مؤشر بعد.", fr: "Aucun indicateur choisi pour l'instant." },
+  notesT: { en: "Notes", ar: "ملاحظات", fr: "Notes" },
+  addRules: { en: "Add your entry checklist, stop and target with Edit.", ar: "أضف شروط الدخول والوقف والهدف من زر التعديل.", fr: "Ajoutez votre check-list, votre stop et votre objectif avec Modifier." },
   note: { en: "For education only, not financial advice. Test a strategy on a demo account and in your journal before you risk real money.", ar: "محتوى تعليمي فقط وليس نصيحة مالية. جرّب أي استراتيجية على حساب تجريبي وفي سجلّك قبل أن تخاطر بمال حقيقي.", fr: "Contenu éducatif, pas un conseil financier. Testez une stratégie sur un compte démo et dans votre journal avant de risquer de l'argent réel." },
 };
 const GROUP: Record<Group, { icon: typeof Droplets; label: L3 }> = {
@@ -87,7 +98,9 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   const L = (x: L3) => x[lang];
   const tx = TEXT[lang];
   const n = (s: string) => (lang === "ar" ? ltrNumbers(s) : s); // numbers keep their order inside Arabic text
-  const [id, setId] = useState<Id>("ict");
+  const [id, setId] = useState<AnyId>("ict");
+  const [custom, setCustom] = useState(readCustom);
+  const [editing, setEditing] = useState<CustomStrategy | "new" | null>(null);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false); // the list, on a phone
   const [play, setPlay] = useState(0);
@@ -100,33 +113,51 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   });
   const top = useRef<HTMLDivElement>(null);
   const found = useMemo(() => searchStrategies(q, ALL), [q]);
-  const s = STRATEGIES.find((x) => x.id === id) ?? STRATEGIES[0], t = tx[s.id];
+  // The page shown: one of the trader's own, else a library strategy (the first one if the id is gone).
+  const lib = STRATEGIES.find((x) => x.id === id), own = lib ? undefined : custom.find((c) => c.id === id);
+  const s = lib ?? STRATEGIES[0], t = tx[s.id], curId: AnyId = own ? own.id : s.id;
   const at = STRATEGIES.indexOf(s), prev = STRATEGIES[at - 1], next = STRATEGIES[at + 1];
   const G = GROUP[s.group];
   const [mine, setMineState] = useState(readMine);
   const links = useMemo(readLinks, []);
-  const res = useMemo(() => resultsOf(s.id, trades, links), [s.id, trades, links]);
-  const cur = commonCurrency([...new Set(trades.filter((x) => links[x.key] === s.id).map((x) => x.accountId))].map((a) => ({ currency: accounts.find((y) => y.id === a)?.currency ?? "" })));
+  const res = useMemo(() => resultsOf(curId, trades, links), [curId, trades, links]);
+  const cur = commonCurrency([...new Set(trades.filter((x) => links[x.key] === curId).map((x) => x.accountId))].map((a) => ({ currency: accounts.find((y) => y.id === a)?.currency ?? "" })));
+  const toolsLine = (c: CustomStrategy) => c.tools.slice(0, 3).map((x) => toolName(TOOL_BY_ID.get(x)!, lang)).join(" · ") + (c.tools.length > 3 ? ` +${c.tools.length - 3}` : "");
+  const customFound = useMemo(() => {
+    const words = norm(q).split(/\s+/).filter(Boolean);
+    return words.length ? custom.filter((c) => { const h = norm(`${c.name} ${c.tools.map((x) => { const tl = TOOL_BY_ID.get(x)!; return `${tl.n} ${tl.ar ?? ""} ${tl.fr ?? ""}`; }).join(" ")}`); return words.every((w) => h.includes(w)); }) : custom;
+  }, [q, custom]);
   const isMine = mine.includes(s.id);
 
-  const pick = (v: Id) => {
+  const pick = (v: AnyId) => {
     setId(v);
     setOpen(false);
     const el = top.current;
     if (el && el.getBoundingClientRect().top < 0) window.scrollTo({ top: window.scrollY + el.getBoundingClientRect().top - 12, behavior: "smooth" });
   };
 
+  // The list's rows: a library strategy (its level) or one of the trader's own (its color and tools).
+  type Row = { id: AnyId; name: string; sub: string; level?: 1 | 2 | 3; color?: string };
+  const libRow = (x: (typeof STRATEGIES)[number]): Row => ({ id: x.id, name: x.name, sub: n(tx[x.id].tag), level: x.level });
+  const ownRow = (c: CustomStrategy): Row => ({ id: c.id, name: c.name, sub: c.tools.length ? toolsLine(c) : L(T.noTools), color: c.color });
+  const mineRows: Row[] = [
+    ...mine.map((m) => { const x = found.find((y) => y.id === m); if (x) return libRow(x); const c = customFound.find((y) => y.id === m); return c ? ownRow(c) : null; }).filter((r): r is Row => !!r),
+    ...customFound.filter((c) => !mine.includes(c.id)).map(ownRow),
+  ];
   const list = (
     <div className="flex flex-col gap-2">
       <label className="relative block">
         <Search size={15} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted" />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={L(T.search)} aria-label={L(T.search)}
-          onKeyDown={(e) => { if (e.key === "Enter" && found[0]) pick(found[0].id); if (e.key === "Escape") setQ(""); }}
+          onKeyDown={(e) => { const first = mineRows[0]?.id ?? found[0]?.id; if (e.key === "Enter" && first) pick(first); if (e.key === "Escape") setQ(""); }}
           className="w-full rounded-xl border border-border bg-bg py-2 pe-8 ps-9 text-sm outline-none placeholder:text-muted focus:border-[var(--icon)] focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden" />
         {q && <button type="button" onClick={() => setQ("")} aria-label={L(T.clear)} className="absolute end-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-lg text-muted hover:text-text"><X size={14} /></button>}
       </label>
-      {!found.length && <p className="px-2 py-6 text-center text-sm text-muted">{L(T.none)}</p>}
-      {([["mine", Star, L(T.mine), mine.map((m) => found.find((x) => x.id === m)).filter((x) => !!x)], ...GROUPS.map((g) => [g, GROUP[g].icon, L(GROUP[g].label), found.filter((x) => x.group === g)])] as [string, typeof Star, string, typeof STRATEGIES][]).map(([g, Icon, label, items]) => {
+      <button type="button" onClick={() => setEditing("new")} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[var(--icon)] px-3 py-2 text-sm font-semibold text-icon transition-colors hover:bg-primary-tint">
+        <Plus size={15} />{L(T.newOwn)}
+      </button>
+      {!found.length && !customFound.length && <p className="px-2 py-6 text-center text-sm text-muted">{L(T.none)}</p>}
+      {([["mine", Star, L(T.mine), mineRows], ...GROUPS.map((g) => [g, GROUP[g].icon, L(GROUP[g].label), found.filter((x) => x.group === g).map(libRow)])] as [string, typeof Star, string, Row[]][]).map(([g, Icon, label, items]) => {
         if (!items.length) return null;
         const open = !!q || !shut.includes(g);
         return (
@@ -141,16 +172,16 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
             <div className={`min-h-0 overflow-hidden transition-[visibility] duration-300 motion-reduce:transition-none ${open ? "visible" : "invisible"}`}>
             <div className="flex flex-col gap-0.5 border-t border-border p-1">
               {items.map((x) => {
-                const on = x.id === s.id;
+                const on = x.id === curId;
                 return (
                   <button key={x.id} type="button" onClick={() => pick(x.id)} aria-current={on ? "page" : undefined}
                     className={`group relative flex items-center gap-2 rounded-xl px-2.5 py-2 text-start transition-colors ${on ? "" : "hover:bg-primary-tint"}`}>
                     {on && <motion.span layoutId={`strategy-pill-${g === "mine" ? "mine" : "all"}`} className="absolute inset-0 rounded-xl border border-[var(--icon)] bg-primary-tint" transition={{ type: "spring", stiffness: 260, damping: 30 }} />}
                     <span className="relative min-w-0 flex-1">
-                      <span dir="ltr" className={`block truncate text-sm font-medium rtl:text-right ${on ? "text-icon" : ""}`}>{x.name}</span>
-                      <span className="block truncate text-xs text-muted">{n(tx[x.id].tag)}</span>
+                      <span dir={x.color ? "auto" : "ltr"} className={`block truncate text-sm font-medium rtl:text-right ${on ? "text-icon" : ""}`}>{x.name}</span>
+                      <span className="block truncate text-xs text-muted">{x.sub}</span>
                     </span>
-                    <span className="relative"><Dots n={x.level} /></span>
+                    <span className="relative">{x.color ? <Dot color={x.color} /> : <Dots n={x.level ?? 1} />}</span>
                   </button>
                 );
               })}
@@ -163,50 +194,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
     </div>
   );
 
-  return (
-    <section className="mx-auto flex max-w-6xl flex-col gap-5">
-      <header>
-        <h2 className="font-heading text-xl font-semibold">{L(T.title)}</h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted">{L(T.lead)}</p>
-      </header>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <aside className="rounded-2xl border border-border bg-surface p-2 lg:sticky lg:top-3 lg:max-h-[calc(100vh-24px)] lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:p-3">
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start lg:hidden">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon"><G.icon size={17} /></span>
-            <span className="min-w-0 flex-1">
-              <span dir="ltr" className="block truncate text-sm font-semibold rtl:text-right">{s.name}</span>
-              <span className="block text-xs text-muted">{L(T.count).replace("{n}", String(STRATEGIES.length))}</span>
-            </span>
-            <ChevronDown size={18} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
-          </button>
-          <div className={`${open ? "mt-2 block" : "hidden"} lg:mt-0 lg:block`}>{list}</div>
-        </aside>
-
-        <div ref={top} className="min-w-0 flex-1">
-          <motion.article key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="flex flex-col gap-4">
-            <div className="overflow-hidden rounded-2xl border border-border bg-surface p-3 sm:p-5">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-tint px-2.5 py-1 font-semibold text-icon"><G.icon size={13} />{L(G.label)}</span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 font-medium"><Dots n={s.level} />{L(LEVEL[s.level])}</span>
-                {s.styles.map((y) => <span key={y} className="rounded-full border border-border px-2.5 py-1 text-muted">{L(STYLE[y])}</span>)}
-              </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-heading text-2xl font-semibold"><span dir="ltr">{s.name}</span></h2>
-                <motion.button type="button" whileTap={{ scale: 0.94 }} aria-pressed={isMine} onClick={() => setMineState(setMine(s.id, !isMine))}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${isMine ? "bg-primary text-on-primary" : "border border-[var(--icon)] text-primary hover:bg-primary-tint"}`}>
-                  <Star size={15} className={isMine ? "fill-current" : ""} />{L(isMine ? T.inMine : T.addMine)}
-                </motion.button>
-              </div>
-              <p className="mt-1 text-sm text-muted">{n(t.tag)}</p>
-              <div className="relative mt-4 rounded-xl border border-border bg-bg px-1 pb-1 pt-7 sm:p-3" style={{ "--sd-bg": "var(--bg)" } as React.CSSProperties}>
-                <div className="mx-auto max-w-[640px]"><StrategyDiagram key={`${s.id}:${play}`} d={s.dia} words={WORDS[lang]} label={`${s.name}: ${t.tag}`} /></div>
-                <button type="button" onClick={() => setPlay((p) => p + 1)} className="absolute end-2 top-2 inline-flex items-center gap-1 rounded-lg border border-border bg-surface/90 px-2 py-1 text-[11px] font-semibold text-muted hover:text-text">
-                  <RotateCcw size={12} />{L(T.replay)}
-                </button>
-              </div>
-            </div>
-
-            {(isMine || res.linked > 0) && (
+  const results = (
               <Card title={L(T.results)} icon={Star}>
                 {res.linked > 0 ? (
                   <div className="grid grid-cols-3 gap-2">
@@ -229,7 +217,116 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
                   </div>
                 )}
               </Card>
-            )}
+  );
+
+  // The page of one of the trader's own strategies: its name in its color, its tools, the results, and its rules.
+  const ownArticle = own && (() => {
+    const tint = (a: number) => `color-mix(in srgb, ${own.color} ${a}%, transparent)`;
+    const rules = own.check.length > 0 || !!own.stop || !!own.target || !!own.notes;
+    return (
+      <motion.article key={own.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="flex flex-col gap-4">
+        <div className="overflow-hidden rounded-2xl border p-3 sm:p-5" style={{ borderColor: `color-mix(in srgb, ${own.color} 45%, var(--border))`, background: `linear-gradient(135deg, color-mix(in srgb, ${own.color} 15%, var(--surface)), var(--surface) 65%)` }}>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold" style={{ background: tint(18) }}><Dot color={own.color} />{L(T.yours)}</span>
+            <span className="rounded-full border border-border px-2.5 py-1 text-muted">{n(L(T.nTools).replace("{n}", String(own.tools.length)))}</span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl font-heading text-lg font-bold" style={{ background: own.color, color: inkOn(own.color), boxShadow: `0 8px 24px -8px ${own.color}` }}>{own.name.slice(0, 2).toUpperCase()}</span>
+              <h2 className="min-w-0 break-words font-heading text-2xl font-semibold" dir="auto">{own.name}</h2>
+            </div>
+            <button type="button" onClick={() => setEditing(own)} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary-tint"><Pencil size={15} />{L(T.edit)}</button>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            {own.tools.length ? TOOL_GROUPS.map((g) => {
+              const list = own.tools.map((x) => TOOL_BY_ID.get(x)!).filter((x) => x.g === g);
+              if (!list.length) return null;
+              const Icon = TOOL_ICON[g];
+              return (
+                <div key={g}>
+                  <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted"><Icon size={13} style={{ color: own.color }} />{TOOL_GROUP_LABEL[g][lang]}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {list.map((x) => <span key={x.id} dir="auto" className="rounded-full border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: tint(60), background: tint(16) }}>{toolName(x, lang)}</span>)}
+                  </div>
+                </div>
+              );
+            }) : <p className="text-sm text-muted">{L(T.noTools)}</p>}
+          </div>
+        </div>
+        {results}
+        {own.check.length > 0 && (
+          <Card title={L(T.check)} icon={CircleCheck}>
+            <ol className="flex flex-col gap-2">
+              {own.check.map((c, i) => (
+                <li key={i} className="flex gap-2.5 text-sm">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums" style={{ background: tint(22) }}>{i + 1}</span>
+                  <span dir="auto">{c}</span>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        )}
+        {(own.stop || own.target) && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {own.stop && <Card title={L(T.stop)} icon={ShieldAlert} tone="text-[#f87171]"><p className="text-sm" dir="auto">{own.stop}</p></Card>}
+            {own.target && <Card title={L(T.target)} icon={Goal} tone="text-[#22c55e]"><p className="text-sm" dir="auto">{own.target}</p></Card>}
+          </div>
+        )}
+        {own.notes && <Card title={L(T.notesT)} icon={StickyNote}><p className="whitespace-pre-line text-sm" dir="auto">{own.notes}</p></Card>}
+        {!rules && (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-border p-4">
+            <p className="min-w-[12rem] flex-1 text-sm text-muted">{L(T.addRules)}</p>
+            <button type="button" onClick={() => setEditing(own)} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary-tint"><Pencil size={15} />{L(T.edit)}</button>
+          </div>
+        )}
+      </motion.article>
+    );
+  })();
+
+  return (
+    <section className="mx-auto flex max-w-6xl flex-col gap-5">
+      <header>
+        <h2 className="font-heading text-xl font-semibold">{L(T.title)}</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted">{L(T.lead)}</p>
+      </header>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <aside className="rounded-2xl border border-border bg-surface p-2 lg:sticky lg:top-3 lg:max-h-[calc(100vh-24px)] lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:p-3">
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start lg:hidden">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon">{own ? <Dot color={own.color} /> : <G.icon size={17} />}</span>
+            <span className="min-w-0 flex-1">
+              <span dir={own ? "auto" : "ltr"} className="block truncate text-sm font-semibold rtl:text-right">{own ? own.name : s.name}</span>
+              <span className="block text-xs text-muted">{L(T.count).replace("{n}", String(STRATEGIES.length + custom.length))}</span>
+            </span>
+            <ChevronDown size={18} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+          <div className={`${open ? "mt-2 block" : "hidden"} lg:mt-0 lg:block`}>{list}</div>
+        </aside>
+
+        <div ref={top} className="min-w-0 flex-1">
+          {ownArticle || <motion.article key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="flex flex-col gap-4">
+            <div className="overflow-hidden rounded-2xl border border-border bg-surface p-3 sm:p-5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-tint px-2.5 py-1 font-semibold text-icon"><G.icon size={13} />{L(G.label)}</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 font-medium"><Dots n={s.level} />{L(LEVEL[s.level])}</span>
+                {s.styles.map((y) => <span key={y} className="rounded-full border border-border px-2.5 py-1 text-muted">{L(STYLE[y])}</span>)}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-heading text-2xl font-semibold"><span dir="ltr">{s.name}</span></h2>
+                <motion.button type="button" whileTap={{ scale: 0.94 }} aria-pressed={isMine} onClick={() => setMineState(setMine(s.id, !isMine))}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${isMine ? "bg-primary text-on-primary" : "border border-[var(--icon)] text-primary hover:bg-primary-tint"}`}>
+                  <Star size={15} className={isMine ? "fill-current" : ""} />{L(isMine ? T.inMine : T.addMine)}
+                </motion.button>
+              </div>
+              <p className="mt-1 text-sm text-muted">{n(t.tag)}</p>
+              <div className="relative mt-4 rounded-xl border border-border bg-bg px-1 pb-1 pt-7 sm:p-3" style={{ "--sd-bg": "var(--bg)" } as React.CSSProperties}>
+                <div className="mx-auto max-w-[640px]"><StrategyDiagram key={`${s.id}:${play}`} d={s.dia} words={WORDS[lang]} label={`${s.name}: ${t.tag}`} /></div>
+                <button type="button" onClick={() => setPlay((p) => p + 1)} className="absolute end-2 top-2 inline-flex items-center gap-1 rounded-lg border border-border bg-surface/90 px-2 py-1 text-[11px] font-semibold text-muted hover:text-text">
+                  <RotateCcw size={12} />{L(T.replay)}
+                </button>
+              </div>
+            </div>
+
+            {(isMine || res.linked > 0) && results}
 
             <Card title={L(T.idea)} icon={BookOpen}><p className="text-sm leading-relaxed">{n(t.idea)}</p></Card>
 
@@ -295,9 +392,14 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
                 </button>
               )}
             </nav>
-          </motion.article>
+          </motion.article>}
         </div>
       </div>
+      {editing && (
+        <CustomStrategyForm lang={lang} initial={editing === "new" ? null : editing} onClose={() => setEditing(null)}
+          onSave={(c) => { setCustom(saveCustom(c)); if (!readMine().includes(c.id)) setMineState(setMine(c.id, true)); setEditing(null); pick(c.id); }}
+          onDelete={editing === "new" ? undefined : () => { deleteCustom(editing.id); setCustom(readCustom()); setMineState(readMine()); setEditing(null); setId("ict"); }} />
+      )}
     </section>
   );
 }

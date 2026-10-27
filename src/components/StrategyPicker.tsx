@@ -1,10 +1,13 @@
-// The strategy of a trade, picked from a chip: the trader's own strategies first, then the whole library. The list
-// opens over the page (outside the table, which scrolls sideways) and closes on a choice, a click away, Escape or scroll.
+// The strategy of a trade, picked from a chip: the trader's own strategies first (those they made in their color),
+// then the whole library. The list opens over the page (outside the table, which scrolls sideways) and closes on a
+// choice, a click away, Escape or scroll.
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Plus, Star, Target, X } from "lucide-react";
 import type { Lang } from "../types";
-import { STRATEGIES, type Id } from "../lib/strategies";
+import { STRATEGIES } from "../lib/strategies";
+import type { CustomStrategy } from "../lib/customStrategies";
+import { shownOf, type AnyId } from "../lib/myStrategies";
 
 type L3 = Record<Lang, string>;
 const T = {
@@ -16,12 +19,14 @@ const T = {
 } satisfies Record<string, L3>;
 const PW = 264, PH = 336; // panel size
 
-export default function StrategyPicker({ value, mine, lang, onChange }: { value?: Id; mine: Id[]; lang: Lang; onChange: (id: Id | null) => void }) {
+export const Dot = ({ color }: { color: string }) => <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 0 2px color-mix(in srgb, ${color} 30%, transparent)` }} />;
+
+export default function StrategyPicker({ value, mine, custom, lang, onChange }: { value?: AnyId; mine: AnyId[]; custom: CustomStrategy[]; lang: Lang; onChange: (id: AnyId | null) => void }) {
   const L = (x: L3) => x[lang];
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
   const btn = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null);
-  const cur = STRATEGIES.find((s) => s.id === value);
+  const cur = value ? shownOf(value, custom) : undefined;
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -44,13 +49,14 @@ export default function StrategyPicker({ value, mine, lang, onChange }: { value?
     };
   }, [open]);
 
-  const pick = (id: Id | null) => { setOpen(false); if (id !== (value ?? null)) onChange(id); };
-  const item = (id: Id) => {
-    const s = STRATEGIES.find((x) => x.id === id);
+  const pick = (id: AnyId | null) => { setOpen(false); if (id !== (value ?? null)) onChange(id); };
+  const item = (id: AnyId) => {
+    const s = shownOf(id, custom);
     if (!s) return null;
     return (
       <button key={id} type="button" role="menuitemradio" aria-checked={value === id} onClick={() => pick(id)} className="menu-item">
-        <span dir="ltr" className="min-w-0 flex-1 truncate text-start rtl:text-right">{s.name}</span>
+        {s.color && <Dot color={s.color} />}
+        <span dir={s.color ? "auto" : "ltr"} className="min-w-0 flex-1 truncate text-start rtl:text-right">{s.name}</span>
         {value === id && <Check size={15} className="shrink-0 text-icon" />}
       </button>
     );
@@ -60,9 +66,10 @@ export default function StrategyPicker({ value, mine, lang, onChange }: { value?
   return (
     <>
       <button ref={btn} type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={`${L(T.label)}: ${cur?.name ?? L(T.none)}`} title={cur?.name}
-        className={`inline-flex max-w-[160px] items-center gap-1 rounded-full px-2.5 py-0.5 text-xs transition-colors ${cur ? "border border-[var(--icon)]/45 bg-primary-tint font-semibold text-icon" : "border border-dashed border-border text-muted hover:border-[var(--icon)] hover:text-text"}`}>
-        {cur ? <Target size={12} className="shrink-0" /> : <Plus size={12} className="shrink-0" />}
-        <span dir={cur ? "ltr" : undefined} className="truncate">{cur ? cur.short : L(T.add)}</span>
+        style={cur?.color ? { borderColor: `color-mix(in srgb, ${cur.color} 55%, transparent)`, background: `color-mix(in srgb, ${cur.color} 14%, transparent)` } : undefined}
+        className={`inline-flex max-w-[160px] items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs transition-colors ${cur ? `border font-semibold ${cur.color ? "text-text" : "border-[var(--icon)]/45 bg-primary-tint text-icon"}` : "border border-dashed border-border text-muted hover:border-[var(--icon)] hover:text-text"}`}>
+        {cur ? (cur.color ? <Dot color={cur.color} /> : <Target size={12} className="shrink-0" />) : <Plus size={12} className="shrink-0" />}
+        <span dir={cur && !cur.color ? "ltr" : "auto"} className="truncate">{cur ? cur.short : L(T.add)}</span>
       </button>
       {open && pos && createPortal(
         <div ref={panel} role="menu" aria-label={L(T.label)} style={{ position: "fixed", top: pos.top, left: pos.left, width: PW, maxHeight: PH, transform: pos.up ? "translateY(-100%)" : undefined }}

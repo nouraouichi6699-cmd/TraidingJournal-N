@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { ShieldAlert, PieChart } from "lucide-react";
 import { MetricSection, ViewHeader, type Item, type View } from "./metricUi";
 import { MIN_DAYS, portfolioStats } from "../lib/portfolio";
-import { readLinks } from "../lib/myStrategies";
-import { STRATEGIES } from "../lib/strategies";
+import { readLinks, shownOf } from "../lib/myStrategies";
+import { readCustom } from "../lib/customStrategies";
 import { fmtMoney, ltrNumbers } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import type { Account, Lang, Trade } from "../types";
@@ -66,10 +66,10 @@ export default function PortfolioTab({ lang, trades, accounts, flows, history, c
   const k = i(lang), T = (x: L) => x[k];
   const [view, setView] = useState<View>("grid");
   const [now] = useState(() => Date.now());
-  // The strategy of each trade, as picked in the journal (short names: "SMC", "ORB 15m").
+  // The strategy of each trade, as picked in the journal (short names: "SMC", "ORB 15m", or the trader's own).
   const p = useMemo(() => {
-    const links = readLinks(), short = new Map(STRATEGIES.map((s) => [s.id as string, s.short]));
-    return portfolioStats(trades, accounts, flows, history, now, (t) => (links[t.key] ? short.get(links[t.key]) : undefined));
+    const links = readLinks(), custom = readCustom();
+    return portfolioStats(trades, accounts, flows, history, now, (t) => (links[t.key] ? shownOf(links[t.key], custom)?.short : undefined));
   }, [trades, accounts, flows, history, now]);
 
   const f = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/^-(?=0(\.0+)?$)/, ""); // no "-0.00"
