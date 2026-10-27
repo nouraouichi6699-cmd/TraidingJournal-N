@@ -3,7 +3,7 @@
 import type { Trade } from "../types";
 import { ticketOf, tradeCore } from "./stats";
 import { streakBreakdown } from "./dashAnalytics";
-import { rMultiple } from "./tradeLab";
+import { entryMs, heatmap, isClosed, rMultiple, sessionOf, type HeatCell } from "./tradeLab";
 
 export interface SideStats { n: number; wins: number; net: number; winRate: number | null }
 export interface StrategyStats {
@@ -29,5 +29,44 @@ export function strategyStats(trades: Trade[]): StrategyStats {
     n: c.n, pf: c.pf, avgTrade: c.avgTrade, avgWin: c.avgWin, avgLoss: c.avgLoss, best: c.best, worst: c.worst,
     maxDD, winStreak: s.bestWin, lossStreak: s.worstLoss, avgR: mean(rs), rN: rs.length, holdMin: mean(holds),
     long: side("long"), short: side("short"), curve,
+  };
+}
+
+// ---------- When it works ----------
+
+export type SessionKey = ReturnType<typeof sessionOf>;
+export const SESSIONS: SessionKey[] = ["sessTK", "sessLN", "sessNY", "sessSY"];
+export type Group = { kind: "session"; s: SessionKey } | { kind: "day"; d: number } | { kind: "symbol"; sym: string } | { kind: "symbolSession"; sym: string; s: SessionKey };
+export interface Conditions {
+  n: number; heat: HeatCell[][]; hours: number[]; days: number[]; // entry hours / weekdays (0 = Monday) that have trades
+  sessions: { s: SessionKey; p: SideStats }[]; byDay: { d: number; p: SideStats }[]; symbols: { sym: string; p: SideStats }[];
+  best: { g: Group; p: SideStats } | null; worst: { g: Group; p: SideStats } | null;
+}
+const partOf = (list: Trade[]): SideStats => { const k = tradeCore(list); return { n: k.n, wins: k.wins.length, net: k.net, winRate: k.winRate }; };
+
+/**
+ * When a strategy works, from its closed trades: weekday x hour (the Charts heatmap), by session, weekday and symbol (top 3),
+ * and the best and worst group (also symbol x session) among those of `min` trades or more that are not all the trades.
+ * Ties go to the more specific group. Entry times read as UTC, like the Charts.
+ */
+export function conditionsOf(trades: Trade[], min = 3): Conditions {
+  const closed = trades.filter(isClosed);
+  const hourOf = (t: Trade) => new Date(entryMs(t)).getUTCHours(), dayOf = (t: Trade) => (new Date(entryMs(t)).getUTCDay() + 6) % 7;
+  const group = <K,>(key: (t: Trade) => K) => { const m = new Map<K, Trade[]>(); for (const t of closed) { const k = key(t); m.set(k, [...(m.get(k) ?? []), t]); } return m; };
+  const bySess = group((t) => sessionOf(hourOf(t))), byDay = group(dayOf), bySym = group((t) => t.symbol), byCombo = group((t) => `${t.symbol}\u0000${sessionOf(hourOf(t))}`);
+  const sessions = SESSIONS.filter((s) => bySess.has(s)).map((s) => ({ s, p: partOf(bySess.get(s) as Trade[]) }));
+  const days = [...byDay.keys()].sort((a, b) => a - b), byDayP = days.map((d) => ({ d, p: partOf(byDay.get(d) as Trade[]) }));
+  const symbols = [...bySym].map(([sym, l]) => ({ sym, p: partOf(l) }));
+  const all: { g: Group; p: SideStats }[] = [
+    ...[...byCombo].map(([k, l]) => { const [sym, s] = k.split("\u0000"); return { g: { kind: "symbolSession", sym, s: s as SessionKey } as Group, p: partOf(l) }; }),
+    ...symbols.map(({ sym, p }) => ({ g: { kind: "symbol", sym } as Group, p })),
+    ...sessions.map(({ s, p }) => ({ g: { kind: "session", s } as Group, p })),
+    ...byDayP.map(({ d, p }) => ({ g: { kind: "day", d } as Group, p })),
+  ].filter((x) => x.p.n >= min && x.p.n < closed.length);
+  return {
+    n: closed.length, heat: heatmap(closed), hours: [...new Set(closed.map(hourOf))].sort((a, b) => a - b), days, sessions, byDay: byDayP,
+    symbols: symbols.sort((a, b) => b.p.net - a.p.net || b.p.n - a.p.n).slice(0, 3),
+    best: all.filter((x) => x.p.net > 0).sort((a, b) => b.p.net - a.p.net || b.p.n - a.p.n)[0] ?? null,
+    worst: all.filter((x) => x.p.net < 0).sort((a, b) => a.p.net - b.p.net || b.p.n - a.p.n)[0] ?? null,
   };
 }

@@ -5,10 +5,10 @@ import { rng } from "./chartAnalytics";
 
 export interface Pt { t: number; v: number }
 const ms = (s: string | null | undefined) => (s ? Date.parse(s.length <= 16 ? `${s}Z` : s) : NaN);
-const isClosed = (t: Trade) => t.status === "closed" && t.pnl != null && Number.isFinite(t.pnl) && !Number.isNaN(ms(t.exitTime));
+export const isClosed = (t: Trade) => t.status === "closed" && t.pnl != null && Number.isFinite(t.pnl) && !Number.isNaN(ms(t.exitTime));
 const c2 = (x: number) => Math.round(x * 100) / 100;
 const pnl = (t: Trade) => t.pnl as number;
-const entryMs = (t: Trade) => { const e = ms(t.entryTime); return Number.isNaN(e) ? ms(t.exitTime) : e; };
+export const entryMs = (t: Trade) => { const e = ms(t.entryTime); return Number.isNaN(e) ? ms(t.exitTime) : e; };
 const dayOf = (tm: number) => new Date(tm).toISOString().slice(0, 10);
 const byClose = (a: Trade, b: Trade) => ms(a.exitTime) - ms(b.exitTime) || a.no - b.no;
 const byEntry = (a: Trade, b: Trade) => entryMs(a) - entryMs(b) || a.no - b.no;
