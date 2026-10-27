@@ -16,6 +16,8 @@ import { deleteCustom, readLinks, readMine, resultsOf, setMine, type AnyId } fro
 import { inkOn, readCustom, saveCustom, type CustomStrategy } from "../lib/customStrategies";
 import { TOOL_BY_ID, TOOL_GROUPS, TOOL_GROUP_LABEL, toolName } from "../lib/tools";
 import { readAnswers, ruleResults, type Part } from "../lib/tradeRules";
+import { strategyStats } from "../lib/strategyStats";
+import { fmtHold } from "../lib/stats";
 import Private from "./Private";
 import CustomStrategyForm, { TOOL_ICON } from "./CustomStrategyForm";
 import { Dot } from "./StrategyPicker";
@@ -53,6 +55,19 @@ const T = {
   winRate: { en: "Win rate", ar: "نسبة الربح", fr: "Taux de réussite" },
   net: { en: "Net P&L", ar: "صافي الربح", fr: "P&L net" },
   openN: { en: "+ {n} open", ar: "+ {n} مفتوحة", fr: "+ {n} ouvert(s)" },
+  sPf: { en: "Profit factor", ar: "معامل الربح", fr: "Facteur de profit" },
+  sAvg: { en: "Avg per trade", ar: "متوسط الصفقة", fr: "Moyenne par trade" },
+  sWinLoss: { en: "Avg win / loss", ar: "متوسط الربح / الخسارة", fr: "Gain / perte moyens" },
+  sR: { en: "Avg R", ar: "متوسط R", fr: "R moyen" },
+  sStop: { en: "{n} of {m} with a stop", ar: "{n} من {m} بوقف خسارة", fr: "{n} sur {m} avec stop" },
+  sDD: { en: "Max drawdown", ar: "أقصى تراجع", fr: "Drawdown max" },
+  sStreak: { en: "Longest win / loss run", ar: "أطول سلسلة ربح / خسارة", fr: "Plus longue série G / P" },
+  sBest: { en: "Best / worst trade", ar: "أفضل / أسوأ صفقة", fr: "Meilleur / pire trade" },
+  sHold: { en: "Avg hold", ar: "متوسط المدة", fr: "Durée moyenne" },
+  sLong: { en: "Long", ar: "شراء", fr: "Achat" },
+  sShort: { en: "Short", ar: "بيع", fr: "Vente" },
+  sCurve: { en: "Cumulative P&L", ar: "الربح التراكمي", fr: "P&L cumulé" },
+  sFew: { en: "Fewer than 20 closed trades: these numbers are not reliable yet.", ar: "أقل من 20 صفقة مغلقة: هذه الأرقام غير موثوقة بعد.", fr: "Moins de 20 trades clôturés : ces chiffres ne sont pas encore fiables." },
   linkHint: { en: "Link your trades to this strategy in the Journal (the Strategy column): its results will show here.", ar: "اربط صفقاتك بهذه الاستراتيجية من اليوميات (عمود الاستراتيجية)، وستظهر نتائجها هنا.", fr: "Liez vos trades à cette stratégie dans le Journal (colonne Stratégie) : ses résultats s'afficheront ici." },
   toJournal: { en: "Open the Journal", ar: "افتح اليوميات", fr: "Ouvrir le Journal" },
   newOwn: { en: "New strategy", ar: "استراتيجية جديدة", fr: "Nouvelle stratégie" },
@@ -130,6 +145,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
   const links = useMemo(readLinks, []);
   const answers = useMemo(readAnswers, []);
   const res = useMemo(() => resultsOf(curId, trades, links), [curId, trades, links]);
+  const st = useMemo(() => strategyStats(trades.filter((t) => links[t.key] === curId)), [curId, trades, links]);
   const cur = commonCurrency([...new Set(trades.filter((x) => links[x.key] === curId).map((x) => x.accountId))].map((a) => ({ currency: accounts.find((y) => y.id === a)?.currency ?? "" })));
   const toolsLine = (c: CustomStrategy) => c.tools.slice(0, 3).map((x) => toolName(TOOL_BY_ID.get(x)!, lang)).join(" · ") + (c.tools.length > 3 ? ` +${c.tools.length - 3}` : "");
   const customFound = useMemo(() => {
@@ -246,9 +262,60 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
       )}
     </Card>
   );
+  // The deeper results: the P&L curve, eight figures, and long vs short (same numbers as the dashboard).
+  const money = (v: number | null, sign = true) => (v == null ? "—" : fmtMoney(v, { sign, currency: cur }));
+  const tone = (v: number | null) => (v == null || v === 0 ? "" : v > 0 ? "text-[#22c55e]" : "text-[#f87171]");
+  const curveSvg = (v: number[]) => {
+    const W = 300, H = 56, pts = [0, ...v], lo = Math.min(...pts), hi = Math.max(...pts), span = hi - lo || 1;
+    const x = (i: number) => (i / (pts.length - 1)) * W, y = (p: number) => 2 + (1 - (p - lo) / span) * (H - 4);
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(""), z = y(0).toFixed(1);
+    const c = v[v.length - 1] >= 0 ? "#22c55e" : "#f87171";
+    return (
+      <div>
+        <p className="mb-1 text-[11px] text-muted">{L(T.sCurve)}</p>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-14 w-full" aria-hidden="true">
+          <line x1={0} x2={W} y1={z} y2={z} stroke="currentColor" className="text-muted" strokeOpacity={0.4} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+          <path d={`${d}L${W},${z}L0,${z}Z`} fill={c} fillOpacity={0.12} />
+          <path d={d} fill="none" stroke={c} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+      </div>
+    );
+  };
+  const deeper = st.n > 0 && (
+    <div className="mt-3 flex flex-col gap-3">
+      {st.n > 1 && curveSvg(st.curve)}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {([
+          [L(T.sPf), st.pf == null ? "—" : st.pf.toFixed(2), "", false, ""],
+          [L(T.sAvg), money(st.avgTrade), tone(st.avgTrade), true, ""],
+          [L(T.sWinLoss), `${money(st.avgWin)} / ${money(st.avgLoss, false)}`, "", true, ""],
+          [L(T.sR), st.avgR == null ? "—" : `${st.avgR > 0 ? "+" : ""}${st.avgR.toFixed(2)}R`, tone(st.avgR), false, st.rN < st.n ? L(T.sStop).replace("{n}", String(st.rN)).replace("{m}", String(st.n)) : ""],
+          [L(T.sDD), money(-st.maxDD, false), st.maxDD > 0 ? "text-[#f87171]" : "", true, ""],
+          [L(T.sStreak), `${st.winStreak} / ${st.lossStreak}`, "", false, ""],
+          [L(T.sBest), `${money(st.best)} / ${money(st.worst, false)}`, "", true, ""],
+          [L(T.sHold), st.holdMin == null ? "—" : fmtHold(st.holdMin), "", false, ""],
+        ] as [string, string, string, boolean, string][]).map(([label, value, c, priv, sub]) => (
+          <div key={label} className="min-w-0 rounded-xl border border-border bg-bg/60 px-3 py-2">
+            <p className="text-[11px] leading-tight text-muted">{label}</p>
+            <p className={`mt-0.5 break-words text-sm font-semibold tabular-nums ${c}`}><span dir="ltr">{priv ? <Private hint={tr("privacyReveal")}>{value}</Private> : value}</span></p>
+            {sub && <p className="truncate text-[10px] text-muted">{n(sub)}</p>}
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {([[T.sLong, st.long], [T.sShort, st.short]] as [L3, Part][]).map(([h, p]) => (
+          <div key={L(h)} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg/60 px-3 py-2">
+            <span className="text-sm font-semibold">{L(h)}</span>
+            {p.n ? partLine(p) : <span className="text-xs text-muted">—</span>}
+          </div>
+        ))}
+      </div>
+      {st.n < 20 && <p className="text-[11px] text-muted">{n(L(T.sFew))}</p>}
+    </div>
+  );
   const results = (
               <Card title={L(T.results)} icon={Star}>
-                {res.linked > 0 ? (
+                {res.linked > 0 ? (<>
                   <div className="grid grid-cols-3 gap-2">
                     {([
                       [L(T.closed), String(res.closed), res.linked > res.closed ? L(T.openN).replace("{n}", String(res.linked - res.closed)) : "", ""],
@@ -262,7 +329,8 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
                       </div>
                     ))}
                   </div>
-                ) : (
+                  {deeper}
+                </>) : (
                   <div className="flex flex-wrap items-center gap-3">
                     <p className="min-w-[12rem] flex-1 text-sm text-muted">{L(T.linkHint)}</p>
                     <button type="button" onClick={onOpenJournal} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--icon)] px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary-tint"><PenLine size={15} />{L(T.toJournal)}</button>
