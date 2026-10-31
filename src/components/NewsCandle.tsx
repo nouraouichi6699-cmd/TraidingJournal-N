@@ -20,15 +20,14 @@ export type NewsKind = "up" | "down";
 
 interface Props {
   kind: NewsKind;
-  /** Where the newest candle's close is, in viewport pixels. */
+  /** The newest candle, in viewport pixels. Both kinds take their column from it; only the red one starts at its price. */
   at: Anchor;
   onDone: () => void;
 }
 
 /**
- * One giant candle on its own canvas over the right panel: it starts at the price the chart is showing and runs off
- * the top or the bottom of the panel, which the chart band itself is too short to allow. It removes itself when the
- * effect is over, so nothing of it is left behind.
+ * One giant candle on its own canvas over the right panel, in the column the newest candle occupies. It crosses the
+ * whole panel, which the chart band itself is far too short to allow, and removes itself once the effect is over.
  */
 export default function NewsCandle({ kind, at, onDone }: Props) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -71,26 +70,28 @@ export default function NewsCandle({ kind, at, onDone }: Props) {
       const alpha = 1 - Math.min(1, fading);
       if (alpha <= 0) return;
 
-      // Where the body ends up, and how far the wick carries on past it.
+      // The green one opens at the bottom edge so it has the whole panel to run up; the red one opens at the price
+      // the chart is showing and falls from there. Either way the body stops short and the wick carries on.
+      const from = kind === "up" ? h : oy;
       const edge = kind === "up" ? h * BODY_INSET : h * (1 - BODY_INSET);
       const tip = kind === "up" ? 0 : h;
-      const bodyEnd = oy + (edge - oy) * grown;
-      const wickEnd = oy + (tip - oy) * grown;
+      const bodyEnd = from + (edge - from) * grown;
+      const wickEnd = from + (tip - from) * grown;
       const width = Math.max(14, at.bw * 2.4);
 
       ctx.globalAlpha = alpha;
       ctx.shadowColor = colour;
       ctx.shadowBlur = 26;
+      // Drawn first and covered by the body, so only the part reaching past it shows as a wick.
       ctx.strokeStyle = colour;
       ctx.lineWidth = Math.max(1.5, width * 0.14);
       ctx.beginPath();
-      ctx.moveTo(ox, oy);
+      ctx.moveTo(ox, from);
       ctx.lineTo(ox, wickEnd);
       ctx.stroke();
 
       ctx.fillStyle = colour;
-      const top = Math.min(oy, bodyEnd);
-      ctx.fillRect(ox - width / 2, top, width, Math.max(1, Math.abs(bodyEnd - oy)));
+      ctx.fillRect(ox - width / 2, Math.min(from, bodyEnd), width, Math.max(1, Math.abs(bodyEnd - from)));
       ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
     };
