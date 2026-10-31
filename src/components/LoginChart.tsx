@@ -11,8 +11,9 @@ const TICK_MS = 250; // one small move inside the forming candle
 const ROLL_MS = 3600; // a new candle every few seconds
 const BULL_GAP = 110; // between the four candles of the winning run
 
-const PAD = { top: 20, right: 52, bottom: 4, left: 6 };
-const VOL_SHARE = 0.2; // the share of the height given to the volume bars
+const PAD = { top: 20, right: 58, bottom: 4, left: 10 };
+const VOL_SHARE = 0.14; // the share of the height given to the volume bars, kept low
+const CANDLE_SHARE = 0.52; // the newest candle lands here across the plot, leaving the rest to the price line
 
 export interface LoginChartHandle {
   /** A character was typed in the form. */
@@ -78,16 +79,25 @@ const LoginChart = forwardRef<LoginChartHandle, { still?: boolean; className?: s
     };
 
     const draw = () => {
-      const list = series.current.candles;
-      const last = list[list.length - 1];
-      if (!last) return;
+      const all = series.current.candles;
+      if (!all.length) return;
 
       ctx.clearRect(0, 0, w, h);
-      const volH = Math.max(14, h * VOL_SHARE);
+      const volH = Math.max(12, h * VOL_SHARE);
       const top = PAD.top;
       const priceH = Math.max(10, h - top - volH - PAD.bottom - 6);
       const plotW = Math.max(10, w - PAD.left - PAD.right);
 
+      // Candles fill the left part only and end at CANDLE_SHARE across, so the newest one sits mid-plot and the
+      // dashed price line runs on into clear space. Only as many as fit are drawn; the rest stay off the left.
+      const candleW = plotW * CANDLE_SHARE;
+      const step = Math.max(4, Math.min(13, candleW / 40));
+      const shown = Math.min(all.length, Math.max(6, Math.floor(candleW / step)));
+      const list = all.slice(all.length - shown);
+      const last = list[list.length - 1];
+      const cxOf = (i: number) => PAD.left + candleW - (shown - 1 - i) * step;
+
+      // Scaled to what is on screen, so a candle that has scrolled off cannot stretch the axis.
       let lo = Infinity;
       let hi = -Infinity;
       for (const c of list) { if (c.l < lo) lo = c.l; if (c.h > hi) hi = c.h; }
@@ -96,7 +106,6 @@ const LoginChart = forwardRef<LoginChartHandle, { still?: boolean; className?: s
       hi += span * 0.06;
       const y = (p: number) => top + priceH - ((p - lo) / (hi - lo)) * priceH;
 
-      const step = plotW / list.length;
       const bw = Math.max(1.5, Math.min(9, step * 0.62));
 
       // The price axis on the right: a few levels, no grid across the chart.
@@ -115,7 +124,7 @@ const LoginChart = forwardRef<LoginChartHandle, { still?: boolean; className?: s
 
       for (let i = 0; i < list.length; i++) {
         const c = list[i];
-        const cx = PAD.left + i * step + step / 2;
+        const cx = cxOf(i);
         const up = c.c >= c.o;
         const color = up ? UP : DOWN;
 
