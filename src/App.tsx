@@ -199,13 +199,26 @@ export default function App() {
     if (uid && readyFor !== uid) Promise.all([initialSync(uid), initialSettingsSync(uid)]).finally(() => setReadyFor(uid));
   }, [uid, readyFor]);
 
+  // The login screen asks to stay mounted while it plays its sign-in animation. The session and the first sync run
+  // underneath it the whole time, so this holds the hand-over back, never the auth call.
+  const [holdAuth, setHoldAuth] = useState(false);
+  useEffect(() => {
+    if (!holdAuth) return;
+    // If the screen never says it is finished, let go anyway rather than stay on it.
+    const id = window.setTimeout(() => setHoldAuth(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [holdAuth]);
+
   // Waiting for the session, or for the first sync of the signed-in user's rows.
-  const loading = session === undefined || (session !== null && readyFor !== session.user.id);
+  const loading = !holdAuth && (session === undefined || (session !== null && readyFor !== session.user.id));
+  const showAuth = session === null || holdAuth;
   return (
     <>
-      {!loading && (session
-        ? <Main lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} email={session.user.email ?? ""} userId={session.user.id} />
-        : <AuthView t={t} lang={lang} />)}
+      {showAuth
+        ? <AuthView t={t} lang={lang} onLang={setLang} onAttempt={() => setHoldAuth(true)} onDone={() => setHoldAuth(false)} />
+        : !loading && session
+          ? <Main lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} email={session.user.email ?? ""} userId={session.user.id} />
+          : null}
       {/* The page below mounts the moment the data is there and the screen fades off it, so nothing waits on the
           animation. The screen needs nothing of the user's, so the same one covers both waits. */}
       <AnimatePresence>

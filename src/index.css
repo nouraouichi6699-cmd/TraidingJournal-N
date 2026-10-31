@@ -1057,3 +1057,17 @@ h6 {
   /* Everything is shown where it ends up; only the phrases go on changing. */
   .ld-beam, .ld-pivot, .ld-wobble, .ld-ar, .ld-by, .ld-rise, .ld-phrase { animation: none; }
 }
+
+/* The login form's refusal: a short sideways shake when the credentials come back wrong. */
+@keyframes au-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-7px); }
+  32% { transform: translateX(6px); }
+  52% { transform: translateX(-4px); }
+  72% { transform: translateX(2.5px); }
+  88% { transform: translateX(-1px); }
+}
+.au-shake { animation: au-shake .42s cubic-bezier(.36, .07, .19, .97); }
+@media (prefers-reduced-motion: reduce) {
+  .au-shake { animation: none; }
+}
