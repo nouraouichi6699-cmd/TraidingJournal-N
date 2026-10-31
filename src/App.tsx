@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
@@ -21,6 +21,7 @@ import AdvisorView from "./components/AdvisorView";
 import JournalView from "./components/JournalView";
 import ChallengeView from "./components/ChallengeView";
 import { Watermark } from "./components/Brand";
+import LoadingScreen from "./components/LoadingScreen";
 const StrategiesView = lazy(() => import("./components/StrategiesView"));
 import { useJournal } from "./useJournal";
 import CalendarView from "./components/CalendarView";
@@ -148,7 +149,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} />}
               {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "advisor" && <AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} />}
-              {view === "strategies" && <Suspense fallback={<div className="p-6 text-sm text-muted">{t("loadingData")}</div>}><StrategiesView lang={lang} t={t} trades={journal.trades} accounts={accounts} onOpenJournal={() => setView("journal")} /></Suspense>}
+              {view === "strategies" && <Suspense fallback={<LoadingScreen lang={lang} label={t("loadingData")} variant="content" />}><StrategiesView lang={lang} t={t} trades={journal.trades} accounts={accounts} onOpenJournal={() => setView("journal")} /></Suspense>}
               {view === "challenges" && <ChallengeView lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenProfile={() => setView("profile")} />}
               {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} openKey={openTrade} onOpened={tradeOpened} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} />}
               {view === "import" && (
@@ -170,6 +171,7 @@ export default function App() {
   const t = makeT(lang);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [readyFor, setReadyFor] = useState<string | null>(null);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -197,8 +199,22 @@ export default function App() {
     if (uid && readyFor !== uid) Promise.all([initialSync(uid), initialSettingsSync(uid)]).finally(() => setReadyFor(uid));
   }, [uid, readyFor]);
 
-  if (session === undefined || (session && readyFor !== session.user.id))
-    return <div className="flex min-h-screen items-center justify-center bg-bg text-muted">{t("loadingData")}</div>;
-  if (!session) return <AuthView t={t} lang={lang} />;
-  return <Main lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} email={session.user.email ?? ""} userId={session.user.id} />;
+  // Waiting for the session, or for the first sync of the signed-in user's rows.
+  const loading = session === undefined || (session !== null && readyFor !== session.user.id);
+  return (
+    <>
+      {!loading && (session
+        ? <Main lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} email={session.user.email ?? ""} userId={session.user.id} />
+        : <AuthView t={t} lang={lang} />)}
+      {/* The page below mounts the moment the data is there and the screen fades off it, so nothing waits on the
+          animation. Until we know who the user is there is no page to stand for, so the screen keeps it simple. */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div key="loading" exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.2, ease: "easeOut" }} className="fixed inset-0 z-50 overflow-hidden bg-bg">
+            <LoadingScreen lang={lang} label={t("loadingData")} variant={session === undefined ? "simple" : "dashboard"} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
 }

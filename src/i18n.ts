@@ -554,6 +554,53 @@ export type Key = keyof typeof dict;
 
 export const makeT = (lang: Lang) => (k: Key) => dict[k][lang];
 
+// The short lines the loading screen shows one after the other. Same order in every language, so a language
+// change mid-rotation keeps the same thought. They sit apart from the dict because a key there is one string.
+export const loadingPhrases: Record<Lang, string[]> = {
+  en: [
+    "Plan the trade, trade the plan.",
+    "Discipline beats luck.",
+    "Protect your capital first.",
+    "Every trade teaches a lesson.",
+    "Waiting is a decision too.",
+    "Small losses, big lessons.",
+    "Good journaling is a real edge.",
+    "Balanced risk, calm mind.",
+    "Consistency beats intensity.",
+    "No setup, no trade.",
+    "Review today, improve tomorrow.",
+    "Rules decide, not emotions.",
+  ],
+  ar: [
+    "الخطة أولاً، ثم الصفقة.",
+    "الانضباط يغلب الحظ.",
+    "حماية رأس المال أولاً.",
+    "كل صفقة تحمل درساً.",
+    "الانتظار أيضاً قرار.",
+    "خسائر صغيرة، دروس كبيرة.",
+    "التدوين الجيد أفضلية حقيقية.",
+    "مخاطرة متوازنة، ذهن هادئ.",
+    "الاستمرارية أقوى من الاندفاع.",
+    "لا صفقة بلا إعداد واضح.",
+    "مراجعة اليوم تصنع تحسّن الغد.",
+    "القواعد تقرّر، لا المشاعر.",
+  ],
+  fr: [
+    "Le plan d'abord, le trade ensuite.",
+    "La discipline bat la chance.",
+    "Protéger son capital avant tout.",
+    "Chaque trade apporte une leçon.",
+    "Attendre, c'est aussi décider.",
+    "Petites pertes, grandes leçons.",
+    "Un bon journal, un vrai avantage.",
+    "Risque équilibré, esprit serein.",
+    "La régularité bat l'intensité.",
+    "Pas de setup, pas de trade.",
+    "Analyser aujourd'hui, progresser demain.",
+    "Les règles décident, pas les émotions.",
+  ],
+};
+
 // ---------- Reports > Overview (labels, subtitles, tooltips) ----------
 const ov: Record<string, [string, string, string]> = {
   tab: ["Overview", "نظرة عامة", "Vue d'ensemble"],
