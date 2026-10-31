@@ -13,11 +13,7 @@ export interface Candle {
   c: number;
   /** 0..1, drawn as the volume bar under the candle. */
   v: number;
-  /** Set on the breakout candle, which is drawn with a glow. */
-  glow?: boolean;
 }
-
-export type Move = "key" | "bull" | "breakout" | "reject";
 
 export interface Series {
   /** Mutated in place: the chart reads it every frame, so it is never copied. */
@@ -26,8 +22,8 @@ export interface Series {
   tick: () => void;
   /** Close the forming candle and open a new one. */
   roll: () => void;
-  /** Finish a candle of a given character, then open a fresh one behind it. */
-  add: (move: Move) => void;
+  /** A character was typed: finish a small candle, then open a fresh one behind it. */
+  key: () => void;
 }
 
 export function createSeries(seed = 20251031): Series {
@@ -67,29 +63,15 @@ export function createSeries(seed = 20251031): Series {
 
   const roll = () => push({ o: price, h: price, l: price, c: price, v: 0.18 + r() * 0.22 });
 
-  const add = (move: Move) => {
+  const key = () => {
+    // A small candle that leans upwards more often than not.
     const from = price;
-    let c: Candle;
-    if (move === "reject") {
-      // Price is pushed up, thrown back, and closes below where it opened: a long upper wick over a red body.
-      const to = from - STEP * 4;
-      c = { o: from, c: to, h: from + STEP * 11, l: to - STEP * 0.8, v: 0.85 + r() * 0.15 };
-    } else if (move === "breakout") {
-      const to = from + STEP * 26;
-      c = { o: from, c: to, h: to + STEP * 2.2, l: from - STEP * 0.7, v: 1, glow: true };
-    } else if (move === "bull") {
-      const to = from + STEP * (7 + r() * 4);
-      c = shaped(from, to, STEP * 1.2, 0.72 + r() * 0.28);
-    } else {
-      // A keystroke: a small candle that leans upwards more often than not.
-      const size = STEP * (1.6 + r() * 2.4);
-      const to = from + (r() > 0.42 ? size : -size * 0.7);
-      c = shaped(from, to, STEP * 1.1, 0.3 + r() * 0.35);
-    }
+    const size = STEP * (1.6 + r() * 2.4);
+    const c = shaped(from, from + (r() > 0.42 ? size : -size * 0.7), STEP * 1.1, 0.3 + r() * 0.35);
     push(c);
     price = c.c;
     roll();
   };
 
-  return { candles, tick, roll, add };
+  return { candles, tick, roll, key };
 }

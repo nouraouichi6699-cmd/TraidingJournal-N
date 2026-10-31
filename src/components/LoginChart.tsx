@@ -9,19 +9,24 @@ const INK = "#d8d4c8";
 
 const TICK_MS = 250; // one small move inside the forming candle
 const ROLL_MS = 3600; // a new candle every few seconds
-const BULL_GAP = 110; // between the four candles of the winning run
 
 const PAD = { top: 20, right: 58, bottom: 4, left: 10 };
 const VOL_SHARE = 0.14; // the share of the height given to the volume bars, kept low
 const CANDLE_SHARE = 0.52; // the newest candle lands here across the plot, leaving the rest to the price line
 
+/** Where the newest candle is sitting on screen, in viewport pixels. */
+export interface Anchor {
+  x: number;
+  y: number;
+  /** The width of a candle body here, so anything drawn over the chart can match its scale. */
+  bw: number;
+}
+
 export interface LoginChartHandle {
   /** A character was typed in the form. */
   keystroke: () => void;
-  /** Signed in: four strong candles, then the breakout. */
-  success: () => void;
-  /** Rejected: one red candle with a long upper wick. */
-  reject: () => void;
+  /** The newest candle's close, for an effect drawn on top of the chart. Null before the first paint. */
+  anchor: () => Anchor | null;
 }
 
 /**
@@ -35,23 +40,21 @@ const LoginChart = forwardRef<LoginChartHandle, { still?: boolean; className?: s
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const series = useRef(createSeries());
   const dirty = useRef(true); // a still chart only paints when something actually changed
+  // Filled by draw() each paint, in CSS pixels within the canvas: where the newest candle's close landed.
+  const spot = useRef<{ cx: number; cy: number; bw: number } | null>(null);
 
   useImperativeHandle(ref, () => ({
     keystroke: () => {
       if (still) return;
-      series.current.add("key");
+      series.current.key();
       dirty.current = true;
     },
-    success: () => {
-      if (still) return;
-      // Four strong candles in a row, then the breakout over the top of them.
-      for (let i = 0; i < 4; i++) window.setTimeout(() => { series.current.add("bull"); dirty.current = true; }, i * BULL_GAP);
-      window.setTimeout(() => { series.current.add("breakout"); dirty.current = true; }, 4 * BULL_GAP);
-    },
-    reject: () => {
-      if (still) return;
-      series.current.add("reject");
-      dirty.current = true;
+    anchor: () => {
+      const el = canvas.current;
+      const s = spot.current;
+      if (!el || !s) return null;
+      const box = el.getBoundingClientRect();
+      return { x: box.left + s.cx, y: box.top + s.cy, bw: s.bw };
     },
   }), [still]);
 
@@ -133,10 +136,6 @@ const LoginChart = forwardRef<LoginChartHandle, { still?: boolean; className?: s
         ctx.fillStyle = up ? "rgba(46,189,133,.32)" : "rgba(246,70,93,.32)";
         ctx.fillRect(cx - bw / 2, h - PAD.bottom - vh, bw, vh);
 
-        if (c.glow) {
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 18;
-        }
         // The wick, then the body.
         ctx.strokeStyle = color;
         ctx.lineWidth = Math.max(1, bw * 0.16);
@@ -148,12 +147,13 @@ const LoginChart = forwardRef<LoginChartHandle, { still?: boolean; className?: s
         const yo = y(c.o);
         const yc = y(c.c);
         ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1.2, Math.abs(yc - yo)));
-        ctx.shadowBlur = 0;
       }
 
       // The dashed line at the last price, and its tag on the axis.
       const lastUp = last.c >= last.o;
       const ly = y(last.c);
+      // Where an effect drawn over the chart should start from.
+      spot.current = { cx: cxOf(shown - 1), cy: ly, bw };
       ctx.strokeStyle = lastUp ? UP : DOWN;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);

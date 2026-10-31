@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { supabase } from "../lib/supabase";
-import LoginChart, { type LoginChartHandle } from "./LoginChart";
+import LoginChart, { type Anchor, type LoginChartHandle } from "./LoginChart";
+import NewsCandle, { type NewsKind } from "./NewsCandle";
 import { languages, type Key } from "../i18n";
 import type { Lang } from "../types";
 
@@ -17,6 +18,7 @@ const SHOT = "/login/dashboard.webp";
 const ENABLED = (import.meta.env.VITE_AUTH_PROVIDERS ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
 
 const CELEBRATE_MS = 1500;
+const ERUPT_MS = 350; // the green candle's run to the top, before the panel starts rearranging
 
 const field = "w-full rounded-full border px-4 py-2.5 text-sm outline-none transition placeholder:text-[#9a9a9a] focus:border-[#C99520]";
 const provider = "flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition hover:brightness-95 disabled:opacity-60";
@@ -54,9 +56,19 @@ export default function AuthView({ t, lang, onLang, onAttempt, onDone }: Props) 
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [shot, setShot] = useState(true);
+  // The giant candle currently on screen, if any. The id restarts it when the same kind fires twice.
+  const [shout, setShout] = useState<{ kind: NewsKind; at: Anchor; id: number } | null>(null);
+  const shoutId = useRef(0);
   const chart = useRef<LoginChartHandle | null>(null);
   const form = useRef<HTMLFormElement | null>(null);
   const still = !!useReducedMotion();
+
+  // The giant candle starts from wherever the chart has the price right now. Reduced motion skips it entirely.
+  const news = (kind: NewsKind) => {
+    if (still) return;
+    const at = chart.current?.anchor();
+    if (at) setShout({ kind, at, id: shoutId.current++ });
+  };
 
   // Restarting the same animation needs the class taken off and put back with a reflow in between.
   const shake = () => {
@@ -78,7 +90,7 @@ export default function AuthView({ t, lang, onLang, onAttempt, onDone }: Props) 
         : await supabase.auth.signUp({ email, password });
     setBusy(false);
     if (error) {
-      chart.current?.reject();
+      news("down");
       shake();
       setMsg({ text: error.message, ok: false });
       onDone?.();
@@ -89,9 +101,10 @@ export default function AuthView({ t, lang, onLang, onAttempt, onDone }: Props) 
       onDone?.();
       return;
     }
-    // The session is already in hand and the app is loading behind us: this is only the hand-over.
-    chart.current?.success();
-    setCelebrating(true);
+    // The session is already in hand and the app is loading behind us: this is only the hand-over. The candle goes
+    // up first and the panel starts rearranging behind it, so the whole thing still takes CELEBRATE_MS.
+    news("up");
+    window.setTimeout(() => setCelebrating(true), still ? 0 : ERUPT_MS);
     window.setTimeout(() => onDone?.(), still ? 0 : CELEBRATE_MS);
   };
 
@@ -205,7 +218,7 @@ export default function AuthView({ t, lang, onLang, onAttempt, onDone }: Props) 
 
       {/* The black panel, cut away at its top-left corner on a desktop so the white page shows through there. It
           crops whatever reaches its edges, which is how the window frame below runs off the right and the bottom. */}
-      <section className="order-1 flex min-h-0 flex-col overflow-hidden lg:order-2 lg:w-[58%] lg:rounded-tl-[56px]" style={{ background: BLACK }}>
+      <section className="relative order-1 flex min-h-0 flex-col overflow-hidden lg:order-2 lg:w-[58%] lg:rounded-tl-[56px]" style={{ background: BLACK }}>
         <div className={`shrink-0 overflow-hidden transition-all duration-700 ease-[cubic-bezier(.22,1,.36,1)] lg:ms-10 lg:mt-8 lg:h-auto lg:basis-1/3 ${celebrating ? "h-0 opacity-0 lg:basis-0" : "h-[24vh]"}`}>
           <LoginChart ref={chart} still={still} />
         </div>
@@ -228,6 +241,9 @@ export default function AuthView({ t, lang, onLang, onAttempt, onDone }: Props) 
             </div>
           </div>
         </div>
+        {/* The giant candle covers the whole panel, so it can run past the chart band and over the frame. On a phone
+            the panel is only as tall as the band, which keeps it well clear of the form. */}
+        {shout && <NewsCandle key={shout.id} kind={shout.kind} at={shout.at} onDone={() => setShout(null)} />}
       </section>
     </div>
   );
