@@ -1,6 +1,7 @@
 // Trade outcomes report (50 metrics). Pure TypeScript. Percentages are in percent units (36.46 = 36.46%).
 import type { Trade } from "../types";
 import { cents, tradeCore, ticketOf } from "./stats";
+import { tradeDay } from "./tradingTime";
 
 export const GROUPS = {
   tradeResults: ["totalTrades", "winningTrades", "losingTrades", "breakevenTrades", "winRate", "lossRate", "breakevenRate", "dailyWinRate", "winningDays", "losingDays", "breakevenDays"],
@@ -48,7 +49,7 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
 
   // Days (close date), classified on the cent-rounded day sum.
   const dayMap = new Map<string, number>();
-  for (const t of closed) { const d = closeKey(t).slice(0, 10); if (d) dayMap.set(d, (dayMap.get(d) ?? 0) + p(t)); }
+  for (const t of closed) { const d = tradeDay(t, closeKey(t)); if (d) dayMap.set(d, (dayMap.get(d) ?? 0) + p(t)); }
   const days = [...dayMap.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, v]) => cents(v));
   const winDays = days.filter((v) => v > 0).length, loseDays = days.filter((v) => v < 0).length;
 

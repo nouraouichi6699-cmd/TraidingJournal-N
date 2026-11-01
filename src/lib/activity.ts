@@ -1,3 +1,4 @@
+import { tradeParts } from "./tradingTime";
 import type { Trade } from "../types";
 
 export interface Activity {
@@ -34,10 +35,12 @@ export function computeActivity(trades: Trade[]): Activity | null {
   const hour = Array(24).fill(0);
   let total = 0, max = 0, long = 0, short = 0;
   for (const t of ts) {
-    const d = t.entryTime!.slice(0, 10);
+    // The entry is this file's anchor, and stays it.
+    const p = tradeParts(t, t.entryTime);
+    const d = p.day;
     days[d] = (days[d] || 0) + 1;
-    weekday[(new Date(utc(d)).getUTCDay() + 6) % 7]++;
-    hour[Number(t.entryTime!.slice(11, 13))]++;
+    weekday[p.weekday ?? (new Date(utc(d)).getUTCDay() + 6) % 7]++;
+    hour[p.hour ?? Number(t.entryTime!.slice(11, 13))]++;
     total += t.qty || 0;
     max = Math.max(max, t.qty || 0);
     if (t.side === "long") long++; else short++;

@@ -6,6 +6,7 @@ import type { Account, Trade } from "../types";
 import { signed, type CashFlow } from "./cashflow";
 import { monteCarlo } from "./chartAnalytics";
 import { ticketOf } from "./stats";
+import { tradeDay } from "./tradingTime";
 import { rMultiple, sizing } from "./tradeLab";
 
 const DAY = 864e5;
@@ -81,7 +82,7 @@ export function advancedStats(trades: Trade[], accounts: Account[], flows: CashF
 
   // ----- daily returns (the Overview's Sharpe series) and monthly returns (daily returns compounded by calendar month)
   const byDay: Record<string, number> = {}, flowDay: Record<string, number> = {};
-  for (const t of closed) { const d = closeKey(t).slice(0, 10); if (d) byDay[d] = (byDay[d] ?? 0) + p(t); }
+  for (const t of closed) { const d = tradeDay(t, closeKey(t)); if (d) byDay[d] = (byDay[d] ?? 0) + p(t); }
   for (const f of flows) if (ids.includes(f.accountId) && f.t) flowDay[f.t.slice(0, 10)] = (flowDay[f.t.slice(0, 10)] ?? 0) + signed(f);
   const keys = Object.keys(byDay).sort(), r: number[] = [], rDay: string[] = [];
   if (keys.length && start > 0) {

@@ -1,5 +1,6 @@
 import type { Trade } from "../types";
 import { cents, tradeCore } from "./stats";
+import { tradeDay } from "./tradingTime";
 import { annualise, flowTotals, signed, timeWeightedReturn, type CashFlow } from "./cashflow";
 
 /**
@@ -28,7 +29,7 @@ export interface ReturnsCapital {
 
 const closedOnly = (t: Trade) => t.status === "closed" && t.pnl != null && Number.isFinite(t.pnl);
 const closeKey = (t: Trade) => t.exitTime || t.entryTime || "";
-const dayOf = (t: Trade) => closeKey(t).slice(0, 10);
+const dayOf = (t: Trade) => tradeDay(t, closeKey(t));
 const weekOf = (day: string) => { const d = new Date(day + "T00:00:00Z"); return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10); };
 const monthOf = (day: string) => day.slice(0, 7);
 const sum = (a: number[]) => a.reduce((s, x) => s + x, 0);

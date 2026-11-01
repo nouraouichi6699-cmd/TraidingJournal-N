@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { useReducedMotion } from "motion/react";
 import { setNumberLocale } from "./lib/numberFormat";
+import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
 
 // The settings page's own store. One synced key so the whole lot travels together (settingsSync pushes it like the
 // other user_settings rows). Theme, language and the live privacy toggle are not in here: they keep the per-device
@@ -23,6 +24,16 @@ export interface Settings {
   defaultAccount: string;
   /** The size calculator's starting risk, as a percent string, which is how it stores it. */
   riskPct: string;
+
+  // ---- what the analytics read out of a trade's times ----
+  /** Where the broker stamps its times, for any account without one of its own. */
+  brokerClock: BrokerClock;
+  /** Per-account overrides of the above. */
+  brokerByAccount: Record<string, BrokerClock>;
+  /** Where a trading day begins when trades are grouped by day. */
+  dayStart: DayStart;
+  /** The UTC hours the analysis sessions change at. */
+  sessionBounds: SessionBounds;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -34,7 +45,13 @@ export const DEFAULTS: Settings = {
   numberFormat: "dot",
   defaultAccount: "all",
   riskPct: "1",
+  brokerClock: { kind: "none" },
+  brokerByAccount: {},
+  dayStart: "midnight",
+  sessionBounds: DEFAULT_BOUNDS,
 };
+
+export type { BrokerClock, DayStart, SessionBounds };
 
 export const FONT_PX: Record<FontSize, string> = { small: "15px", normal: "16px", large: "17.5px" };
 const LOCALE: Record<NumberFormat, string> = { dot: "en-US", space: "fr-FR" };
@@ -56,6 +73,13 @@ let current = read();
 /** Everything outside React that a setting controls: the number locale, and the two attributes the CSS reads. */
 function apply(s: Settings) {
   setNumberLocale(LOCALE[s.numberFormat] ?? LOCALE.dot);
+  // The analytics read these through tradingTime, which keeps its own copy so the pure files need no React.
+  setAnalysisSettings({
+    bounds: s.sessionBounds ?? DEFAULT_BOUNDS,
+    dayStart: s.dayStart ?? "midnight",
+    clock: s.brokerClock ?? { kind: "none" },
+    byAccount: s.brokerByAccount ?? {},
+  });
   try {
     const root = document.documentElement;
     root.setAttribute("data-font", s.fontSize);

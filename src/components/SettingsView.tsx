@@ -1,10 +1,11 @@
 // Settings: how the app looks and behaves. Personal details stay in the profile and are not repeated here. Each
 // setting's default is what the app did before this page existed, so a fresh account behaves exactly as it used to.
 import { useState } from "react";
-import { Database, LogOut, Monitor, TrendingUp } from "lucide-react";
+import { Clock3, Database, LogOut, Monitor, TrendingUp } from "lucide-react";
 import { SectionHead, Switch } from "./profileUi";
 import { languages, stT, themeNames, type Key } from "../i18n";
-import { setSettings, useSettings, type FontSize, type NumberFormat, type WeekStart } from "../useSettings";
+import { setSettings, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type WeekStart } from "../useSettings";
+import { DEFAULT_BOUNDS } from "../lib/tradingTime";
 import { setPrivacy } from "../usePrivacy";
 import { downloadCsv, tradesToCsv } from "../lib/exportTrades";
 import { supabase } from "../lib/supabase";
@@ -153,6 +154,114 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
             />
             <span className="text-xs font-normal text-muted">{L("riskPctSub")}</span>
           </label>
+        </div>
+      </section>
+
+      <section className={sec}>
+        <SectionHead tone="violet" icon={Clock3} title={L("analytics")} sub={L("analyticsSub")} />
+        <div className="mt-6 flex flex-col gap-4">
+          <div className={row}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{L("dayStart")}</span>
+              <span className="mt-0.5 block text-xs text-muted">{L("dayStartSub")}</span>
+              <span className="mt-1 block text-xs text-muted">{s.dayStart === "ny17" ? L("ny17Sub") : L("dateOnlyNote")}</span>
+            </span>
+            <Choice<DayStart>
+              label={L("dayStart")} value={s.dayStart} onChange={(v) => setSettings({ dayStart: v })}
+              options={[{ v: "midnight", label: L("midnight") }, { v: "ny17", label: L("ny17") }]}
+            />
+          </div>
+
+          <div className={row}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{L("brokerClock")}</span>
+              <span className="mt-0.5 block text-xs text-muted">{L("brokerClockSub")}</span>
+              <span className="mt-1 block text-xs text-muted">
+                {s.brokerClock.kind === "mt5" ? L("clockMt5Sub") : s.brokerClock.kind === "none" ? L("clockNoneSub") : ""}
+              </span>
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Choice<BrokerClock["kind"]>
+                label={L("brokerClock")} value={s.brokerClock.kind}
+                onChange={(v) => setSettings({ brokerClock: v === "fixed" ? { kind: "fixed", hours: 2 } : { kind: v } })}
+                options={[{ v: "none", label: L("clockNone") }, { v: "fixed", label: L("clockFixed") }, { v: "mt5", label: L("clockMt5") }]}
+              />
+              {s.brokerClock.kind === "fixed" && (
+                <input
+                  aria-label={L("clockHours")} className="field !w-20 !py-1.5 text-sm" type="number" min="-12" max="14" step="1"
+                  value={s.brokerClock.hours}
+                  onChange={(e) => setSettings({ brokerClock: { kind: "fixed", hours: Number(e.target.value) || 0 } })}
+                />
+              )}
+            </div>
+          </div>
+
+          {accounts.length > 0 && (
+            <div className={row}>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{L("perAccount")}</span>
+                <span className="mt-0.5 block text-xs text-muted">{L("perAccountSub")}</span>
+              </span>
+              <div className="flex w-full flex-col gap-2 sm:w-auto">
+                {accounts.map((a) => {
+                  const own = s.brokerByAccount[a.id];
+                  const kind = own?.kind ?? "";
+                  return (
+                    <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+                      <span className="truncate text-xs text-muted">{a.name}</span>
+                      <select
+                        aria-label={`${L("brokerClock")}: ${a.name}`} className="field !w-auto !py-1.5 text-sm" value={kind}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const next = { ...s.brokerByAccount };
+                          if (!v) delete next[a.id];
+                          else next[a.id] = v === "fixed" ? { kind: "fixed", hours: 2 } : { kind: v as "none" | "mt5" };
+                          setSettings({ brokerByAccount: next });
+                        }}
+                      >
+                        <option value="">{L("useDefault")}</option>
+                        <option value="none">{L("clockNone")}</option>
+                        <option value="fixed">{L("clockFixed")}</option>
+                        <option value="mt5">{L("clockMt5")}</option>
+                      </select>
+                      {own?.kind === "fixed" && (
+                        <input
+                          aria-label={`${L("clockHours")}: ${a.name}`} className="field !w-20 !py-1.5 text-sm" type="number" min="-12" max="14" step="1"
+                          value={own.hours}
+                          onChange={(e) => setSettings({ brokerByAccount: { ...s.brokerByAccount, [a.id]: { kind: "fixed", hours: Number(e.target.value) || 0 } } })}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className={row}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{L("bounds")}</span>
+              <span className="mt-0.5 block text-xs text-muted">{L("boundsSub")}</span>
+              <span className="mt-1 block text-xs text-muted">{L("boundsNote")}</span>
+            </span>
+            <div className="flex flex-wrap items-end gap-2">
+              {([["boundTokyo", "tokyo"], ["boundLondon", "london"], ["boundNewYork", "newYork"]] as const).map(([key, field]) => (
+                <label key={field} className="flex flex-col gap-1 text-[11px] font-medium text-muted">
+                  {L(key)}
+                  <input
+                    className="field !w-16 !py-1.5 text-sm" type="number" min="0" max="24" step="1" value={s.sessionBounds[field]}
+                    onChange={(e) => setSettings({ sessionBounds: { ...s.sessionBounds, [field]: Math.max(0, Math.min(24, Number(e.target.value) || 0)) } })}
+                  />
+                </label>
+              ))}
+              <button
+                type="button" onClick={() => setSettings({ sessionBounds: DEFAULT_BOUNDS })}
+                className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium hover:bg-primary-tint"
+              >
+                {L("reset")}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -1,6 +1,7 @@
+import { tradeDay } from "./tradingTime";
 import type { Trade } from "../types";
 
-export const dayKey = (t: Trade) => (t.exitTime || t.entryTime || "").slice(0, 10);
+export const dayKey = (t: Trade) => tradeDay(t, t.exitTime || t.entryTime || "");
 const sortKey = (t: Trade) => t.exitTime || t.entryTime || "";
 const wk = (d: string) => {
   const dt = new Date(d + "T00:00:00Z");

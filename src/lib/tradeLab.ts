@@ -2,6 +2,7 @@
 // Pure functions (no React), covered by tradeLab.test.ts. Times follow the Charts convention: stored wall times read as UTC.
 import type { Trade } from "../types";
 import { rng } from "./chartAnalytics";
+import { sessionOfHour, tradeParts } from "./tradingTime";
 
 export interface Pt { t: number; v: number }
 const ms = (s: string | null | undefined) => (s ? Date.parse(s.length <= 16 ? `${s}Z` : s) : NaN);
@@ -13,7 +14,7 @@ const dayOf = (tm: number) => new Date(tm).toISOString().slice(0, 10);
 const byClose = (a: Trade, b: Trade) => ms(a.exitTime) - ms(b.exitTime) || a.no - b.no;
 const byEntry = (a: Trade, b: Trade) => entryMs(a) - entryMs(b) || a.no - b.no;
 /** Trading session of an hour (UTC), same split as the Periods chart. */
-export const sessionOf = (h: number) => (h < 7 ? "sessTK" : h < 13 ? "sessLN" : h < 21 ? "sessNY" : "sessSY");
+export const sessionOf = (h: number) => sessionOfHour(h);
 
 // ---------- What-if ----------
 
@@ -35,13 +36,14 @@ export function applyWhatIf(trades: Trade[], r: WhatIfRules): Trade[] {
   const wd = new Set(r.weekdays ?? []), ss = new Set(r.sessions ?? []), sy = new Set(r.symbols ?? []);
   let list = trades.filter(isClosed).filter((t) => {
     const e = new Date(entryMs(t));
-    if (wd.has((e.getUTCDay() + 6) % 7) || ss.has(sessionOf(e.getUTCHours())) || sy.has(t.symbol)) return false;
+    const ep = tradeParts(t, t.entryTime ?? t.exitTime);
+    if (wd.has(ep.weekday ?? (e.getUTCDay() + 6) % 7) || ss.has(sessionOf(ep.hour ?? e.getUTCHours())) || sy.has(t.symbol)) return false;
     return !r.side || t.side === r.side;
   }).sort(byEntry);
   if ((r.maxPerDay ?? 0) > 0 || (r.stopAfterLosses ?? 0) > 0) {
     const kept: Trade[] = [], perDay = new Map<string, Trade[]>();
     for (const t of list) {
-      const day = `${t.accountId}|${dayOf(entryMs(t))}`, mine = perDay.get(day) ?? [];
+      const day = `${t.accountId}|${tradeParts(t, t.entryTime ?? t.exitTime).day || dayOf(entryMs(t))}`, mine = perDay.get(day) ?? [];
       if ((r.maxPerDay ?? 0) > 0 && mine.length >= (r.maxPerDay as number)) continue;
       if ((r.stopAfterLosses ?? 0) > 0) {
         const losses = mine.filter((x) => c2(pnl(x)) < 0 && ms(x.exitTime) <= entryMs(t)).length;
@@ -80,7 +82,8 @@ export interface HeatCell { n: number; net: number; wins: number }
 export function heatmap(trades: Trade[]): HeatCell[][] {
   const g = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => ({ n: 0, net: 0, wins: 0 })));
   for (const t of trades.filter(isClosed)) {
-    const e = new Date(entryMs(t)), c = g[(e.getUTCDay() + 6) % 7][e.getUTCHours()];
+    const e = new Date(entryMs(t)), hp = tradeParts(t, t.entryTime ?? t.exitTime);
+    const c = g[hp.weekday ?? (e.getUTCDay() + 6) % 7][hp.hour ?? e.getUTCHours()];
     c.n++; c.net += pnl(t); if (c2(pnl(t)) > 0) c.wins++;
   }
   return g;
@@ -214,7 +217,7 @@ export function findRules(trades: Trade[], o: { minRemoved?: number; top?: numbe
   const minRemoved = o.minRemoved ?? Math.max(5, Math.round(l.length * 0.05));
   const h1 = l.slice(0, Math.floor(l.length / 2)), h2 = l.slice(Math.floor(l.length / 2));
   const days = new Set<number>(), sess = new Set<string>(), syms = new Set<string>();
-  for (const t of l) { const e = new Date(entryMs(t)); days.add((e.getUTCDay() + 6) % 7); sess.add(sessionOf(e.getUTCHours())); syms.add(t.symbol); }
+  for (const t of l) { const e = new Date(entryMs(t)), p = tradeParts(t, t.entryTime ?? t.exitTime); days.add(p.weekday ?? (e.getUTCDay() + 6) % 7); sess.add(sessionOf(p.hour ?? e.getUTCHours())); syms.add(t.symbol); }
   const cands: { kind: RuleKind; value: number | string; rule: WhatIfRules }[] = [
     ...[...days].sort((a, b) => a - b).map((d) => ({ kind: "weekday" as const, value: d, rule: { weekdays: [d] } })),
     ...["sessTK", "sessLN", "sessNY", "sessSY"].filter((x) => sess.has(x)).map((x) => ({ kind: "session" as const, value: x, rule: { sessions: [x] } })),
@@ -361,13 +364,13 @@ export function weeklyReport(trades: Trade[], nowWall: number, minutes = 30): We
   if (!w.length) return null;
   const prev = all.filter((t) => inWeek(t, start - 7 * 86400e3, start));
   const s = labStats(w), hours = new Map<number, number>();
-  for (const t of w) { const h = new Date(entryMs(t)).getUTCHours(); hours.set(h, (hours.get(h) ?? 0) + pnl(t)); }
+  for (const t of w) { const h = tradeParts(t, t.entryTime ?? t.exitTime).hour ?? new Date(entryMs(t)).getUTCHours(); hours.set(h, (hours.get(h) ?? 0) + pnl(t)); }
   const hs = [...hours].map(([h, net]) => ({ h, net })).sort((a, b) => b.net - a.net || a.h - b.h);
   const groups: NonNullable<WeekReport["habit"]>[] = [];
   const add = (kind: "tilt" | "session" | "symbol", key: string, list: Trade[]) => { if (list.length >= 2) groups.push({ kind, key, net: list.reduce((a, t) => a + pnl(t), 0), n: list.length }); };
   const tilt = tiltSplit(all, minutes), mine = new Set(w);
   add("tilt", "afterLoss", [...tilt.afterLoss, ...tilt.afterLossBigger].filter((t) => mine.has(t)));
-  for (const k of ["sessTK", "sessLN", "sessNY", "sessSY"]) add("session", k, w.filter((t) => sessionOf(new Date(entryMs(t)).getUTCHours()) === k));
+  for (const k of ["sessTK", "sessLN", "sessNY", "sessSY"]) add("session", k, w.filter((t) => sessionOf(tradeParts(t, t.entryTime ?? t.exitTime).hour ?? new Date(entryMs(t)).getUTCHours()) === k));
   for (const k of [...new Set(w.map((t) => t.symbol))].sort()) add("symbol", k, w.filter((t) => t.symbol === k));
   const habit = groups.filter((g) => c2(g.net) < 0).sort((a, b) => a.net - b.net)[0] ?? null;
   return {

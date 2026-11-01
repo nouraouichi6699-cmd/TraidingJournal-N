@@ -1,9 +1,10 @@
 import type { Trade } from "../types";
 import { cents, tradeCore, ticketOf } from "./stats";
+import { tradeDay } from "./tradingTime";
 
 const closedOnly = (t: Trade) => t.status === "closed" && t.pnl != null;
 /** Calendar day (YYYY-MM-DD) a trade belongs to: its CLOSE date (entry date as a fallback). */
-export const dayKey = (t: Trade): string => (t.exitTime || t.entryTime || "").slice(0, 10);
+export const dayKey = (t: Trade): string => tradeDay(t, t.exitTime || t.entryTime || "");
 const closeKey = (t: Trade) => t.exitTime || t.entryTime || "";
 const mins = (s: string | null) => { const v = s ? Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z") : NaN; return Number.isNaN(v) ? null : v / 60000; };
 
