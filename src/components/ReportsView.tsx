@@ -6,6 +6,8 @@ import { computeOverview } from "../lib/stats";
 import { computeReturnsCapital } from "../lib/returnsCapital";
 import { signed, type CashFlow } from "../lib/cashflow";
 import { commonCurrency } from "../lib/money";
+import { useConverted } from "../useConverted";
+import FxWarning from "./FxWarning";
 import { currentBalance, ledgerReconciles } from "../lib/balance";
 import OverviewTab from "./OverviewTab";
 import TradeOutcomesTab from "./TradeOutcomesTab";
@@ -86,9 +88,12 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   return <div className="rounded-2xl border border-border bg-surface p-5"><div className="mb-4 font-heading text-sm font-semibold text-text">{title}</div>{children}</div>;
 }
 
-export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades, balances, onImport, flows = [], onAddFlow, onRemoveFlow }: Props) {
+export default function ReportsView({ nav, onNavDone, t, lang, accounts: accountsIn, trades: tradesIn, balances: balancesIn, onImport, flows: flowsIn = [], onAddFlow, onRemoveFlow }: Props) {
   const [tab, setTab] = useState(nav?.tab ?? "overview");
-  const [acc, setAcc] = useState(nav?.acc && accounts.some((a) => a.id === nav.acc) ? nav.acc : "all");
+  const [acc, setAcc] = useState(nav?.acc && accountsIn.some((a) => a.id === nav.acc) ? nav.acc : "all");
+  // Converted only while every account is reported on together; a single account keeps its own currency.
+  const fx = useConverted(acc === "all", accountsIn, tradesIn, flowsIn, balancesIn);
+  const accounts = fx.accounts, trades = fx.trades, balances = fx.balances, flows = fx.flows;
   const [focusDay] = useState(nav?.day); // deep link from Charts ("Open this day")
   useEffect(() => { if (nav) onNavDone?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [per, setPer] = useState("all");
@@ -176,6 +181,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts, trades,
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
       <ReportTabs lang={lang} tab={tab} onTab={setTab} labels={labels} />
+      <FxWarning codes={fx.missing} lang={lang} />
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         {accounts.length > 1 && (

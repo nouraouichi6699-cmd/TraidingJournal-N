@@ -1,11 +1,12 @@
 // Settings: how the app looks and behaves. Personal details stay in the profile and are not repeated here. Each
 // setting's default is what the app did before this page existed, so a fresh account behaves exactly as it used to.
-import { useState } from "react";
-import { Clock3, Database, LogOut, Monitor, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Clock3, Coins, Database, LogOut, Monitor, RefreshCw, TrendingUp } from "lucide-react";
 import { SectionHead, Switch } from "./profileUi";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { setSettings, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type WeekStart } from "../useSettings";
 import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
+import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
 import { setPrivacy } from "../usePrivacy";
 import { downloadCsv, tradesToCsv } from "../lib/exportTrades";
 import { supabase } from "../lib/supabase";
@@ -49,6 +50,38 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const [note, setNote] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Currencies the accounts actually use, minus the base, which needs no rate of its own.
+  const needed = useMemo(() => currenciesOf(accounts).filter((c) => c !== s.baseCurrency), [accounts, s.baseCurrency]);
+  const fxMissing = useMemo(() => missingRates(accounts, s.baseCurrency, s.rates), [accounts, s.baseCurrency, s.rates]);
+  // The base list is the published set plus anything the accounts already use, so a manual-only currency can be it.
+  const baseOptions = useMemo(
+    () => [...new Set([...FRANKFURTER_CODES, ...currenciesOf(accounts).filter(Boolean)])].sort(),
+    [accounts],
+  );
+  const [fetching, setFetching] = useState(false);
+  const [ratesNote, setRatesNote] = useState<string | null>(null);
+
+  const updateRates = async () => {
+    // Only the codes the published set covers are asked for; the rest stay as they were typed.
+    const ask = needed.filter((c) => isFrankfurter(c));
+    if (!ask.length) return setRatesNote(L("ratesManual"));
+    setFetching(true);
+    setRatesNote(null);
+    try {
+      const r = await fetch(frankfurterUrl(s.baseCurrency, ask));
+      if (!r.ok) throw new Error(String(r.status));
+      const data = (await r.json()) as { date?: string; rates?: Record<string, number> };
+      const got = data.rates ?? {};
+      const next = { ...s.rates };
+      for (const [k, v] of Object.entries(got)) if (Number.isFinite(v) && v > 0) next[k] = v;
+      setSettings({ rates: next, ratesDate: data.date ?? "" });
+    } catch {
+      setRatesNote(L("ratesFailed"));
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const exportNow = () => {
     const list = trades.filter((x) => exportAcc === "all" || x.accountId === exportAcc);
@@ -275,6 +308,72 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
               </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className={sec}>
+        <SectionHead tone="amber" icon={Coins} title={L("unify")} sub={L("unifySub")} />
+        <div className="mt-6 flex flex-col gap-4">
+          <div className={row}>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{L("unify")}</span>
+              <span className="mt-0.5 block text-xs text-muted">{L("ratesSent")}</span>
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Switch label={L("unify")} checked={s.unifyCurrency} onChange={(v) => setSettings({ unifyCurrency: v })} />
+              <select
+                aria-label={L("baseCurrency")} className="field !w-auto !py-1.5 text-sm" value={s.baseCurrency}
+                onChange={(e) => setSettings({ baseCurrency: e.target.value })}
+              >
+                {baseOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {s.unifyCurrency && (
+            <div className={row}>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{L("rates")}</span>
+                <span className="mt-0.5 block text-xs text-muted">{L("ratesSub").replace("{base}", s.baseCurrency)}</span>
+                {s.ratesDate && <span className="mt-1 block text-xs text-muted">{L("ratesAsOf").replace("{date}", s.ratesDate)}</span>}
+                {fxMissing.length > 0 && (
+                  <span className="mt-1 block text-xs text-loss">
+                    {L("ratesMissing").replace("{codes}", fxMissing.map((c) => c || L("noCurrencyCode")).join(", "))}
+                  </span>
+                )}
+              </span>
+              <div className="flex w-full flex-col gap-2 sm:w-auto">
+                {needed.length === 0 && <span className="text-xs text-muted">{L("allAccounts")}</span>}
+                {needed.map((c) => (
+                  <div key={c} className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+                    <span className="text-xs text-muted">{c || L("noCurrencyCode")}</span>
+                    <input
+                      aria-label={`${L("rates")}: ${c}`} className="field !w-28 !py-1.5 text-sm" type="number" min="0" step="0.0001" inputMode="decimal"
+                      value={s.rates[c] ?? ""}
+                      onChange={(e) => {
+                        const next = { ...s.rates };
+                        const v = Number(e.target.value);
+                        if (!e.target.value || !Number.isFinite(v) || v <= 0) delete next[c];
+                        else next[c] = v;
+                        setSettings({ rates: next });
+                      }}
+                    />
+                    {!isFrankfurter(c) && <span className="basis-full text-[11px] text-muted sm:basis-auto">{L("ratesManual")}</span>}
+                  </div>
+                ))}
+                <div className="flex items-center justify-end gap-2">
+                  {ratesNote && <span className="text-xs text-muted">{ratesNote}</span>}
+                  <button
+                    type="button" disabled={fetching} onClick={() => void updateRates()}
+                    className="flex items-center gap-2 rounded-xl border border-border px-3 py-1.5 text-xs font-medium hover:bg-primary-tint disabled:opacity-60"
+                  >
+                    <RefreshCw size={13} className={fetching ? "animate-spin text-icon" : "text-icon"} />
+                    {L("updateRates")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

@@ -7,7 +7,7 @@ import { signed, type CashFlow } from "./cashflow";
 import { monteCarlo } from "./chartAnalytics";
 import { ticketOf } from "./stats";
 import { tradeDay } from "./tradingTime";
-import { tradeOutcome } from "./outcome";
+import { tradeOutcomeOf } from "./outcome";
 import { rMultiple, sizing } from "./tradeLab";
 
 const DAY = 864e5;
@@ -149,7 +149,7 @@ export function advancedStats(trades: Trade[], accounts: Account[], flows: CashF
   const painIdx = enough ? mean(ddDay) : null, ulcer = enough ? Math.sqrt(mean(ddDay.map((x) => x * x))) : null;
 
   // ----- confidence intervals (95%)
-  const N = closed.length, pl = closed.map(p), wins = closed.filter((t) => tradeOutcome(p(t), 2) === "win").length;
+  const N = closed.length, pl = closed.map(p), wins = closed.filter((t) => tradeOutcomeOf(t, 2) === "win").length;
   let ciWin: Range | null = null, ciExp: Range | null = null, ciPf: Range | null = null, ciMed: Range | null = null;
   if (N >= MIN_TRADES) {
     const z = 1.959963985, ph = wins / N, c = ph + (z * z) / (2 * N), h = z * Math.sqrt((ph * (1 - ph)) / N + (z * z) / (4 * N * N)), d = 1 + (z * z) / N;

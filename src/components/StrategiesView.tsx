@@ -12,6 +12,8 @@ import { EN } from "../lib/strategyText.en";
 import { AR } from "../lib/strategyText.ar";
 import { FR } from "../lib/strategyText.fr";
 import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
+import { useConverted } from "../useConverted";
+import FxWarning from "./FxWarning";
 import { deleteCustom, readLinks, readMine, resultsOf, setMine, type AnyId } from "../lib/myStrategies";
 import { inkOn, readCustom, saveCustom, type CustomStrategy } from "../lib/customStrategies";
 import { TOOL_BY_ID, TOOL_GROUPS, TOOL_GROUP_LABEL, toolName } from "../lib/tools";
@@ -125,7 +127,10 @@ const Card = ({ title, icon: Icon, tone = "text-icon", children }: { title: stri
   </section>
 );
 
-export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJournal }: { lang: Lang; t: (k: Key) => string; trades: Trade[]; accounts: Account[]; onOpenJournal: () => void }) {
+export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts, onOpenJournal }: { lang: Lang; t: (k: Key) => string; trades: Trade[]; accounts: Account[]; onOpenJournal: () => void }) {
+  // A strategy is measured across whichever accounts its trades came from, so this view is always all-accounts.
+  const fx = useConverted(true, accounts, tradesIn);
+  const trades = fx.trades;
   const L = (x: L3) => x[lang];
   const tx = TEXT[lang];
   const n = (s: string) => (lang === "ar" ? ltrNumbers(s) : s); // numbers keep their order inside Arabic text
@@ -472,6 +477,7 @@ export default function StrategiesView({ lang, t: tr, trades, accounts, onOpenJo
 
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-5">
+      <FxWarning codes={fx.missing} lang={lang} />
       <header>
         <h2 className="font-heading text-xl font-semibold">{L(T.title)}</h2>
         <p className="mt-1 max-w-2xl text-sm text-muted">{L(T.lead)}</p>

@@ -3,7 +3,7 @@
 import type { Trade } from "../types";
 import { rng } from "./chartAnalytics";
 import { sessionOfHour, tradeParts } from "./tradingTime";
-import { netOutcome, tradeOutcome } from "./outcome";
+import { netOutcome, tradeOutcomeOf } from "./outcome";
 
 export interface Pt { t: number; v: number }
 const ms = (s: string | null | undefined) => (s ? Date.parse(s.length <= 16 ? `${s}Z` : s) : NaN);
@@ -64,7 +64,7 @@ export interface LabStats { n: number; net: number; winRate: number | null; pf: 
 export function labStats(trades: Trade[]): LabStats {
   const l = trades.filter(isClosed).sort(byClose);
   let net = 0, peak = 0, dd = 0, gp = 0, gl = 0, w = 0;
-  for (const t of l) { const p = pnl(t), o = tradeOutcome(p, 2); net += p; if (o === "win") { w++; gp += p; } else if (o === "loss") gl -= p; peak = Math.max(peak, net); dd = Math.max(dd, peak - net); }
+  for (const t of l) { const p = pnl(t), o = tradeOutcomeOf(t, 2); net += p; if (o === "win") { w++; gp += p; } else if (o === "loss") gl -= p; peak = Math.max(peak, net); dd = Math.max(dd, peak - net); }
   return { n: l.length, net, winRate: l.length ? (w / l.length) * 100 : null, pf: gl > 1e-9 ? gp / gl : null, maxDD: dd };
 }
 

@@ -31,6 +31,13 @@ export interface Trade {
   sl?: number | null;
   tp?: number | null;
   status: "open" | "closed";
+  /**
+   * Set only on a converted copy (see lib/fx.ts): the P&L and commission in the account's own currency. Their
+   * presence marks a trade as a copy that must never be stored, and the classifier reads pnlOwn so that an
+   * outcome never depends on which view it is being looked at in.
+   */
+  pnlOwn?: number | null;
+  commissionOwn?: number;
 }
 
 export interface BalancePoint {

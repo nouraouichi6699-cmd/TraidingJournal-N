@@ -1,5 +1,5 @@
 import { tradeDay } from "./tradingTime";
-import { netOutcome, tradeOutcome } from "./outcome";
+import { netOutcome, tradeOutcomeOf } from "./outcome";
 import type { Trade } from "../types";
 
 export const dayKey = (t: Trade) => tradeDay(t, t.exitTime || t.entryTime || "");
@@ -29,7 +29,7 @@ export interface Metrics {
 
 export function metrics(closed: Trade[]): Metrics {
   const p = (t: Trade) => t.pnl as number;
-  const w = closed.filter((t) => tradeOutcome(p(t)) === "win"), l = closed.filter((t) => tradeOutcome(p(t)) === "loss");
+  const w = closed.filter((t) => tradeOutcomeOf(t) === "win"), l = closed.filter((t) => tradeOutcomeOf(t) === "loss");
   const gw = w.reduce((s, t) => s + p(t), 0), gl = Math.abs(l.reduce((s, t) => s + p(t), 0));
   const net = gw - gl;
   const avgWin = w.length ? gw / w.length : 0, avgLoss = l.length ? gl / l.length : 0;

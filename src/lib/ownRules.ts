@@ -5,7 +5,7 @@
 // the rules in force when it happened. Pure functions, covered by ownRules.test.ts.
 import type { Trade } from "../types";
 import type { Rules } from "./whatif";
-import { tradeOutcome } from "./outcome";
+import { tradeOutcomeOf } from "./outcome";
 
 export interface Limit { v: number; unit: "money" | "pct" } // pct: of the starting balance
 export interface OwnRules {
@@ -177,8 +177,8 @@ export function ctxAt(trades: Trade[], o: { accountId: string; start: string }, 
   const sum = (f: (day: string) => boolean) => r2(shut.filter((t) => f(norm(t.exitTime).slice(0, 10))).reduce((s, t) => s + (t.pnl as number), 0));
   const todays = shut.filter((t) => norm(t.exitTime).slice(0, 10) === d);
   let run = 0;
-  for (let i = todays.length - 1; i >= 0 && tradeOutcome(todays[i].pnl as number) === "loss"; i--) run++;
-  const loss = [...shut].reverse().find((t) => tradeOutcome(t.pnl as number) === "loss");
+  for (let i = todays.length - 1; i >= 0 && tradeOutcomeOf(todays[i]) === "loss"; i--) run++;
+  const loss = [...shut].reverse().find((t) => tradeOutcomeOf(t) === "loss");
   return {
     n: mine.filter((t) => norm(t.entryTime).slice(0, 10) === d && norm(t.entryTime) < at).length, run,
     day: sum((x) => x === d), week: sum((x) => x >= wk && x <= d), month: sum((x) => x.slice(0, 7) === mo), total: sum(() => true), lastLoss: loss ? norm(loss.exitTime) : null,

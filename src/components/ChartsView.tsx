@@ -8,6 +8,8 @@ import { GoldenRules, Heatmap, SizeTable, WhatIfPanel, oddsLine } from "./ChartL
 import { usePrivacy } from "../usePrivacy";
 import { fmt, computeStats } from "../lib/stats";
 import { commonCurrency, currencySuffix, fmtMoney, ltrNumbers } from "../lib/money";
+import { useConverted } from "../useConverted";
+import FxWarning from "./FxWarning";
 import { balanceSeries } from "../lib/balance";
 import { signed, type CashFlow } from "../lib/cashflow";
 import { barsCsv, histogram, maxDrawdownWindow, monteCarlo, rollingSeries, seriesCsv, type DdWindow, type McResult, type RollKind } from "../lib/chartAnalytics";
@@ -574,7 +576,9 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   const balanceLike = metric === "balance" || metric === "prop"; // both draw the balance curve
   const closed = useMemo(() => trades.filter((x) => x.status === "closed" && x.pnl != null && !isNaN(ts(x.exitTime))), [trades]);
   const scope = useMemo(() => (byAcc || acc === "all" ? closed : closed.filter((x) => x.accountId === acc)), [closed, acc, byAcc]);
-  const accsInView = byAcc || acc === "all" ? accounts : accounts.filter((a) => a.id === acc);
+  // More than one account is in view when they are split by account, or when none is singled out.
+  const fx = useConverted(byAcc || acc === "all", accounts, trades, flows, balances);
+  const accsInView = byAcc || acc === "all" ? fx.accounts : fx.accounts.filter((a) => a.id === acc);
   const currency = commonCurrency(accsInView); // null when the accounts in view use different currencies
   const { hidden: hideMoney } = usePrivacy();
   const moneyBase = (n: number) => hideMoney ? "••••" : fmtMoney(n, { currency }); // summary: whole units, currency after the number
@@ -1157,7 +1161,7 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
   return (
     <>
       {/* placeholder keeps the page layout while the analysis covers the screen */}
-      <section className="flex flex-col gap-4">{pageHead}{switcher}</section>
+      <section className="flex flex-col gap-4"><FxWarning codes={fx.missing} lang={lang} />{pageHead}{switcher}</section>
       {/* Portal: the animated page wrapper (transform/filter) would otherwise become the overlay's containing block and clip it. */}
       {createPortal(<div className="fixed inset-0 z-[60] flex flex-col bg-bg" role="dialog" aria-label={t("charts")}>
         <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">

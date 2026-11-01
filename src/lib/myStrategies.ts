@@ -6,7 +6,7 @@
 import { STRATEGIES, type Id } from "./strategies";
 import { isCustomId, readCustom, removeCustom, type CustomId, type CustomStrategy } from "./customStrategies";
 import type { Trade } from "../types";
-import { tradeOutcome } from "./outcome";
+import { tradeOutcomeOf } from "./outcome";
 
 export type AnyId = Id | CustomId;
 export const MINE_KEY = "mizan-my-strategies", LINK_KEY = "mizan-trade-strategy";
@@ -75,6 +75,6 @@ export interface StrategyResults { linked: number; closed: number; wins: number;
 /** The results of the trades linked to a strategy: closed trades, wins, net P&L. */
 export function resultsOf(id: AnyId, trades: Trade[], links: Record<string, AnyId>): StrategyResults {
   const mine = trades.filter((t) => links[t.key] === id), closed = mine.filter((t) => t.status === "closed" && t.pnl != null);
-  const wins = closed.filter((t) => tradeOutcome(t.pnl as number) === "win").length;
+  const wins = closed.filter((t) => tradeOutcomeOf(t) === "win").length;
   return { linked: mine.length, closed: closed.length, wins, net: closed.reduce((a, t) => a + (t.pnl as number), 0), winRate: closed.length ? (wins / closed.length) * 100 : null };
 }

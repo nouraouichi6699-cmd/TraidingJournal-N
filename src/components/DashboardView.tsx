@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readSettings } from "../useSettings";
+import { useConverted } from "../useConverted";
+import FxWarning from "./FxWarning";
 import { motion } from "motion/react";
 import { GripVertical, LayoutGrid, RotateCcw, Plus, X, Check, Pencil, Info } from "lucide-react";
 import { useDashEdit } from "../useDashEdit";
@@ -69,7 +71,7 @@ const fromKey = (r: string) => {
   d.setDate(d.getDate() - Number(r)); return d.toISOString().slice(0, 10);
 };
 
-export default function DashboardView({ lang, accounts, trades: all, flows = [] }: Props) {
+export default function DashboardView({ lang, accounts: accountsIn, trades: allIn, flows: flowsIn = [] }: Props) {
   const { editing, toggle } = useDashEdit();
   const { hidden } = usePrivacy();
   const [cells, setCells] = useState<Cell[]>(load);
@@ -84,6 +86,9 @@ export default function DashboardView({ lang, accounts, trades: all, flows = [] 
 
   useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify(cells)); } catch { } }, [cells]);
   useEffect(() => { try { localStorage.setItem(FILTER, JSON.stringify(filter)); } catch { } }, [filter]);
+  // Money is converted only while every account is in view; one account always reads in its own currency.
+  const fx = useConverted(!accountsIn.some((a) => a.id === filter.acc), accountsIn, allIn, flowsIn);
+  const accounts = fx.accounts, all = fx.trades, flows = fx.flows;
   useEffect(() => {
     const el = box.current; if (!el) return;
     const ro = new ResizeObserver(() => setW(el.clientWidth || 1200)); ro.observe(el); setW(el.clientWidth || 1200);
@@ -155,6 +160,7 @@ export default function DashboardView({ lang, accounts, trades: all, flows = [] 
 
   return (
     <div className="space-y-4">
+      <FxWarning codes={fx.missing} lang={lang} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="me-2 font-heading text-lg font-semibold">{L(TT.title)}</h1>

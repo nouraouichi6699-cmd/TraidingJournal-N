@@ -8,7 +8,7 @@
 // and the broker (futures against a spot CFD, another feed) cancels out; the result at the exit uses the broker's prices.
 import type { Trade } from "../types";
 import { csvRows } from "./benchmark";
-import { tradeOutcome } from "./outcome";
+import { tradeOutcomeOf } from "./outcome";
 
 export interface IBar { t: number; o: number; h: number; l: number; c: number } // t = bar start (ms)
 export type Dst = "none" | "us" | "eu";
@@ -191,8 +191,8 @@ export function pathStats(rows: PathRow[], cents: (x: number) => number = (x) =>
   const closed = rows.filter((r) => r.trade.status === "closed" && r.trade.pnl != null);
   const P = closed.filter((r) => r.path) as (PathRow & { path: Path })[];
   const Mn = P.filter((r) => r.k != null && r.k > 0) as (PathRow & { path: Path; k: number })[];
-  const pos = P.filter((r) => r.path.mfe > 0), win = pos.filter((r) => tradeOutcome(r.trade.pnl as number, 2) === "win");
-  const lose = P.filter((r) => tradeOutcome(r.trade.pnl as number, 2) === "loss" && r.path.mae > 0);
+  const pos = P.filter((r) => r.path.mfe > 0), win = pos.filter((r) => tradeOutcomeOf(r.trade, 2) === "win");
+  const lose = P.filter((r) => tradeOutcomeOf(r.trade, 2) === "loss" && r.path.mae > 0);
   const withAtr = P.filter((r) => r.atr != null && r.atr > 0), withBal = Mn.filter((r) => r.bal != null && r.bal > 0);
   const hours = closed.reduce((a, r) => { const s = Date.parse(`${r.trade.entryTime}Z`), e = Date.parse(`${r.trade.exitTime}Z`); return Number.isFinite(s) && Number.isFinite(e) && e > s ? a + (e - s) / H : a; }, 0);
   const net = closed.reduce((a, r) => a + (r.trade.pnl as number), 0);

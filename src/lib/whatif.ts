@@ -106,6 +106,8 @@ export function simulate(inputs: SimInput[], r: Rules): Sim {
       const known = d.done.filter((c) => c.at <= at).sort((a, b) => a.at - b.at);
       const net = known.reduce((s, c) => s + c.pnl, 0);
       let run = 0;
+      // A simulated exit, not a stored trade: its P&L is recomputed here from prices, so there is no
+      // own-currency counterpart to read and the plain classifier is the right one.
       for (let i = known.length - 1; i >= 0 && tradeOutcome(known[i].pnl) === "loss"; i--) run++;
       skip = r.maxDay != null && d.n >= r.maxDay ? "maxDay" : r.streak != null && run >= r.streak ? "streak" : r.dayLoss != null && net <= -r.dayLoss + 1e-9 ? "dayLoss" : r.dayGain != null && net >= r.dayGain - 1e-9 ? "dayGain" : null;
       if (!skip) { d.n++; d.done.push({ at: ms(ex.exitTime), pnl: ex.pnl }); days.set(day, d); }

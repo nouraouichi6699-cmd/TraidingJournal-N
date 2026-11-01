@@ -9,6 +9,8 @@ import { inputsFor, presetWhatIf } from "./WhatIfTab";
 import { advise, journalContext, MIN_TRADES, type Advice, type Plan, type Topic } from "../lib/advisor";
 import { curves, NO_RULES, simulate, type Rules, type SimInput } from "../lib/whatif";
 import { commonCurrency, fmtMoney, ltrNumbers } from "../lib/money";
+import { useConverted } from "../useConverted";
+import FxWarning from "./FxWarning";
 import { fmtHold } from "../lib/stats";
 import type { Account, Lang, Trade } from "../types";
 
@@ -163,8 +165,9 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
   const [request, setRequest] = useState<{ q: string; n: number } | null>(null);
   const [peek, setPeek] = useState<Mood | null>(null);
   const [active, setActive] = useState("adv-plan");
-  const list = useMemo(() => (acc === "all" ? trades : trades.filter((t) => t.accountId === acc)), [trades, acc]);
-  const currency = commonCurrency(acc === "all" ? accounts : accounts.filter((a) => a.id === acc));
+  const fx = useConverted(acc === "all", accounts, trades);
+  const list = useMemo(() => (acc === "all" ? fx.trades : fx.trades.filter((t) => t.accountId === acc)), [fx.trades, acc]);
+  const currency = commonCurrency(acc === "all" ? fx.accounts : fx.accounts.filter((a) => a.id === acc));
   const inputs = useMemo(() => inputsFor(list, trades), [list, trades]);
   const res: Plan = useMemo(() => advise(inputs), [inputs]);
   const actual = useMemo(() => inputs.reduce((s, x) => s + (x.trade.pnl as number), 0), [inputs]);
@@ -370,6 +373,7 @@ export default function AdvisorView({ lang, accounts, trades, onWhatIf, onOpenPa
 
   return (
     <div ref={root} className="mx-auto max-w-6xl space-y-6 pb-24 pt-2 sm:space-y-8 sm:p-4 sm:pb-24 md:p-6 md:pb-24">
+      <FxWarning codes={fx.missing} lang={lang} />
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button type="button" onClick={() => setPeek(MOODS[(MOODS.indexOf(face) + 1) % MOODS.length])} title={T(TXT.tap)} aria-label={T(TXT.tap)}

@@ -38,6 +38,14 @@ export const breakEvenRange = () => range;
 export const tradeOutcome = (pnl: number, decimals?: number): Outcome =>
   classifyOutcome(pnl, { breakEven: range, decimals });
 
+/**
+ * One trade's outcome. On a converted copy this reads the account's own currency, so a trade is the same win, loss
+ * or break-even whichever view it appears in: scaling by a rate would otherwise move both the break-even range and
+ * the cent rounding (0.0049 is break-even rounded, but 0.005326 after a rate is applied is a win).
+ */
+export const tradeOutcomeOf = (t: { pnl: number | null; pnlOwn?: number | null }, decimals?: number): Outcome =>
+  tradeOutcome((t.pnlOwn !== undefined ? t.pnlOwn : t.pnl) as number, decimals);
+
 /** The sign of an aggregate — a day, a week, a group of trades. The break-even range never applies here. */
 export const netOutcome = (net: number, decimals?: number): Outcome =>
   classifyOutcome(net, { breakEven: 0, decimals });

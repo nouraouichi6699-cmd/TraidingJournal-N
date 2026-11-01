@@ -2,7 +2,7 @@
 import type { Trade } from "../types";
 import { cents, tradeCore, ticketOf } from "./stats";
 import { tradeDay } from "./tradingTime";
-import { netOutcome, tradeOutcome } from "./outcome";
+import { netOutcome, tradeOutcomeOf } from "./outcome";
 
 export const GROUPS = {
   tradeResults: ["totalTrades", "winningTrades", "losingTrades", "breakevenTrades", "winRate", "lossRate", "breakevenRate", "dailyWinRate", "winningDays", "losingDays", "breakevenDays"],
@@ -65,7 +65,7 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
   }
 
   // Outcome sequence S (breakevens removed)
-  const S = closed.filter((t) => tradeOutcome(p(t), 2) !== "be").map((t) => ({ o: (tradeOutcome(p(t), 2) === "win" ? "W" : "L") as O, v: p(t) }));
+  const S = closed.filter((t) => tradeOutcomeOf(t, 2) !== "be").map((t) => ({ o: (tradeOutcomeOf(t, 2) === "win" ? "W" : "L") as O, v: p(t) }));
   const pairs = (o: O) => { let d = 0, same = 0; const next: number[] = []; for (let i = 0; i < S.length - 1; i++) if (S[i].o === o) { d++; if (S[i + 1].o === o) same++; next.push(S[i + 1].v); } return { d, same, next }; };
   const aw = pairs("W"), al = pairs("L");
   const runs = runsOf(S);

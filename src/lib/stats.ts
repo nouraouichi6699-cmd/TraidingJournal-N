@@ -1,11 +1,11 @@
 import { numberLocale } from "./numberFormat";
 import type { Trade } from "../types";
-import { tradeOutcome } from "./outcome";
+import { tradeOutcomeOf } from "./outcome";
 
 export function computeStats(trades: Trade[]) {
   const closed = trades.filter((t) => t.status === "closed" && t.pnl != null);
-  const wins = closed.filter((t) => tradeOutcome(t.pnl as number) === "win");
-  const losses = closed.filter((t) => tradeOutcome(t.pnl as number) === "loss");
+  const wins = closed.filter((t) => tradeOutcomeOf(t) === "win");
+  const losses = closed.filter((t) => tradeOutcomeOf(t) === "loss");
   const gross = (a: Trade[]) => a.reduce((s, t) => s + (t.pnl as number), 0);
   const net = gross(closed);
   const lossSum = Math.abs(gross(losses));
@@ -57,7 +57,7 @@ export const cents = (x: number) => Math.round(x * 100) / 100;
 /** Shared trade-outcome core: the single source of truth for Overview and Trade outcomes. Percent values are in percent units. */
 export function tradeCore(closed: Trade[]) {
   const p = (t: Trade) => t.pnl as number;
-  const wins = closed.filter((t) => tradeOutcome(p(t), 2) === "win"), losses = closed.filter((t) => tradeOutcome(p(t), 2) === "loss");
+  const wins = closed.filter((t) => tradeOutcomeOf(t, 2) === "win"), losses = closed.filter((t) => tradeOutcomeOf(t, 2) === "loss");
   const n = closed.length, be = n - wins.length - losses.length;
   const gp = wins.reduce((a, t) => a + p(t), 0), gl = Math.abs(losses.reduce((a, t) => a + p(t), 0));
   const net = closed.reduce((a, t) => a + p(t), 0);

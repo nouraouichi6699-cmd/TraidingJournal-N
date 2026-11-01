@@ -37,6 +37,16 @@ export interface Settings {
   sessionBounds: SessionBounds;
   /** A trade whose result is this size or smaller counts as break-even. 0 keeps today's win/loss split. */
   breakEven: number;
+
+  // ---- money across accounts in different currencies ----
+  /** Off keeps today's behaviour: amounts are summed exactly as they are stored. */
+  unifyCurrency: boolean;
+  /** The currency the all-accounts views report in when unifyCurrency is on. */
+  baseCurrency: string;
+  /** Units of <code> per 1 base, the way Frankfurter quotes them. Typed in by hand or fetched. */
+  rates: Record<string, number>;
+  /** The day the fetched rates are from, as the service reports it. */
+  ratesDate: string;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -53,6 +63,10 @@ export const DEFAULTS: Settings = {
   dayStart: "midnight",
   sessionBounds: DEFAULT_BOUNDS,
   breakEven: 0,
+  unifyCurrency: false,
+  baseCurrency: "USD",
+  rates: {},
+  ratesDate: "",
 };
 
 export type { BrokerClock, DayStart, SessionBounds };

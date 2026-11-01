@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PULLED } from "./lib/rowSync";
+import { stripConverted } from "./lib/fx";
 import type { BalancePoint, Trade } from "./types";
 import type { ParsedTrade } from "./lib/tradingview";
 import { newFlows, type CashFlow, type ImportedFlow } from "./lib/cashflow";
@@ -30,7 +31,9 @@ export function useJournal() {
     return () => window.removeEventListener(PULLED, on);
   }, []);
 
-  const commit = (next: Store) => {
+  const commit = (raw: Store) => {
+    // Nothing converted is ever stored: a copy from the all-accounts view is put back to its own currency here.
+    const next: Store = { ...raw, trades: stripConverted(raw.trades) };
     ref.current = next;
     setStore(next);
     try {
