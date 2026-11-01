@@ -759,3 +759,51 @@ const to: Record<string, [string, string, string]> = {
   rDays: ["No trading days.", "لا توجد أيام تداول.", "Aucun jour de trading."],
 };
 export const toT = (lang: Lang) => (k: string): string => to[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;
+
+// ---------- Settings page ----------
+const st: Record<string, [string, string, string]> = {
+  title: ["Settings", "الإعدادات", "Paramètres"],
+  sub: ["How the app looks and behaves. Your personal details live in the profile.", "شكل التطبيق وسلوكه. بياناتك الشخصية في الحساب الشخصي.", "L'apparence et le comportement de l'app. Vos informations personnelles sont dans le profil."],
+
+  display: ["Display", "العرض", "Affichage"],
+  displaySub: ["Theme, language, and how numbers and dates are shown.", "المظهر واللغة وطريقة عرض الأرقام والتواريخ.", "Thème, langue, et présentation des nombres et des dates."],
+  weekStart: ["First day of the week", "أول أيام الأسبوع", "Premier jour de la semaine"],
+  weekStartSub: ["Used by the P&L calendar on the dashboard.", "يستخدمه تقويم الأرباح في الرئيسية.", "Utilisé par le calendrier P&L du tableau de bord."],
+  monday: ["Monday", "الإثنين", "Lundi"],
+  sunday: ["Sunday", "الأحد", "Dimanche"],
+  privacyAtOpen: ["Start with balances hidden", "ابدأ بإخفاء الأرصدة", "Démarrer avec les soldes masqués"],
+  privacyAtOpenSub: ["Privacy mode is on every time the site opens. The eye in the header still turns it off for this device.", "يبدأ وضع الخصوصية مفعّلاً عند كل فتح. زر العين في الأعلى يوقفه على هذا الجهاز.", "Le mode discret est actif à chaque ouverture. L'œil en haut le désactive encore sur cet appareil."],
+  reduceMotion: ["Reduce motion", "تقليل الحركة", "Réduire les animations"],
+  reduceMotionSub: ["Turns off the loading and sign-in animations, like the system setting of the same name.", "يوقف حركات شاشة التحميل وتسجيل الدخول، مثل إعداد النظام بالاسم نفسه.", "Désactive les animations de chargement et de connexion, comme le réglage système du même nom."],
+  fontSize: ["Text size", "حجم النص", "Taille du texte"],
+  small: ["Small", "صغير", "Petit"],
+  normal: ["Normal", "عادي", "Normal"],
+  large: ["Large", "كبير", "Grand"],
+  numberFormat: ["Number format", "تنسيق الأرقام", "Format des nombres"],
+  numberFormatSub: ["How thousands and decimals are written.", "طريقة كتابة الآلاف والكسور.", "Écriture des milliers et des décimales."],
+
+  trading: ["Trading", "التداول", "Trading"],
+  tradingSub: ["What the dashboard and the size calculator start from.", "ما تبدأ به الرئيسية وحاسبة الحجم.", "Les valeurs de départ du tableau de bord et de la calculatrice."],
+  defaultAccount: ["Account the dashboard opens on", "الحساب الذي تفتح به الرئيسية", "Compte à l'ouverture du tableau de bord"],
+  allAccounts: ["All accounts", "كل الحسابات", "Tous les comptes"],
+  riskPct: ["Default risk per trade", "المخاطرة الافتراضية للصفقة", "Risque par défaut par trade"],
+  riskPctSub: ["What the size calculator starts with, as a percent of the balance.", "ما تبدأ به حاسبة الحجم، كنسبة من الرصيد.", "Valeur de départ de la calculatrice, en pourcentage du solde."],
+
+  data: ["Data and security", "البيانات والأمان", "Données et sécurité"],
+  dataSub: ["Take your trades with you, and manage where you are signed in.", "خُذ صفقاتك معك، وتحكّم بأماكن تسجيل دخولك.", "Emportez vos trades, et gérez vos connexions."],
+  exportCsv: ["Export trades as CSV", "تصدير الصفقات CSV", "Exporter les trades en CSV"],
+  exportCsvSub: ["Built here in your browser; nothing is uploaded.", "يُنشأ في متصفحك؛ لا يُرسل شيء.", "Généré dans votre navigateur ; rien n'est envoyé."],
+  exportWhich: ["Which account", "أي حساب", "Quel compte"],
+  download: ["Download", "تنزيل", "Télécharger"],
+  noTrades: ["No trades to export yet.", "لا توجد صفقات للتصدير بعد.", "Aucun trade à exporter pour l'instant."],
+  exported: ["{n} trades exported.", "تم تصدير {n} صفقة.", "{n} trades exportés."],
+  signOutAll: ["Sign out of all devices", "تسجيل الخروج من كل الأجهزة", "Se déconnecter de tous les appareils"],
+  signOutAllSub: ["Ends every session, including this one. Your data stays.", "ينهي كل الجلسات، بما فيها هذه. بياناتك تبقى.", "Met fin à toutes les sessions, dont celle-ci. Vos données restent."],
+  signOutAllConfirm: ["Sign out everywhere?", "تسجيل الخروج من كل مكان؟", "Se déconnecter partout ?"],
+  signOutAllBody: ["This signs you out on every device, this one included, so you will be asked to sign in again here.", "سيُسجّل خروجك من كل الأجهزة، وهذا الجهاز منها، وسيُطلب منك الدخول من جديد هنا.", "Vous serez déconnecté sur tous les appareils, celui-ci compris, et devrez vous reconnecter ici."],
+  cancel: ["Cancel", "إلغاء", "Annuler"],
+  mt5Keys: ["MT5 sync keys", "مفاتيح مزامنة MT5", "Clés de synchronisation MT5"],
+  mt5KeysSub: ["Each account's sync key is on the import page, next to the account it belongs to.", "مفتاح المزامنة لكل حساب في صفحة الاستيراد، إلى جانب حسابه.", "La clé de chaque compte se trouve sur la page d'import, à côté du compte concerné."],
+  openImport: ["Open the import page", "فتح صفحة الاستيراد", "Ouvrir la page d'import"],
+};
+export const stT = (lang: Lang) => (k: string): string => st[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;

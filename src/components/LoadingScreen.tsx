@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useReduceMotion } from "../useSettings";
 import { CITIES, VIEW_BOX, WORLD_PATH, type CityGroup } from "./worldMap";
 import { marketNow, type MarketNow, type SessionKey } from "../lib/sessions";
 import { loadingPhrases, type Key } from "../i18n";
@@ -265,7 +265,7 @@ function WorldMap({ market, still }: { market: MarketNow; still: boolean }) {
 }
 
 export default function LoadingScreen({ t, lang, variant = "full" }: Props) {
-  const reduce = useReducedMotion();
+  const reduce = useReduceMotion();
   const [market, setMarket] = useState(() => marketNow());
   useEffect(() => {
     if (variant !== "full") return;

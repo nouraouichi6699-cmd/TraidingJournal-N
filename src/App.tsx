@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import AuthView from "./components/AuthView";
@@ -27,7 +27,10 @@ import { useJournal } from "./useJournal";
 import CalendarView from "./components/CalendarView";
 import NewsView from "./components/NewsView";
 import ProfileView from "./components/ProfileView";
+import SettingsView from "./components/SettingsView";
 import { useProfile } from "./useProfile";
+import { loadSettings, readSettings, useReduceMotion } from "./useSettings";
+import { setPrivacy } from "./usePrivacy";
 import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
 import { publishBotRules } from "./lib/tradeRules";
@@ -84,14 +87,14 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
     setOpenTrade(null);
     try { const u = new URL(location.href); u.searchParams.delete("trade"); history.replaceState(history.state, "", `${u.pathname}${u.search}${u.hash}`); } catch { /* the address keeps it */ }
   };
-  const [view, setView] = useState<View | "profile" | "news" | "calendar">(() => (openTrade ? "journal" : "dashboard"));
+  const [view, setView] = useState<View | "profile" | "news" | "calendar" | "settings">(() => (openTrade ? "journal" : "dashboard"));
   // One-shot deep link into Reports (e.g. Charts -> "Open this day" -> Day by Day), consumed when Reports mounts.
   const [reportsNav, setReportsNav] = useState<{ tab: string; day?: string; acc?: string | null } | null>(null);
   const { profile, save: saveProfile } = useProfile();
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onSettings={() => setView("settings")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -143,6 +146,12 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
                   }}
                 />
               )}
+              {view === "settings" && (
+                <SettingsView
+                  t={t} lang={lang} theme={theme} onLang={setLang} onTheme={setTheme}
+                  accounts={accounts} trades={journal.trades} onImport={() => setView("import")}
+                />
+              )}
               {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
               {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
               {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} />}
@@ -171,7 +180,7 @@ export default function App() {
   const t = makeT(lang);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [readyFor, setReadyFor] = useState<string | null>(null);
-  const reduce = useReducedMotion();
+  const reduce = useReduceMotion();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -196,7 +205,12 @@ export default function App() {
 
   const uid = session?.user.id;
   useEffect(() => {
-    if (uid && readyFor !== uid) Promise.all([initialSync(uid), initialSettingsSync(uid)]).finally(() => setReadyFor(uid));
+    if (uid && readyFor !== uid)
+      Promise.all([initialSync(uid), initialSettingsSync(uid)]).finally(() => {
+        loadSettings(); // a newer copy may have just arrived from another device
+        if (readSettings().privacyAtOpen) setPrivacy(true);
+        setReadyFor(uid);
+      });
   }, [uid, readyFor]);
 
   // The login screen asks to stay mounted while it plays its sign-in animation. The session and the first sync run

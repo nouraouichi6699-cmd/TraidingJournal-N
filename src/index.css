@@ -1071,3 +1071,20 @@ h6 {
 @media (prefers-reduced-motion: reduce) {
   .au-shake { animation: none; }
 }
+
+/* The Settings page writes these two on <html>. Font size has to beat the 16px on body as well as the one on html. */
+:root[data-font="small"],
+:root[data-font="small"] body { font-size: 15px; }
+:root[data-font="large"],
+:root[data-font="large"] body { font-size: 17.5px; }
+
+/* "Reduce motion" in Settings, which stands in for the system preference above. The media queries keep working on
+   their own; these selectors only add the same result for someone who asked for it in the app instead. */
+:root[data-reduce-motion="1"] .ld-beam,
+:root[data-reduce-motion="1"] .ld-pivot,
+:root[data-reduce-motion="1"] .ld-wobble,
+:root[data-reduce-motion="1"] .ld-ar,
+:root[data-reduce-motion="1"] .ld-by,
+:root[data-reduce-motion="1"] .ld-rise,
+:root[data-reduce-motion="1"] .ld-phrase,
+:root[data-reduce-motion="1"] .au-shake { animation: none; }

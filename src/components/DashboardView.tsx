@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readSettings } from "../useSettings";
 import { motion } from "motion/react";
 import { GripVertical, LayoutGrid, RotateCcw, Plus, X, Check, Pencil, Info } from "lucide-react";
 import { useDashEdit } from "../useDashEdit";
@@ -75,7 +76,8 @@ export default function DashboardView({ lang, accounts, trades: all, flows = [] 
   const [drag, setDrag] = useState<{ id: string; px: { x: number; y: number; w: number; h: number }; cell: Cell } | null>(null);
   const [W, setW] = useState(1200);
   const [vh, setVh] = useState(typeof window === "undefined" ? 900 : window.innerHeight);
-  const [filter, setFilter] = useState<{ acc: string; range: string }>(() => { try { return { acc: "all", range: "all", ...JSON.parse(localStorage.getItem(FILTER) || "{}") }; } catch { return { acc: "all", range: "all" }; } });
+  // The account from Settings is only the starting point: a filter already chosen here stays chosen.
+  const [filter, setFilter] = useState<{ acc: string; range: string }>(() => { const acc = readSettings().defaultAccount || "all"; try { return { acc, range: "all", ...JSON.parse(localStorage.getItem(FILTER) || "{}") }; } catch { return { acc, range: "all" }; } });
   const box = useRef<HTMLDivElement>(null);
   const cellsRef = useRef(cells); cellsRef.current = cells;
   const L = (l: ReturnType<typeof TR>) => l[lang];

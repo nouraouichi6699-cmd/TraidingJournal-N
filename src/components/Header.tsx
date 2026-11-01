@@ -19,6 +19,7 @@ interface Props {
   onLang: (l: Lang) => void;
   onTheme: (t: Theme) => void;
   onProfile: () => void;
+  onSettings: () => void;
   onNews: () => void;
   onCalendar: () => void;
   calc?: ReactNode; // position size calculator panel
@@ -31,7 +32,7 @@ const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
 const calcLabel: Record<Lang, string> = { en: "Position size", ar: "حجم الصفقة", fr: "Taille de position" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
+export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
   const privacy = usePrivacy();
   const dash = useDashEdit();
   const [full, setFull] = useState(!!document.fullscreenElement);
@@ -127,7 +128,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
                   {full ? <Minimize2 size={16} className="text-icon" /> : <Maximize2 size={16} className="text-icon" />}
                   <span className="flex-1 text-start">{t("fullscreen")}</span>
                 </button>
-                <button type="button" className="menu-item">
+                <button type="button" onClick={() => { onSettings(); close(); }} className="menu-item">
                   <Settings size={16} className="text-icon" />
                   <span className="flex-1 text-start">{t("settings")}</span>
                 </button>

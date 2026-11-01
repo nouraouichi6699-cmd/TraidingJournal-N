@@ -1,3 +1,4 @@
+import { numberLocale } from "./numberFormat";
 import type { Account } from "../types";
 
 /** Display symbol for a currency code; codes without a common symbol are shown as the code. */
@@ -9,10 +10,10 @@ export const currencySuffix = (code?: string | null): string => { const s = curr
 /**
  * Keeps each number with its sign and unit in reading order inside right-to-left (Arabic) text: after Arabic letters the bidi
  * algorithm moves a trailing "$" or "%" to the other side ("59$" shows as "$59"). Wraps every "-1,234.5$", "38.6%", "+0.11R",
- * "14h" or "1,234 TND" in an LTR isolate (U+2066 ... U+2069). Digits inside words (NAS100) are left alone; safe to apply twice.
+ * "14h", "1,234 TND" or a space-grouped "1 234,56" in an LTR isolate (U+2066 ... U+2069). Digits inside words (NAS100) are left alone; safe to apply twice.
  */
 export const ltrNumbers = (s: string): string =>
-  s.replace(/(?<![\u2066\w.,+\-\u2212])[+\-\u2212]?\d(?:[\d.,:/-]*\d)?(?: [A-Z]{2,}(?![A-Za-z])|[$€£¥₹₩₺₽₪₦₱₴₫₮%Rh](?![A-Za-z]))?/g, (m) => `\u2066${m}\u2069`);
+  s.replace(/(?<![\u2066\w.,+\-\u2212])[+\-\u2212]?\d(?:[\d.,:/\-\u202f\u00a0]*\d)?(?: [A-Z]{2,}(?![A-Za-z])|[$€£¥₹₩₺₽₪₦₱₴₫₮%Rh](?![A-Za-z]))?/g, (m) => `\u2066${m}\u2069`);
 
 /** The currency shared by all given accounts, or null when they differ (mixed totals get no symbol rather than a wrong one). */
 export const commonCurrency = (accounts: Pick<Account, "currency">[]): string | null => {
@@ -30,7 +31,7 @@ export const commonCurrency = (accounts: Pick<Account, "currency">[]): string | 
 export function fmtMoney(v: number, o: { cents?: boolean; sign?: boolean; currency?: string | null } = {}): string {
   if (!Number.isFinite(v)) return "-";
   const d = o.cents ? 2 : 0;
-  const body = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const body = Math.abs(v).toLocaleString(numberLocale(), { minimumFractionDigits: d, maximumFractionDigits: d });
   const zero = !/[1-9]/.test(body);
   return `${zero ? "" : v < 0 ? "-" : o.sign ? "+" : ""}${body}${currencySuffix(o.currency)}`;
 }

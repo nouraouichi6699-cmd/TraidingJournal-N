@@ -1,3 +1,4 @@
+import { numberLocale } from "./numberFormat";
 import type { Trade } from "../types";
 
 export function computeStats(trades: Trade[]) {
@@ -23,7 +24,7 @@ export function computeStats(trades: Trade[]) {
 export const fmtHold = (v: number) => { const t = Math.round(v), h = Math.floor(t / 60), m = t % 60; return h ? `${h}h ${m}m` : `${m}m`; };
 
 export const fmt = (n: number, digits = 2) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  n.toLocaleString(numberLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 // ---------- Overview report (32 metrics) ----------
 import { computeActivity } from "./activity";

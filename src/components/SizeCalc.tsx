@@ -2,6 +2,7 @@
 // a stop. Prop-challenge accounts also show the safe risk per trade (a third of the room left before a rule breaks, as in
 // the Telegram morning plan) and warn when the trade would risk more.
 import { useMemo, useState } from "react";
+import { readSettings } from "../useSettings";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
 import { currentBalance } from "../lib/balance";
@@ -47,7 +48,9 @@ export function symbolSpec(sym: string): { base: string; quote: string; contract
 const num = (s: string) => { const v = Number(s.replace(",", ".").trim()); return s.trim() && Number.isFinite(v) ? v : NaN; };
 const KEY = "mizan-size-calc";
 type Saved = { acc: string; mode: "pct" | "amt"; pct: string; amt: string; sym: string; contracts: Record<string, string>; rates: Record<string, string> };
-const load = (): Saved => { try { return { acc: "", mode: "pct", pct: "1", amt: "", sym: "", contracts: {}, rates: {}, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; } catch { return { acc: "", mode: "pct", pct: "1", amt: "", sym: "", contracts: {}, rates: {} }; } };
+// The default risk comes from Settings, which itself defaults to the "1" this used to hardcode. Anything already
+// saved here wins, so a calculator in use is never reset by the setting.
+const load = (): Saved => { const pct = readSettings().riskPct || "1"; try { return { acc: "", mode: "pct", pct, amt: "", sym: "", contracts: {}, rates: {}, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; } catch { return { acc: "", mode: "pct", pct, amt: "", sym: "", contracts: {}, rates: {} }; } };
 
 interface Props { lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; flows: CashFlow[] }
 

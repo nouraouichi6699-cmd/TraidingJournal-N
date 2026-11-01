@@ -108,7 +108,7 @@ export default function DemoDashboard() {
     <div className="min-h-screen bg-bg text-text">
       <Header
         lang={lang} t={t} theme={theme} name="CLIENT" avatar={null} onLang={setLang} onTheme={setTheme}
-        onProfile={nothing} onNews={nothing} onCalendar={nothing} onDashboard={nothing} onCharts={nothing}
+        onProfile={nothing} onSettings={nothing} onNews={nothing} onCalendar={nothing} onDashboard={nothing} onCharts={nothing}
         interests={noInterests}
         calc={<SizeCalc lang={lang} accounts={accounts} trades={trades} balances={balances} flows={flows} />}
       />

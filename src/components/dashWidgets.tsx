@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Ha
 import SymbolsWidget from "./SymbolsWidget";
 import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
+import { useSettings } from "../useSettings";
 import { symL } from "../i18n";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
@@ -216,7 +217,10 @@ function CalW({ c }: { c: Ctx }) {
   useEffect(() => { if (days.length && !days.some((d) => d.d.startsWith(month))) setMonth(days[days.length - 1].d.slice(0, 7)); }, [days.length]); // eslint-disable-line
   const [y, mo] = month.split("-").map(Number);
   const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  const lead = (new Date(Date.UTC(y, mo - 1, 1)).getUTCDay() + 6) % 7;
+  // Monday-first by default, as it always was; Sunday-first shifts both the lead blanks and the names below.
+  const sunFirst = useSettings().weekStart === "sun";
+  const dow = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
+  const lead = sunFirst ? dow : (dow + 6) % 7;
   const cells: (string | null)[] = [...Array(lead).fill(null), ...Array.from({ length: dim }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
   while (cells.length % 7) cells.push(null);
   const weeks = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
@@ -224,7 +228,7 @@ function CalW({ c }: { c: Ctx }) {
   const mx = Math.max(1, ...days.filter((d) => d.d.startsWith(month)).map((d) => Math.abs(d.pnl)));
   const step = (n: number) => { const d = new Date(Date.UTC(y, mo - 1 + n, 1)); setMonth(d.toISOString().slice(0, 7)); };
   const title = new Intl.DateTimeFormat(c.lang, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, mo - 1, 1)));
-  const wd = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(c.lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + i))));
+  const wd = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(c.lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, (sunFirst ? 0 : 1) + i))));
   return (
     <div className="flex h-full flex-col" onPointerDown={(e) => e.stopPropagation()}>
       <div className="mb-2 flex items-center justify-between">

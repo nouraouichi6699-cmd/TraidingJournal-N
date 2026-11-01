@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useReduceMotion } from "../useSettings";
 import { supabase } from "../lib/supabase";
 import LoginChart, { type Anchor, type LoginChartHandle } from "./LoginChart";
 import NewsCandle, { type NewsKind } from "./NewsCandle";
@@ -61,7 +61,7 @@ export default function AuthView({ t, lang, onLang, onAttempt, onDone }: Props) 
   const shoutId = useRef(0);
   const chart = useRef<LoginChartHandle | null>(null);
   const form = useRef<HTMLFormElement | null>(null);
-  const still = !!useReducedMotion();
+  const still = !!useReduceMotion();
 
   // The giant candle starts from wherever the chart has the price right now. Reduced motion skips it entirely.
   const news = (kind: NewsKind) => {
