@@ -1,6 +1,7 @@
 import type { Trade } from "../types";
 import { cents, tradeCore } from "./stats";
 import { tradeDay } from "./tradingTime";
+import { netOutcome } from "./outcome";
 import { annualise, flowTotals, signed, timeWeightedReturn, type CashFlow } from "./cashflow";
 
 /**
@@ -84,7 +85,7 @@ export function computeReturnsCapital(period: Trade[], before: Trade[], initial:
   if (startBal != null && n) { const ev = [...closed.map((t) => ({ k: closeKey(t), v: t.pnl as number, o: 1 })), ...flows.period.map((f) => ({ k: f.t, v: signed(f), o: 0 }))].sort((a, c) => a.k.localeCompare(c.k) || a.o - c.o); let b = startBal; high = b; for (const e of ev) { b += e.v; if (b > high) high = b; } }
   const allNet = hasInit ? initial + cents(sum([...prior, ...closed].map((t) => t.pnl as number))) + flowSum(flows.before) + flowSum(flows.period) : null;
 
-  const winD = dv.filter((v) => v > 0), lossD = dv.filter((v) => v < 0);
+  const winD = dv.filter((v) => netOutcome(v) === "win"), lossD = dv.filter((v) => netOutcome(v) === "loss");
   const posSum = sum(winD), negSum = Math.abs(sum(lossD));
   const rDay = startBal != null ? returns(days, startBal, fl) : [], rWeek = startBal != null ? returns(weeks, startBal, fl, weekOf) : [], rMonth = startBal != null ? returns(months, startBal, fl, monthOf) : [];
   const m = mean(dv);

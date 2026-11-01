@@ -811,6 +811,8 @@ const st: Record<string, [string, string, string]> = {
   ny17Sub: ["The forex convention: the day turns over at the New York close, so a late evening trade counts towards the next day.", "العُرف في الفوركس: يتغيّر اليوم عند إغلاق نيويورك، فتُحسب صفقة آخر المساء على اليوم التالي.", "La convention forex : la journée change à la clôture de New York, donc un trade tard le soir compte pour le lendemain."],
   dateOnlyNote: ["A trade stored with a date but no time keeps its own date whichever you pick.", "الصفقة المخزّنة بتاريخ دون وقت تحتفظ بتاريخها أياً كان اختيارك.", "Un trade enregistré avec une date sans heure garde sa date, quel que soit votre choix."],
 
+  breakEven: ["Break-even range", "نطاق التعادل", "Plage de neutralité"],
+  breakEvenSub: ["A trade this size or smaller counts as break-even instead of a win or a loss, in the account's own currency. Day and period totals keep their own sign.", "الصفقة بهذا الحجم أو أقل تُحسب تعادلاً لا ربحاً ولا خسارة، بعملة الحساب نفسها. أما مجاميع اليوم والفترة فتحتفظ بإشارتها.", "Un trade de cette taille ou moins compte comme neutre plutôt que gain ou perte, dans la devise du compte. Les totaux du jour et de la période gardent leur signe."],
   bounds: ["Session boundaries for analysis (UTC)", "حدود الجلسات للتحليل (UTC)", "Limites des sessions pour l'analyse (UTC)"],
   boundsSub: ["The UTC hours where one session hands over to the next, used wherever trades are grouped by session.", "ساعات UTC التي تنتقل عندها جلسة إلى التالية، وتُستخدم في كل تجميع للصفقات حسب الجلسة.", "Les heures UTC où une session passe à la suivante, utilisées partout où les trades sont groupés par session."],
   boundTokyo: ["Tokyo ends", "تنتهي طوكيو", "Fin de Tokyo"],

@@ -1,4 +1,5 @@
 import { tradeDay } from "./tradingTime";
+import { netOutcome, tradeOutcome } from "./outcome";
 import type { Trade } from "../types";
 
 export const dayKey = (t: Trade) => tradeDay(t, t.exitTime || t.entryTime || "");
@@ -28,14 +29,14 @@ export interface Metrics {
 
 export function metrics(closed: Trade[]): Metrics {
   const p = (t: Trade) => t.pnl as number;
-  const w = closed.filter((t) => p(t) > 0), l = closed.filter((t) => p(t) < 0);
+  const w = closed.filter((t) => tradeOutcome(p(t)) === "win"), l = closed.filter((t) => tradeOutcome(p(t)) === "loss");
   const gw = w.reduce((s, t) => s + p(t), 0), gl = Math.abs(l.reduce((s, t) => s + p(t), 0));
   const net = gw - gl;
   const avgWin = w.length ? gw / w.length : 0, avgLoss = l.length ? gl / l.length : 0;
   const ratio = avgLoss ? avgWin / avgLoss : null;
   const pf = gl ? gw / gl : null;
   const days = byDay(closed);
-  const dayWinRate = days.length ? (days.filter((d) => d.pnl > 0).length / days.length) * 100 : null;
+  const dayWinRate = days.length ? (days.filter((d) => netOutcome(d.pnl) === "win").length / days.length) * 100 : null;
   let run = 0;
   const cum = days.map((d) => ({ d: d.d, v: (run += d.pnl) }));
   // drawdown over the trade sequence

@@ -2,6 +2,7 @@
 import type { Trade } from "../types";
 import { ticketOf } from "./stats";
 import { signed, type CashFlow } from "./cashflow";
+import { netOutcome } from "./outcome";
 
 export interface SymbolRow { symbol: string; count: number; pct: number }
 export interface SymbolBreakdown { total: number; distinct: number; symbols: SymbolRow[] }
@@ -76,7 +77,7 @@ const runs = (vals: number[]): Streak => {
   for (const v of vals) {
     if (v === 0) { be++; bestBE = Math.max(bestBE, be); continue; } // breakeven: neither counts nor breaks a win/loss streak
     be = 0;
-    const k = v > 0 ? "win" : "loss";
+    const k = netOutcome(v) === "win" ? "win" : "loss";
     if (k === kind) n++; else { kind = k; n = 1; }
     if (k === "win") bestWin = Math.max(bestWin, n); else worstLoss = Math.max(worstLoss, n);
   }

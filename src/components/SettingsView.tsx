@@ -5,7 +5,7 @@ import { Clock3, Database, LogOut, Monitor, TrendingUp } from "lucide-react";
 import { SectionHead, Switch } from "./profileUi";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { setSettings, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type WeekStart } from "../useSettings";
-import { DEFAULT_BOUNDS } from "../lib/tradingTime";
+import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
 import { setPrivacy } from "../usePrivacy";
 import { downloadCsv, tradesToCsv } from "../lib/exportTrades";
 import { supabase } from "../lib/supabase";
@@ -240,6 +240,18 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
 
           <div className={row}>
             <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{L("breakEven")}</span>
+              <span className="mt-0.5 block text-xs text-muted">{L("breakEvenSub")}</span>
+            </span>
+            <input
+              aria-label={L("breakEven")} className="field !w-24 !py-1.5 text-sm" type="number" min="0" step="0.01" inputMode="decimal"
+              value={s.breakEven}
+              onChange={(e) => setSettings({ breakEven: Math.max(0, Number(e.target.value) || 0) })}
+            />
+          </div>
+
+          <div className={row}>
+            <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">{L("bounds")}</span>
               <span className="mt-0.5 block text-xs text-muted">{L("boundsSub")}</span>
               <span className="mt-1 block text-xs text-muted">{L("boundsNote")}</span>
@@ -250,7 +262,8 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
                   {L(key)}
                   <input
                     className="field !w-16 !py-1.5 text-sm" type="number" min="0" max="24" step="1" value={s.sessionBounds[field]}
-                    onChange={(e) => setSettings({ sessionBounds: { ...s.sessionBounds, [field]: Math.max(0, Math.min(24, Number(e.target.value) || 0)) } })}
+                    /* Put back in order on the way in, so an invalid set is never stored. */
+                    onChange={(e) => setSettings({ sessionBounds: clampBounds({ ...s.sessionBounds, [field]: Number(e.target.value) }) })}
                   />
                 </label>
               ))}

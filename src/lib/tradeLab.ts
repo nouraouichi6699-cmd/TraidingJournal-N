@@ -3,6 +3,7 @@
 import type { Trade } from "../types";
 import { rng } from "./chartAnalytics";
 import { sessionOfHour, tradeParts } from "./tradingTime";
+import { netOutcome, tradeOutcome } from "./outcome";
 
 export interface Pt { t: number; v: number }
 const ms = (s: string | null | undefined) => (s ? Date.parse(s.length <= 16 ? `${s}Z` : s) : NaN);
@@ -63,7 +64,7 @@ export interface LabStats { n: number; net: number; winRate: number | null; pf: 
 export function labStats(trades: Trade[]): LabStats {
   const l = trades.filter(isClosed).sort(byClose);
   let net = 0, peak = 0, dd = 0, gp = 0, gl = 0, w = 0;
-  for (const t of l) { const p = pnl(t); net += p; if (c2(p) > 0) { w++; gp += p; } else if (c2(p) < 0) gl -= p; peak = Math.max(peak, net); dd = Math.max(dd, peak - net); }
+  for (const t of l) { const p = pnl(t), o = tradeOutcome(p, 2); net += p; if (o === "win") { w++; gp += p; } else if (o === "loss") gl -= p; peak = Math.max(peak, net); dd = Math.max(dd, peak - net); }
   return { n: l.length, net, winRate: l.length ? (w / l.length) * 100 : null, pf: gl > 1e-9 ? gp / gl : null, maxDD: dd };
 }
 
@@ -372,10 +373,10 @@ export function weeklyReport(trades: Trade[], nowWall: number, minutes = 30): We
   add("tilt", "afterLoss", [...tilt.afterLoss, ...tilt.afterLossBigger].filter((t) => mine.has(t)));
   for (const k of ["sessTK", "sessLN", "sessNY", "sessSY"]) add("session", k, w.filter((t) => sessionOf(tradeParts(t, t.entryTime ?? t.exitTime).hour ?? new Date(entryMs(t)).getUTCHours()) === k));
   for (const k of [...new Set(w.map((t) => t.symbol))].sort()) add("symbol", k, w.filter((t) => t.symbol === k));
-  const habit = groups.filter((g) => c2(g.net) < 0).sort((a, b) => a.net - b.net)[0] ?? null;
+  const habit = groups.filter((g) => netOutcome(g.net, 2) === "loss").sort((a, b) => a.net - b.net)[0] ?? null;
   return {
     week: new Date(start).toISOString().slice(0, 10), end: end - 60e3, n: s.n, net: s.net, winRate: s.winRate ?? 0,
-    best: hs.length && c2(hs[0].net) > 0 ? hs[0] : null, worst: hs.length && c2(hs[hs.length - 1].net) < 0 ? hs[hs.length - 1] : null,
+    best: hs.length && netOutcome(hs[0].net, 2) === "win" ? hs[0] : null, worst: hs.length && netOutcome(hs[hs.length - 1].net, 2) === "loss" ? hs[hs.length - 1] : null,
     habit, prevNet: prev.length ? labStats(prev).net : null,
   };
 }

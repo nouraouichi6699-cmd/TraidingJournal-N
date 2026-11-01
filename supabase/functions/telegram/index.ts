@@ -275,6 +275,8 @@ export function morningPlan(c: Ch, n: ReturnType<typeof challengeNow>, today: st
 /** Losses in a row at the top of closed trades listed newest first (a trade at 0 or better ends the run). */
 export function lossStreak(newestFirst: { pnl: number | null }[]) {
   let n = 0, sum = 0;
+  // TODO: a plain sign test, deliberately. This runs in Deno and cannot reach src/lib/outcome.ts, and it has no
+  // sight of the user's settings, so it will take the break-even range in the Telegram settings phase.
   for (const t of newestFirst) { const p = Number(t.pnl); if (t.pnl == null || !(p < 0)) break; n++; sum += p; }
   return { n, sum };
 }
@@ -322,6 +324,7 @@ export function dangerOf(x: { symbol: string; side: string; entry_time: string }
   ];
   let best: Danger | null = null;
   for (const [kind, test] of groups) {
+    // TODO: a plain sign test, as above; the break-even range arrives with the Telegram settings phase.
     const l = closed.filter(test), n = l.length, lost = l.filter((t) => Number(t.pnl) < 0).length, net = l.reduce((a, t) => a + Number(t.pnl), 0);
     if (n < 6 || lost / n < 2 / 3 - 1e-9 || net >= 0 || new Set(l.map((t) => (t.entry_time as string).slice(0, 10))).size < 3) continue;
     if (!best || lost / n > best.lost / best.n + 1e-9) best = { kind, n, lost, net };

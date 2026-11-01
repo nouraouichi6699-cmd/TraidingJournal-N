@@ -3,6 +3,7 @@
 // and a day is the date part of that time.
 import type { Trade } from "../types";
 import { signed, type CashFlow } from "./cashflow";
+import { tradeOutcome } from "./outcome";
 
 export interface Bar { d: string; o: number; h: number; l: number; c: number } // one daily bar, d = YYYY-MM-DD
 
@@ -177,7 +178,7 @@ export function marketContext(trades: Trade[], bars: Record<string, Bar[]>, o: {
   const list = trades.filter(isClosed).sort((a, b) => (a.exitTime as string).localeCompare(b.exitTime as string) || a.no - b.no);
   const clean: Record<string, Bar[]> = {};
   for (const [s, b] of Object.entries(bars)) clean[s] = cleanBars(b);
-  const win = (t: Trade) => c2(t.pnl as number) > 0;
+  const win = (t: Trade) => tradeOutcome(t.pnl as number, 2) === "win";
   const rate = (a: Trade[]) => (a.length ? (a.filter(win).length / a.length) * 100 : null);
 
   // location (per symbol scale check first)

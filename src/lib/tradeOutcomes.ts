@@ -2,6 +2,7 @@
 import type { Trade } from "../types";
 import { cents, tradeCore, ticketOf } from "./stats";
 import { tradeDay } from "./tradingTime";
+import { netOutcome, tradeOutcome } from "./outcome";
 
 export const GROUPS = {
   tradeResults: ["totalTrades", "winningTrades", "losingTrades", "breakevenTrades", "winRate", "lossRate", "breakevenRate", "dailyWinRate", "winningDays", "losingDays", "breakevenDays"],
@@ -51,7 +52,7 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
   const dayMap = new Map<string, number>();
   for (const t of closed) { const d = tradeDay(t, closeKey(t)); if (d) dayMap.set(d, (dayMap.get(d) ?? 0) + p(t)); }
   const days = [...dayMap.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, v]) => cents(v));
-  const winDays = days.filter((v) => v > 0).length, loseDays = days.filter((v) => v < 0).length;
+  const winDays = days.filter((v) => netOutcome(v) === "win").length, loseDays = days.filter((v) => netOutcome(v) === "loss").length;
 
   // Edge
   const winP = core.wins.map(p), lossP = core.losses.map(p);
@@ -64,7 +65,7 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
   }
 
   // Outcome sequence S (breakevens removed)
-  const S = closed.filter((t) => cents(p(t)) !== 0).map((t) => ({ o: (cents(p(t)) > 0 ? "W" : "L") as O, v: p(t) }));
+  const S = closed.filter((t) => tradeOutcome(p(t), 2) !== "be").map((t) => ({ o: (tradeOutcome(p(t), 2) === "win" ? "W" : "L") as O, v: p(t) }));
   const pairs = (o: O) => { let d = 0, same = 0; const next: number[] = []; for (let i = 0; i < S.length - 1; i++) if (S[i].o === o) { d++; if (S[i + 1].o === o) same++; next.push(S[i + 1].v); } return { d, same, next }; };
   const aw = pairs("W"), al = pairs("L");
   const runs = runsOf(S);
@@ -78,7 +79,7 @@ export function computeTradeOutcomes(trades: Trade[], startBalance: number): Tra
   const longest = (bad: (v: number) => boolean) => { let best = 0, cur = 0; for (const t of closed) { if (bad(cents(p(t)))) { cur++; best = Math.max(best, cur); } else cur = 0; } return best; };
 
   // Day streaks (days with non-zero P&L)
-  const dRuns = runsOf(days.filter((v) => v !== 0).map((v) => ({ o: (v > 0 ? "W" : "L") as O, v })));
+  const dRuns = runsOf(days.filter((v) => netOutcome(v) !== "be").map((v) => ({ o: (netOutcome(v) === "win" ? "W" : "L") as O, v })));
   const wr = runs.filter((r) => r.o === "W"), lr = runs.filter((r) => r.o === "L");
 
   // Concentration

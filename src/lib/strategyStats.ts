@@ -4,6 +4,7 @@ import type { Trade } from "../types";
 import { ticketOf, tradeCore } from "./stats";
 import { streakBreakdown } from "./dashAnalytics";
 import { entryMs, heatmap, isClosed, rMultiple, sessionOf, type HeatCell } from "./tradeLab";
+import { netOutcome } from "./outcome";
 
 export interface SideStats { n: number; wins: number; net: number; winRate: number | null }
 export interface StrategyStats {
@@ -66,7 +67,7 @@ export function conditionsOf(trades: Trade[], min = 3): Conditions {
   return {
     n: closed.length, heat: heatmap(closed), hours: [...new Set(closed.map(hourOf))].sort((a, b) => a - b), days, sessions, byDay: byDayP,
     symbols: symbols.sort((a, b) => b.p.net - a.p.net || b.p.n - a.p.n).slice(0, 3),
-    best: all.filter((x) => x.p.net > 0).sort((a, b) => b.p.net - a.p.net || b.p.n - a.p.n)[0] ?? null,
-    worst: all.filter((x) => x.p.net < 0).sort((a, b) => a.p.net - b.p.net || b.p.n - a.p.n)[0] ?? null,
+    best: all.filter((x) => netOutcome(x.p.net) === "win").sort((a, b) => b.p.net - a.p.net || b.p.n - a.p.n)[0] ?? null,
+    worst: all.filter((x) => netOutcome(x.p.net) === "loss").sort((a, b) => a.p.net - b.p.net || b.p.n - a.p.n)[0] ?? null,
   };
 }

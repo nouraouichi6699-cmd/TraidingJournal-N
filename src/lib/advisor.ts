@@ -5,6 +5,7 @@
 import type { Trade } from "../types";
 import { metrics } from "./dashStats";
 import { NO_RULES, simulate, type Level, type Rules, type SimInput } from "./whatif";
+import { tradeOutcome } from "./outcome";
 
 export type Topic = "discipline" | "timing" | "symbols" | "direction" | "exits" | "behaviour" | "risk";
 export type Kind = "fix" | "strength" | "watch";
@@ -40,7 +41,7 @@ export function advise(inputs: SimInput[]): Plan {
   const withPath = all.filter((x) => x.path && x.k != null && x.k > 0);
   if (all.length < MIN_TRADES) return { advice: [], plan: null, trades: all.length, exitsCovered: withPath.length };
   const half = all.length >> 1, parts: [SimInput[], SimInput[]] = [all.slice(0, half), all.slice(half)];
-  const wins = trades.filter((t) => (t.pnl as number) > 0), losses = trades.filter((t) => (t.pnl as number) < 0);
+  const wins = trades.filter((t) => tradeOutcome(t.pnl as number) === "win"), losses = trades.filter((t) => tradeOutcome(t.pnl as number) === "loss");
   const avgWin = wins.length ? sum(wins.map((t) => t.pnl as number)) / wins.length : 0, avgLoss = losses.length ? -sum(losses.map((t) => t.pnl as number)) / losses.length : 0;
   const minGain = Math.max(avgLoss, 1); // worth at least one average losing trade
   const out: Advice[] = [];
@@ -130,7 +131,7 @@ export function advise(inputs: SimInput[]): Plan {
     const aw = sum(hw) / hw.length, al = sum(hl) / hl.length;
     if (aw > 0 && al / aw >= 1.5) out.push({ id: "holdLosers", kind: "watch", topic: "risk", n: hw.length + hl.length, impact: null, halves: null, proof: proofOf(hw.length + hl.length, null), rules: null, data: { x: al / aw, lw: aw, ll: al } });
   }
-  const noSl = trades.filter((t) => !(t.sl != null && t.sl > 0)), lostNo = noSl.filter((t) => (t.pnl as number) < 0), lostSl = losses.filter((t) => t.sl != null && t.sl > 0);
+  const noSl = trades.filter((t) => !(t.sl != null && t.sl > 0)), lostNo = noSl.filter((t) => tradeOutcome(t.pnl as number) === "loss"), lostSl = losses.filter((t) => t.sl != null && t.sl > 0);
   if (noSl.length / trades.length >= 0.5 && lostNo.length >= 3) {
     const a = -stat(lostNo).net / lostNo.length, b = lostSl.length ? -stat(lostSl).net / lostSl.length : null;
     if (b == null || a > 1.2 * b) out.push({ id: "noStop", kind: "watch", topic: "risk", n: noSl.length, impact: null, halves: null, proof: proofOf(noSl.length, null), rules: null, data: { p: (noSl.length / trades.length) * 100, a, ...(b != null ? { b } : {}) } });

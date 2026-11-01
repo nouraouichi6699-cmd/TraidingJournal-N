@@ -59,6 +59,24 @@ export function brokerAheadHours(clock: BrokerClock, atMs: number): number {
   return 0;
 }
 
+/**
+ * Boundaries put back in order: Tokyo before London before New York, all inside 0..24. Anything that is not a
+ * number falls back to that boundary's default. The later hours give way first, and only when there is no room
+ * left at the top of the day do the earlier ones move down.
+ */
+export function clampBounds(b: SessionBounds): SessionBounds {
+  const whole = (v: number, fallback: number) => (Number.isFinite(v) ? Math.max(0, Math.min(24, Math.round(v))) : fallback);
+  let tokyo = whole(b.tokyo, DEFAULT_BOUNDS.tokyo);
+  let london = Math.max(whole(b.london, DEFAULT_BOUNDS.london), tokyo + 1);
+  let newYork = Math.max(whole(b.newYork, DEFAULT_BOUNDS.newYork), london + 1);
+  if (newYork > 24) {
+    newYork = 24;
+    london = Math.min(london, newYork - 1);
+    tokyo = Math.min(tokyo, london - 1);
+  }
+  return { tokyo, london, newYork };
+}
+
 /** Which session a UTC hour belongs to. Every hour belongs to exactly one, as it always has. */
 export function sessionAt(hour: number, b: SessionBounds): SessionKey {
   return hour < b.tokyo ? "sessTK" : hour < b.london ? "sessLN" : hour < b.newYork ? "sessNY" : "sessSY";

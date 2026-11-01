@@ -3,6 +3,7 @@
 // the same market, side, hour and weekday (warnings, or good signs), and how today went so far.
 import type { Trade } from "../types";
 import type { Rules } from "./whatif";
+import { netOutcome } from "./outcome";
 
 export interface Planned { day: string; hour: number; weekday: number; symbol: string; side: "long" | "short" } // weekday 0 = Monday
 export interface RuleRef { id: string; rules: Partial<Rules> }
@@ -67,9 +68,9 @@ export function checkTrade<R extends RuleRef>(x: Planned, trades: Trade[], adopt
     ["day", done.filter((t) => at(t) && weekdayOf(at(t)) === x.weekday)],
   ];
   const signs = groups.map(([kind, ts]) => ({ kind, ...stat(ts) }))
-    .filter((s) => s.n >= MIN_SIGN && (s.net < 0 || s.wr >= 50))
-    .map((s) => ({ ...s, good: s.net > 0 && s.wr >= 50 }))
-    .filter((s) => s.good || s.net < 0);
+    .filter((s) => s.n >= MIN_SIGN && (netOutcome(s.net) === "loss" || s.wr >= 50))
+    .map((s) => ({ ...s, good: netOutcome(s.net) === "win" && s.wr >= 50 }))
+    .filter((s) => s.good || netOutcome(s.net) === "loss");
   const noStop = done.length ? done.filter((t) => !(t.sl != null && t.sl > 0)).length / done.length : 0;
   const warn = planHit.length > 0 || today.run >= 2 || signs.some((s) => !s.good);
   return { verdict: broken.length ? "stop" : warn ? "careful" : "go", broken, plan: planHit, signs, today, noStop };

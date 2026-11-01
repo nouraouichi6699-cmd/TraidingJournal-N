@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { useReducedMotion } from "motion/react";
 import { setNumberLocale } from "./lib/numberFormat";
+import { setBreakEvenRange } from "./lib/outcome";
 import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
 
 // The settings page's own store. One synced key so the whole lot travels together (settingsSync pushes it like the
@@ -34,6 +35,8 @@ export interface Settings {
   dayStart: DayStart;
   /** The UTC hours the analysis sessions change at. */
   sessionBounds: SessionBounds;
+  /** A trade whose result is this size or smaller counts as break-even. 0 keeps today's win/loss split. */
+  breakEven: number;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -49,6 +52,7 @@ export const DEFAULTS: Settings = {
   brokerByAccount: {},
   dayStart: "midnight",
   sessionBounds: DEFAULT_BOUNDS,
+  breakEven: 0,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };
@@ -74,6 +78,7 @@ let current = read();
 function apply(s: Settings) {
   setNumberLocale(LOCALE[s.numberFormat] ?? LOCALE.dot);
   // The analytics read these through tradingTime, which keeps its own copy so the pure files need no React.
+  setBreakEvenRange(s.breakEven ?? 0);
   setAnalysisSettings({
     bounds: s.sessionBounds ?? DEFAULT_BOUNDS,
     dayStart: s.dayStart ?? "midnight",

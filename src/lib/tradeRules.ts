@@ -8,6 +8,7 @@ import type { Lang, Trade } from "../types";
 import { STRATEGIES, type Id, type StrategyText } from "./strategies";
 import { readCustom, type CustomStrategy } from "./customStrategies";
 import { readMine, type AnyId } from "./myStrategies";
+import { tradeOutcome } from "./outcome";
 
 export const BOT_KEY = "mizan-rules-bot", ANSWERS_KEY = "mizan-trade-rules";
 export interface BotRules { lang: Lang; list: { id: string; name: string; rules: string[] }[] }
@@ -47,7 +48,7 @@ export function readAnswers(): Record<string, RuleAnswer> {
 
 export interface Part { n: number; wins: number; net: number; winRate: number | null }
 const part = (list: Trade[]): Part => {
-  const wins = list.filter((t) => (t.pnl as number) > 0).length;
+  const wins = list.filter((t) => tradeOutcome(t.pnl as number) === "win").length;
   return { n: list.length, wins, net: list.reduce((a, t) => a + (t.pnl as number), 0), winRate: list.length ? (wins / list.length) * 100 : null };
 };
 
