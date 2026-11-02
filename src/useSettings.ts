@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { useReducedMotion } from "motion/react";
 import { setNumberLocale } from "./lib/numberFormat";
 import { setBreakEvenRange } from "./lib/outcome";
+import { DEFAULT_LIGHTING, type Lighting } from "./lib/lighting";
 import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
 
 // The settings page's own store. One synced key so the whole lot travels together (settingsSync pushes it like the
@@ -47,6 +48,9 @@ export interface Settings {
   rates: Record<string, number>;
   /** The day the fetched rates are from, as the service reports it. */
   ratesDate: string;
+
+  /** The light behind the app. Absent in settings saved before it existed, which read as the defaults. */
+  lighting: Lighting;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -67,9 +71,11 @@ export const DEFAULTS: Settings = {
   baseCurrency: "USD",
   rates: {},
   ratesDate: "",
+  lighting: DEFAULT_LIGHTING,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };
+export type { Lighting };
 
 /** Where a link into Settings wants to land. */
 export interface SettingsStart { section: string; topic?: string }
@@ -89,7 +95,9 @@ const subs = new Set<() => void>();
 const read = (): Settings => {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    return raw && typeof raw === "object" ? { ...DEFAULTS, ...(raw as Partial<Settings>) } : DEFAULTS;
+    if (!raw || typeof raw !== "object") return DEFAULTS;
+    const saved = raw as Partial<Settings>;
+    return { ...DEFAULTS, ...saved, lighting: { ...DEFAULT_LIGHTING, ...(saved.lighting ?? {}) } };
   } catch {
     return DEFAULTS;
   }

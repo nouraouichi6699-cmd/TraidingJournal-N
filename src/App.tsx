@@ -22,6 +22,7 @@ import JournalView from "./components/JournalView";
 import ChallengeView from "./components/ChallengeView";
 import { Watermark } from "./components/Brand";
 import LoadingScreen from "./components/LoadingScreen";
+import Ambient from "./components/Ambient";
 const StrategiesView = lazy(() => import("./components/StrategiesView"));
 import { useJournal } from "./useJournal";
 import CalendarView from "./components/CalendarView";
@@ -103,7 +104,10 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const { profile, save: saveProfile } = useProfile();
 
   return (
-    <div className="min-h-screen bg-bg text-text">
+    <div className="relative min-h-screen bg-bg text-text">
+      {/* The light sits over the page colour and under everything else; the wrapper below keeps content on top. */}
+      <Ambient theme={theme} />
+      <div className="relative z-10">
       <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
@@ -178,6 +182,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
             </motion.div>
           </AnimatePresence>
         </main>
+      </div>
       </div>
       <Watermark feedback={t("feedback")} />
       {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}

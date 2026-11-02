@@ -1163,3 +1163,26 @@ h6 {
 :root[data-reduce-motion="1"] .mz-shake-a,
 :root[data-reduce-motion="1"] .mz-shake-b,
 :root[data-reduce-motion="1"] .mz-banner { animation: none; }
+
+/* ---------- Ambient lighting ---------- */
+/* Copied from the design sheet unchanged: these timings and distances were tuned by eye over many rounds. */
+@keyframes mz-hue { to { filter: hue-rotate(360deg); } }
+@keyframes mz-drift-a { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(220px, 120px); } 66% { transform: translate(-60px, 200px); } }
+@keyframes mz-drift-b { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(-240px, -90px); } 66% { transform: translate(-80px, -220px); } }
+@keyframes mz-drift-c { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(180px, -160px); } }
+@keyframes mz-twinkle { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@keyframes mz-meteor {
+  0% { opacity: 0; transform: translate(0, 0) rotate(-20deg); }
+  1% { opacity: 1; }
+  6%, 100% { opacity: 0; transform: translate(-560px, 204px) rotate(-20deg); }
+}
+/* Two brightenings to a cycle, and no cycle shorter than 1.5s: see policeFlashesPerSecond in lib/lighting.ts. */
+@keyframes mz-police { 0%, 100% { opacity: .06; } 4% { opacity: 1; } 10% { opacity: .12; } 16% { opacity: 1; } 24% { opacity: .06; } }
+
+.mz-orb { will-change: transform, opacity; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mz-orb { animation: none !important; }
+}
+
+:root[data-reduce-motion="1"] .mz-orb { animation: none !important; }

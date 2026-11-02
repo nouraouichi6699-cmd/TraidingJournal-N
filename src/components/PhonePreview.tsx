@@ -7,7 +7,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { stT } from "../i18n";
-import { useReduceMotion } from "../useSettings";
+import { useReduceMotion, useSettings } from "../useSettings";
+import { DEFAULT_LIGHTING, dur, SWATCH } from "../lib/lighting";
+import { SESSION_TRIO } from "../lib/sessionColors";
+import { sessionAt } from "../lib/tradingTime";
 import type { Lang } from "../types";
 
 type L3 = Record<Lang, string>;
@@ -134,14 +137,37 @@ export default function PhonePreview({ lang, highlight }: { lang: Lang; highligh
   }, [highlight, still]);
 
   const cur = SAMPLES.find((x) => x.id === picked) ?? SAMPLES[0];
+
+  // The frame edge carries the light the app is wearing. The screen itself stays plain: it is a message, not a lamp.
+  const set = useSettings();
+  const light = { ...DEFAULT_LIGHTING, ...(set.lighting ?? {}) };
+  const sessTrio = SESSION_TRIO[sessionAt(new Date().getUTCHours(), set.sessionBounds)];
+  const ring =
+    light.style === "police" ? "linear-gradient(90deg, #ff2d55, #2d7bff)"
+      : light.color === "rgb" ? "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)"
+        : light.color === "custom" ? `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`
+          : light.color === "session" ? `linear-gradient(135deg, ${sessTrio.a}, ${sessTrio.b}, ${sessTrio.c})`
+            : (SWATCH[light.color] ?? "#f2c14e");
+  const ringAnim = light.color === "rgb" && light.style !== "police" && !still && light.playing
+    ? `mz-hue ${dur(30, light.speed)} linear infinite` : undefined;
   const shakeClass = shake === 0 || still ? "" : shake % 2 ? "mz-shake-a" : "mz-shake-b";
 
   return (
     <div className="flex flex-col gap-3">
       <div className={`relative mx-auto w-[248px] ${shakeClass}`}>
         {/* The handset: a metal frame, the camera hole, and a plain screen. */}
+        {/* The lit edge: a ring cut out of the light's own colour, so only the frame glows. */}
         <div
-          className="rounded-[2.2rem] p-[3px]"
+          className="mz-orb pointer-events-none absolute inset-[-3px] rounded-[2.4rem] p-[3px]"
+          style={{
+            background: ring, animation: ringAnim,
+            WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+            WebkitMaskComposite: "xor", mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+            maskComposite: "exclude", opacity: light.style === "off" ? 0.35 : 0.9,
+          }}
+        />
+        <div
+          className="relative rounded-[2.2rem] p-[3px]"
           style={{ background: "linear-gradient(160deg, color-mix(in srgb, var(--text) 26%, transparent), color-mix(in srgb, var(--text) 8%, transparent))" }}
         >
           <div className="relative overflow-hidden rounded-[2rem] border border-border" style={{ background: "var(--bg)" }}>

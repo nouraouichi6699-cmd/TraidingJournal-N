@@ -2,13 +2,16 @@
 // rather than markup. Personal details stay in the profile and are not repeated here, and every setting keeps the
 // storage key, default and behaviour it already had: this file decides where a control sits, never what it does.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, RefreshCw, Send, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, Pause, Play, RefreshCw, Send, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
 import { Lamp, Note, Pills, Row, SessionRibbon, ThemeCards, Tile } from "./settingsUi";
 import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
+import { DEFAULT_LIGHTING, SWATCH, type LightColor, type LightSpeed, type LightStyle } from "../lib/lighting";
+import { SESSION_TRIO } from "../lib/sessionColors";
+import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
-import { setSettings, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
+import { setSettings, useReduceMotion, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
 import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
 import { classifyOutcome } from "../lib/outcome";
 import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
@@ -45,6 +48,7 @@ const SECTION_IDS = ["display", "trading", "analysis", "telegram", "security", "
 export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts, trades, onImport, onProfile, start }: Props) {
   const L = stT(lang);
   const s = useSettings();
+  const reduce = useReduceMotion();
   const [exportAcc, setExportAcc] = useState("all");
   const [note, setNote] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -142,6 +146,116 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         <Row label={L("reduceMotion")} sub={L("reduceMotionShort")}>
           <Lamp label={L("reduceMotion")} on={s.reduceMotion} onChange={(v) => setSettings({ reduceMotion: v })} />
         </Row>
+      </Tile>
+    </>
+  );
+
+  // ---- Display > Lighting ----
+  const light = { ...DEFAULT_LIGHTING, ...(s.lighting ?? {}) };
+  const setLight = (patch: Partial<typeof light>) => setSettings({ lighting: { ...light, ...patch } });
+  const ivory = theme === "light";
+  const sessionKey = sessionAt(new Date().getUTCHours(), s.sessionBounds);
+  const SESSION_NAME = { sessTK: t("sessTK"), sessLN: t("sessLN"), sessNY: t("sessNY"), sessSY: t("sessSY") } as const;
+  // The swatch each colour choice shows. The moving, own and session choices are pictures of what they do.
+  const swatchBg = (c: LightColor): string =>
+    c === "rgb" ? "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)"
+      : c === "session" ? "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)"
+        : c === "custom" ? `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`
+          : SWATCH[c] ?? "#f2c14e";
+
+  const lightTiles: ReactNode = (
+    <>
+      <Tile title={L("topLight")} wide>
+        {ivory && <Note text={L("lightIvory")} />}
+        {!ivory && reduce && <Note text={L("lightReduced")} />}
+
+        <Row label={L("lightStyle")}>
+          <span className="flex flex-wrap items-center gap-2">
+            <Pills<LightStyle>
+              label={L("lightStyle")} value={light.style} onChange={(v) => setLight({ style: v })}
+              options={[
+                { v: "aurora", label: L("lightAurora") }, { v: "police", label: L("lightPolice") },
+                { v: "orbs", label: L("lightOrbs") }, { v: "off", label: L("lightOff") },
+              ]}
+            />
+            <button
+              type="button" aria-pressed={!light.playing} aria-label={L(light.playing ? "lightPause" : "lightPlay")}
+              onClick={() => setLight({ playing: !light.playing })}
+              className="grid h-11 w-11 place-items-center rounded-full border border-border transition hover:bg-primary-tint"
+            >
+              {light.playing ? <Pause size={15} /> : <Play size={15} />}
+            </button>
+          </span>
+        </Row>
+
+        {light.style !== "off" && (
+          <Row label={L("lightColor")}>
+            <div role="radiogroup" aria-label={L("lightColor")} className="flex flex-wrap gap-1">
+              {(["rgb", "gold", "blue", "violet", "green", "custom", "session"] as LightColor[]).map((c) => {
+                const here = light.color === c;
+                return (
+                  <button
+                    key={c} type="button" role="radio" aria-checked={here} tabIndex={here ? 0 : -1}
+                    aria-label={L(c === "rgb" ? "lightRgb" : c === "custom" ? "lightCustom" : c === "session" ? "lightSession" : `light${c[0].toUpperCase()}${c.slice(1)}`)}
+                    onClick={() => setLight({ color: c })}
+                    className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+                  >
+                    <span
+                      className="h-[22px] w-[22px] rounded-full"
+                      style={{ background: swatchBg(c), boxShadow: here ? "0 0 0 2px var(--bg), 0 0 0 4px var(--text)" : undefined }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </Row>
+        )}
+
+        {light.style !== "off" && light.color === "session" && (
+          <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
+            <span className="flex items-center gap-2 text-xs text-muted">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: SESSION_TRIO[sessionKey].a, boxShadow: `0 0 10px ${SESSION_TRIO[sessionKey].a}` }} />
+              {L("lightSessionNow")} <b className="font-semibold text-text">{SESSION_NAME[sessionKey]}</b>
+            </span>
+            <Note text={L("lightSessionNote")} />
+          </div>
+        )}
+
+        {light.style !== "off" && light.color === "custom" && (
+          <div className="flex flex-wrap gap-3 rounded-2xl border border-border p-3">
+            {(["a", "b", "c"] as const).map((k, i) => (
+              <label key={k} className="flex flex-col items-center gap-1 text-[11px] text-muted">
+                <input
+                  type="color" aria-label={L(["lightLower", "lightMiddle", "lightTips"][i])} value={light.custom[k]}
+                  onChange={(e) => setLight({ color: "custom", custom: { ...light.custom, [k]: e.target.value } })}
+                  className="h-8 w-10 cursor-pointer rounded-lg border border-border bg-transparent p-0"
+                />
+                {L(["lightLower", "lightMiddle", "lightTips"][i])}
+              </label>
+            ))}
+          </div>
+        )}
+
+        {light.style !== "off" && (
+          <>
+            <Row label={L("lightLevel")}>
+              <span className="flex items-center gap-2">
+                <input
+                  type="range" min="20" max="100" step="5" value={light.level} aria-label={L("lightLevel")}
+                  onChange={(e) => setLight({ level: Number(e.target.value) })}
+                  className="w-40 cursor-pointer accent-[var(--primary)]"
+                />
+                <span className="tnum w-10 text-xs font-semibold" dir="ltr">{light.level}%</span>
+              </span>
+            </Row>
+            <Row label={L("lightSpeed")}>
+              <Pills<LightSpeed>
+                label={L("lightSpeed")} value={light.speed} onChange={(v) => setLight({ speed: v })}
+                options={[{ v: "slow", label: L("lightCalm") }, { v: "normal", label: L("lightNormal") }, { v: "fast", label: L("lightFast") }]}
+              />
+            </Row>
+          </>
+        )}
       </Tile>
     </>
   );
@@ -437,6 +551,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
       id: "display", label: L("secDisplay"), desc: L("secDisplayDesc"), icon: Monitor, topics: [
         { id: "look", label: L("topLook"), intro: L("topLookIntro"), tiles: look },
         { id: "lang", label: L("topLang"), intro: L("topLangIntro"), tiles: langTiles },
+        { id: "light", label: L("topLight"), intro: L("topLightIntro"), tiles: lightTiles },
       ],
     },
     { id: "trading", label: L("secTrading"), desc: L("secTradingDesc"), icon: TrendingUp, intro: L("tradingIntro"), topics: [], tiles: tradingTiles },
