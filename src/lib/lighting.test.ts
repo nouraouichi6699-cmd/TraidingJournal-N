@@ -5,6 +5,8 @@ import {
   lift, orbAlpha, orbSpread, paletteKey, policeAlpha, policeFlashesPerSecond, POLICE_SECONDS, SAFE_FLASHES_PER_SECOND,
   sessionNow, sessionTrio, speedFactor, SPEED_FACTOR, strip, type LightColor, type LightSpeed,
   AA_CONTRAST, contrastRatio, FULL_COLORS, fullColourBg, maxReadableMix, mixHex, relLuminance, THEME_INK,
+  AA_LARGE, CARD_COLORS, maxReadableSurfaceMix, offsetFrom, SURFACE_FAMILY, SURFACE_INK, SURFACE_VAR_NAMES,
+  surfaceReadable, surfaceVars,
 } from "./lighting";
 import type { Theme } from "../types";
 import { SESSION_COLORS, SESSION_TRIO } from "./sessionColors";
@@ -191,6 +193,100 @@ is("no moving colours", !FULL_COLORS.includes("rgb"));
 is("the four swatches, the session and one of your own", FULL_COLORS.length === 6 && FULL_COLORS.includes("session") && FULL_COLORS.includes("custom"));
 is("full colour is not the default style", DEFAULT_LIGHTING.style !== "full");
 is("and it carries one colour", /^#[0-9a-f]{6}$/i.test(DEFAULT_LIGHTING.solid));
+
+console.log("-- the cards colour: what the surface family is");
+for (const th of THEMES) {
+  const f = SURFACE_FAMILY[th];
+  is(`${th}: a surface and at least a border, a track and a skeleton`, /^#[0-9a-f]{6}$/i.test(f.surface)
+    && ["--border", "--gauge-track", "--skeleton"].every((k) => k in f.companions));
+  is(`${th}: every companion is a plain colour`, Object.values(f.companions).every((v) => /^#[0-9a-f]{6}$/i.test(v)));
+}
+// Ivory paints its cards with a gradient over the surface, so it must not be overridden with a flat colour.
+is("Ivory leaves its card gradient to follow the surface", !("--card-bg" in SURFACE_FAMILY.light.companions));
+is("Navy and Black set their card background, which is a literal there",
+  "--card-bg" in SURFACE_FAMILY.dark.companions && "--card-bg" in SURFACE_FAMILY.black.companions);
+is("nothing outside the surface family is ever written",
+  SURFACE_VAR_NAMES.every((n) => ["--surface", "--card-bg", "--gauge-bg", "--gauge-track", "--border", "--skeleton"].includes(n)));
+is("the background, the gold and the ink are never written",
+  !SURFACE_VAR_NAMES.some((n) => ["--bg", "--primary", "--primary-2", "--on-primary", "--accent", "--icon", "--text", "--muted", "--profit", "--loss"].includes(n)));
+
+console.log("-- all five inks read on an untinted card today");
+for (const th of THEMES) {
+  is(`${th}: untouched surface passes`, surfaceReadable(th, SURFACE_FAMILY[th].surface));
+}
+
+console.log("-- the guard, tint by tint and theme by theme");
+for (const th of THEMES) {
+  for (const tint of TINTS) {
+    const ceiling = maxReadableSurfaceMix(th, tint);
+    is(`${th} ${tint}: the ceiling itself reads`, surfaceReadable(th, mixHex(SURFACE_FAMILY[th].surface, tint, ceiling)));
+    is(`${th} ${tint}: every strength reads`, [20, 40, 60, 80, 100].every((lv) => surfaceReadable(th, surfaceVars(th, tint, lv).vars["--surface"])));
+    // No comparison with the background ceiling here: the two mix into different colours (--bg against --surface),
+    // and in Ivory the surface starts at pure white, which takes more of a tint than the slightly grey page does.
+  }
+}
+{
+  const navy = surfaceVars("dark", "#ffff00", 100);
+  is(`Navy cards take only ${(navy.mix * 100).toFixed(0)}% of a pure yellow`, navy.mix > 0 && navy.mix < 0.3);
+  const ivory = surfaceVars("light", "#ffff00", 100);
+  is("Ivory cards can take all of it", ivory.mix > 0.9);
+}
+
+console.log("-- a companion keeps its exact distance from the surface");
+for (const th of THEMES) {
+  const f = SURFACE_FAMILY[th];
+  for (const [name, value] of Object.entries(f.companions)) {
+    const { vars } = surfaceVars(th, "#5ab8f0", 100);
+    const d = (a: string, b: string) => {
+      const pa = a.replace("#", "").match(/../g)!.map((x) => parseInt(x, 16));
+      const pb = b.replace("#", "").match(/../g)!.map((x) => parseInt(x, 16));
+      return pa.map((v, i) => v - pb[i]);
+    };
+    const before = d(value, f.surface);
+    const after = d(vars[name], vars["--surface"]);
+    is(`${th} ${name}: the same distance, in size`, before.every((x, i) => Math.abs(Math.abs(x) - Math.abs(after[i])) <= 1));
+  }
+}
+
+console.log("-- the distance flips rather than clipping at the ends");
+// A surface pushed to pure white cannot take a lighter border on top, so the same distance goes the other way.
+{
+  const lighter = offsetFrom("#ffffff", "#0b1c3d", "#1d3466"); // the border sits lighter than the surface in Navy
+  is("a white surface gets a darker border instead of a clipped one", lighter !== "#ffffff");
+  const p = lighter.replace("#", "").match(/../g)!.map((x) => parseInt(x, 16));
+  is("and it stays inside the range", p.every((v) => v >= 0 && v <= 255));
+  is("with the distance kept", Math.abs(255 - p[2]) === Math.abs(0x34 - 0x3d) || Math.abs(255 - p[2]) > 0);
+}
+{
+  const darker = offsetFrom("#000000", "#ffffff", "#dbe1ee"); // the border sits darker than the surface in Ivory
+  is("a black surface gets a lighter border instead of a clipped one", darker !== "#000000");
+  const p = darker.replace("#", "").match(/../g)!.map((x) => parseInt(x, 16));
+  is("and it stays inside the range too", p.every((v) => v >= 0 && v <= 255));
+}
+is("no companion ever lands on the surface itself, at any strength", THEMES.every((th) => {
+  const f = SURFACE_FAMILY[th];
+  return [20, 60, 100].every((lv) => ["#ffff00", "#000000", "#ffffff", "#5ab8f0"].every((tint) => {
+    const { vars } = surfaceVars(th, tint, lv);
+    return Object.keys(f.companions).every((k) => vars[k] !== vars["--surface"]);
+  }));
+}));
+
+console.log("-- the strength runs across the whole slider here too");
+for (const th of THEMES) {
+  const at = (lv: number) => surfaceVars(th, "#a78bfa", lv).mix;
+  is(`${th}: more strength means more colour`, [20, 40, 60, 80, 100].every((lv, i, a) => i === 0 || at(lv) > at(a[i - 1])));
+  near(`${th}: 100% is the ceiling`, at(100), maxReadableSurfaceMix(th, "#a78bfa"));
+}
+eq("an unknown theme falls back rather than throwing", typeof surfaceVars("nope" as Theme, "#5ab8f0", 70).vars["--surface"], "string");
+
+console.log("-- what the cards colour offers, and its default");
+is("the theme's own look is one of the choices", CARD_COLORS.includes("theme"));
+is("no moving colours and no three-colour set", !CARD_COLORS.some((c) => c === "rgb" || c === "custom3"));
+eq("and it starts on the theme's own look", DEFAULT_LIGHTING.cardColor, "theme");
+is("with a colour behind the picker", /^#[0-9a-f]{6}$/i.test(DEFAULT_LIGHTING.cardSolid));
+eq("at the same default strength as the background", DEFAULT_LIGHTING.cardLevel, 70);
+is("the five-ink rule is stricter for text than for the rest", AA_CONTRAST > AA_LARGE);
+is("every theme names all five inks", THEMES.every((th) => ["text", "muted", "primary", "profit", "loss"].every((k) => /^#[0-9a-f]{6}$/i.test((SURFACE_INK[th] as Record<string, string>)[k]))));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

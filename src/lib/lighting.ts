@@ -223,6 +223,107 @@ export function fullColourBg(theme: Theme, tint: string, level: number): { color
 /** The colours this style offers: the plain swatches, the session, and one colour of the customer's own. */
 export const FULL_COLORS: LightColor[] = ["gold", "blue", "violet", "green", "session", "custom"];
 
+// ---------- the cards colour ----------
+
+/**
+ * The surface family, mirrored from index.css: the surface itself, and the colours that are drawn as literals next
+ * to it. The ones that already read var(--surface) or var(--card-bg) are left out on purpose, because they follow
+ * the tint on their own - Ivory's card background is a gradient over the surface and has to keep being one.
+ */
+export const SURFACE_FAMILY: Record<Theme, { surface: string; companions: Record<string, string> }> = {
+  dark: {
+    surface: "#0b1c3d",
+    // --gauge-bg is var(--card-bg) here, so it follows.
+    companions: { "--card-bg": "#081a3a", "--gauge-track": "#1c3263", "--border": "#1d3466", "--skeleton": "#112650" },
+  },
+  light: {
+    surface: "#ffffff",
+    // --card-bg is a gradient over the surface and --gauge-bg is the surface, so both follow.
+    companions: { "--gauge-track": "#e3e7f0", "--border": "#dbe1ee", "--skeleton": "#e8ecf5" },
+  },
+  black: {
+    surface: "#0a0a0a",
+    companions: { "--card-bg": "#000000", "--gauge-bg": "#000000", "--gauge-track": "#2a2a2a", "--border": "#1f1f1f", "--skeleton": "#151515" },
+  },
+};
+
+/** The five things that have to stay legible on a card. */
+export const SURFACE_INK: Record<Theme, { text: string; muted: string; primary: string; profit: string; loss: string }> = {
+  dark: { text: "#ffffff", muted: "#a9b8d6", primary: "#e6b84a", profit: "#e6b84a", loss: "#f87171" },
+  light: { text: "#0a1a3f", muted: "#4b5a7d", primary: "#0a1f5c", profit: "#946900", loss: "#b91c1c" },
+  black: { text: "#ffffff", muted: "#9a9a9a", primary: "#f5b83d", profit: "#f5b83d", loss: "#f87171" },
+};
+
+/** WCAG for something that is not text: an outline, a bar, a dot. */
+export const AA_LARGE = 3;
+
+/** True while every ink still reads on that background. */
+export function surfaceReadable(theme: Theme, bg: string): boolean {
+  const ink = SURFACE_INK[theme] ?? SURFACE_INK.dark;
+  return contrastRatio(ink.text, bg) >= AA_CONTRAST
+    && contrastRatio(ink.muted, bg) >= AA_CONTRAST
+    && contrastRatio(ink.primary, bg) >= AA_LARGE
+    && contrastRatio(ink.profit, bg) >= AA_LARGE
+    && contrastRatio(ink.loss, bg) >= AA_LARGE;
+}
+
+/** As much of the tint as a card can take while all five still read. Walks up and stops at the first failure. */
+export function maxReadableSurfaceMix(theme: Theme, tint: string, step = 0.01): number {
+  const base = (SURFACE_FAMILY[theme] ?? SURFACE_FAMILY.dark).surface;
+  let best = 0;
+  for (let t = 0; t <= 1 + 1e-9; t += step) {
+    if (!surfaceReadable(theme, mixHex(base, tint, t))) break;
+    best = Math.min(1, t);
+  }
+  return best;
+}
+
+/**
+ * A companion colour put back the same distance from the tinted surface that it sits from the plain one.
+ *
+ * Mixing it towards the tint along with the surface would pull the two together and fade the hairline; keeping the
+ * distance keeps a border exactly as visible as it is today. When the tint is close enough to black or white that
+ * the distance would run off the end, it is applied the other way instead, which keeps the separation rather than
+ * flattening it against the edge.
+ */
+export function offsetFrom(tintedSurface: string, plainSurface: string, companion: string): string {
+  const [tr, tg, tb] = triple(tintedSurface);
+  const [sr, sg, sb] = triple(plainSurface);
+  const [cr, cg, cb] = triple(companion);
+  const off: [number, number, number] = [cr - sr, cg - sg, cb - sb];
+  const fits = (sign: number) => off.every((d, i) => {
+    const v = [tr, tg, tb][i] + sign * d;
+    return v >= 0 && v <= 255;
+  });
+  const sign = fits(1) ? 1 : fits(-1) ? -1 : 1; // both off the end: clamp, which only happens at the very extremes
+  return `#${hex2(tr + sign * off[0])}${hex2(tg + sign * off[1])}${hex2(tb + sign * off[2])}`;
+}
+
+/**
+ * Every variable the cards colour writes, and the share of the tint used. The surface is tinted and each literal of
+ * its family is rebuilt from it, so the whole set moves together.
+ */
+export function surfaceVars(theme: Theme, tint: string, level: number): { vars: Record<string, string>; mix: number } {
+  const family = SURFACE_FAMILY[theme] ?? SURFACE_FAMILY.dark;
+  const mix = maxReadableSurfaceMix(theme, tint) * (clampLevel(level) / 100);
+  const surface = mixHex(family.surface, tint, mix);
+  const vars: Record<string, string> = { "--surface": surface };
+  for (const [name, value] of Object.entries(family.companions)) {
+    vars[name] = offsetFrom(surface, family.surface, value);
+  }
+  return { vars, mix };
+}
+
+/** The variable names the cards colour ever touches, so they can all be taken off again. */
+export const SURFACE_VAR_NAMES: string[] = [
+  "--surface",
+  ...Array.from(new Set(Object.values(SURFACE_FAMILY).flatMap((f) => Object.keys(f.companions)))),
+];
+
+/** "theme" is the untouched look; the rest are the colours on offer. */
+export type CardColor = "theme" | "gold" | "blue" | "violet" | "green" | "session" | "custom";
+export const CARD_COLORS: CardColor[] = ["theme", "gold", "blue", "violet", "green", "session", "custom"];
+
 /** The whole lighting setting, as it is stored. */
 export interface Lighting {
   style: LightStyle;
@@ -234,6 +335,14 @@ export interface Lighting {
   playing: boolean;
   /** The one colour the full-colour background uses, kept apart so it cannot disturb the aurora's three. */
   solid: string;
+
+  // ---- the cards, independent of the background above ----
+  /** "theme" leaves every surface exactly as the theme paints it. */
+  cardColor: CardColor;
+  /** The colour behind the cards when cardColor is "custom". */
+  cardSolid: string;
+  /** 20..100, across what the card can take before its text stops reading. */
+  cardLevel: number;
 }
 
 export const DEFAULT_LIGHTING: Lighting = {
@@ -244,4 +353,7 @@ export const DEFAULT_LIGHTING: Lighting = {
   speed: "normal",
   playing: true,
   solid: "#4dffa0",
+  cardColor: "theme",
+  cardSolid: "#5ab8f0",
+  cardLevel: 70,
 };

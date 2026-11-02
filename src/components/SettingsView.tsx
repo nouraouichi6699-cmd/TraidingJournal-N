@@ -7,7 +7,7 @@ import { Lamp, Note, Pills, Row, SessionRibbon, ThemeCards, Tile } from "./setti
 import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
-import { DEFAULT_LIGHTING, FULL_COLORS, SWATCH, type LightColor, type LightSpeed, type LightStyle } from "../lib/lighting";
+import { CARD_COLORS, DEFAULT_LIGHTING, FULL_COLORS, SWATCH, surfaceVars, type CardColor, type LightColor, type LightSpeed, type LightStyle } from "../lib/lighting";
 import { SESSION_TRIO } from "../lib/sessionColors";
 import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
@@ -155,9 +155,13 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const setLight = (patch: Partial<typeof light>) => setSettings({ lighting: { ...light, ...patch } });
   const ivory = theme === "light";
   const full = light.style === "full";
+  const sessionKey = sessionAt(new Date().getUTCHours(), s.sessionBounds);
+  // The colour the cards are actually tinted with, resolved the same way the ambient layer resolves it.
+  const cardTint = light.cardColor === "session" ? SESSION_TRIO[sessionKey].a
+    : light.cardColor === "custom" ? light.cardSolid
+      : (SWATCH[light.cardColor] ?? SWATCH.gold);
   // Full colour is a tint, so it works in Ivory too; the glows do not. And it offers one colour, not three.
   const colourChoices: LightColor[] = full ? FULL_COLORS : ["rgb", "gold", "blue", "violet", "green", "custom", "session"];
-  const sessionKey = sessionAt(new Date().getUTCHours(), s.sessionBounds);
   const SESSION_NAME = { sessTK: t("sessTK"), sessLN: t("sessLN"), sessNY: t("sessNY"), sessSY: t("sessSY") } as const;
   // The swatch each colour choice shows. The moving, own and session choices are pictures of what they do.
   const swatchBg = (c: LightColor): string =>
@@ -271,6 +275,63 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
                 options={[{ v: "slow", label: L("lightCalm") }, { v: "normal", label: L("lightNormal") }, { v: "fast", label: L("lightFast") }]}
               />
             </Row>}
+          </>
+        )}
+      </Tile>
+
+      <Tile title={L("cards")}>
+        <Note text={L("cardsSub")} />
+        <Row label={L("lightColor")}>
+          <div role="radiogroup" aria-label={L("cards")} className="flex flex-wrap gap-1">
+            {CARD_COLORS.map((c) => {
+              const here = light.cardColor === c;
+              return (
+                <button
+                  key={c} type="button" role="radio" aria-checked={here} tabIndex={here ? 0 : -1}
+                  aria-label={L(c === "theme" ? "cardsTheme" : c === "custom" ? "lightOwnColour" : c === "session" ? "lightSession" : `light${c[0].toUpperCase()}${c.slice(1)}`)}
+                  onClick={() => setLight({ cardColor: c })}
+                  className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+                >
+                  {/* The first swatch is the theme's own card colour: a picture of changing nothing. */}
+                  <span
+                    className={`h-[22px] w-[22px] rounded-full ${c === "theme" ? "border border-border" : ""}`}
+                    style={{
+                      background: c === "theme" ? "var(--surface)"
+                        : c === "session" ? "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)"
+                          : c === "custom" ? light.cardSolid : (SWATCH[c] ?? "#f2c14e"),
+                      boxShadow: here ? "0 0 0 2px var(--bg), 0 0 0 4px var(--text)" : undefined,
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </Row>
+
+        {light.cardColor === "custom" && (
+          <Row label={L("lightOwnColour")}>
+            <input
+              type="color" aria-label={L("lightOwnColour")} value={light.cardSolid}
+              onChange={(e) => setLight({ cardColor: "custom", cardSolid: e.target.value })}
+              className="h-9 w-12 cursor-pointer rounded-lg border border-border bg-transparent p-0"
+            />
+          </Row>
+        )}
+
+        {light.cardColor !== "theme" && (
+          <>
+            <Row label={L("lightLevel")}>
+              <span className="flex items-center gap-2">
+                <input
+                  type="range" min="20" max="100" step="5" value={light.cardLevel} aria-label={L("lightLevel")}
+                  onChange={(e) => setLight({ cardLevel: Number(e.target.value) })}
+                  className="w-40 cursor-pointer accent-[var(--primary)]"
+                />
+                <span className="tnum w-10 text-xs font-semibold" dir="ltr">{light.cardLevel}%</span>
+              </span>
+            </Row>
+            {/* What the guard actually allowed, so a bright colour settling low is explained rather than puzzling. */}
+            <Note text={L("cardsUsed").replace("{n}", String(Math.round(surfaceVars(theme, cardTint, light.cardLevel).mix * 100)))} />
           </>
         )}
       </Tile>

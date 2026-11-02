@@ -6,10 +6,11 @@
 // "lighter" and softened with a CSS blur. There are deliberately NO vertical rays or lines: the bands below are
 // wider than their spacing, so they overlap into one smooth sheet. Anything that reintroduces visible verticals is
 // wrong and was rejected twice.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   auroraAlpha, buildPalette, DEFAULT_LIGHTING, dur, fullColourBg, orbAlpha, orbSpread, paletteKey, policeAlpha,
-  POLICE_SECONDS, sessionNow, sessionTrio, speedFactor, SWATCH, type Lighting, type Rgb, type Stop, type Trio,
+  POLICE_SECONDS, sessionNow, sessionTrio, speedFactor, surfaceVars, SURFACE_VAR_NAMES, SWATCH,
+  type Lighting, type Rgb, type Stop, type Trio,
 } from "../lib/lighting";
 import { useReduceMotion, useSettings } from "../useSettings";
 import type { Theme } from "../types";
@@ -74,7 +75,8 @@ export default function Ambient({ theme }: { theme: Theme }) {
   // The open session is checked now and then rather than every frame; nothing else here depends on the clock.
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (off || light.color !== "session") return;
+    if (light.color !== "session" && light.cardColor !== "session") return;
+    if (off && light.cardColor !== "session") return;
     const id = window.setInterval(() => setTick((n) => n + 1), 60e3);
     return () => window.clearInterval(id);
   }, [off, light.color]);
@@ -95,6 +97,29 @@ export default function Ambient({ theme }: { theme: Theme }) {
   // What the loop reads each frame, without restarting it when a number changes.
   const cfg = useRef({ alpha, rate, key, pal: buildPalette(light.color, trio), running });
   cfg.current = { alpha, rate, key, pal: buildPalette(light.color, trio), running };
+
+  // ---- the cards colour ----
+  // Independent of the style above: it applies with any of them, Off included, and in every theme.
+  // A layout effect, so the variables are on the document before the first paint and nothing flashes untinted.
+  const cardTint = light.cardColor === "session" ? sessionTrio(sessionNow(Date.now(), s.sessionBounds)).a
+    : light.cardColor === "custom" ? light.cardSolid
+      : (SWATCH[light.cardColor] ?? SWATCH.gold);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    // "theme" means the surfaces are left exactly as the theme paints them, so the variables come off entirely.
+    if (light.cardColor === "theme") {
+      for (const name of SURFACE_VAR_NAMES) root.style.removeProperty(name);
+      return;
+    }
+    const { vars } = surfaceVars(theme, cardTint, light.cardLevel);
+    // Any name this theme does not set is removed, so nothing of another theme's family is left behind.
+    for (const name of SURFACE_VAR_NAMES) {
+      if (name in vars) root.style.setProperty(name, vars[name]);
+      else root.style.removeProperty(name);
+    }
+    // Taken off on the way out, which is what keeps the login and loading screens on their own colours.
+    return () => { for (const name of SURFACE_VAR_NAMES) root.style.removeProperty(name); };
+  }, [theme, light.cardColor, cardTint, light.cardLevel]);
 
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const decor = useRef<HTMLDivElement | null>(null);
