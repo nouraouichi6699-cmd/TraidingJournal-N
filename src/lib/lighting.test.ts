@@ -7,6 +7,7 @@ import {
   AA_CONTRAST, contrastRatio, FULL_COLORS, fullColourBg, maxReadableMix, mixHex, relLuminance, THEME_INK,
   AA_LARGE, CARD_COLORS, maxReadableSurfaceMix, offsetFrom, SURFACE_FAMILY, SURFACE_INK, SURFACE_VAR_NAMES,
   surfaceReadable, surfaceVars,
+  isHexColor, normalizeHex, paletteChoice, PRESETS, pushRecent, RECENT_MAX, SWATCH,
 } from "./lighting";
 import type { Theme } from "../types";
 import { SESSION_COLORS, SESSION_TRIO } from "./sessionColors";
@@ -287,6 +288,103 @@ is("with a colour behind the picker", /^#[0-9a-f]{6}$/i.test(DEFAULT_LIGHTING.ca
 eq("at the same default strength as the background", DEFAULT_LIGHTING.cardLevel, 70);
 is("the five-ink rule is stricter for text than for the rest", AA_CONTRAST > AA_LARGE);
 is("every theme names all five inks", THEMES.every((th) => ["text", "muted", "primary", "profit", "loss"].every((k) => /^#[0-9a-f]{6}$/i.test((SURFACE_INK[th] as Record<string, string>)[k]))));
+
+console.log("-- the twenty colours every row offers");
+eq("twenty of them", PRESETS.length, 20);
+is("each one is a plain six-digit hex, in lower case", PRESETS.every((p) => /^#[0-9a-f]{6}$/.test(p.hex)));
+eq("no colour appears twice", new Set(PRESETS.map((p) => p.hex)).size, 20);
+eq("and no name does either", new Set(PRESETS.map((p) => p.id)).size, 20);
+// They are Tailwind's 400 shades, which is the weight index.css is already painted at. If one of these drifts, the
+// palette has stopped matching the charts.
+const hexOfId = (id: string) => PRESETS.find((p) => p.id === id)?.hex;
+eq("red is the one --loss already uses", hexOfId("red"), "#f87171");
+eq("rose is the one --c-rose uses", hexOfId("rose"), "#fb7185");
+eq("violet is the one --c-violet uses", hexOfId("violet"), "#a78bfa");
+eq("emerald is the one --c-emerald uses", hexOfId("emerald"), "#34d399");
+is("a white, a grey and a brown round the row off", ["white", "grey", "brown"].every((id) => !!hexOfId(id)));
+eq("white is white", hexOfId("white"), "#ffffff");
+// The gold is the theme's own and stays a choice of its own, so it must not also sit in the palette.
+is("the gold is not one of the twenty", !PRESETS.some((p) => p.hex === SWATCH.gold));
+
+console.log("-- what counts as a colour code");
+is("a six-digit hex with the hash", isHexColor("#4dffa0"));
+is("upper case is a hex too", isHexColor("#4DFFA0"));
+is("and spaces around it are forgiven", isHexColor("  #4dffa0 "));
+is("no hash is not", !isHexColor("4dffa0"));
+is("three digits is not", !isHexColor("#fff"));
+is("eight digits is not", !isHexColor("#4dffa0ff"));
+is("letters past f are not", !isHexColor("#gggggg"));
+is("nothing is not", !isHexColor(""));
+is("a colour name is not", !isHexColor("red"));
+eq("a hex is stored in lower case", normalizeHex("  #4DFFA0 "), "#4dffa0");
+eq("and rubbish is stored not at all", normalizeHex("#fff"), null);
+
+console.log("-- the last few colours of your own");
+eq("six are kept", RECENT_MAX, 6);
+eq("the newest goes first", pushRecent(["#111111"], "#222222"), ["#222222", "#111111"]);
+eq("picking one again moves it up rather than repeating it",
+  pushRecent(["#111111", "#222222", "#333333"], "#333333"), ["#333333", "#111111", "#222222"]);
+eq("case is not a different colour", pushRecent(["#aabbcc"], "#AABBCC"), ["#aabbcc"]);
+{
+  let list: string[] = [];
+  for (const h of ["#010101", "#020202", "#030303", "#040404", "#050505", "#060606", "#070707"]) list = pushRecent(list, h);
+  eq("the seventh pushes the first out", list.length, RECENT_MAX);
+  eq("and the newest is still at the front", list[0], "#070707");
+  is("the one that fell off is gone", !list.includes("#010101"));
+}
+eq("rubbish is not remembered", pushRecent(["#111111"], "nope"), ["#111111"]);
+
+console.log("-- which swatch wears the check");
+const BG = ["rgb", "gold", "session", "custom"];
+const CARD = ["theme", "gold", "session"];
+eq("a choice that means something marks itself", paletteChoice("rgb", BG, "#4dffa0", SWATCH), { kind: "special", id: "rgb" });
+eq("so does the gold", paletteChoice("gold", BG, "#4dffa0", SWATCH), { kind: "special", id: "gold" });
+eq("and the theme's own look", paletteChoice("theme", CARD, "#4dffa0", SWATCH), { kind: "special", id: "theme" });
+eq("one of the twenty marks that colour", paletteChoice("solid", BG, "#f87171", SWATCH), { kind: "preset", hex: "#f87171" });
+eq("upper case is the same colour", paletteChoice("solid", BG, "#F87171", SWATCH), { kind: "preset", hex: "#f87171" });
+eq("anything else marks the own colour", paletteChoice("solid", BG, "#123456", SWATCH), { kind: "own", hex: "#123456" });
+eq("a broken colour marks nothing", paletteChoice("solid", BG, "oops", SWATCH), { kind: "none" });
+// The three fixed colours are no longer offered on their own. A setting saved before the palette keeps painting; it
+// is matched by its hex, so violet lands on the palette's violet and the old blue, #5ab8f0, lands nowhere.
+eq("a violet saved earlier finds its swatch", paletteChoice("violet", BG, "#4dffa0", SWATCH), { kind: "preset", hex: "#a78bfa" });
+eq("so does a green", paletteChoice("green", BG, "#4dffa0", SWATCH), { kind: "preset", hex: "#34d399" });
+eq("the old blue is not one of the twenty, so nothing is marked", paletteChoice("blue", BG, "#4dffa0", SWATCH), { kind: "none" });
+is("and it is never mistaken for a colour of your own", paletteChoice("blue", BG, "#4dffa0", SWATCH).kind !== "own");
+eq("a choice that was never offered marks nothing", paletteChoice("made-up", BG, "#4dffa0", SWATCH), { kind: "none" });
+
+console.log("-- a colour of your own lights the pages like a fixed one");
+{
+  const p = buildPalette("solid", DEFAULT_CUSTOM, "#f87171");
+  is("two curtains of seven stops", p.length === 2 && p.every((x) => x.length === 7));
+  is("every stop is an rgba", p.every((x) => x.every(([, col]) => col.startsWith("rgba("))));
+  is("it is graded in its own colour, not the gold", JSON.stringify(p) !== JSON.stringify(buildPalette("gold", DEFAULT_CUSTOM)));
+  is("a different colour gives a different curtain",
+    JSON.stringify(p) !== JSON.stringify(buildPalette("solid", DEFAULT_CUSTOM, "#38bdf8")));
+  is("no colour at all still gives a curtain", buildPalette("solid", DEFAULT_CUSTOM)[0].length === 7);
+}
+is("the strips are rebuilt when the colour changes",
+  paletteKey("solid", DEFAULT_CUSTOM, "#f87171") !== paletteKey("solid", DEFAULT_CUSTOM, "#38bdf8"));
+is("and not when the three own colours change under it",
+  paletteKey("solid", DEFAULT_CUSTOM, "#f87171") === paletteKey("solid", { a: "#1", b: "#2", c: "#3" }, "#f87171"));
+eq("the three own colours still key on all three", paletteKey("custom", DEFAULT_CUSTOM).includes(DEFAULT_CUSTOM.c), true);
+eq("nothing is remembered to begin with", DEFAULT_LIGHTING.recentColors, []);
+
+console.log("-- the guard holds for all twenty, as it does for any colour");
+// Nothing about the palette loosens the readability ceiling: every one of the twenty is clamped the same way, at
+// every strength, behind the pages and behind the cards.
+for (const th of THEMES) {
+  const bgBad = PRESETS.filter((p) => [20, 40, 60, 80, 100].some((lv) => {
+    const { color } = fullColourBg(th, p.hex, lv);
+    return contrastRatio(THEME_INK[th].text, color) < AA_CONTRAST - 1e-9
+      || contrastRatio(THEME_INK[th].muted, color) < AA_CONTRAST - 1e-9;
+  }));
+  is(`${th}: all twenty stay readable behind the pages`, bgBad.length === 0, bgBad.map((p) => p.id).join(", "));
+  const cardBad = PRESETS.filter((p) => [20, 40, 60, 80, 100].some((lv) => !surfaceReadable(th, surfaceVars(th, p.hex, lv).vars["--surface"])));
+  is(`${th}: and behind the cards`, cardBad.length === 0, cardBad.map((p) => p.id).join(", "));
+}
+// A bright colour has to be held back, or the guard would not be doing anything at all.
+is("the brightest of them is clamped well short of the whole way in Navy",
+  fullColourBg("dark", PRESETS.find((p) => p.id === "white")!.hex, 100).mix < 0.3);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

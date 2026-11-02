@@ -7,7 +7,11 @@ import { Lamp, Note, Pills, Row, SessionRibbon, ThemeCards, Tile } from "./setti
 import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
-import { CARD_COLORS, DEFAULT_LIGHTING, FULL_COLORS, SWATCH, surfaceVars, type CardColor, type LightColor, type LightSpeed, type LightStyle } from "../lib/lighting";
+import {
+  DEFAULT_LIGHTING, paletteChoice, pushRecent, SWATCH, surfaceVars,
+  type CardColor, type LightColor, type LightSpeed, type LightStyle,
+} from "../lib/lighting";
+import { ColorPalette, type SpecialChoice } from "./ColorPalette";
 import { SESSION_TRIO } from "../lib/sessionColors";
 import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
@@ -160,15 +164,44 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const cardTint = light.cardColor === "session" ? SESSION_TRIO[sessionKey].a
     : light.cardColor === "custom" ? light.cardSolid
       : (SWATCH[light.cardColor] ?? SWATCH.gold);
-  // Full colour is a tint, so it works in Ivory too; the glows do not. And it offers one colour, not three.
-  const colourChoices: LightColor[] = full ? FULL_COLORS : ["rgb", "gold", "blue", "violet", "green", "custom", "session"];
   const SESSION_NAME = { sessTK: t("sessTK"), sessLN: t("sessLN"), sessNY: t("sessNY"), sessSY: t("sessSY") } as const;
-  // The swatch each colour choice shows. The moving, own and session choices are pictures of what they do.
-  const swatchBg = (c: LightColor): string =>
-    c === "rgb" ? "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)"
-      : c === "session" ? "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)"
-        : c === "custom" ? (full ? light.solid : `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`)
-          : SWATCH[c] ?? "#f2c14e";
+
+  // The swatches that are pictures of what a choice does rather than a colour you could name.
+  const RGB_SWATCH = "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)";
+  const SESSION_SWATCH = "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)";
+
+  // The choices that mean something, in the order they have always been in. Full colour has no moving set and takes
+  // one colour rather than three, so those two are left out of its row.
+  const bgSpecials: SpecialChoice[] = [
+    ...(full ? [] : [{ id: "rgb", label: L("lightRgb"), swatch: RGB_SWATCH }]),
+    { id: "gold", label: L("lightGold"), swatch: SWATCH.gold },
+    { id: "session", label: L("lightSession"), swatch: SESSION_SWATCH },
+    ...(full ? [] : [{
+      id: "custom", label: L("lightCustom"),
+      swatch: `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`,
+    }]),
+  ];
+  const cardSpecials: SpecialChoice[] = [
+    // A picture of changing nothing, so it needs the card's own edge to be visible at all.
+    { id: "theme", label: L("cardsTheme"), swatch: "var(--surface)", outline: true, ink: "var(--text)" },
+    { id: "gold", label: L("lightGold"), swatch: SWATCH.gold },
+    { id: "session", label: L("lightSession"), swatch: SESSION_SWATCH },
+  ];
+
+  // Under full colour "custom" has always meant one colour out of the field, which is what "solid" means now, so the
+  // two are read as the same choice. SWATCH is handed over as the colours the fixed choices used to stand for, which
+  // is how a setting saved before the palette existed still finds its swatch.
+  const bgChoice = paletteChoice(
+    full && light.color === "custom" ? "solid" : light.color,
+    bgSpecials.map((c) => c.id), light.solid, SWATCH,
+  );
+  const cardChoice = paletteChoice(
+    light.cardColor === "custom" ? "solid" : light.cardColor,
+    cardSpecials.map((c) => c.id), light.cardSolid, SWATCH,
+  );
+
+  // Only a colour the customer reached for themselves is worth remembering; the twenty are always there anyway.
+  const remember = (h: string, own: boolean) => (own ? { recentColors: pushRecent(light.recentColors, h) } : {});
 
   const lightTiles: ReactNode = (
     <>
@@ -181,7 +214,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
             <Pills<LightStyle>
               label={L("lightStyle")} value={light.style}
               // Full colour does not offer the moving colours, so a switch to it moves that choice to a colour it has.
-              onChange={(v) => setLight(v === "full" && !FULL_COLORS.includes(light.color) ? { style: v, color: "gold" } : { style: v })}
+              onChange={(v) => setLight(v === "full" && light.color === "rgb" ? { style: v, color: "gold" } : { style: v })}
               options={[
                 { v: "aurora", label: L("lightAurora") }, { v: "police", label: L("lightPolice") },
                 { v: "orbs", label: L("lightOrbs") }, { v: "full", label: L("lightFull") },
@@ -200,24 +233,12 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
 
         {light.style !== "off" && (
           <Row label={L("lightColor")}>
-            <div role="radiogroup" aria-label={L("lightColor")} className="flex flex-wrap gap-1">
-              {colourChoices.map((c) => {
-                const here = light.color === c;
-                return (
-                  <button
-                    key={c} type="button" role="radio" aria-checked={here} tabIndex={here ? 0 : -1}
-                    aria-label={L(c === "rgb" ? "lightRgb" : c === "custom" ? "lightCustom" : c === "session" ? "lightSession" : `light${c[0].toUpperCase()}${c.slice(1)}`)}
-                    onClick={() => setLight({ color: c })}
-                    className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                  >
-                    <span
-                      className="h-[22px] w-[22px] rounded-full"
-                      style={{ background: swatchBg(c), boxShadow: here ? "0 0 0 2px var(--bg), 0 0 0 4px var(--text)" : undefined }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
+            <ColorPalette
+              label={L("lightColor")} text={L} specials={bgSpecials} choice={bgChoice}
+              hex={light.solid} recent={light.recentColors}
+              onSpecial={(id) => setLight({ color: id as LightColor })}
+              onPick={(h, own) => setLight({ color: "solid", solid: h, ...remember(h, own) })}
+            />
           </Row>
         )}
 
@@ -229,16 +250,6 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
             </span>
             <Note text={L("lightSessionNote")} />
           </div>
-        )}
-
-        {full && light.color === "custom" && (
-          <Row label={L("lightOwnColour")}>
-            <input
-              type="color" aria-label={L("lightOwnColour")} value={light.solid}
-              onChange={(e) => setLight({ color: "custom", solid: e.target.value })}
-              className="h-9 w-12 cursor-pointer rounded-lg border border-border bg-transparent p-0"
-            />
-          </Row>
         )}
 
         {light.style !== "off" && !full && light.color === "custom" && (
@@ -282,41 +293,13 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
       <Tile title={L("cards")}>
         <Note text={L("cardsSub")} />
         <Row label={L("lightColor")}>
-          <div role="radiogroup" aria-label={L("cards")} className="flex flex-wrap gap-1">
-            {CARD_COLORS.map((c) => {
-              const here = light.cardColor === c;
-              return (
-                <button
-                  key={c} type="button" role="radio" aria-checked={here} tabIndex={here ? 0 : -1}
-                  aria-label={L(c === "theme" ? "cardsTheme" : c === "custom" ? "lightOwnColour" : c === "session" ? "lightSession" : `light${c[0].toUpperCase()}${c.slice(1)}`)}
-                  onClick={() => setLight({ cardColor: c })}
-                  className="grid h-11 w-11 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                >
-                  {/* The first swatch is the theme's own card colour: a picture of changing nothing. */}
-                  <span
-                    className={`h-[22px] w-[22px] rounded-full ${c === "theme" ? "border border-border" : ""}`}
-                    style={{
-                      background: c === "theme" ? "var(--surface)"
-                        : c === "session" ? "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)"
-                          : c === "custom" ? light.cardSolid : (SWATCH[c] ?? "#f2c14e"),
-                      boxShadow: here ? "0 0 0 2px var(--bg), 0 0 0 4px var(--text)" : undefined,
-                    }}
-                  />
-                </button>
-              );
-            })}
-          </div>
+          <ColorPalette
+            label={L("cards")} text={L} specials={cardSpecials} choice={cardChoice}
+            hex={light.cardSolid} recent={light.recentColors}
+            onSpecial={(id) => setLight({ cardColor: id as CardColor })}
+            onPick={(h, own) => setLight({ cardColor: "custom", cardSolid: h, ...remember(h, own) })}
+          />
         </Row>
-
-        {light.cardColor === "custom" && (
-          <Row label={L("lightOwnColour")}>
-            <input
-              type="color" aria-label={L("lightOwnColour")} value={light.cardSolid}
-              onChange={(e) => setLight({ cardColor: "custom", cardSolid: e.target.value })}
-              className="h-9 w-12 cursor-pointer rounded-lg border border-border bg-transparent p-0"
-            />
-          </Row>
-        )}
 
         {light.cardColor !== "theme" && (
           <>

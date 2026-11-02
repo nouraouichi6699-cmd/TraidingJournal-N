@@ -89,14 +89,14 @@ export default function Ambient({ theme }: { theme: Theme }) {
   );
 
   const stars = useMemo(makeStars, []);
-  const key = paletteKey(light.color, trio);
+  const key = paletteKey(light.color, trio, light.solid);
   const alpha = auroraAlpha(light.level);
   const rate = 1 / speedFactor(light.speed);
   const running = light.playing && !still;
 
   // What the loop reads each frame, without restarting it when a number changes.
-  const cfg = useRef({ alpha, rate, key, pal: buildPalette(light.color, trio), running });
-  cfg.current = { alpha, rate, key, pal: buildPalette(light.color, trio), running };
+  const cfg = useRef({ alpha, rate, key, pal: buildPalette(light.color, trio, light.solid), running });
+  cfg.current = { alpha, rate, key, pal: buildPalette(light.color, trio, light.solid), running };
 
   // ---- the cards colour ----
   // Independent of the style above: it applies with any of them, Off included, and in every theme.
@@ -232,7 +232,7 @@ export default function Ambient({ theme }: { theme: Theme }) {
   // Full colour: one static wash over the whole page, as strong as the theme's text can take. No canvas, no loop.
   if (light.style === "full") {
     const tint = light.color === "session" ? sessionTrio(sessionNow(Date.now(), s.sessionBounds)).a
-      : light.color === "custom" ? light.solid
+      : light.color === "solid" || light.color === "custom" ? light.solid
         : (SWATCH[light.color] ?? SWATCH.gold);
     const { color } = fullColourBg(theme, tint, light.level);
     return (
@@ -252,7 +252,9 @@ export default function Ambient({ theme }: { theme: Theme }) {
     ? ["255,70,90", "60,140,255", "60,230,140"]
     : light.color === "custom" || light.color === "session"
       ? [hexOf(trio.a), hexOf(trio.b), hexOf(trio.c)]
-      : [fixedOf(single), fixedOf(single), fixedOf(single)];
+      : light.color === "solid"
+        ? [hexOf(light.solid), hexOf(light.solid), hexOf(light.solid)]
+        : [fixedOf(single), fixedOf(single), fixedOf(single)];
 
   return (
     <div

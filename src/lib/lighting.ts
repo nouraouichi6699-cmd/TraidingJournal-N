@@ -9,7 +9,8 @@ import { SESSION_TRIO } from "./sessionColors";
 import type { Theme } from "../types";
 
 export type LightStyle = "aurora" | "police" | "orbs" | "full" | "off";
-export type LightColor = "rgb" | "gold" | "blue" | "violet" | "green" | "custom" | "session";
+// "custom" is the aurora's three colours; "solid" is one colour of the customer's own, from the solid field.
+export type LightColor = "rgb" | "gold" | "blue" | "violet" | "green" | "custom" | "solid" | "session";
 export type LightSpeed = "slow" | "normal" | "fast";
 
 export interface Trio { a: string; b: string; c: string }
@@ -19,7 +20,8 @@ export type Rgb = string;
 
 /** The fixed choices. The RGB and session entries are blank: they build their colours another way. */
 export const FIXED: Record<LightColor, Rgb> = {
-  rgb: "", gold: "242,193,78", blue: "90,184,240", violet: "167,139,250", green: "52,211,153", custom: "", session: "",
+  rgb: "", gold: "242,193,78", blue: "90,184,240", violet: "167,139,250", green: "52,211,153",
+  custom: "", solid: "", session: "",
 };
 
 /** The swatch each fixed choice shows in the panel. */
@@ -70,9 +72,9 @@ const oneColour = (c: Rgb): Stop[][] => [
  * The two curtain gradients a light setting needs.
  *  - "rgb" is what a real aurora looks like: violet or pink tips, a teal middle, a green body, a green-white rim.
  *  - three own colours, or a session's three, grade from the tips down to a brightened version of the lower one.
- *  - a single colour gives the same grading in shades of itself.
+ *  - a single colour gives the same grading in shades of itself, whether it is a fixed one or one off the palette.
  */
-export function buildPalette(color: LightColor, trio: Trio): Stop[][] {
+export function buildPalette(color: LightColor, trio: Trio, solid?: string): Stop[][] {
   if (color === "rgb") {
     return [
       strip("160,80,255", "60,210,210", "70,255,160", "215,255,230"),
@@ -86,12 +88,15 @@ export function buildPalette(color: LightColor, trio: Trio): Stop[][] {
       strip(C, lift(B, 0.15), A, lift(A, 0.75)),
     ];
   }
+  if (color === "solid") return oneColour(hexRgb(solid ?? SWATCH.gold));
   return oneColour(FIXED[color] || FIXED.gold);
 }
 
 /** What rebuilding the gradients depends on: while this is unchanged the strips are reused as they are. */
-export const paletteKey = (color: LightColor, trio: Trio): string =>
-  color === "custom" || color === "session" ? `${color}|${trio.a}|${trio.b}|${trio.c}` : color;
+export const paletteKey = (color: LightColor, trio: Trio, solid?: string): string =>
+  color === "custom" || color === "session" ? `${color}|${trio.a}|${trio.b}|${trio.c}`
+    : color === "solid" ? `solid|${solid ?? ""}`
+      : color;
 
 // ---------- strength ----------
 
@@ -324,6 +329,83 @@ export const SURFACE_VAR_NAMES: string[] = [
 export type CardColor = "theme" | "gold" | "blue" | "violet" | "green" | "session" | "custom";
 export const CARD_COLORS: CardColor[] = ["theme", "gold", "blue", "violet", "green", "session", "custom"];
 
+// ---------- the shared palette ----------
+
+/** One plain colour on offer, by name so it can be spoken and translated. */
+export interface Preset { id: string; hex: string }
+
+/**
+ * The twenty plain colours every colour row offers.
+ *
+ * They are Tailwind's 400 shades, which is the family the app is already painted from - --loss is red-400, --c-rose
+ * is rose-400, --c-violet is violet-400 - so a chosen colour sits at the same weight as the ones in the charts.
+ * The last three round the row off: a white, a grey, and a brown. Tailwind has no brown, so that one is ours.
+ */
+export const PRESETS: Preset[] = [
+  { id: "red", hex: "#f87171" },
+  { id: "orange", hex: "#fb923c" },
+  { id: "amber", hex: "#fbbf24" },
+  { id: "yellow", hex: "#facc15" },
+  { id: "lime", hex: "#a3e635" },
+  { id: "green", hex: "#4ade80" },
+  { id: "emerald", hex: "#34d399" },
+  { id: "teal", hex: "#2dd4bf" },
+  { id: "cyan", hex: "#22d3ee" },
+  { id: "sky", hex: "#38bdf8" },
+  { id: "blue", hex: "#60a5fa" },
+  { id: "indigo", hex: "#818cf8" },
+  { id: "violet", hex: "#a78bfa" },
+  { id: "purple", hex: "#c084fc" },
+  { id: "fuchsia", hex: "#e879f9" },
+  { id: "pink", hex: "#f472b6" },
+  { id: "rose", hex: "#fb7185" },
+  { id: "white", hex: "#ffffff" },
+  { id: "grey", hex: "#94a3b8" },  // slate-400
+  { id: "brown", hex: "#a1724a" },  // ours: Tailwind has no brown, and a mid one sits well next to the amber
+];
+
+/** True for a full six-digit hex with the hash, which is the only form ever stored. */
+export const isHexColor = (v: string): boolean => /^#[0-9a-fA-F]{6}$/.test(v.trim());
+
+/** A typed hex brought to the stored form, or null when it is not one. */
+export const normalizeHex = (v: string): string | null =>
+  isHexColor(v) ? `#${v.trim().slice(1).toLowerCase()}` : null;
+
+/** How many of the customer's own colours are remembered. */
+export const RECENT_MAX = 6;
+
+/** The list with this colour at the front, no repeats, no longer than RECENT_MAX. Rubbish leaves it alone. */
+export function pushRecent(list: string[], hex: string): string[] {
+  const h = normalizeHex(hex);
+  if (!h) return list;
+  return [h, ...list.filter((x) => normalizeHex(x) !== h)].slice(0, RECENT_MAX);
+}
+
+/** Which swatch in a colour row wears the check. */
+export type PaletteChoice =
+  | { kind: "special"; id: string }
+  | { kind: "preset"; hex: string }
+  | { kind: "own"; hex: string }
+  | { kind: "none" };
+
+/**
+ * Which swatch a colour row marks, from what is stored.
+ *
+ *  - one of the row's own choices - the moving colours, the gold, the session, the three own colours - marks itself;
+ *  - "solid" marks the palette swatch of that hex, or the own-colour swatch when the hex is not one of the twenty;
+ *  - anything else is a colour saved before the palette existed. It still paints exactly as it did, and is matched
+ *    against the palette by its hex, so violet lands on violet-400; the old blue is #5ab8f0, which is not the
+ *    palette's sky, so nothing is marked until it is picked again.
+ */
+export function paletteChoice(stored: string, specials: string[], hex: string, legacy: Record<string, string>): PaletteChoice {
+  if (specials.includes(stored)) return { kind: "special", id: stored };
+  const h = normalizeHex(stored === "solid" ? hex : legacy[stored] ?? "");
+  if (!h) return { kind: "none" };
+  if (PRESETS.some((pr) => pr.hex === h)) return { kind: "preset", hex: h };
+  // A hex of one's own is only ever the "solid" case; an old fixed colour that misses the palette marks nothing.
+  return stored === "solid" ? { kind: "own", hex: h } : { kind: "none" };
+}
+
 /** The whole lighting setting, as it is stored. */
 export interface Lighting {
   style: LightStyle;
@@ -343,6 +425,9 @@ export interface Lighting {
   cardSolid: string;
   /** 20..100, across what the card can take before its text stops reading. */
   cardLevel: number;
+
+  /** The last few colours of the customer's own, newest first, shared by every colour row. */
+  recentColors: string[];
 }
 
 export const DEFAULT_LIGHTING: Lighting = {
@@ -356,4 +441,5 @@ export const DEFAULT_LIGHTING: Lighting = {
   cardColor: "theme",
   cardSolid: "#5ab8f0",
   cardLevel: 70,
+  recentColors: [],
 };
