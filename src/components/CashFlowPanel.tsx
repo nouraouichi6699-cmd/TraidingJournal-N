@@ -58,7 +58,13 @@ export default function CashFlowPanel({ lang, accounts, flows, onAdd, onRemove }
           <label className="grid gap-1 text-[11px] text-muted">{T(X.type)}
             <select value={type} onChange={(e) => setType(e.target.value as CashFlowType)} className={field}>{TYPES.map((x) => <option key={x} value={x}>{T(X[x])}</option>)}</select>
           </label>
-          <label className="grid gap-1 text-[11px] text-muted">{T(X.amount)}<input inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value)} className={`${field} w-32`} dir="ltr" /></label>
+          {/* The code beside the box is the currency this amount will be stored in: the selected account's own. */}
+          <label className="grid gap-1 text-[11px] text-muted">{T(X.amount)}
+            <span className="flex items-center gap-1.5">
+              <input inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value)} className={`${field} w-32`} dir="ltr" />
+              {cur(acc) && <span className="text-xs font-semibold text-text">{cur(acc)}</span>}
+            </span>
+          </label>
           <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary"><Plus size={14} />{T(X.add)}</button>
           {err && <div role="alert" className="w-full text-xs" style={{ color: RED }}>{T(X.bad)}</div>}
         </form>

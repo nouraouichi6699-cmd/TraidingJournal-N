@@ -121,6 +121,9 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
   // Cash flows of the selected accounts, split at the same period cut-off as the trades (flow date >= cut-off = in period).
   const accFlows = useMemo(() => flows.filter((f) => acc === "all" || f.accountId === acc), [flows, acc]);
+  // The cash-flow editor writes in the account's own currency, so it is shown the stored amounts and the real
+  // account currencies rather than anything converted: what it displays is what it would write.
+  const accFlowsOwn = useMemo(() => flowsIn.filter((f) => acc === "all" || f.accountId === acc), [flowsIn, acc]);
   // The deposit/withdrawal ledger is known when, for every selected account, either its imported balance history reconciles
   // with start + P&L + recorded flows (nothing missing, so zeros are real), or it has no history and some flows were recorded.
   const cashKnown = useMemo(() => {
@@ -208,7 +211,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
       ) : tab === "daybyday" ? (
         <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} focusDay={focusDay} />
       ) : tab === "returns" ? (
-        <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accounts : accounts.filter((x) => x.id === acc)} flows={accFlows} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} currency={currency} />
+        <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accountsIn : accountsIn.filter((x) => x.id === acc)} flows={accFlowsOwn} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} currency={currency} />
       ) : !a ? (
         <div className="rounded-2xl border border-border bg-surface p-10 text-center text-muted">{L(TX.empty)}</div>
       ) : (
