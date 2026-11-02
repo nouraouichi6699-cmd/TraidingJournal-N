@@ -29,7 +29,7 @@ import NewsView from "./components/NewsView";
 import ProfileView from "./components/ProfileView";
 import SettingsView from "./components/SettingsView";
 import { useProfile } from "./useProfile";
-import { loadSettings, readSettings, useReduceMotion } from "./useSettings";
+import { loadSettings, OPEN_SETTINGS, readSettings, useReduceMotion, type SettingsStart } from "./useSettings";
 import { setPrivacy } from "./usePrivacy";
 import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
@@ -90,11 +90,21 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
   const [view, setView] = useState<View | "profile" | "news" | "calendar" | "settings">(() => (openTrade ? "journal" : "dashboard"));
   // One-shot deep link into Reports (e.g. Charts -> "Open this day" -> Day by Day), consumed when Reports mounts.
   const [reportsNav, setReportsNav] = useState<{ tab: string; day?: string; acc?: string | null } | null>(null);
+  // Where a link into Settings asked to land, e.g. the missing-rate warning pointing at the rates table.
+  const [settingsAt, setSettingsAt] = useState<SettingsStart | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      setSettingsAt((e as CustomEvent<SettingsStart>).detail ?? null);
+      setView("settings");
+    };
+    window.addEventListener(OPEN_SETTINGS, on);
+    return () => window.removeEventListener(OPEN_SETTINGS, on);
+  }, []);
   const { profile, save: saveProfile } = useProfile();
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onSettings={() => setView("settings")} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -150,6 +160,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
                 <SettingsView
                   t={t} lang={lang} theme={theme} onLang={setLang} onTheme={setTheme}
                   accounts={accounts} trades={journal.trades} onImport={() => setView("import")}
+                  onProfile={() => setView("profile")} start={settingsAt}
                 />
               )}
               {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}

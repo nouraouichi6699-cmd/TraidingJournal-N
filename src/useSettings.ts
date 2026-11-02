@@ -71,6 +71,15 @@ export const DEFAULTS: Settings = {
 
 export type { BrokerClock, DayStart, SessionBounds };
 
+/** Where a link into Settings wants to land. */
+export interface SettingsStart { section: string; topic?: string }
+
+/** Asking the app to open Settings at one place, the way the other cross-screen nudges are sent. */
+export const OPEN_SETTINGS = "mizan-open-settings";
+export const openSettings = (section: string, topic?: string) => {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<SettingsStart>(OPEN_SETTINGS, { detail: { section, topic } }));
+};
+
 export const FONT_PX: Record<FontSize, string> = { small: "15px", normal: "16px", large: "17.5px" };
 const LOCALE: Record<NumberFormat, string> = { dot: "en-US", space: "fr-FR" };
 
