@@ -14,3 +14,4 @@ vitest.config.mts.timestamp-*.mjs
 vitest.config.cts.timestamp-*.mjs 
 dist
 *.tsbuildinfo
+supabase/.temp/
