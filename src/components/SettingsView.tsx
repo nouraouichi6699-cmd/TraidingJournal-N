@@ -2,8 +2,11 @@
 // rather than markup. Personal details stay in the profile and are not repeated here, and every setting keeps the
 // storage key, default and behaviour it already had: this file decides where a control sits, never what it does.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, RefreshCw, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, RefreshCw, Send, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
 import { Lamp, Note, Pills, Row, SessionRibbon, ThemeCards, Tile } from "./settingsUi";
+import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
+import PhonePreview from "./PhonePreview";
+import { useTelegram } from "../useTelegram";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { setSettings, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
 import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
@@ -36,6 +39,8 @@ const btnGhost = "min-h-[42px] rounded-full border border-border px-4 text-[13.5
 const btnGold = "min-h-[42px] rounded-full bg-primary px-4 text-[13.5px] font-bold text-on-primary transition hover:brightness-95";
 const btnDanger = "min-h-[42px] rounded-full border border-loss/45 px-4 text-[13.5px] font-medium text-loss transition hover:bg-loss/10";
 const grid = "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(290px,1fr))]";
+/** The sections in dock order. Kept apart from SECTIONS so a link can be checked before the tiles are built. */
+const SECTION_IDS = ["display", "trading", "analysis", "telegram", "security", "data"];
 
 export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts, trades, onImport, onProfile, start }: Props) {
   const L = stT(lang);
@@ -44,6 +49,10 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const [note, setNote] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [secId, setSecId] = useState(() => (start && SECTION_IDS.includes(start.section) ? start.section : "display"));
+  const [topId, setTopId] = useState(() => start?.topic ?? "");
+  const [phone, setPhone] = useState<string | null>(null); // which section the phone is inside, null = the list
+  const [pane, setPane] = useState(0); // counts every move, so the content settles in again each time
 
   // Currencies the accounts actually use, minus the base, which needs no rate of its own.
   const needed = useMemo(() => currenciesOf(accounts).filter((c) => c !== s.baseCurrency), [accounts, s.baseCurrency]);
@@ -85,6 +94,12 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     downloadCsv(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${stamp}.csv`, tradesToCsv(list, accounts));
     setNote(L("exported").replace("{n}", String(list.length)));
   };
+
+  // One Telegram connection for the whole page: its two topics and the partner and coach cards all read it.
+  const tg = useTelegram(lang, secId === "telegram" || secId === "security");
+  // Which alert the phone should be showing, and a counter so switching the same lamp twice replays the effect.
+  const [preview, setPreview] = useState<{ id: string; n: number } | null>(null);
+  const flash = (id: string) => setPreview((p) => ({ id, n: (p?.n ?? 0) + 1 }));
 
   const signOutEverywhere = async () => {
     setBusy(true);
@@ -378,6 +393,12 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     </>
   );
 
+  const goLink = () => { setSecId("telegram"); setTopId("link"); setPane((n) => n + 1); setPhone("telegram"); };
+
+  const tgLinkTiles: ReactNode = <TgLink tg={tg} lang={lang} />;
+  const tgAlertTiles: ReactNode = <TgAlerts tg={tg} lang={lang} onLink={goLink} onPreview={flash} />;
+  const peopleTiles: ReactNode = <TgPeople tg={tg} lang={lang} onLink={goLink} />;
+
   const signInTiles: ReactNode = (
     <Tile title={L("tileDevices")}>
       <Row label={L("signOutAll")} sub={L("signOutAllShort")}>
@@ -428,22 +449,25 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
       ],
     },
     {
+      id: "telegram", label: L("secTelegram"), desc: L("secTelegramDesc"), icon: Send, topics: [
+        { id: "link", label: L("topTgLink"), intro: L("topTgLinkIntro"), tiles: tgLinkTiles },
+        { id: "alerts", label: L("topTgAlerts"), intro: L("topTgAlertsIntro"), tiles: tgAlertTiles },
+      ],
+    },
+    {
       id: "security", label: L("secSecurity"), desc: L("secSecurityDesc"), icon: ShieldCheck, topics: [
         { id: "login", label: L("topSignIn"), intro: L("topSignInIntro"), tiles: signInTiles },
+        { id: "people", label: L("topPeople"), intro: L("topPeopleIntro"), tiles: peopleTiles },
       ],
     },
     { id: "data", label: L("secData"), desc: L("secDataDesc"), icon: Database, intro: L("dataIntro"), topics: [], tiles: dataTiles },
   ];
 
   // ---------- navigation ----------
-  const [secId, setSecId] = useState(() => (SECTIONS.some((x) => x.id === start?.section) ? (start as SettingsStart).section : "display"));
-  const [topId, setTopId] = useState(() => start?.topic ?? "");
-  const [phone, setPhone] = useState<string | null>(null); // which section the phone is inside, null = the list
-  const [pane, setPane] = useState(0); // counts every move, so the content settles in again each time
 
   // A later link in, while the page is already open.
   useEffect(() => {
-    if (!start || !SECTIONS.some((x) => x.id === start.section)) return;
+    if (!start || !SECTION_IDS.includes(start.section)) return;
     setSecId(start.section);
     setTopId(start.topic ?? "");
     setPhone(start.section);
@@ -576,16 +600,24 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
           })}
         </nav>
 
-        {/* The row leaves space for the phone preview and the lighting panel that come in the next phases. */}
+        {/* The phone fills the column phase A left for it, and only where there is a message to show. */}
         <div className="flex min-h-0 flex-1 gap-5">
           <div className="flex min-w-0 flex-1 flex-col gap-4 lg:min-h-0 lg:overflow-y-auto lg:pe-1 xl:max-w-[940px]">
-            <header className="shrink-0">
-              <h1 className="font-heading text-xl font-bold">{section.label}</h1>
-              <p className="mt-0.5 text-sm text-muted">{section.desc}</p>
+            <header className="flex shrink-0 flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">
+                <h1 className="font-heading text-xl font-bold">{section.label}</h1>
+                <p className="mt-0.5 text-sm text-muted">{section.desc}</p>
+              </span>
+              {secId === "telegram" && <TgStatus tg={tg} lang={lang} />}
             </header>
             {topicTabs()}
             {body}
           </div>
+          {secId === "telegram" && (
+            <aside aria-label={L("previewPick")} className="hidden w-[272px] shrink-0 lg:min-h-0 lg:overflow-y-auto xl:block">
+              <PhonePreview lang={lang} highlight={preview} />
+            </aside>
+          )}
         </div>
       </div>
 

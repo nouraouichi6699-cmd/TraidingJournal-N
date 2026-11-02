@@ -51,15 +51,15 @@ export function Note({ text, tip }: { text: string; tip?: boolean }) {
 }
 
 /** An on/off setting. Lit means the thing happens. */
-export function Lamp({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+export function Lamp({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   const [rings, setRings] = useState(0);
   // Alternating the two class names is what makes the ring replay on every toggle.
   const ring = rings === 0 ? "" : rings % 2 ? "mz-ring-a" : "mz-ring-b";
   return (
     <button
-      type="button" role="switch" aria-checked={on} aria-label={label}
+      type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled}
       onClick={() => { onChange(!on); setRings((n) => n + 1); }}
-      className={`mz-lamp ${on ? "mz-lamp-on" : ""} ${ring} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]`}
+      className={`mz-lamp ${on ? "mz-lamp-on" : ""} ${ring} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50`}
     >
       <Lightbulb size={20} strokeWidth={2} />
     </button>

@@ -2,9 +2,8 @@
 // section has its own colour and a place in the bar at the top; the personal details are saved together from the bar
 // that appears at the bottom when something changed.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Camera, Clock, KeyRound, LogOut, Mail, MapPin, Send, Trash2, TriangleAlert, User, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Camera, Clock, KeyRound, LogOut, Mail, MapPin, Trash2, TriangleAlert, User, UserRound, type LucideIcon } from "lucide-react";
 import Private from "./Private";
-import TelegramCard from "./TelegramCard";
 import { SectionHead, type Tone } from "./profileUi";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -25,23 +24,17 @@ const T = {
   nav: { en: "Profile sections", ar: "أقسام الحساب الشخصي", fr: "Sections du profil" },
   details: { en: "Personal details", ar: "البيانات الشخصية", fr: "Informations personnelles" },
   detailsSub: { en: "Your name shows in the app and in the messages your partner and coach get.", ar: "يظهر اسمك في التطبيق وفي الرسائل التي تصل شريكك ومدرّبك.", fr: "Votre nom apparaît dans l'app et dans les messages de votre partenaire et de votre coach." },
-  telegram: { en: "Telegram alerts", ar: "تنبيهات تيليغرام", fr: "Alertes Telegram" },
-  people: { en: "Partner and coach", ar: "الشريك والمدرّب", fr: "Partenaire et coach" },
   account: { en: "Account and sign-in", ar: "الحساب وتسجيل الدخول", fr: "Compte et connexion" },
   accountSub: { en: "The email you sign in with. Signing out keeps all your data.", ar: "البريد الذي تسجّل به الدخول. تسجيل الخروج يحتفظ بكل بياناتك.", fr: "L'e-mail de connexion. Se déconnecter garde toutes vos données." },
   photo: { en: "Photo", ar: "الصورة", fr: "Photo" },
   tzHelp: { en: "The 08:00 morning plan and the Sunday summary follow this time zone.", ar: "خطة الصباح (الثامنة) وملخص الأحد يتبعان هذه المنطقة الزمنية.", fr: "Le plan du matin (8 h) et le bilan du dimanche suivent ce fuseau." },
   noCountry: { en: "No country yet", ar: "لم تُحدَّد الدولة", fr: "Pays non défini" },
-  tgOn: { en: "Telegram connected", ar: "تيليغرام متصل", fr: "Telegram connecté" },
-  tgOff: { en: "Telegram not connected", ar: "تيليغرام غير متصل", fr: "Telegram non connecté" },
   unsaved: { en: "You have unsaved changes", ar: "لديك تغييرات غير محفوظة", fr: "Vous avez des modifications non enregistrées" },
   discard: { en: "Discard", ar: "تراجع", fr: "Annuler" },
 } satisfies Record<string, L3>;
 
 const SECTIONS: { id: string; tone: Tone; icon: LucideIcon; label: L3 }[] = [
   { id: "pf-details", tone: "gold", icon: UserRound, label: T.details },
-  { id: "pf-telegram", tone: "sky", icon: Send, label: T.telegram },
-  { id: "pf-people", tone: "emerald", icon: Users, label: T.people },
   { id: "pf-account", tone: "slate", icon: KeyRound, label: T.account },
 ];
 const COUNTRIES = "TN DZ MA EG LY SA AE QA KW BH OM JO LB SY IQ PS YE SD MR TR FR DE ES IT PT BE NL CH GB IE SE NO DK FI PL US CA MX BR AR CL CO IN PK CN JP KR SG MY ID AU NZ ZA NG KE".split(" ");
@@ -55,7 +48,6 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
   const L = (x: L3) => x[lang];
   const [draft, setDraft] = useState(profile);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tg, setTg] = useState<boolean | null>(null);
   const [active, setActive] = useState(SECTIONS[0].id);
   const file = useRef<HTMLInputElement>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
@@ -114,7 +106,6 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
             <div className="mt-3.5 flex flex-wrap gap-2">
               <Chip tone="gold" icon={MapPin}>{country || L(T.noCountry)}</Chip>
               <Chip tone="violet" icon={Clock}><span className="inline-flex items-center gap-2"><bdi dir="ltr">{(draft.timezone || "UTC").replace(/_/g, " ")}</bdi>{local && <bdi dir="ltr" className="opacity-75 tabular-nums">{local}</bdi>}</span></Chip>
-              {tg !== null && <Chip tone={tg ? "sky" : "slate"} icon={Send}>{L(tg ? T.tgOn : T.tgOff)}</Chip>}
             </div>
           </div>
         </div>
@@ -168,8 +159,6 @@ export default function ProfileView({ t, lang, email, profile, onSave, onDeleteA
           </div>
         </div>
       </section>
-
-      <TelegramCard lang={lang} onStatus={setTg} />
 
       <section id="pf-account" className={sec}>
         <SectionHead tone="slate" icon={KeyRound} title={L(T.account)} sub={L(T.accountSub)} />

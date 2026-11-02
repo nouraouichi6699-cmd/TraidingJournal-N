@@ -1146,3 +1146,20 @@ h6 {
 :root[data-reduce-motion="1"] .mz-ring-a,
 :root[data-reduce-motion="1"] .mz-ring-b,
 :root[data-reduce-motion="1"] .mz-pane { animation: none; }
+
+/* The phone preview: one short shake when a lamp lights, and the banner that drops in with it. Two identical
+   keyframe pairs, because alternating the class is what replays the animation. */
+@keyframes mz-shake-a { 0%, 100% { transform: translateX(0); } 22% { transform: translateX(-5px); } 48% { transform: translateX(4px); } 74% { transform: translateX(-2px); } }
+@keyframes mz-shake-b { 0%, 100% { transform: translateX(0); } 22% { transform: translateX(-5px); } 48% { transform: translateX(4px); } 74% { transform: translateX(-2px); } }
+.mz-shake-a { animation: mz-shake-a .3s cubic-bezier(.36, .07, .19, .97); }
+.mz-shake-b { animation: mz-shake-b .3s cubic-bezier(.36, .07, .19, .97); }
+@keyframes mz-banner { from { opacity: 0; transform: translateY(-8px); } }
+.mz-banner { animation: mz-banner .22s cubic-bezier(.22, 1, .36, 1) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mz-shake-a, .mz-shake-b, .mz-banner { animation: none; }
+}
+
+:root[data-reduce-motion="1"] .mz-shake-a,
+:root[data-reduce-motion="1"] .mz-shake-b,
+:root[data-reduce-motion="1"] .mz-banner { animation: none; }
