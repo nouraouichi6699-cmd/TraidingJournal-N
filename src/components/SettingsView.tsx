@@ -7,7 +7,7 @@ import { Lamp, Note, Pills, Row, SessionRibbon, ThemeCards, Tile } from "./setti
 import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
-import { DEFAULT_LIGHTING, SWATCH, type LightColor, type LightSpeed, type LightStyle } from "../lib/lighting";
+import { DEFAULT_LIGHTING, FULL_COLORS, SWATCH, type LightColor, type LightSpeed, type LightStyle } from "../lib/lighting";
 import { SESSION_TRIO } from "../lib/sessionColors";
 import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
@@ -154,28 +154,34 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const light = { ...DEFAULT_LIGHTING, ...(s.lighting ?? {}) };
   const setLight = (patch: Partial<typeof light>) => setSettings({ lighting: { ...light, ...patch } });
   const ivory = theme === "light";
+  const full = light.style === "full";
+  // Full colour is a tint, so it works in Ivory too; the glows do not. And it offers one colour, not three.
+  const colourChoices: LightColor[] = full ? FULL_COLORS : ["rgb", "gold", "blue", "violet", "green", "custom", "session"];
   const sessionKey = sessionAt(new Date().getUTCHours(), s.sessionBounds);
   const SESSION_NAME = { sessTK: t("sessTK"), sessLN: t("sessLN"), sessNY: t("sessNY"), sessSY: t("sessSY") } as const;
   // The swatch each colour choice shows. The moving, own and session choices are pictures of what they do.
   const swatchBg = (c: LightColor): string =>
     c === "rgb" ? "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)"
       : c === "session" ? "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)"
-        : c === "custom" ? `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`
+        : c === "custom" ? (full ? light.solid : `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`)
           : SWATCH[c] ?? "#f2c14e";
 
   const lightTiles: ReactNode = (
     <>
       <Tile title={L("topLight")} wide>
-        {ivory && <Note text={L("lightIvory")} />}
+        {ivory && !full && light.style !== "off" && <Note text={L("lightIvory")} />}
         {!ivory && reduce && <Note text={L("lightReduced")} />}
 
         <Row label={L("lightStyle")}>
           <span className="flex flex-wrap items-center gap-2">
             <Pills<LightStyle>
-              label={L("lightStyle")} value={light.style} onChange={(v) => setLight({ style: v })}
+              label={L("lightStyle")} value={light.style}
+              // Full colour does not offer the moving colours, so a switch to it moves that choice to a colour it has.
+              onChange={(v) => setLight(v === "full" && !FULL_COLORS.includes(light.color) ? { style: v, color: "gold" } : { style: v })}
               options={[
                 { v: "aurora", label: L("lightAurora") }, { v: "police", label: L("lightPolice") },
-                { v: "orbs", label: L("lightOrbs") }, { v: "off", label: L("lightOff") },
+                { v: "orbs", label: L("lightOrbs") }, { v: "full", label: L("lightFull") },
+                { v: "off", label: L("lightOff") },
               ]}
             />
             <button
@@ -191,7 +197,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         {light.style !== "off" && (
           <Row label={L("lightColor")}>
             <div role="radiogroup" aria-label={L("lightColor")} className="flex flex-wrap gap-1">
-              {(["rgb", "gold", "blue", "violet", "green", "custom", "session"] as LightColor[]).map((c) => {
+              {colourChoices.map((c) => {
                 const here = light.color === c;
                 return (
                   <button
@@ -221,7 +227,17 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
           </div>
         )}
 
-        {light.style !== "off" && light.color === "custom" && (
+        {full && light.color === "custom" && (
+          <Row label={L("lightOwnColour")}>
+            <input
+              type="color" aria-label={L("lightOwnColour")} value={light.solid}
+              onChange={(e) => setLight({ color: "custom", solid: e.target.value })}
+              className="h-9 w-12 cursor-pointer rounded-lg border border-border bg-transparent p-0"
+            />
+          </Row>
+        )}
+
+        {light.style !== "off" && !full && light.color === "custom" && (
           <div className="flex flex-wrap gap-3 rounded-2xl border border-border p-3">
             {(["a", "b", "c"] as const).map((k, i) => (
               <label key={k} className="flex flex-col items-center gap-1 text-[11px] text-muted">
@@ -238,6 +254,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
 
         {light.style !== "off" && (
           <>
+            {full && <Note text={L("lightFullNote")} />}
             <Row label={L("lightLevel")}>
               <span className="flex items-center gap-2">
                 <input
@@ -248,12 +265,12 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
                 <span className="tnum w-10 text-xs font-semibold" dir="ltr">{light.level}%</span>
               </span>
             </Row>
-            <Row label={L("lightSpeed")}>
+            {!full && <Row label={L("lightSpeed")}>
               <Pills<LightSpeed>
                 label={L("lightSpeed")} value={light.speed} onChange={(v) => setLight({ speed: v })}
                 options={[{ v: "slow", label: L("lightCalm") }, { v: "normal", label: L("lightNormal") }, { v: "fast", label: L("lightFast") }]}
               />
-            </Row>
+            </Row>}
           </>
         )}
       </Tile>

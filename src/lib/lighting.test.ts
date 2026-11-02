@@ -4,7 +4,9 @@ import {
   auroraAlpha, buildPalette, clampLevel, DEFAULT_CUSTOM, DEFAULT_LIGHTING, dur, FLASHES_PER_CYCLE, hexRgb, levelT,
   lift, orbAlpha, orbSpread, paletteKey, policeAlpha, policeFlashesPerSecond, POLICE_SECONDS, SAFE_FLASHES_PER_SECOND,
   sessionNow, sessionTrio, speedFactor, SPEED_FACTOR, strip, type LightColor, type LightSpeed,
+  AA_CONTRAST, contrastRatio, FULL_COLORS, fullColourBg, maxReadableMix, mixHex, relLuminance, THEME_INK,
 } from "./lighting";
+import type { Theme } from "../types";
 import { SESSION_COLORS, SESSION_TRIO } from "./sessionColors";
 import { DEFAULT_BOUNDS } from "./tradingTime";
 
@@ -116,6 +118,79 @@ is("the four sessions do not share a colour", new Set(["sessTK", "sessLN", "sess
 console.log("-- the defaults are what the design asks for");
 eq("aurora, natural colours, 70%, normal, playing", [DEFAULT_LIGHTING.style, DEFAULT_LIGHTING.color, DEFAULT_LIGHTING.level, DEFAULT_LIGHTING.speed, DEFAULT_LIGHTING.playing], ["aurora", "rgb", 70, "normal", true]);
 eq("with the design's own three colours behind the picker", DEFAULT_LIGHTING.custom, DEFAULT_CUSTOM);
+
+const THEMES: Theme[] = ["dark", "light", "black"];
+const readable = (theme: Theme, bg: string) =>
+  Math.min(contrastRatio(THEME_INK[theme].text, bg), contrastRatio(THEME_INK[theme].muted, bg));
+
+console.log("-- mixing a tint into a background");
+eq("none of the tint leaves the base", mixHex("#061126", "#ffff00", 0), "#061126");
+eq("all of it is the tint", mixHex("#061126", "#ffff00", 1), "#ffff00");
+eq("halfway between black and white is grey", mixHex("#000000", "#ffffff", 0.5), "#808080");
+eq("a quarter of white over black", mixHex("#000000", "#ffffff", 0.25), "#404040");
+eq("past the end clamps to the tint", mixHex("#000000", "#ffffff", 5), "#ffffff");
+eq("below the start clamps to the base", mixHex("#000000", "#ffffff", -5), "#000000");
+eq("rubbish leaves the base alone", mixHex("#000000", "#ffffff", NaN), "#000000");
+eq("a short hex still reads", mixHex("#000", "#fff", 1), "#ffffff");
+is("every step between is between", [0.2, 0.4, 0.6, 0.8].every((t) => {
+  const l = relLuminance(mixHex("#061126", "#ffff00", t));
+  return l > relLuminance("#061126") && l < relLuminance("#ffff00");
+}));
+
+console.log("-- contrast, against the figures WCAG gives");
+near("black on white is 21", contrastRatio("#000000", "#ffffff"), 21);
+near("a colour against itself is 1", contrastRatio("#4dffa0", "#4dffa0"), 1);
+is("the order of the two does not matter", contrastRatio("#000000", "#ffffff") === contrastRatio("#ffffff", "#000000"));
+near("white on mid grey", contrastRatio("#ffffff", "#808080"), 3.95);
+eq("white is the brightest", relLuminance("#ffffff"), 1);
+eq("black is the darkest", relLuminance("#000000"), 0);
+
+console.log("-- every theme already reads before anything is tinted");
+for (const th of THEMES) {
+  is(`${th}: text and muted both clear AA untouched`, readable(th, THEME_INK[th].bg) >= AA_CONTRAST);
+}
+
+console.log("-- the guard holds, tint by tint and theme by theme");
+const TINTS = ["#ffff00", "#f2c14e", "#5ab8f0", "#a78bfa", "#34d399", "#4dffa0", "#ff0000", "#ffffff", "#000000"];
+for (const th of THEMES) {
+  for (const tint of TINTS) {
+    const ceiling = maxReadableMix(th, tint);
+    is(`${th} ${tint}: the ceiling itself still reads`, readable(th, mixHex(THEME_INK[th].bg, tint, ceiling)) >= AA_CONTRAST - 1e-9);
+    is(`${th} ${tint}: a ceiling between 0 and 1`, ceiling >= 0 && ceiling <= 1);
+    is(`${th} ${tint}: every strength reads`, [20, 40, 60, 80, 100].every((lv) => readable(th, fullColourBg(th, tint, lv).color) >= AA_CONTRAST - 1e-9));
+  }
+}
+
+console.log("-- a very bright tint at full strength");
+// Yellow is the case a naive mix gets wrong: it is nearly as bright as white.
+{
+  const navy = fullColourBg("dark", "#ffff00", 100);
+  is(`Navy at 100% uses only ${(navy.mix * 100).toFixed(0)}% of the yellow`, navy.mix > 0 && navy.mix < 0.35);
+  is("and Navy still reads", readable("dark", navy.color) >= AA_CONTRAST - 1e-9);
+  const ivory = fullColourBg("light", "#ffff00", 100);
+  // Ivory's ink is nearly black, so it stays readable on yellow and the ceiling is far higher.
+  is(`Ivory at 100% can take ${(ivory.mix * 100).toFixed(0)}% of it`, ivory.mix > 0.9);
+  is("and Ivory still reads", readable("light", ivory.color) >= AA_CONTRAST - 1e-9);
+  is("the dark theme takes less of it than the light one", navy.mix < ivory.mix);
+  const black = fullColourBg("black", "#ffff00", 100);
+  is("Black & Gold takes a little too", black.mix > 0 && black.mix < 0.35);
+  is("and Black & Gold still reads", readable("black", black.color) >= AA_CONTRAST - 1e-9);
+}
+
+console.log("-- the strength runs across the whole slider");
+for (const th of THEMES) {
+  const at = (lv: number) => fullColourBg(th, "#5ab8f0", lv).mix;
+  is(`${th}: more strength means more colour`, [20, 40, 60, 80, 100].every((lv, i, a) => i === 0 || at(lv) > at(a[i - 1])));
+  near(`${th}: 100% is the ceiling`, at(100), maxReadableMix(th, "#5ab8f0"));
+  near(`${th}: 20% is a fifth of it`, at(20), maxReadableMix(th, "#5ab8f0") * 0.2);
+}
+eq("an unknown theme falls back rather than throwing", typeof fullColourBg("nope" as Theme, "#5ab8f0", 70).color, "string");
+
+console.log("-- which colours this style offers");
+is("no moving colours", !FULL_COLORS.includes("rgb"));
+is("the four swatches, the session and one of your own", FULL_COLORS.length === 6 && FULL_COLORS.includes("session") && FULL_COLORS.includes("custom"));
+is("full colour is not the default style", DEFAULT_LIGHTING.style !== "full");
+is("and it carries one colour", /^#[0-9a-f]{6}$/i.test(DEFAULT_LIGHTING.solid));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

@@ -142,13 +142,17 @@ export default function PhonePreview({ lang, highlight }: { lang: Lang; highligh
   const set = useSettings();
   const light = { ...DEFAULT_LIGHTING, ...(set.lighting ?? {}) };
   const sessTrio = SESSION_TRIO[sessionAt(new Date().getUTCHours(), set.sessionBounds)];
+  const fullTint = light.color === "session" ? sessTrio.a
+    : light.color === "custom" ? light.solid
+      : (SWATCH[light.color] ?? SWATCH.gold);
   const ring =
-    light.style === "police" ? "linear-gradient(90deg, #ff2d55, #2d7bff)"
+    light.style === "full" ? fullTint
+      : light.style === "police" ? "linear-gradient(90deg, #ff2d55, #2d7bff)"
       : light.color === "rgb" ? "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)"
         : light.color === "custom" ? `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`
           : light.color === "session" ? `linear-gradient(135deg, ${sessTrio.a}, ${sessTrio.b}, ${sessTrio.c})`
             : (SWATCH[light.color] ?? "#f2c14e");
-  const ringAnim = light.color === "rgb" && light.style !== "police" && !still && light.playing
+  const ringAnim = light.color === "rgb" && light.style !== "police" && light.style !== "full" && !still && light.playing
     ? `mz-hue ${dur(30, light.speed)} linear infinite` : undefined;
   const shakeClass = shake === 0 || still ? "" : shake % 2 ? "mz-shake-a" : "mz-shake-b";
 

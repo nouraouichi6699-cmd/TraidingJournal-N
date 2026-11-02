@@ -8,8 +8,8 @@
 // wrong and was rejected twice.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  auroraAlpha, buildPalette, DEFAULT_LIGHTING, dur, orbAlpha, orbSpread, paletteKey, policeAlpha, POLICE_SECONDS,
-  sessionNow, sessionTrio, speedFactor, type Lighting, type Rgb, type Stop, type Trio,
+  auroraAlpha, buildPalette, DEFAULT_LIGHTING, dur, fullColourBg, orbAlpha, orbSpread, paletteKey, policeAlpha,
+  POLICE_SECONDS, sessionNow, sessionTrio, speedFactor, SWATCH, type Lighting, type Rgb, type Stop, type Trio,
 } from "../lib/lighting";
 import { useReduceMotion, useSettings } from "../useSettings";
 import type { Theme } from "../types";
@@ -66,8 +66,10 @@ export default function Ambient({ theme }: { theme: Theme }) {
   const s = useSettings();
   const still = useReduceMotion();
   const light: Lighting = { ...DEFAULT_LIGHTING, ...(s.lighting ?? {}) };
-  // Ivory is a light theme: a glow over it reads as a smudge rather than a light, so there is nothing to draw.
-  const off = theme === "light" || light.style === "off";
+  // The aurora, the flashes and the orbs are glows: over a light page they read as a smudge, so they stay in the
+  // dark themes. The full-colour background is a tint rather than a glow, so it works in every theme.
+  const darkOnly = light.style === "aurora" || light.style === "police" || light.style === "orbs";
+  const off = light.style === "off" || (darkOnly && theme === "light");
 
   // The open session is checked now and then rather than every frame; nothing else here depends on the clock.
   const [tick, setTick] = useState(0);
@@ -201,6 +203,20 @@ export default function Ambient({ theme }: { theme: Theme }) {
   }, [off, still, light.style]);
 
   if (off) return null;
+
+  // Full colour: one static wash over the whole page, as strong as the theme's text can take. No canvas, no loop.
+  if (light.style === "full") {
+    const tint = light.color === "session" ? sessionTrio(sessionNow(Date.now(), s.sessionBounds)).a
+      : light.color === "custom" ? light.solid
+        : (SWATCH[light.color] ?? SWATCH.gold);
+    const { color } = fullColourBg(theme, tint, light.level);
+    return (
+      <div
+        aria-hidden="true" className="pointer-events-none fixed inset-0 z-0"
+        style={{ background: color }}
+      />
+    );
+  }
 
   const play = light.playing && !still ? "running" : "paused";
   const spread = orbSpread(light.level);
