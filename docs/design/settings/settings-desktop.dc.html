@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>إعدادات ميزان — اتجاه ج: الزجاج المضيء</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Readex+Pro:wght@400;500;600;700&amp;family=Aref+Ruqaa:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+@keyframes mz-hue{to{filter:hue-rotate(360deg)}}
+@keyframes mz-drift-a{0%,100%{transform:translate(0,0)}33%{transform:translate(220px,120px)}66%{transform:translate(-60px,200px)}}
+@keyframes mz-drift-b{0%,100%{transform:translate(0,0)}33%{transform:translate(-240px,-90px)}66%{transform:translate(-80px,-220px)}}
+@keyframes mz-drift-c{0%,100%{transform:translate(0,0)}50%{transform:translate(180px,-160px)}}
+@keyframes mz-twinkle{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes mz-in-a{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes mz-in-b{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes mz-meteor{0%{opacity:0;transform:translate(0,0) rotate(-20deg)}1%{opacity:1}6%,100%{opacity:0;transform:translate(-560px,204px) rotate(-20deg)}}
+@keyframes mz-ripple-a{0%{box-shadow:0 0 0 0 rgba(255,236,170,.85);transform:scale(1)}35%{transform:scale(1.14)}100%{box-shadow:0 0 0 22px rgba(255,236,170,0);transform:scale(1)}}
+@keyframes mz-ripple-b{0%{box-shadow:0 0 0 0 rgba(255,236,170,.85);transform:scale(1)}35%{transform:scale(1.14)}100%{box-shadow:0 0 0 22px rgba(255,236,170,0);transform:scale(1)}}
+@keyframes mz-shake-a{0%,100%{transform:rotate(-2deg) translateX(0)}15%{transform:rotate(-2deg) translateX(-5px)}30%{transform:rotate(-2deg) translateX(5px)}45%{transform:rotate(-2deg) translateX(-4px)}60%{transform:rotate(-2deg) translateX(3px)}75%{transform:rotate(-2deg) translateX(-1px)}}
+@keyframes mz-shake-b{0%,100%{transform:rotate(-2deg) translateX(0)}15%{transform:rotate(-2deg) translateX(-5px)}30%{transform:rotate(-2deg) translateX(5px)}45%{transform:rotate(-2deg) translateX(-4px)}60%{transform:rotate(-2deg) translateX(3px)}75%{transform:rotate(-2deg) translateX(-1px)}}
+@keyframes mz-toast-a{0%{opacity:0;transform:translateY(-130%)}8%,82%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-130%)}}
+@keyframes mz-toast-b{0%{opacity:0;transform:translateY(-130%)}8%,82%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-130%)}}@keyframes mz-police{0%,100%{opacity:.06}4%{opacity:1}10%{opacity:.12}16%{opacity:1}24%{opacity:.06}}
+@media (prefers-reduced-motion: reduce){.mz-orb{animation:none !important}}
+</style>
+</helmet>
+<div dir="rtl" onMouseMove="{{onMove}}" onMouseLeave="{{onLeave}}" style="position: relative; min-height: 100vh; box-sizing: border-box; background: #040a19; color: #f5f7fb; font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; font-size: 14px; line-height: 1.55">
+
+  <!-- Atmosphere, one of three styles: aurora bands flowing across the screen, police red/blue flashes, or scattered lights. -->
+  <!-- --mx / --my (from -1 to 1) follow the mouse; the layers below shift by different amounts to give depth -->
+  <div aria-hidden="true" ref="{{decorRef}}" style="--mx: 0; --my: 0; position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none">
+    <!-- Aurora, drawn the way real ones look: smooth curtains of light hanging from a bright, undulating lower edge;
+         colour graded by height (bright green-white rim, green body, violet or pink tips);
+         three curtains at different depths drifting slowly right to left. Drawn on a canvas each frame for smooth
+         motion, at half resolution so the light stays soft. Stars stay fixed behind it. -->
+    <sc-if value="{{isAurora}}" hint-placeholder-val="{{ true }}">
+    <div style="position: absolute; top: 0; left: 0; right: 0; height: 62%; -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%)">
+      <!-- far layer: stars and two shooting stars that cross now and then, right to left -->
+      <div style="position: absolute; inset: 0; transform: translate(calc(var(--mx) * -10px), calc(var(--my) * -6px)); transition: transform .8s cubic-bezier(.2,.7,.2,1)">
+        <sc-for list="{{stars}}" as="s" hint-placeholder-count="0">
+          <span class="mz-orb" style="{{s.style}}; animation-play-state: {{play}}"></span>
+        </sc-for>
+        <span class="mz-orb" style="position: absolute; top: 9%; right: 14%; width: 150px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #fff, rgba(255,255,255,0)); box-shadow: 0 0 10px rgba(255,255,255,.8); opacity: 0; animation: mz-meteor {{meteorA}} linear 4s infinite; animation-play-state: {{play}}"></span>
+        <span class="mz-orb" style="position: absolute; top: 22%; right: 42%; width: 110px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #fff, rgba(255,255,255,0)); box-shadow: 0 0 10px rgba(255,255,255,.8); opacity: 0; animation: mz-meteor {{meteorB}} linear 17s infinite; animation-play-state: {{play}}"></span>
+      </div>
+      <!-- near layer: the aurora moves more than the stars -->
+      <canvas ref="{{auroraRef}}" style="position: absolute; inset: 0; width: 100%; height: 100%; filter: blur(3px); transform: translate(calc(var(--mx) * -24px), calc(var(--my) * -10px)) scale(1.04); transition: transform .8s cubic-bezier(.2,.7,.2,1)"></canvas>
+    </div>
+    </sc-if>
+    <sc-if value="{{isPolice}}" hint-placeholder-val="{{ false }}">
+    <div class="mz-orb" style="position: absolute; top: -15%; bottom: -15%; left: -25%; width: 75%; background: radial-gradient(ellipse at 35% 45%, rgba(255,45,85,{{policeAlpha}}), rgba(255,45,85,0) 65%); animation: mz-police {{policeDur}} linear infinite; animation-play-state: {{play}}"></div>
+    <div class="mz-orb" style="position: absolute; top: -15%; bottom: -15%; right: -25%; width: 75%; background: radial-gradient(ellipse at 65% 45%, rgba(45,123,255,{{policeAlpha}}), rgba(45,123,255,0) 65%); animation: mz-police {{policeDur}} linear infinite; animation-delay: {{policeDelay}}; animation-play-state: {{play}}"></div>
+    </sc-if>
+    <sc-if value="{{isOrbs}}" hint-placeholder-val="{{ false }}">
+    <div class="mz-orb" style="position: absolute; top: -240px; left: -160px; width: 720px; height: 720px; border-radius: 50%; background: {{orbA}}; animation: {{animA}}; animation-play-state: {{play}}"></div>
+    <div class="mz-orb" style="position: absolute; bottom: -280px; right: -200px; width: 800px; height: 800px; border-radius: 50%; background: {{orbB}}; animation: {{animB}}; animation-play-state: {{play}}"></div>
+    <div class="mz-orb" style="position: absolute; top: 160px; right: 30%; width: 560px; height: 560px; border-radius: 50%; background: {{orbC}}; animation: {{animC}}; animation-play-state: {{play}}"></div>
+    </sc-if>
+  </div>
+
+  <div style="position: relative; z-index: 1; box-sizing: border-box; min-height: 100vh; padding: 18px 40px 28px; display: flex; flex-wrap: wrap; gap: 24px 36px; align-items: flex-start">
+
+    <!-- Section dock: level 1, at the top -->
+    <div style="flex-basis: 100%; display: flex; justify-content: center">
+      <nav aria-label="أقسام الإعدادات" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; padding: 8px; border-radius: 28px; background: rgba(12,22,48,.72); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(24px); box-shadow: 0 20px 50px rgba(0,0,0,.45)">
+        <button type="button" aria-current="{{secCur.display}}" onClick="{{goSec.display}}" style="{{secStyle.display}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"></rect><path d="M8 21h8M12 17v4"></path></svg>العرض</button>
+        <button type="button" aria-current="{{secCur.trading}}" onClick="{{goSec.trading}}" style="{{secStyle.trading}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"></path><path d="M16 7h6v6"></path></svg>التداول</button>
+        <button type="button" aria-current="{{secCur.analysis}}" onClick="{{goSec.analysis}}" style="{{secStyle.analysis}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>التحليلات</button>
+        <button type="button" aria-current="{{secCur.journal}}" onClick="{{goSec.journal}}" style="{{secStyle.journal}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"></path><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"></path></svg>اليومية</button>
+        <button type="button" aria-current="{{secCur.telegram}}" onClick="{{goSec.telegram}}" style="{{secStyle.telegram}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4z"></path></svg>تيليغرام</button>
+        <button type="button" aria-current="{{secCur.security}}" onClick="{{goSec.security}}" style="{{secStyle.security}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>الأمان</button>
+        <button type="button" aria-current="{{secCur.advisor}}" onClick="{{goSec.advisor}}" style="{{secStyle.advisor}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"></path></svg>المستشار</button>
+        <button type="button" aria-current="{{secCur.data}}" onClick="{{goSec.data}}" style="{{secStyle.data}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"></path><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"></path></svg>البيانات</button>
+      </nav>
+    </div>
+
+    <!-- Main column -->
+    <div style="flex: 1 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+      <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+        <span style="display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(18px); font-size: 13px; color: #b3c0da"><span style="font-family: 'Aref Ruqaa', serif; font-weight: 700; font-size: 18px; color: #f2c14e">ميزان</span>الإعدادات</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 8px">
+          <button type="button" aria-label="بحث في الإعدادات" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: #f5f7fb; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+          <span style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.35); color: #6ee7b7; font-size: 13px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #34d399"></span>محفوظ</span>
+        </span>
+      </header>
+
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 20px">
+        <h1 style="margin: 0; font-family: 'Readex Pro', sans-serif; font-size: 46px; font-weight: 600; line-height: 1.1">{{secTitle}}</h1>
+        <sc-if value="{{hasPill}}" hint-placeholder-val="{{ true }}">
+        <span style="display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(242,193,78,.14); color: #f2c14e; font-size: 13px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>متصل بالبوت</span>
+        </sc-if>
+      </div>
+      <p style="margin: -8px 0 0; font-size: 15px; color: #b3c0da">{{secDesc}}</p>
+
+      <!-- Level 2: the topics of the open section -->
+      <sc-if value="{{hasTopics}}" hint-placeholder-val="{{ true }}">
+      <div role="tablist" aria-label="مواضيع القسم" style="align-self: flex-start; display: flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(18px)">
+        <sc-for list="{{topics}}" as="tp" hint-placeholder-count="4">
+          <button type="button" role="tab" aria-selected="{{tp.on}}" onClick="{{tp.pick}}" style="{{tp.style}}">{{tp.name}}</button>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- One plain sentence that tells a beginner what this topic is for -->
+      <p style="margin: -4px 0 0; display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 1.6; color: #dbe3f2; {{paneAnim}}"><span style="width: 6px; height: 6px; flex: none; border-radius: 50%; background: #f2c14e; box-shadow: 0 0 10px rgba(242,193,78,.8)"></span>{{topicIntro}}</p>
+
+      <!-- Every topic except Telegram › alerts is drawn from data: tiles of rows (lamps, choices, fields, buttons, notes, and a few special blocks) -->
+      <sc-if value="{{isGeneric}}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); gap: 16px; align-items: start; {{paneAnim}}">
+        <sc-for list="{{tiles}}" as="tile" hint-placeholder-count="2">
+          <section style="{{tile.style}}">
+            <span style="display: flex; flex-direction: column; margin-bottom: 4px">
+              <h3 style="margin: 0; font-family: 'Readex Pro', sans-serif; font-size: 16px; font-weight: 600">{{tile.title}}</h3>
+              <sc-if value="{{tile.hasCount}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12.5px; color: #b3c0da">{{tile.count}}</span></sc-if>
+            </span>
+            <sc-for list="{{tile.rows}}" as="r" hint-placeholder-count="2">
+
+              <sc-if value="{{r.isToggle}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500">{{r.label}}</span><span style="font-size: 12px; color: #b3c0da">{{r.sub}}</span></span><button type="button" role="switch" aria-checked="{{r.lc}}" aria-label="{{r.label}}" onClick="{{r.tg}}" style="{{r.ls}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{r.lf}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+              </sc-if>
+
+              <sc-if value="{{r.isChips}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 8px; padding: 8px 0">
+                <span style="display: flex; flex-direction: column"><span style="font-weight: 500">{{r.label}}</span><span style="font-size: 12px; color: #b3c0da">{{r.sub}}</span></span>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{r.opts}}" as="o" hint-placeholder-count="3"><button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.t}}</button></sc-for></div>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isInput}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500">{{r.label}}</span><span style="font-size: 12px; color: #b3c0da">{{r.sub}}</span></span><span style="display: flex; align-items: center; gap: 8px"><span style="font-size: 15px; color: #b3c0da">{{r.prefix}}</span><input type="text" readonly value="{{r.value}}" aria-label="{{r.label}}" dir="ltr" style="width: 86px; min-height: 42px; box-sizing: border-box; padding: 0 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 14px; text-align: center"><span style="font-size: 12.5px; color: #b3c0da">{{r.suffix}}</span></span></div>
+              </sc-if>
+
+              <sc-if value="{{r.isSelect}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500">{{r.label}}</span><span style="font-size: 12px; color: #b3c0da">{{r.sub}}</span></span><button type="button" aria-label="{{r.label}}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 13.5px; cursor: pointer">{{r.value}}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+              </sc-if>
+
+              <sc-if value="{{r.isButton}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500">{{r.label}}</span><span style="font-size: 12px; color: #b3c0da">{{r.sub}}</span></span><button type="button" style="{{r.btnStyle}}">{{r.btn}}</button></div>
+              </sc-if>
+
+              <sc-if value="{{r.isNote}}" hint-placeholder-val="{{ false }}">
+              <p style="{{r.noteStyle}}">{{r.text}}</p>
+              </sc-if>
+
+              <sc-if value="{{r.isList}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 6px; padding: 4px 0">
+                <sc-for list="{{r.items}}" as="it" hint-placeholder-count="3">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 0 12px; border-radius: 16px; background: rgba(0,0,0,.2)"><span style="display: flex; align-items: baseline; gap: 10px; min-width: 0"><span style="font-weight: 500">{{it.a}}</span><span dir="ltr" style="font-size: 12.5px; color: #b3c0da">{{it.b}}</span></span><span style="{{it.cs}}">{{it.c}}</span></div>
+                </sc-for>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isRange}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500">{{r.label}}</span><span style="font-size: 12px; color: #b3c0da">{{r.sub}}</span></span><span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #b3c0da">من<input type="text" readonly value="{{r.from}}" aria-label="{{r.label}}: من" dir="ltr" style="width: 76px; min-height: 42px; box-sizing: border-box; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 14px; text-align: center">إلى<input type="text" readonly value="{{r.to}}" aria-label="{{r.label}}: إلى" dir="ltr" style="width: 76px; min-height: 42px; box-sizing: border-box; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 14px; text-align: center"></span></div>
+              </sc-if>
+
+              <sc-if value="{{r.isThemes}}" hint-placeholder-val="{{ false }}">
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 6px">
+                <sc-for list="{{r.opts}}" as="o" hint-placeholder-count="3">
+                  <button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="{{o.card}}"><span style="{{o.prev}}"><span style="{{o.side}}"></span><span style="{{o.top}}"></span><span style="{{o.chart}}"></span></span><span style="font-weight: 600; font-size: 13.5px">{{o.t}}</span></button>
+                </sc-for>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isRibbon}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 12px; padding-top: 6px">
+                <span style="font-size: 12.5px; line-height: 1.6; color: #b3c0da">ساعات UTC التي تنتقل عندها جلسة إلى التالية، وتُستخدم في كل تجميع للصفقات حسب الجلسة. تأخذ سيدني الساعات المتبقية في آخر اليوم.</span>
+                <div dir="ltr" style="display: flex; flex-direction: column; gap: 6px">
+                  <div style="display: flex; height: 46px; border-radius: 14px; overflow: hidden; font-size: 13px; font-weight: 700; color: #0a1a3f; box-shadow: 0 0 30px rgba(127,212,255,.15)">
+                    <div style="width: 29.17%; background: #ffd84d; display: grid; place-items: center">طوكيو</div>
+                    <div style="width: 25%; background: #7fd4ff; display: grid; place-items: center">لندن</div>
+                    <div style="width: 33.33%; background: #ff5a6e; display: grid; place-items: center">نيويورك</div>
+                    <div style="width: 12.5%; background: #4dffa0; display: grid; place-items: center">سيدني</div>
+                  </div>
+                  <div style="position: relative; height: 16px; font-size: 11px; color: #b3c0da">
+                    <span style="position: absolute; left: 0">0</span><span style="position: absolute; left: 29.17%; transform: translateX(-50%)">7</span><span style="position: absolute; left: 54.17%; transform: translateX(-50%)">13</span><span style="position: absolute; left: 87.5%; transform: translateX(-50%)">21</span><span style="position: absolute; right: 0">24</span>
+                  </div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px">
+                  <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #b3c0da">تنتهي طوكيو<input type="text" readonly value="7" dir="ltr" style="width: 70px; min-height: 42px; box-sizing: border-box; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 14px; text-align: center"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #b3c0da">تنتهي لندن<input type="text" readonly value="13" dir="ltr" style="width: 70px; min-height: 42px; box-sizing: border-box; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 14px; text-align: center"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #b3c0da">تنتهي نيويورك<input type="text" readonly value="21" dir="ltr" style="width: 70px; min-height: 42px; box-sizing: border-box; border-radius: 14px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 14px; text-align: center"></label>
+                  <button type="button" style="min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: #e2e8f0; font-family: inherit; font-size: 13px; cursor: pointer">إرجاع الافتراضي</button>
+                </div>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isRates}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 6px">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px">
+                  <span style="display: flex; flex-direction: column"><span style="font-weight: 500">مقابل <span dir="ltr">1 USD</span></span><span style="font-size: 12px; color: #b3c0da">آخر تحديث: 30 أكتوبر 2026 · Frankfurter</span></span>
+                  <button type="button" style="display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(242,193,78,.5); background: rgba(242,193,78,.1); color: #f2c14e; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg>تحديث الأسعار</button>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 0 12px; border-radius: 16px; background: rgba(0,0,0,.2)"><span dir="ltr" style="font-weight: 600">EUR</span><input type="text" readonly value="0.8951" aria-label="سعر EUR" dir="ltr" style="width: 110px; min-height: 38px; box-sizing: border-box; border-radius: 12px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 13.5px; text-align: center"><span style="font-size: 12px; color: #b3c0da">تلقائي</span></div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 0 12px; border-radius: 16px; background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.35)"><span dir="ltr" style="font-weight: 600">USDT</span><input type="text" readonly value="" placeholder="أدخل السعر" aria-label="سعر USDT" dir="ltr" style="width: 110px; min-height: 38px; box-sizing: border-box; border-radius: 12px; border: 1px solid rgba(251,191,36,.6); background: rgba(0,0,0,.25); color: #f5f7fb; font-family: inherit; font-size: 13.5px; text-align: center"><span style="font-size: 12px; color: #fcd34d">يدوي</span></div>
+                <p style="margin: 0; font-size: 12.5px; line-height: 1.6; color: #fcd34d">ينقص سعر <span dir="ltr">USDT</span>، لذلك تبقى مجاميع «كل الحسابات» بدون تحويل حتى تُدخله.</p>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isTags}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0">
+                <sc-for list="{{r.items}}" as="it" hint-placeholder-count="4">
+                  <span style="display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 12px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); font-size: 13px">{{it.t}}<button type="button" aria-label="{{it.del}}" style="width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #b3c0da; cursor: pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span>
+                </sc-for>
+                <button type="button" style="display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px dashed rgba(242,193,78,.6); background: transparent; color: #f2c14e; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>إضافة</button>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isPeople}}" hint-placeholder-val="{{ false }}">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; padding-top: 6px">
+                <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: rgba(52,211,153,.07); border: 1px solid rgba(52,211,153,.3)">
+                  <span style="display: flex; align-items: center; justify-content: space-between"><span style="font-weight: 600">شريك الالتزام</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #6ee7b7"><span style="width: 7px; height: 7px; border-radius: 50%; background: #34d399"></span>متصل</span></span>
+                  <span style="font-size: 12.5px; line-height: 1.6; color: #b3c0da">يصله تنبيه قصير عند: صفقة بلا وقف، التداول بعد 3 خسائر، تجاوز حد الخسارة اليومي.</span>
+                  <button type="button" style="align-self: flex-start; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(248,113,113,.45); background: transparent; color: #fca5a5; font-family: inherit; font-size: 13px; cursor: pointer">إنهاء الشراكة</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: rgba(143,155,255,.07); border: 1px solid rgba(143,155,255,.3)">
+                  <span style="display: flex; align-items: center; justify-content: space-between"><span style="font-weight: 600">المدرّب</span><span style="font-size: 12px; color: #b3c0da">لا يوجد</span></span>
+                  <span style="font-size: 12.5px; line-height: 1.6; color: #b3c0da">تصله درجة انضباطك كل يوم، وتنبيه عندما تكسر قاعدة.</span>
+                  <button type="button" style="align-self: flex-start; min-height: 38px; padding: 0 16px; border-radius: 999px; border: 0; background: #8f9bff; color: #0a1a3f; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer">دعوة مدرّب</button>
+                </div>
+                <p style="grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #b3c0da"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>لا يرون أي مبالغ أو تفاصيل حسابات أبداً.</p>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{r.isConnect}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 20px; background: rgba(52,211,153,.07); border: 1px solid rgba(52,211,153,.3)">
+                <span style="display: flex; align-items: center; gap: 12px">
+                  <span style="width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: #f2c14e; color: #0a1a3f; font-family: 'Aref Ruqaa', serif; font-weight: 700; font-size: 20px">م</span>
+                  <span style="display: flex; flex-direction: column"><span style="font-weight: 600">متصل بالبوت</span><span style="font-size: 12.5px; color: #b3c0da">مربوط بحساب <span dir="ltr">@[username]</span></span></span>
+                </span>
+                <span style="display: flex; flex-wrap: wrap; gap: 8px">
+                  <button type="button" style="min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(242,193,78,.5); background: rgba(242,193,78,.1); color: #f2c14e; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer">إرسال تجربة</button>
+                  <button type="button" style="min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(248,113,113,.45); background: transparent; color: #fca5a5; font-family: inherit; font-size: 13px; cursor: pointer">فك الربط</button>
+                </span>
+              </div>
+              </sc-if>
+
+            </sc-for>
+          </section>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- Telegram › alerts: the lamp board -->
+      <sc-if value="{{isTgAlerts}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; {{paneAnim}}">
+        <div style="flex: 1 1 290px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <section aria-labelledby="c-protect" style="padding: 18px; border-radius: 26px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08)">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px">
+              <span style="width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: rgba(251,113,133,.16); color: #fda4af"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
+              <span style="display: flex; flex-direction: column"><h3 id="c-protect" style="margin: 0; font-family: 'Readex Pro', sans-serif; font-size: 16px; font-weight: 600">حماية الحساب</h3><span style="font-size: 12.5px; color: #b3c0da">{{cnt.p}} من 4 مفعّلة</span></span>
+              <span style="margin-inline-start: auto; width: 38px; height: 38px; border-radius: 50%; background: conic-gradient(#f2c14e 0 {{ringPct}}%, rgba(255,255,255,.12) 0); display: grid; place-items: center"><span style="width: 30px; height: 30px; border-radius: 50%; background: #0b1530"></span></span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">صفقة بلا وقف خسارة</span><span style="font-size: 12px; color: #b3c0da">تذكير لتضع الوقف</span></span><button type="button" role="switch" aria-checked="{{lc.p1}}" aria-label="صفقة بلا وقف خسارة" onClick="{{tg.p1}}" style="{{ls.p1}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.p1}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">3 خسائر متتالية</span><span style="font-size: 12px; color: #b3c0da">اقتراح استراحة قصيرة</span></span><button type="button" role="switch" aria-checked="{{lc.p2}}" aria-label="3 خسائر متتالية" onClick="{{tg.p2}}" style="{{ls.p2}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.p2}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">توقف مزامنة MT5</span><span style="font-size: 12px; color: #b3c0da">عندما تتوقف صفقاتك عن الوصول</span></span><button type="button" role="switch" aria-checked="{{lc.p3}}" aria-label="توقف مزامنة MT5" onClick="{{tg.p3}}" style="{{ls.p3}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.p3}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">قواعدي</span><span style="font-size: 12px; color: #b3c0da">عند كسر قاعدة من قواعدك</span></span><button type="button" role="switch" aria-checked="{{lc.p4}}" aria-label="قواعدي" onClick="{{tg.p4}}" style="{{ls.p4}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.p4}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+          </section>
+          <section aria-labelledby="c-chal" style="padding: 18px; border-radius: 26px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08)">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px">
+              <span style="width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: rgba(251,146,60,.16); color: #fdba74"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17c0 .6-.5 1-1 1.2C7.9 18.8 7 20.2 7 22M14 14.7V17c0 .6.5 1 1 1.2 1.1.6 2 2 2 3.8M18 2H6v7a6 6 0 0 0 12 0V2z"></path></svg></span>
+              <span style="display: flex; flex-direction: column"><h3 id="c-chal" style="margin: 0; font-family: 'Readex Pro', sans-serif; font-size: 16px; font-weight: 600">التحديات</h3><span style="font-size: 12.5px; color: #b3c0da">{{cnt.c}} من 2 مفعّلة</span></span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">تنبيهات التحديات</span><span style="font-size: 12px; color: #b3c0da">قبل حد الخسارة اليومي والإجمالي</span></span><button type="button" role="switch" aria-checked="{{lc.c1}}" aria-label="تنبيهات التحديات" onClick="{{tg.c1}}" style="{{ls.c1}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.c1}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column; opacity: .55"><span style="font-weight: 500">منطقة الخطر</span><span style="font-size: 12px">أضف تحدياً أولاً لتفعيله</span></span><button type="button" role="switch" aria-checked="false" aria-label="منطقة الخطر" disabled style="width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px dashed rgba(255,255,255,.2); background: transparent; color: #56627c; opacity: .7; cursor: not-allowed"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+          </section>
+        </div>
+        <div style="flex: 1 1 290px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <section aria-labelledby="c-trades" style="padding: 18px; border-radius: 26px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08)">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px">
+              <span style="width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: rgba(242,193,78,.16); color: #f2c14e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"></path><path d="M16 7h6v6"></path></svg></span>
+              <span style="display: flex; flex-direction: column"><h3 id="c-trades" style="margin: 0; font-family: 'Readex Pro', sans-serif; font-size: 16px; font-weight: 600">صفقاتك</h3><span style="font-size: 12.5px; color: #b3c0da">{{cnt.t}} من 2 مفعّلة</span></span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">كل صفقة مغلقة</span><span style="font-size: 12px; color: #b3c0da">النتيجة فور الإغلاق</span></span><button type="button" role="switch" aria-checked="{{lc.t1}}" aria-label="كل صفقة مغلقة" onClick="{{tg.t1}}" style="{{ls.t1}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.t1}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">صفقة جديدة: ضمن خطتك؟</span><span style="font-size: 12px; color: #b3c0da">سؤال سريع عند كل دخول</span></span><button type="button" role="switch" aria-checked="{{lc.t2}}" aria-label="صفقة جديدة: ضمن خطتك؟" onClick="{{tg.t2}}" style="{{ls.t2}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.t2}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+          </section>
+          <section aria-labelledby="c-sum" style="padding: 18px; border-radius: 26px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08)">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px">
+              <span style="width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: rgba(167,139,250,.16); color: #c4b5fd"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path><path d="M14 2v5h5M3 15h6M3 18h4M3 12h8"></path></svg></span>
+              <span style="display: flex; flex-direction: column"><h3 id="c-sum" style="margin: 0; font-family: 'Readex Pro', sans-serif; font-size: 16px; font-weight: 600">الملخصات والأخبار</h3><span style="font-size: 12.5px; color: #b3c0da">{{cnt.s}} من 4 مفعّلة</span></span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">خطة الصباح</span><span style="font-size: 12px; color: #b3c0da">رسالة في بداية يومك</span></span><button type="button" role="switch" aria-checked="{{lc.s1}}" aria-label="خطة الصباح" onClick="{{tg.s1}}" style="{{ls.s1}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.s1}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">ملخص اليوم</span><span style="font-size: 12px; color: #b3c0da">كل يوم الساعة <span dir="ltr">22:00</span></span></span><button type="button" role="switch" aria-checked="{{lc.s2}}" aria-label="ملخص اليوم" onClick="{{tg.s2}}" style="{{ls.s2}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.s2}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">ملخص الأسبوع</span><span style="font-size: 12px; color: #b3c0da">كل يوم جمعة</span></span><button type="button" role="switch" aria-checked="{{lc.s3}}" aria-label="ملخص الأسبوع" onClick="{{tg.s3}}" style="{{ls.s3}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.s3}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">الأخبار القوية</span><span style="font-size: 12px; color: #b3c0da">تذكير قبل الخبر</span></span><button type="button" role="switch" aria-checked="{{lc.s4}}" aria-label="الأخبار القوية" onClick="{{tg.s4}}" style="{{ls.s4}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="{{lf.s4}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5z"></path><path d="M9 18h6M10 22h4"></path></svg></button></div>
+          </section>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+
+    <!-- Floating phone preview -->
+    <aside aria-label="معاينة رسائل البوت" style="flex: 0 1 340px; min-width: 280px; display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 12px">
+      <div style="position: relative; width: 320px; max-width: 100%">
+      <!-- Light on the phone's edge only: a thin ring plus a tight halo that hugs it -->
+      <div aria-hidden="true" style="position: absolute; inset: 0; transform: rotate(-2deg); pointer-events: none">
+        <div style="position: absolute; inset: -6px; filter: blur(12px); opacity: {{glowOpacity}}">
+          <div class="mz-orb" style="position: absolute; inset: 0; border-radius: 56px; padding: 6px; background: {{ring}}; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; animation: {{glowAnim}}; animation-play-state: {{play}}"></div>
+        </div>
+        <div class="mz-orb" style="position: absolute; inset: -3px; border-radius: 53px; padding: 3px; background: {{ring}}; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; animation: {{glowAnim}}; animation-play-state: {{play}}"></div>
+      </div>
+      <!-- A phone with a metal frame, side buttons and a camera hole; inside, a chat with the Mizan bot -->
+      <div style="position: relative; width: 320px; max-width: 100%; height: 540px; box-sizing: border-box; padding: 9px; border-radius: 50px; background: linear-gradient(145deg, #3a404c, #12161d 45%, #2a2f39); box-shadow: 0 40px 80px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.18), inset 0 0 0 3px #07090d; transform: rotate(-2deg); {{phoneAnim}}">
+        <span aria-hidden="true" style="position: absolute; left: -3px; top: 110px; width: 3px; height: 34px; border-radius: 2px 0 0 2px; background: #2a2f39"></span>
+        <span aria-hidden="true" style="position: absolute; left: -3px; top: 156px; width: 3px; height: 56px; border-radius: 2px 0 0 2px; background: #2a2f39"></span>
+        <span aria-hidden="true" style="position: absolute; right: -3px; top: 140px; width: 3px; height: 70px; border-radius: 0 2px 2px 0; background: #2a2f39"></span>
+
+        <div style="position: relative; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; border-radius: 42px; background-color: #0b1424; background-image: radial-gradient(rgba(255,255,255,.04) 1.2px, transparent 1.4px); background-size: 18px 18px">
+          <span aria-hidden="true" style="position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 11px; height: 11px; border-radius: 50%; background: #05070b; box-shadow: inset 0 0 0 2px #1a2030"></span>
+          <!-- banner that drops in when a lamp is switched on or off -->
+          <sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="position: absolute; top: 30px; left: 8px; right: 8px; z-index: 3; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 18px; background: rgba(28,38,60,.96); box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; {{toastStyle}}">
+            <span style="width: 30px; height: 30px; flex: none; border-radius: 9px; display: grid; place-items: center; background: #f2c14e; color: #0a1a3f; font-family: 'Aref Ruqaa', serif; font-weight: 700">م</span>
+            <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.35"><span style="font-size: 12px; font-weight: 600">{{toastTitle}}</span><span style="font-size: 11.5px; color: #b3c0da">{{toastText}}</span></span>
+          </div>
+          </sc-if>
+
+          <div style="display: flex; align-items: center; gap: 10px; padding: 32px 12px 10px; background: rgba(13,22,40,.94); border-bottom: 1px solid rgba(255,255,255,.06)">
+            <span aria-hidden="true" style="display: flex; color: #f2c14e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span>
+            <span style="width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #f2c14e; color: #0a1a3f; font-family: 'Aref Ruqaa', serif; font-weight: 700; font-size: 17px">م</span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3"><span dir="ltr" style="font-weight: 600; font-size: 14px; text-align: right">Mizan Alerts</span><span style="font-size: 11.5px; color: #8fa0bf">بوت</span></span>
+            <span aria-hidden="true" style="display: flex; color: #8fa0bf"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="12" cy="19" r="1.6"></circle></svg></span>
+          </div>
+
+          <!-- The bot's menu of services; tapping one shows a sample of that message below -->
+          <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; padding: 10px 10px 8px; font-size: 13px">
+            <span style="align-self: center; font-size: 11px; padding: 2px 10px; border-radius: 999px; background: rgba(0,0,0,.35); color: #c9d3e6">اليوم</span>
+            <div style="align-self: flex-start; max-width: 96%; display: flex; flex-direction: column; gap: 4px">
+              <div style="padding: 8px 11px 6px; border-radius: 16px 4px 16px 16px; background: #182338">
+                <p style="margin: 0; font-weight: 600">هذه خدماتي، اضغط أي واحدة لترى مثالاً:</p>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">
+                <sc-for list="{{svcList}}" as="s" hint-placeholder-count="12">
+                  <button type="button" aria-pressed="{{s.on}}" onClick="{{s.pick}}" style="{{s.style}}">{{s.label}}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="align-self: flex-start; max-width: 90%; display: flex; flex-direction: column; gap: 4px">
+              <div style="padding: 8px 11px 6px; border-radius: 16px 4px 16px 16px; background: #182338">
+                <span style="font-size: 11px; font-weight: 600; color: {{cur.color}}">{{cur.tag}}</span>
+                <p style="margin: 1px 0; font-weight: 600">{{cur.title}}</p>
+                <p style="margin: 0; color: #b3c0da">{{cur.body}}</p>
+                <span dir="ltr" style="display: block; margin-top: 2px; font-size: 10.5px; color: #7f8daa; text-align: left">{{cur.time}}</span>
+              </div>
+              <sc-if value="{{hasBtns}}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; gap: 4px">
+                <sc-for list="{{cur.btns}}" as="b" hint-placeholder-count="2">
+                  <span style="flex: 1; min-height: 32px; display: grid; place-items: center; border-radius: 10px; background: rgba(24,35,56,.85); color: #f2c14e; font-size: 12px; font-weight: 600">{{b.t}}</span>
+                </sc-for>
+              </div>
+              </sc-if>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px 6px; background: rgba(13,22,40,.94)">
+            <span aria-hidden="true" style="display: flex; color: #8fa0bf"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"></path></svg></span>
+            <span style="flex: 1; min-height: 36px; display: flex; align-items: center; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,.06); font-size: 13px; color: #7f8daa">رسالة</span>
+            <span aria-hidden="true" style="width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #f2c14e; color: #0a1a3f"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M19 10a7 7 0 0 1-14 0M12 17v5"></path></svg></span>
+          </div>
+          <span aria-hidden="true" style="align-self: center; width: 110px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.5); margin: 4px 0 7px"></span>
+        </div>
+      </div>
+      </div>
+      <!-- Lighting controls: style, colour, strength, pause -->
+      <div role="group" aria-label="الإضاءة" style="width: 320px; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 22px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(18px)">
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <span style="font-family: 'Readex Pro', sans-serif; font-weight: 600">الإضاءة</span>
+          <button type="button" aria-label="{{playLabel}}" aria-pressed="{{paused}}" onClick="{{toggle}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(255,255,255,.08); color: #f5f7fb; cursor: pointer">
+            <sc-if value="{{isPlaying}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg></sc-if>
+            <sc-if value="{{isPaused}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5z"></path></svg></sc-if>
+          </button>
+        </div>
+        <div role="radiogroup" aria-label="نوع الحركة" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: rgba(0,0,0,.25)">
+          <button type="button" role="radio" aria-checked="{{mon.aurora}}" onClick="{{mode.aurora}}" style="{{ms.aurora}}">شفق</button>
+          <button type="button" role="radio" aria-checked="{{mon.police}}" onClick="{{mode.police}}" style="{{ms.police}}">شرطة</button>
+          <button type="button" role="radio" aria-checked="{{mon.orbs}}" onClick="{{mode.orbs}}" style="{{ms.orbs}}">متفرقة</button>
+        </div>
+        <sc-if value="{{showSwatches}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <span style="font-size: 12.5px; color: #b3c0da">اللون</span>
+          <span style="display: flex; gap: 2px">
+            <button type="button" aria-label="ألوان متحركة" aria-pressed="{{on.rgb}}" onClick="{{pick.rgb}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d); {{sw.rgb}}"></span></button>
+            <button type="button" aria-label="ذهبي" aria-pressed="{{on.gold}}" onClick="{{pick.gold}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; background: #f2c14e; {{sw.gold}}"></span></button>
+            <button type="button" aria-label="أزرق" aria-pressed="{{on.blue}}" onClick="{{pick.blue}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; background: #5ab8f0; {{sw.blue}}"></span></button>
+            <button type="button" aria-label="بنفسجي" aria-pressed="{{on.violet}}" onClick="{{pick.violet}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; background: #a78bfa; {{sw.violet}}"></span></button>
+            <button type="button" aria-label="أخضر" aria-pressed="{{on.green}}" onClick="{{pick.green}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; background: #34d399; {{sw.green}}"></span></button>
+            <button type="button" aria-label="ألواني الخاصة" aria-pressed="{{on.custom}}" onClick="{{pick.custom}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: {{cuSwatch}}; color: #0a1a3f; {{sw.custom}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span></button>
+            <button type="button" aria-label="لون الجلسة الحالية" aria-pressed="{{on.session}}" onClick="{{pick.session}}" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0); color: #0a1a3f; {{sw.session}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span></button>
+          </span>
+        </div>
+        <!-- Session colours: the aurora takes the colour of the market session open right now -->
+        <sc-if value="{{isSession}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: rgba(0,0,0,.25)">
+          <span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #b3c0da"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{sessDot}}; box-shadow: 0 0 10px {{sessDot}}"></span>الجلسة الآن: <b style="color: #f5f7fb; font-weight: 600">{{sessNow}}</b></span>
+          <div role="radiogroup" aria-label="معاينة ألوان الجلسات" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+            <sc-for list="{{sessList}}" as="x" hint-placeholder-count="4">
+              <button type="button" role="radio" aria-checked="{{x.on}}" onClick="{{x.pick}}" style="{{x.style}}">{{x.name}}</button>
+            </sc-for>
+          </div>
+          <span style="font-size: 11.5px; line-height: 1.5; color: #8a97b3">يتغيّر اللون وحده مع بداية كل جلسة. الأزرار للمعاينة فقط.</span>
+        </div>
+        </sc-if>
+        <!-- The customer's own set: one colour for the bright lower part, one for the middle, one for the tips -->
+        <sc-if value="{{isCustom}}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; border-radius: 14px; background: rgba(0,0,0,.25)">
+          <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; color: #b3c0da; cursor: pointer">
+            <input type="color" value="{{cu.a}}" onChange="{{setCu.a}}" aria-label="لون الأسفل" style="width: 40px; height: 32px; padding: 0; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: transparent; cursor: pointer">
+            الأسفل
+          </label>
+          <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; color: #b3c0da; cursor: pointer">
+            <input type="color" value="{{cu.b}}" onChange="{{setCu.b}}" aria-label="لون الوسط" style="width: 40px; height: 32px; padding: 0; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: transparent; cursor: pointer">
+            الوسط
+          </label>
+          <label style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; color: #b3c0da; cursor: pointer">
+            <input type="color" value="{{cu.c}}" onChange="{{setCu.c}}" aria-label="لون الأطراف" style="width: 40px; height: 32px; padding: 0; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: transparent; cursor: pointer">
+            الأطراف
+          </label>
+        </div>
+        </sc-if>
+        </sc-if>
+        <sc-if value="{{isPolice}}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 12.5px; color: #b3c0da"><span style="width: 12px; height: 12px; border-radius: 50%; background: #ff2d55"></span><span style="width: 12px; height: 12px; border-radius: 50%; background: #2d7bff"></span>أحمر وأزرق يتبادلان مثل ضوء سيارة الشرطة</p>
+        </sc-if>
+        <label style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #b3c0da">الشدة
+          <input type="range" min="20" max="100" step="5" value="{{level}}" onChange="{{setLevel}}" aria-label="شدة الإضاءة" style="flex: 1; min-width: 0; accent-color: #f2c14e; cursor: pointer">
+          <span dir="ltr" style="min-width: 36px; font-size: 12px; font-weight: 600; color: #f5f7fb">{{levelText}}</span>
+        </label>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <span style="font-size: 12.5px; color: #b3c0da">السرعة</span>
+          <div role="radiogroup" aria-label="سرعة الحركة" style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 3px; border-radius: 12px; background: rgba(0,0,0,.25)">
+            <button type="button" role="radio" aria-checked="{{spOn.slow}}" onClick="{{spPick.slow}}" style="{{sp.slow}}">هادئة</button>
+            <button type="button" role="radio" aria-checked="{{spOn.normal}}" onClick="{{spPick.normal}}" style="{{sp.normal}}">عادية</button>
+            <button type="button" role="radio" aria-checked="{{spOn.fast}}" onClick="{{spPick.fast}}" style="{{sp.fast}}">سريعة</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var st = this.state || {};
+    var playing = st.playing !== false;
+    var color = st.color || 'rgb';
+    // Fixed colours as "r,g,b"; the RGB mode starts each light on a different hue and cycles them.
+    var COLORS = { rgb: '', gold: '242,193,78', blue: '90,184,240', violet: '167,139,250', green: '52,211,153', custom: '', session: '' };
+    var rgbMode = color === 'rgb';
+    var still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // The customer's own three colours (lower part, middle, tips), kept as hex for the pickers and as "r,g,b" for drawing.
+    var cu = st.custom || { a: '#4dffa0', b: '#38d8ff', c: '#b56bff' };
+    function hexRgb(h) { var n = parseInt(String(h).slice(1), 16) || 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(','); }
+    var customMode = color === 'custom';
+    // Session colours, the same as the loading screen: Tokyo yellow, London light blue, New York red (Sydney green).
+    // The open session comes from the UTC hour with the app's default boundaries 7 / 13 / 21.
+    var SESS = {
+      tokyo: { name: 'طوكيو', c: { a: '#ffd84d', b: '#ffb347', c: '#ff7a59' } },
+      london: { name: 'لندن', c: { a: '#7fd4ff', b: '#4aa8ff', c: '#9b7bff' } },
+      newyork: { name: 'نيويورك', c: { a: '#ff5a6e', b: '#ff3d8b', c: '#b44dff' } },
+      sydney: { name: 'سيدني', c: { a: '#4dffa0', b: '#38d8ff', c: '#7b6bff' } }
+    };
+    var hUtc = new Date().getUTCHours();
+    var sessNowKey = hUtc < 7 ? 'tokyo' : hUtc < 13 ? 'london' : hUtc < 21 ? 'newyork' : 'sydney';
+    var sessionMode = color === 'session';
+    var sessShown = st.sessPreview || sessNowKey;
+    var sessList = Object.keys(SESS).map(function (k) {
+      var sel = k === sessShown;
+      return {
+        name: SESS[k].name,
+        on: sel ? 'true' : 'false',
+        pick: function () { self.setState({ sessPreview: k }); },
+        style: 'min-height: 30px; padding: 0 2px; border-radius: 9px; font-family: inherit; font-size: 11.5px; cursor: pointer; ' +
+          (sel ? 'border: 0; background: ' + SESS[k].c.a + '; color: #0a1a3f; font-weight: 700;' : 'border: 1px solid ' + SESS[k].c.a + '; background: transparent; color: #f5f7fb; font-weight: 500;')
+      };
+    });
+    // Three-colour modes (own colours or session) share one path from here on.
+    var triMode = customMode || sessionMode;
+    var tri = sessionMode ? SESS[sessShown].c : cu;
+    var CA = hexRgb(tri.a), CB = hexRgb(tri.b), CC = hexRgb(tri.c);
+    var setCu = {};
+    ['a', 'b', 'c'].forEach(function (k) {
+      setCu[k] = function (e) { var next = { a: cu.a, b: cu.b, c: cu.c }; next[k] = e.target.value; self.setState({ custom: next, color: 'custom' }); };
+    });
+    // Intensity 20–100: scales how strong the lights are and how far they spread.
+    var level = typeof st.level === 'number' ? st.level : 70;
+    var t = level / 100;
+    var spread = Math.round(55 + 15 * t);
+    function orb(rgb, alpha) { return 'radial-gradient(circle, rgba(' + rgb + ',' + alpha.toFixed(2) + '), rgba(' + rgb + ',0) ' + spread + '%)'; }
+    var c = triMode ? CA : (COLORS[color] || COLORS.gold);
+    // Speed: one factor stretches or shortens every animation. Police flashes stay under 3 per second even when fast.
+    var speed = st.speed || 'normal';
+    var F = { slow: 1.8, normal: 1, fast: 0.5 }[speed] || 1;
+    function dur(s) { return (s * F).toFixed(1) + 's'; }
+    var POLICE = { slow: 2.8, normal: 2, fast: 1.5 }[speed] || 2;
+    var spOn = {}, sp = {}, spPick = {};
+    ['slow', 'normal', 'fast'].forEach(function (k) {
+      spOn[k] = k === speed ? 'true' : 'false';
+      sp[k] = 'min-height: 32px; border: 0; border-radius: 9px; font-family: inherit; font-size: 12.5px; cursor: pointer; ' +
+        (k === speed ? 'background: #f2c14e; color: #0a1a3f; font-weight: 700;' : 'background: transparent; color: #b3c0da; font-weight: 500;');
+      spPick[k] = function () { self.setState({ speed: k }); };
+    });
+    var hue = rgbMode ? 'mz-hue ' + dur(30) + ' linear infinite, ' : '';
+    var on = {}, sw = {}, pick = {};
+    Object.keys(COLORS).forEach(function (k) {
+      on[k] = k === color ? 'true' : 'false';
+      sw[k] = k === color ? 'box-shadow: 0 0 0 2px #040a19, 0 0 0 4px #f5f7fb' : 'box-shadow: none';
+      pick[k] = function () { self.setState({ color: k }); };
+    });
+
+    // Light style: aurora (default), police (red/blue, about 2 flashes a second, under the 3 per second safety limit) or scattered.
+    var look = st.look || 'aurora';
+    var police = look === 'police';
+    var mon = {}, ms = {}, mode = {};
+    ['aurora', 'police', 'orbs'].forEach(function (k) {
+      mon[k] = k === look ? 'true' : 'false';
+      ms[k] = 'min-height: 36px; border: 0; border-radius: 10px; font-family: inherit; font-size: 13px; cursor: pointer; ' +
+        (k === look ? 'background: #f2c14e; color: #0a1a3f; font-weight: 700;' : 'background: transparent; color: #b3c0da; font-weight: 500;');
+      mode[k] = function () { self.setState({ look: k }); };
+    });
+    // Aurora colour, graded by height for each curtain (top of the ray first, bottom last).
+    // "RGB" gives natural colours: violet or pink tips, teal middle, green body, green-white lower rim.
+    // A fixed colour gives the same grading in shades of that colour.
+    function rgba(rgb, k, a) { return 'rgba(' + rgb.split(',').map(function (v) { v = Number(v); return Math.round(v + (255 - v) * k); }).join(',') + ',' + a + ')'; }
+    function strip(tip, mid, body, rim) {
+      return [[0, rgba(tip, 0, 0)], [0.3, rgba(tip, 0, 0.22)], [0.55, rgba(mid, 0, 0.5)], [0.82, rgba(body, 0, 0.85)], [0.92, rgba(rim, 0, 1)], [0.97, rgba(body, 0, 0.35)], [1, rgba(body, 0, 0)]];
+    }
+    function lift(rgb, k) { return rgb.split(',').map(function (v) { v = Number(v); return Math.round(v + (255 - v) * k); }).join(','); }
+    var pal = rgbMode
+      ? [strip('160,80,255', '60,210,210', '70,255,160', '215,255,230'), strip('255,80,190', '150,100,255', '60,240,190', '205,255,235')]
+      : triMode
+      ? [strip(CC, CB, CA, lift(CA, 0.7)), strip(CC, lift(CB, 0.15), CA, lift(CA, 0.75))]
+      : [strip(c, c, c, c).map(function (s, i) { return [s[0], rgba(c, [0.3, 0.3, 0.1, 0, 0.75, 0, 0][i], [0, 0.22, 0.5, 0.85, 1, 0.35, 0][i])]; }),
+         strip(c, c, c, c).map(function (s, i) { return [s[0], rgba(c, [0.5, 0.5, 0.25, 0.1, 0.8, 0.1, 0.1][i], [0, 0.2, 0.45, 0.8, 0.95, 0.3, 0][i])]; })];
+    // What the drawing loop reads on every frame (the key makes it rebuild its colours when they change).
+    this._cfg = { playing: playing, rate: 1 / F, alpha: 0.35 + 0.65 * t, pal: pal, key: triMode ? color + tri.a + tri.b + tri.c : color };
+    if (!this._ref) { this._ref = function (el) { self._attach(el); }; }
+
+    // Stars: fixed positions from a seeded generator, so they stay put while the aurora drifts; a quarter of them twinkle.
+    var seed = 20261101;
+    function rnd() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+    var stars = [];
+    for (var i = 0; i < 110; i++) {
+      var size = (1 + rnd() * 1.6).toFixed(1);
+      var twinkle = rnd() < 0.25;
+      stars.push({ style: 'position: absolute; left: ' + (rnd() * 100).toFixed(2) + '%; top: ' + (rnd() * 92).toFixed(2) + '%; width: ' + size + 'px; height: ' + size + 'px; border-radius: 50%; background: #fff; opacity: ' + (0.35 + rnd() * 0.6).toFixed(2) + '; box-shadow: 0 0 ' + (size * 3) + 'px rgba(255,255,255,.7)' +
+        (twinkle ? '; animation: mz-twinkle ' + dur(2 + rnd() * 3) + ' ease-in-out ' + (-rnd() * 4).toFixed(1) + 's infinite' : '') });
+    }
+
+    // Alert switches drawn as lamps: lit when on, dark when off. They glow in the chosen light colour (gold for RGB and police).
+    var DEFAULTS = { p1: true, p2: true, p3: true, p4: true, c1: true, t1: true, t2: true, s1: false, s2: true, s3: true, s4: false };
+    var lamps = st.lamps || DEFAULTS;
+    var L = (rgbMode || police) ? '242,193,78' : c;
+    var lc = {}, ls = {}, lf = {}, tg = {};
+    var lampBase = 'position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; cursor: pointer; transition: background .25s, box-shadow .25s, color .25s; ';
+    // The last lamp the customer pressed: it rings, the phone shakes (when switched on), and a banner drops in the phone.
+    // Two copies of each animation (-a / -b) alternate so a second press replays it.
+    var fx = st.fx || null;
+    var fxName = fx ? (fx.n % 2 ? 'a' : 'b') : 'a';
+    var LABELS = { p1: 'صفقة بلا وقف خسارة', p2: '3 خسائر متتالية', p3: 'توقف مزامنة MT5', p4: 'قواعدي', c1: 'تنبيهات التحديات', t1: 'كل صفقة مغلقة', t2: 'صفقة جديدة: ضمن خطتك؟', s1: 'خطة الصباح', s2: 'ملخص اليوم', s3: 'ملخص الأسبوع', s4: 'الأخبار القوية' };
+    var SVC_FOR = { p1: 'nosl', p2: 'streak', p3: 'sync', p4: 'rules', c1: 'chal', t1: 'closed', t2: 'plan', s1: 'morning', s2: 'daily', s3: 'weekly', s4: 'news' };
+    Object.keys(DEFAULTS).forEach(function (k) {
+      var lit = !!lamps[k];
+      lc[k] = lit ? 'true' : 'false';
+      lf[k] = lit ? 'rgba(255,255,255,.75)' : 'none';
+      ls[k] = lampBase + (lit
+        ? 'border: 1px solid rgba(' + L + ',.95); background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.85), rgb(' + L + ') 55%, rgba(' + L + ',.75)); color: #2b2006; box-shadow: 0 0 0 4px rgba(' + L + ',.14), 0 0 18px rgba(' + L + ',.8), 0 0 44px rgba(' + L + ',.4);'
+        : 'border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #6b7896; box-shadow: inset 0 2px 6px rgba(0,0,0,.45);');
+      if (fx && fx.id === k && !still) ls[k] += ' animation: mz-ripple-' + fxName + ' .7s ease-out;';
+      tg[k] = function () {
+        var next = {};
+        Object.keys(lamps).forEach(function (j) { next[j] = lamps[j]; });
+        next[k] = !lit;
+        var upd = { lamps: next, fx: { id: k, on: !lit, n: (fx ? fx.n : 0) + 1 } };
+        if (!lit) upd.svc = SVC_FOR[k]; // switching on also shows that alert's sample message in the phone
+        self.setState(upd);
+      };
+    });
+    function count(keys) { return keys.filter(function (k) { return lamps[k]; }).length; }
+    var cnt = { p: count(['p1', 'p2', 'p3', 'p4']), c: count(['c1']), t: count(['t1', 't2']), s: count(['s1', 's2', 's3', 's4']) };
+
+    // Sample messages, one per bot service. Symbols, amounts and names are examples only.
+    var RED = '#fda4af', GOLD = '#f2c14e', ORANGE = '#fdba74', VIOLET = '#c4b5fd', SKY = '#7cc8f5';
+    var SVC = [
+      { id: 'closed', label: 'صفقة مغلقة', tag: 'صفقاتك', color: GOLD, title: 'صفقة مغلقة · رابحة', body: 'EURUSD · بيع · المدة 42 دقيقة', time: '13:05', btns: ['أضف ملاحظة'] },
+      { id: 'plan', label: 'ضمن خطتك؟', tag: 'صفقاتك', color: GOLD, title: 'صفقة جديدة: هل هي ضمن خطتك؟', body: 'GBPUSD · شراء', time: '11:47', btns: ['نعم', 'لا'] },
+      { id: 'nosl', label: 'بلا وقف', tag: 'حماية الحساب', color: RED, title: 'صفقة بلا وقف خسارة', body: 'XAUUSD · شراء · منذ 5 دقائق', time: '14:32', btns: ['أضفت الوقف', 'ذكّرني لاحقاً'] },
+      { id: 'streak', label: '3 خسائر', tag: 'حماية الحساب', color: RED, title: '3 خسائر متتالية', body: 'خذ استراحة قصيرة قبل الصفقة التالية.', time: '15:10', btns: ['سآخذ استراحة', 'تجاهل'] },
+      { id: 'sync', label: 'توقف MT5', tag: 'حماية الحساب', color: RED, title: 'توقفت مزامنة MT5', body: 'لم تعد صفقاتك تصل. تأكّد أن المنصة مفتوحة ومتصلة.', time: '16:02', btns: [] },
+      { id: 'rules', label: 'قواعدي', tag: 'قواعدي', color: RED, title: 'هل كسرت أياً من قواعدك؟', body: 'في صفقتك الأخيرة على NAS100', time: '12:20', btns: ['لا', 'نعم'] },
+      { id: 'chal', label: 'التحديات', tag: 'التحديات', color: ORANGE, title: 'اقتربت من حد الخسارة اليومي', body: 'بقي 0.4% قبل الحد في [اسم التحدي]', time: '15:40', btns: ['أوقف التداول اليوم'] },
+      { id: 'morning', label: 'خطة الصباح', tag: 'الملخصات', color: VIOLET, title: 'خطة الصباح', body: 'خبران قويان اليوم · راجع قواعدك قبل أول صفقة', time: '07:30', btns: ['خطتي جاهزة'] },
+      { id: 'daily', label: 'ملخص اليوم', tag: 'الملخصات', color: VIOLET, title: 'ملخص اليوم', body: '3 صفقات · 2 رابحة · 1 تعادل · الانضباط 92/100', time: '22:00', btns: [] },
+      { id: 'weekly', label: 'ملخص الأسبوع', tag: 'الملخصات', color: VIOLET, title: 'ملخص الأسبوع', body: 'أفضل يوم: الثلاثاء · أكثر خطأ: دخول مبكر', time: 'الجمعة', btns: ['افتح التقرير'] },
+      { id: 'news', label: 'الأخبار', tag: 'الأخبار', color: SKY, title: 'خبر قوي بعد 15 دقيقة', body: 'USD · مؤشر أسعار المستهلكين', time: '13:15', btns: [] },
+      { id: 'voice', label: 'ملاحظة صوتية', tag: 'ملاحظة صوتية', color: GOLD, title: 'حُفظت ملاحظتك مع الصفقة', body: '«دخلت قبل تأكيد الشمعة، سأنتظر في المرة القادمة»', time: '14:41', btns: [] }
+    ];
+    var svcId = st.svc || 'nosl';
+    var cur = SVC.filter(function (x) { return x.id === svcId; })[0] || SVC[2];
+    var svcList = SVC.map(function (x) {
+      var sel = x.id === cur.id;
+      return {
+        label: x.label,
+        on: sel ? 'true' : 'false',
+        pick: function () { self.setState({ svc: x.id }); },
+        style: 'min-height: 30px; padding: 0 4px; border-radius: 9px; border: 0; font-family: inherit; font-size: 11.5px; cursor: pointer; ' +
+          (sel ? 'background: #f2c14e; color: #0a1a3f; font-weight: 700;' : 'background: rgba(24,35,56,.85); color: #f2c14e; font-weight: 600;')
+      };
+    });
+
+    // ===== Sections (level 1) and topics (level 2), same structure and wording as the approved plan =====
+    var SECS = {
+      display: { title: 'العرض', desc: 'كيف يبدو ميزان أمامك.', topics: [['look', 'المظهر'], ['lang', 'اللغة والأرقام']] },
+      trading: { title: 'التداول', desc: 'ما تبدأ به الرئيسية وحاسبة الحجم.', topics: [] },
+      analysis: { title: 'تحليلات التداول', desc: 'كيف تُحسب أرقامك. صفقاتك المحفوظة لا تتغير أبداً.', topics: [['time', 'التوقيت'], ['sessions', 'الجلسات'], ['results', 'التعادل'], ['currency', 'العملة']] },
+      journal: { title: 'اليومية', desc: 'ما تكتبه مع كل صفقة.', topics: [['fields', 'الحقول والتذكير'], ['lists', 'المشاعر والأخطاء والوسوم']] },
+      telegram: { title: 'تيليغرام', desc: 'صفقاتك ومخاطرك وتحدياتك، رسائل تصلك على هاتفك في لحظتها.', topics: [['link', 'الربط'], ['limits', 'حدود اليوم'], ['alerts', 'التنبيهات'], ['news', 'الأخبار والملخصات'], ['quiet', 'الهدوء']] },
+      security: { title: 'الأمان والمشاركة', desc: 'احمِ دخولك وأرقامك، وتحكّم بمن يتابع انضباطك.', topics: [['login', 'الدخول'], ['privacy', 'إخفاء المبالغ'], ['people', 'الشريك والمدرّب']] },
+      advisor: { title: 'المستشار والأهداف', desc: 'كيف يكلّمك المستشار، وماذا يقرأ، وهدفك لهذا الشهر.', topics: [['style', 'طريقة الكلام'], ['reads', 'ما يقرؤه'], ['goal', 'هدف الشهر']] },
+      data: { title: 'البيانات', desc: 'خُذ صفقاتك معك، وأدِر مفاتيح المزامنة.', topics: [] }
+    };
+    var sec = SECS[st.sec] ? st.sec : 'telegram';
+    var S = SECS[sec];
+    var subIds = S.topics.map(function (x) { return x[0]; });
+    var sub = subIds.indexOf(st.sub) >= 0 ? st.sub : (st.sec ? (subIds[0] || '') : 'alerts');
+    var pane = st.pane || 0; // counts every move, so the content fades in again each time
+    var secStyle = {}, secCur = {}, goSec = {};
+    var dockBase = 'width: 68px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px; border: 0; border-radius: 20px; font-family: inherit; font-size: 11px; cursor: pointer; transition: background .2s, color .2s; ';
+    Object.keys(SECS).forEach(function (k) {
+      var here = k === sec;
+      secCur[k] = here ? 'page' : 'false';
+      secStyle[k] = dockBase + (here ? 'color: #f2c14e; font-weight: 600; background: rgba(242,193,78,.14);' : 'color: #b3c0da; font-weight: 400; background: transparent;');
+      goSec[k] = function () { if (k !== sec) self.setState({ sec: k, sub: SECS[k].topics.length ? SECS[k].topics[0][0] : '', pane: pane + 1 }); };
+    });
+    var topics = S.topics.map(function (x) {
+      var here = x[0] === sub;
+      return {
+        name: x[1],
+        on: here ? 'true' : 'false',
+        pick: function () { if (!here) self.setState({ sec: sec, sub: x[0], pane: pane + 1 }); },
+        style: 'min-height: 40px; padding: 0 18px; border-radius: 999px; border: 0; font-family: inherit; font-size: 14px; cursor: pointer; transition: background .2s, color .2s; ' +
+          (here ? 'background: #f2c14e; color: #0a1a3f; font-weight: 700; box-shadow: 0 6px 20px rgba(242,193,78,.35);' : 'background: transparent; color: #b3c0da; font-weight: 500;')
+      };
+    });
+
+    // Switches outside the alert board: lamps too, kept in their own map. Choices keep the picked option per row.
+    var GT = { startHidden: false, reduceMotion: false, voice: true, lossLimit: true, maxTrades: false, quiet: true, newDevice: true, unify: true, rdTrades: true, rdNotes: true, rdRules: true, rdChal: false, goalMap: true };
+    var gt = st.gt || GT;
+    var gfx = st.gfx || null;
+    var ch = st.ch || {};
+    var mc = st.mc || {};
+    function lampStyle(lit, id) {
+      return lampBase + (lit
+        ? 'border: 1px solid rgba(' + L + ',.95); background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.85), rgb(' + L + ') 55%, rgba(' + L + ',.75)); color: #2b2006; box-shadow: 0 0 0 4px rgba(' + L + ',.14), 0 0 18px rgba(' + L + ',.8), 0 0 44px rgba(' + L + ',.4);'
+        : 'border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #6b7896; box-shadow: inset 0 2px 6px rgba(0,0,0,.45);') +
+        (gfx && gfx.id === id && !still ? ' animation: mz-ripple-' + (gfx.n % 2 ? 'a' : 'b') + ' .7s ease-out;' : '');
+    }
+    var chipBase = 'min-height: 38px; padding: 0 14px; border-radius: 999px; font-family: inherit; font-size: 13px; cursor: pointer; transition: background .2s, color .2s; ';
+    function chipStyle(here) { return chipBase + (here ? 'border: 1px solid #f2c14e; background: #f2c14e; color: #0a1a3f; font-weight: 700;' : 'border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.04); color: #e2e8f0; font-weight: 500;'); }
+    var BTN = {
+      gold: 'min-height: 42px; padding: 0 18px; border-radius: 999px; border: 0; background: #f2c14e; color: #0a1a3f; font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap',
+      ghost: 'min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.05); color: #e2e8f0; font-family: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap',
+      danger: 'min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(248,113,113,.45); background: transparent; color: #fca5a5; font-family: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap'
+    };
+    var PILL = {
+      be: 'min-height: 28px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 999px; background: rgba(148,163,184,.16); color: #cbd5e1; font-size: 12.5px; font-weight: 600',
+      win: 'min-height: 28px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 999px; background: rgba(52,211,153,.16); color: #6ee7b7; font-size: 12.5px; font-weight: 600',
+      sel: 'min-height: 36px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.25); color: #f5f7fb; font-size: 13px'
+    };
+    var THEMES = [['navy', 'كحلي', '#061126', '#0b1c3d', '#e6b84a'], ['ivory', 'عاجي', '#f3f5fa', '#ffffff', '#0a1f5c'], ['black', 'أسود وذهبي', '#000000', '#141414', '#f5b83d']];
+
+    // Shorthands for the rows of a tile.
+    function T(id, label, sub, svc) { return { k: 'toggle', id: id, label: label, sub: sub || '', svc: svc }; }
+    function C(id, label, sub, opts, def, multi) { return { k: 'chips', id: id, label: label, sub: sub || '', opts: opts, def: def, multi: !!multi }; }
+    function I(label, sub, value, suffix, prefix) { return { k: 'input', label: label, sub: sub || '', value: value, suffix: suffix || '', prefix: prefix || '' }; }
+    function Sel(label, sub, value) { return { k: 'select', label: label, sub: sub || '', value: value }; }
+    function B(label, sub, btn, tone) { return { k: 'button', label: label, sub: sub || '', btn: btn, tone: tone || 'ghost' }; }
+    function N(text, tone) { return { k: 'note', text: text, tone: tone || 'muted' }; }
+
+    var CONTENT = {
+      'display/look': { intro: 'غيّر الألوان وحجم النص ليرتاح نظرك. يظهر التغيير فوراً.', tiles: [
+        { title: 'السمة', wide: true, rows: [{ k: 'themes', id: 'theme' }] },
+        { title: 'حجم النص', rows: [C('font', 'حجم النص', 'يكبر النص في كل الصفحات.', ['صغير', 'عادي', 'كبير'], 1)] },
+        { title: 'عند الفتح', rows: [T('startHidden', 'ابدأ بإخفاء الأرصدة', 'لا تظهر المبالغ عند فتح ميزان، حتى تضغط زر العين.'), T('reduceMotion', 'تقليل الحركة', 'يوقف حركات شاشة التحميل وتسجيل الدخول.')] }
+      ] },
+      'display/lang': { intro: 'لغة الواجهة، وكيف تُكتب الأرقام، ومن أي يوم يبدأ الأسبوع في التقويم.', tiles: [
+        { title: 'اللغة', rows: [C('lang', 'لغة الواجهة', '', ['العربية', 'English', 'Français'], 0)] },
+        { title: 'الأرقام والتقويم', rows: [C('week', 'أول أيام الأسبوع', 'يستخدمه تقويم الأرباح في الرئيسية.', ['الإثنين', 'الأحد'], 0), C('numfmt', 'تنسيق الأرقام', 'طريقة كتابة الآلاف والكسور.', ['1,234.56', '1 234,56'], 0)] }
+      ] },
+      'trading/': { intro: 'ما تبدأ به الرئيسية وحاسبة الحجم كل مرة تفتح ميزان.', tiles: [
+        { title: 'الرئيسية', rows: [Sel('الحساب الذي تفتح به الرئيسية', 'تقدر تغيّره من الرئيسية في أي وقت.', 'كل الحسابات')] },
+        { title: 'حاسبة الحجم', rows: [I('المخاطرة الافتراضية للصفقة', 'كنسبة من الرصيد.', '1', '%'), N('المبتدئ يبدأ عادة بـ 1% أو أقل.', 'tip')] }
+      ] },
+      'analysis/time': { intro: 'إذا ظهرت صفقاتك بساعات أو أيام خاطئة، فالسبب غالباً ساعة سيرفر الوسيط. اضبطها هنا.', tiles: [
+        { title: 'اليوم والساعة', rows: [C('dayStart', 'يبدأ يوم التداول عند', 'في أي يوم تُحسب الصفقة في التقويم والتقارير.', ['منتصف الليل', '17:00 نيويورك'], 0), C('clock', 'وقت سيرفر الوسيط', 'لا تعرف؟ أغلب وسطاء MT5 يستخدمون «معيار MT5».', ['بدون', 'فرق ثابت', 'معيار MT5'], 2)] },
+        { title: 'حساب بساعة مختلفة؟', rows: [N('اترك كل حساب على «الافتراضي» إلا إذا كان وسيطه مختلفاً.'), { k: 'list', items: [['[حساب التحدي]', 'USD', 'الافتراضي', 'sel'], ['[الحساب الحقيقي]', 'EUR', 'فرق ثابت · +2', 'sel'], ['[محفظة العملات الرقمية]', 'USDT', 'بدون', 'sel']] }] }
+      ] },
+      'analysis/sessions': { intro: 'متى تنتهي كل جلسة بتوقيت UTC. الإعداد الافتراضي مناسب لأغلب المتداولين.', tiles: [
+        { title: 'حدود الجلسات (UTC)', wide: true, rows: [{ k: 'ribbon' }] }
+      ] },
+      'analysis/results': { intro: 'الصفقة الصغيرة جداً لا تُعتبر ربحاً ولا خسارة. حدّد هنا ما هو «صغير جداً» بالنسبة لك.', tiles: [
+        { title: 'نطاق التعادل', rows: [I('نطاق التعادل', 'بعملة الحساب نفسها. اتركه 0 إذا لم تكن متأكداً.', '1.00', '', '±')] },
+        { title: 'مثال', rows: [{ k: 'list', items: [['صفقة ربحت', '+0.60', 'تعادل', 'be'], ['صفقة ربحت', '+3.20', 'ربح', 'win'], ['صفقة خسرت', '−0.40', 'تعادل', 'be']] }, N('مثال بنطاق ±1.00. مجاميع اليوم والفترة لا تتأثر.')] }
+      ] },
+      'analysis/currency': { intro: 'عندك حسابات بعملات مختلفة؟ فعّل هذا لتُجمع كلها بعملة واحدة عند عرض «كل الحسابات».', tiles: [
+        { title: 'العملة الموحّدة', rows: [T('unify', 'اجمع «كل الحسابات» بعملة واحدة', 'كل حساب وحده يبقى بعملته.'), Sel('العملة الموحّدة', '', 'USD')] },
+        { title: 'أسعار الصرف', rows: [{ k: 'rates' }] }
+      ] },
+      'journal/fields': { intro: 'ما تختاره هنا يصير إلزامياً قبل حفظ أي صفقة تكتبها بيدك. صفقات MT5 تُحفظ دائماً.', tiles: [
+        { title: 'حقول مطلوبة قبل الحفظ', rows: [C('required', 'اختر حقلاً أو أكثر', '', ['الاستراتيجية', 'الشعور', 'الخطأ', 'صورة الشارت', 'ملاحظة'], [0, 1], true)] },
+        { title: 'تذكير المراجعة', rows: [Sel('تذكير المراجعة', 'الصفقة التي بلا شعور أو ملاحظة تُعلَّم «تحتاج مراجعة»، ويصلك تذكير على تيليغرام.', 'بعد ساعتين')] }
+      ] },
+      'journal/lists': { intro: 'هذه الكلمات تختار منها عند وصف صفقتك. احذف ما لا يناسبك وأضف كلماتك.', tiles: [
+        { title: 'المشاعر', rows: [{ k: 'tags', items: ['هادئ', 'واثق', 'متردد', 'خائف', 'طمّاع'] }] },
+        { title: 'الأخطاء', rows: [{ k: 'tags', items: ['دخول مبكر', 'بلا وقف خسارة', 'تحريك الوقف', 'حجم كبير'] }] },
+        { title: 'الوسوم', rows: [{ k: 'tags', items: ['إعداد A+', 'يوم أخبار', 'اختراق'] }] }
+      ] },
+      'telegram/link': { intro: 'البوت هو الذي يرسل لك التنبيهات. اضغط «إرسال تجربة» لتتأكد أنها تصلك.', tiles: [
+        { title: 'بوت ميزان', wide: true, rows: [{ k: 'connect' }] },
+        { title: 'ملاحظات صوتية', rows: [T('voice', 'ملاحظات صوتية', 'ردّ على رسالة صفقة برسالة صوتية، فتُحفظ نصاً مع الصفقة.', 'voice')] },
+        { title: 'أوامر البوت', rows: [N('/status لعرض تحدياتك، و /stop لإيقاف التنبيهات.')] }
+      ] },
+      'telegram/limits': { intro: 'ضع حدّاً لخسارتك ولعدد صفقاتك في اليوم. يُنبّهك البوت قبل أن تتجاوزه، فتتوقف في الوقت المناسب.', tiles: [
+        { title: 'حد الخسارة اليومي', rows: [T('lossLimit', 'تشغيل', 'تنبيه عند 80% منه، وتنبيه ثانٍ عند بلوغه.', 'chal'), I('الحد', '', '2', '% من الرصيد')] },
+        { title: 'أقصى عدد صفقات', rows: [T('maxTrades', 'تشغيل', 'رسالة واحدة عند الصفقة التي تتجاوز العدد.'), I('العدد', '', '5', 'صفقات في اليوم')] }
+      ] },
+      'telegram/news': { intro: 'الأخبار القوية تحرّك السوق بسرعة. ميزان يذكّرك قبلها لتقرّر: تتداول أم تنتظر.', tiles: [
+        { title: 'الأخبار', rows: [C('newsLead', 'تذكير قبل الخبر', '', ['5 د', '15 د', '30 د'], 1), C('newsCur', 'أخبار أي عملات؟', 'اختر العملات التي تتداولها فقط.', ['USD', 'EUR', 'GBP', 'JPY', 'XAU'], [0, 1, 4], true)] },
+        { title: 'الملخصات', rows: [I('موعد ملخص اليوم', 'بتوقيتك المحلي.', '22:00'), Sel('يوم ملخص الأسبوع', '', 'الجمعة')] }
+      ] },
+      'telegram/quiet': { intro: 'نَم مرتاحاً: خلال ساعات الهدوء لا يصلك إلا ما يحمي حسابك.', tiles: [
+        { title: 'ساعات الهدوء', rows: [T('quiet', 'تشغيل', 'تُؤجَّل الملخصات والأخبار إلى الصباح.'), { k: 'range', label: 'ساعات الهدوء', sub: 'بتوقيتك المحلي.', from: '23:00', to: '07:00' }] },
+        { title: 'يصل دائماً', rows: [T('newDevice', 'دخول من جهاز جديد', 'رسالة فورية إذا دخل أحد حسابك من جهاز لم يُستخدم من قبل. تصل حتى في ساعات الهدوء.')] }
+      ] },
+      'security/login': { intro: 'حتى لو عرف أحد كلمة سرّك، لن يدخل بدون الرمز الذي يظهر على هاتفك.', tiles: [
+        { title: 'التحقق بخطوتين', rows: [B('غير مفعّل', 'تحتاج تطبيق مصادقة على هاتفك. ستحصل على رموز استرداد: احفظها قبل التفعيل.', 'تفعيل', 'gold')] },
+        { title: 'الأجهزة', rows: [B('تسجيل الخروج من كل الأجهزة', 'إذا نسيت حسابك مفتوحاً في جهاز آخر. بياناتك تبقى.', 'خروج من الكل', 'danger')] }
+      ] },
+      'security/privacy': { intro: 'إذا تركت الشاشة مفتوحة، تختفي أرصدتك وحدها بعد المدة التي تختارها.', tiles: [
+        { title: 'إخفاء المبالغ', rows: [C('hideAfter', 'إخفاء المبالغ بعد', 'زر العين في الأعلى يُظهرها من جديد.', ['أبداً', '5 دقائق', '15 دقيقة', '30 دقيقة'], 2)] }
+      ] },
+      'security/people': { intro: 'أشخاص يساعدونك على الالتزام بقواعدك. لا يرون أي مبالغ أو تفاصيل حسابات أبداً.', tiles: [
+        { title: 'الشريك والمدرّب', wide: true, rows: [{ k: 'people' }] }
+      ] },
+      'advisor/style': { intro: 'اختر كيف تحب أن يكلّمك المستشار: باختصار، أو بتشجيع، أو بشرح مفصّل.', tiles: [
+        { title: 'الأسلوب', rows: [C('tone', 'طريقة الكلام', '', ['مباشر', 'مشجّع', 'مفصّل'], 0)] },
+        { title: 'اللغة', rows: [C('replyLang', 'لغة الردود', '', ['مثل التطبيق', 'العربية', 'English', 'Français'], 0)] }
+      ] },
+      'advisor/reads': { intro: 'كلما قرأ أكثر كانت نصائحه أدق. لا يُرسَل له أبداً رقم حساب أو اسمه.', tiles: [
+        { title: 'ما يقرؤه المستشار', rows: [T('rdTrades', 'الصفقات والنتائج', 'ما ربحت وخسرت، ومتى، وعلى أي رمز.'), T('rdNotes', 'ملاحظاتك المكتوبة والصوتية', 'ما كتبته أو قلته مع كل صفقة.')] },
+        { title: 'خطتك', rows: [T('rdRules', 'الاستراتيجيات والقواعد', 'ليقارن صفقاتك بخطتك.'), T('rdChal', 'التحديات', 'حدود التحدي وتقدّمك فيه.')] }
+      ] },
+      'advisor/goal': { intro: 'هدف واحد واضح للشهر. يظهر في خريطة الطريق، ويتابعه المستشار معك.', tiles: [
+        { title: 'هدف الشهر', rows: [C('goalType', 'نوع الهدف', '', ['نسبة العائد', 'مبلغ', 'درجة الانضباط'], 0), I('قيمة الهدف', '', '3', '% هذا الشهر')] },
+        { title: 'خريطة الطريق', rows: [T('goalMap', 'اعرضه في خريطة الطريق')] }
+      ] },
+      'data/': { intro: 'خُذ صفقاتك معك، وأدِر مفاتيح المزامنة. لا يُرسل شيء خارج متصفحك عند التصدير.', tiles: [
+        { title: 'تصدير', rows: [Sel('أي حساب', '', 'كل الحسابات'), B('تصدير الصفقات CSV', 'ملف يفتح في Excel. يُنشأ في متصفحك؛ لا يُرسل شيء.', 'تنزيل', 'gold')] },
+        { title: 'المزامنة والحساب', rows: [B('مفاتيح مزامنة MT5', 'مفتاح المزامنة لكل حساب في صفحة الاستيراد، إلى جانب حسابه.', 'فتح صفحة الاستيراد'), B('حذف الحساب', 'في الحساب الشخصي، مع الاسم والصورة.', 'الحساب الشخصي')] }
+      ] },
+      'telegram/alerts': { intro: 'فعّل ما يهمّك فقط. المصباح المضيء يعني أن التنبيه يصلك.', tiles: [] }
+    };
+    var key = sec + '/' + sub;
+    var page = CONTENT[key] || CONTENT['telegram/alerts'];
+    var noteStyles = {
+      muted: 'margin: 0; padding: 6px 0; font-size: 12.5px; line-height: 1.6; color: #b3c0da',
+      tip: 'margin: 6px 0 0; padding: 10px 12px; border-radius: 14px; background: rgba(242,193,78,.08); border: 1px solid rgba(242,193,78,.25); font-size: 12.5px; line-height: 1.6; color: #f6d77f'
+    };
+    var tileBase = 'display: flex; flex-direction: column; gap: 2px; padding: 18px; border-radius: 26px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); ';
+    function build(r) {
+      var o = { isToggle: false, isChips: false, isInput: false, isSelect: false, isButton: false, isNote: false, isList: false, isRange: false, isThemes: false, isRibbon: false, isRates: false, isTags: false, isPeople: false, isConnect: false,
+        label: r.label || '', sub: r.sub || '', value: r.value || '', suffix: r.suffix || '', prefix: r.prefix || '' };
+      if (r.k === 'toggle') {
+        var lit = !!gt[r.id];
+        o.isToggle = true;
+        o.lc = lit ? 'true' : 'false';
+        o.lf = lit ? 'rgba(255,255,255,.75)' : 'none';
+        o.ls = lampStyle(lit, r.id);
+        o.tg = function () {
+          var next = {};
+          Object.keys(gt).forEach(function (j) { next[j] = gt[j]; });
+          next[r.id] = !lit;
+          var upd = { gt: next, gfx: { id: r.id, n: (gfx ? gfx.n : 0) + 1 } };
+          if (!lit && r.svc) upd.svc = r.svc;
+          self.setState(upd);
+        };
+      } else if (r.k === 'chips') {
+        o.isChips = true;
+        var picked = r.multi ? (mc[r.id] || r.def) : [typeof ch[r.id] === 'number' ? ch[r.id] : r.def];
+        o.opts = r.opts.map(function (t, i) {
+          var here = picked.indexOf(i) >= 0;
+          return {
+            t: t, on: here ? 'true' : 'false', style: chipStyle(here),
+            pick: function () {
+              if (!r.multi) { var n1 = {}; Object.keys(ch).forEach(function (j) { n1[j] = ch[j]; }); n1[r.id] = i; self.setState({ ch: n1 }); return; }
+              var list = here ? picked.filter(function (x) { return x !== i; }) : picked.concat([i]);
+              var n2 = {}; Object.keys(mc).forEach(function (j) { n2[j] = mc[j]; }); n2[r.id] = list; self.setState({ mc: n2 });
+            }
+          };
+        });
+      } else if (r.k === 'input') { o.isInput = true; }
+      else if (r.k === 'select') { o.isSelect = true; }
+      else if (r.k === 'button') { o.isButton = true; o.btn = r.btn; o.btnStyle = BTN[r.tone]; }
+      else if (r.k === 'note') { o.isNote = true; o.text = r.text; o.noteStyle = noteStyles[r.tone] || noteStyles.muted; }
+      else if (r.k === 'list') { o.isList = true; o.items = r.items.map(function (x) { return { a: x[0], b: x[1], c: x[2], cs: PILL[x[3]] }; }); }
+      else if (r.k === 'range') { o.isRange = true; o.from = r.from; o.to = r.to; }
+      else if (r.k === 'themes') {
+        o.isThemes = true;
+        var th = typeof ch.theme === 'number' ? ch.theme : 0;
+        o.opts = THEMES.map(function (x, i) {
+          var here = i === th;
+          return {
+            t: x[1], on: here ? 'true' : 'false',
+            pick: function () { var n3 = {}; Object.keys(ch).forEach(function (j) { n3[j] = ch[j]; }); n3.theme = i; self.setState({ ch: n3 }); },
+            card: 'display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 20px; font-family: inherit; color: #f5f7fb; text-align: start; cursor: pointer; transition: border-color .2s, box-shadow .2s; ' +
+              (here ? 'border: 2px solid #f2c14e; background: rgba(242,193,78,.08); box-shadow: 0 0 24px rgba(242,193,78,.25);' : 'border: 2px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03);'),
+            prev: 'position: relative; display: block; height: 72px; border-radius: 12px; overflow: hidden; background: ' + x[2] + '; border: 1px solid rgba(255,255,255,.12)',
+            side: 'position: absolute; top: 0; bottom: 0; right: 0; width: 22%; background: ' + x[3],
+            top: 'position: absolute; top: 9px; left: 9px; right: 30%; height: 9px; border-radius: 5px; background: ' + x[3],
+            chart: 'position: absolute; bottom: 10px; left: 9px; width: 42%; height: 20px; border-radius: 6px; background: ' + x[4]
+          };
+        });
+      }
+      else if (r.k === 'ribbon') { o.isRibbon = true; }
+      else if (r.k === 'rates') { o.isRates = true; }
+      else if (r.k === 'tags') { o.isTags = true; o.items = r.items.map(function (t) { return { t: t, del: 'حذف ' + t }; }); }
+      else if (r.k === 'people') { o.isPeople = true; }
+      else if (r.k === 'connect') { o.isConnect = true; }
+      return o;
+    }
+    var tiles = page.tiles.map(function (tl) {
+      var toggles = tl.rows.filter(function (r) { return r.k === 'toggle'; });
+      var litN = toggles.filter(function (r) { return gt[r.id]; }).length;
+      return {
+        title: tl.title,
+        style: tileBase + (tl.wide ? 'grid-column: 1 / -1;' : ''),
+        hasCount: toggles.length > 1,
+        count: litN + ' من ' + toggles.length + ' مفعّلة',
+        rows: tl.rows.map(build)
+      };
+    });
+
+    return {
+      secTitle: S.title,
+      secDesc: S.desc,
+      hasPill: sec === 'telegram',
+      secStyle: secStyle, secCur: secCur, goSec: goSec,
+      hasTopics: topics.length > 0,
+      topics: topics,
+      topicIntro: page.intro,
+      isTgAlerts: key === 'telegram/alerts',
+      isGeneric: key !== 'telegram/alerts',
+      tiles: tiles,
+      paneAnim: pane && !still ? 'animation: mz-in-' + (pane % 2 ? 'a' : 'b') + ' .4s ease both;' : '',
+      svcList: svcList,
+      cur: { tag: cur.tag, color: cur.color, title: cur.title, body: cur.body, time: cur.time, btns: cur.btns.map(function (t) { return { t: t }; }) },
+      hasBtns: cur.btns.length > 0,
+      lc: lc, ls: ls, lf: lf, tg: tg, cnt: cnt,
+      ringPct: cnt.p * 25,
+      isAurora: look === 'aurora',
+      isPolice: police,
+      isOrbs: look === 'orbs',
+      showSwatches: !police,
+      mon: mon, ms: ms, mode: mode,
+      auroraRef: this._ref,
+      stars: stars,
+      policeDur: POLICE + 's',
+      policeDelay: (-POLICE / 2) + 's',
+      sp: sp, spOn: spOn, spPick: spPick,
+      policeAlpha: (0.25 + 0.6 * t).toFixed(2),
+      orbA: orb(rgbMode ? '255,70,90' : triMode ? CA : c, 0.15 + 0.6 * t),
+      orbB: orb(rgbMode ? '60,140,255' : triMode ? CB : c, 0.12 + 0.5 * t),
+      orbC: orb(rgbMode ? '60,230,140' : triMode ? CC : c, 0.08 + 0.42 * t),
+      isSession: sessionMode,
+      sessNow: SESS[sessNowKey].name,
+      sessDot: SESS[sessNowKey].c.a,
+      sessList: sessList,
+      meteorA: dur(26),
+      meteorB: dur(33),
+      phoneAnim: fx && fx.on && !still ? 'animation: mz-shake-' + fxName + ' .55s ease-in-out' : '',
+      hasToast: !!fx,
+      toastStyle: fx ? 'animation: mz-toast-' + fxName + ' 3.2s ease forwards' : '',
+      toastTitle: fx && fx.on ? 'تم تفعيل التنبيه' : 'تم إيقاف التنبيه',
+      toastText: fx ? LABELS[fx.id] : '',
+      decorRef: this._decorRef || (this._decorRef = function (el) { self._decor = el; }),
+      onMove: function (e) {
+        var el = self._decor;
+        if (!el || still) return;
+        var r = e.currentTarget.getBoundingClientRect();
+        el.style.setProperty('--mx', (((e.clientX - r.left) / r.width - 0.5) * 2).toFixed(3));
+        el.style.setProperty('--my', (((e.clientY - r.top) / r.height - 0.5) * 2).toFixed(3));
+      },
+      onLeave: function () {
+        if (!self._decor) return;
+        self._decor.style.setProperty('--mx', '0');
+        self._decor.style.setProperty('--my', '0');
+      },
+      isCustom: customMode,
+      cu: cu, setCu: setCu,
+      cuSwatch: 'conic-gradient(' + cu.a + ', ' + cu.b + ', ' + cu.c + ', ' + cu.a + ')',
+      glowOpacity: (0.3 + 0.65 * t).toFixed(2),
+      level: level,
+      levelText: level + '%',
+      setLevel: function (e) { self.setState({ level: Number(e.target.value) }); },
+      animA: hue + 'mz-drift-a ' + dur(48) + ' ease-in-out infinite',
+      animB: hue + 'mz-drift-b ' + dur(56) + ' ease-in-out infinite',
+      animC: hue + 'mz-drift-c ' + dur(64) + ' ease-in-out infinite',
+      ring: police ? 'linear-gradient(90deg, #ff2d55, #2d7bff)' : rgbMode ? 'conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)' : triMode ? 'linear-gradient(135deg, ' + tri.a + ', ' + tri.b + ', ' + tri.c + ')' : 'linear-gradient(135deg, rgb(' + c + '), rgba(' + c + ',.45))',
+      glowAnim: !police && rgbMode ? 'mz-hue ' + dur(30) + ' linear infinite' : 'none',
+      play: playing ? 'running' : 'paused',
+      isPlaying: playing,
+      isPaused: !playing,
+      paused: playing ? 'false' : 'true',
+      playLabel: playing ? 'إيقاف حركة الإضاءة' : 'تشغيل حركة الإضاءة',
+      toggle: function () { self.setState({ playing: !playing }); },
+      on: on, sw: sw, pick: pick
+    };
+  }
+
+  // Start or stop the aurora loop when its canvas appears or goes away.
+  _attach(el) {
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = 0; }
+    this._cv = el;
+    if (!el) return;
+    var self = this;
+    var still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var last = performance.now();
+    this._time = this._time || 0;
+    function frame(now) {
+      var cfg = self._cfg || {};
+      var dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (cfg.playing && !still) self._time += dt * cfg.rate;
+      self._draw(self._time, cfg);
+      self._raf = requestAnimationFrame(frame);
+    }
+    this._raf = requestAnimationFrame(frame);
+  }
+
+  componentWillUnmount() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+  }
+
+  // One 1px-wide image per curtain holding its height gradient; each ray is that image stretched.
+  _strips(pal) {
+    return pal.map(function (stops) {
+      var cv = document.createElement('canvas');
+      cv.width = 1;
+      cv.height = 256;
+      var g = cv.getContext('2d');
+      var gr = g.createLinearGradient(0, 0, 0, 256);
+      stops.forEach(function (s) { gr.addColorStop(s[0], s[1]); });
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 1, 256);
+      return cv;
+    });
+  }
+
+  _draw(time, cfg) {
+    var cv = this._cv;
+    if (!cv || !cfg.pal) return;
+    var W = Math.max(2, Math.round(cv.clientWidth / 2));
+    var H = Math.max(2, Math.round(cv.clientHeight / 2));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    if (!this._img || this._imgKey !== cfg.key) { this._img = this._strips(cfg.pal); this._imgKey = cfg.key; }
+    var ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    // Far curtain first (higher, fainter, slower), main curtain last (lowest, brightest).
+    var layers = [
+      { y: 0.44, h: 0.36, a: 0.45, img: 0, s: 0.6, ph: 1.7 },
+      { y: 0.63, h: 0.46, a: 0.7, img: 1, s: 0.8, ph: 4.1 },
+      { y: 0.8, h: 0.58, a: 1, img: 0, s: 1, ph: 0 }
+    ];
+    for (var l = 0; l < layers.length; l++) {
+      var L = layers[l];
+      var img = this._img[L.img];
+      var tt = time * L.s;
+      for (var x = 0; x < W; x += 2) {
+        var u = (x / W) * 6.2832;
+        // Lower edge: slow, large folds plus smaller ripples, all drifting right to left.
+        var base = H * (L.y + 0.07 * Math.sin(u * 1.1 + tt * 0.25 + L.ph) + 0.035 * Math.sin(u * 2.7 + tt * 0.18 + L.ph * 2) + 0.015 * Math.sin(u * 6.3 + tt * 0.4));
+        // Bright and dim stretches along the curtain, with only a gentle, wide shimmer: no visible ray lines.
+        var fold = 0.5 + 0.5 * Math.sin(u * 1.9 + tt * 0.22 + L.ph);
+        var shimmer = 0.85 + 0.15 * Math.sin(u * 7 + tt * 0.5 + L.ph);
+        var b = Math.pow(fold * 0.75 + 0.25, 1.6) * shimmer;
+        var h = H * L.h * (0.6 + 0.2 * (1 + Math.sin(u * 3.3 + tt * 0.3 + L.ph)));
+        var alpha = Math.min(1, b * L.a * cfg.alpha);
+        // A wide, faint glow, then a soft band. Each band is 12px wide while they sit 2px apart, so they overlap
+        // into one smooth sheet of light with no visible lines (alpha is lowered to match the overlap).
+        ctx.globalAlpha = alpha * 0.1;
+        ctx.drawImage(img, x - 8, base - h * 0.85, 18, h * 0.95);
+        ctx.globalAlpha = alpha * 0.2;
+        ctx.drawImage(img, x - 5, base - h, 12, h * 1.08);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+</script>
+</body>
+</html>
