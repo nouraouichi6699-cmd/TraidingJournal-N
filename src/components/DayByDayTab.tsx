@@ -5,6 +5,7 @@ import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
 import { GREEN, RED } from "./dashWidgets";
 import { cardBg } from "./metricUi";
+import Private from "./Private";
 import type { Lang, Trade } from "../types";
 
 type L = [string, string, string]; // en, ar, fr
@@ -72,18 +73,64 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     <div className="space-y-4">
       <h2 className="font-heading text-xl font-bold text-primary">{T(DAY_TAB)}</h2>
       <div className="flex flex-col gap-4 md:flex-row">
-        <nav aria-label={T(X.days)} className="flex shrink-0 gap-2 overflow-auto md:max-h-[560px] md:w-16 md:flex-col" dir="ltr">
+        <nav aria-label={T(X.days)} className="flex shrink-0 gap-2 overflow-auto md:max-h-[560px] md:w-32 md:flex-col" dir="ltr">
           {days.map((d) => {
             const month = d.day.slice(0, 7), head = month !== lastMonth; lastMonth = month;
             const on = d.day === day;
+            const dayNum = Number(d.day.slice(8));
+            let monthMax = 0;
+            for (const x of days) {
+              if (x.day.slice(0, 7) === month) monthMax = Math.max(monthMax, Math.abs(x.net ?? 0));
+            }
+            const absNet = Math.abs(d.net ?? 0);
+            const opacity = monthMax > 0 ? Math.min(0.25, 0.08 + (absNet / monthMax) * 0.17) : 0.08;
+            const color = hidden || d.net === 0 ? "var(--muted)" : d.net > 0 ? "var(--primary)" : RED;
+            const tintColor = hidden || d.net === 0 ? "var(--muted)" : d.net > 0 ? "var(--profit)" : "var(--loss)";
             return (
               <div key={d.day} className="contents">
                 {head && <div className="hidden px-1 pt-1 text-center text-[9px] font-semibold uppercase leading-tight text-muted md:block" title={monthFmt.format(new Date(d.day + "T00:00:00Z"))}>{new Intl.DateTimeFormat(lang, { month: "short", timeZone: "UTC" }).format(new Date(d.day + "T00:00:00Z"))}</div>}
                 <button ref={on ? activeRef : undefined} type="button" onClick={() => setSel(d.day)} aria-pressed={on} aria-label={`${d.day} · ${money(d.net)}`}
-                  className="relative grid h-11 min-w-11 shrink-0 place-items-center rounded-xl border text-xs font-bold transition hover:border-[var(--primary)]"
-                  style={{ borderColor: on ? "var(--primary)" : "var(--border)", background: on ? "color-mix(in srgb, var(--primary) 14%, transparent)" : undefined, color: on ? "var(--primary)" : undefined }}>
-                  {Number(d.day.slice(8))}
-                  <span className="absolute bottom-1.5 h-0.5 w-3.5 rounded-full" style={{ background: hidden || d.net === 0 ? "var(--muted)" : d.net > 0 ? "var(--primary)" : RED }} />
+                  className="relative shrink-0 rounded-xl border transition hover:border-[var(--primary)] flex flex-col items-start justify-between sm:w-20 sm:h-24 w-16 h-20 md:w-28 md:h-32 p-1.5 sm:p-2 md:p-2"
+                  style={{
+                    background: `color-mix(in srgb, ${tintColor} ${opacity * 100}%, var(--surface))`,
+                    borderColor: on ? "var(--primary)" : "var(--border)",
+                    borderWidth: "1px",
+                  }}>
+                  {/* Agenda paper day number */}
+                  <div className="flex flex-col items-center" style={{ width: "18px", height: "22px", gap: "3px" }}>
+                    <div
+                      className="w-full rounded-sm shadow-sm"
+                      style={{
+                        height: "4px",
+                        background: color,
+                      }}
+                    />
+                    <div
+                      className="w-full rounded-sm flex flex-col items-center justify-center flex-1 text-[7px] sm:text-[8px] md:text-[10px] font-bold"
+                      style={{
+                        background: "#f6f1e6",
+                        color: "#0a1a3f",
+                      }}>
+                      {dayNum}
+                      {/* Binding rings */}
+                      <div className="flex gap-0.5 mt-0.5">
+                        <div className="w-0.5 h-0.5 rounded-full border border-gray-400" />
+                        <div className="w-0.5 h-0.5 rounded-full border border-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* P&L amount */}
+                  {d.net !== 0 && (
+                    <div className="flex items-baseline justify-end gap-0.5 leading-none text-right sm:text-base md:text-xl w-full"
+                      style={{ fontWeight: "bold", color, fontSize: "clamp(12px, 3vw, 20px)" }}>
+                      <Private hint={`${d.day} P&L`}>
+                        <span dir="ltr" className="tnum">
+                          {d.net > 0 ? "+" : ""}{Math.round(d.net ?? 0)}
+                        </span>
+                      </Private>
+                      <span style={{ fontSize: "0.65em", fontWeight: "500" }}>$</span>
+                    </div>
+                  )}
                 </button>
               </div>
             );
