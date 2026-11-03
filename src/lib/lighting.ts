@@ -262,14 +262,21 @@ export const SURFACE_INK: Record<Theme, { text: string; muted: string; primary: 
 /** WCAG for something that is not text: an outline, a bar, a dot. */
 export const AA_LARGE = 3;
 
-/** True while every ink still reads on that background. */
-export function surfaceReadable(theme: Theme, bg: string): boolean {
-  const ink = SURFACE_INK[theme] ?? SURFACE_INK.dark;
+/** Generic readability check: text and muted at 4.5:1, gold / profit / loss at 3:1. */
+export function inkReadable(
+  ink: { text: string; muted: string; primary: string; profit: string; loss: string },
+  bg: string,
+): boolean {
   return contrastRatio(ink.text, bg) >= AA_CONTRAST
     && contrastRatio(ink.muted, bg) >= AA_CONTRAST
     && contrastRatio(ink.primary, bg) >= AA_LARGE
     && contrastRatio(ink.profit, bg) >= AA_LARGE
     && contrastRatio(ink.loss, bg) >= AA_LARGE;
+}
+
+/** True while the theme's own ink still reads on that background. */
+export function surfaceReadable(theme: Theme, bg: string): boolean {
+  return inkReadable(SURFACE_INK[theme] ?? SURFACE_INK.dark, bg);
 }
 
 /** As much of the tint as a card can take while all five still read. Walks up and stops at the first failure. */
@@ -328,6 +335,150 @@ export const SURFACE_VAR_NAMES: string[] = [
 /** "theme" is the untouched look; the rest are the colours on offer. */
 export type CardColor = "theme" | "gold" | "blue" | "violet" | "green" | "session" | "custom";
 export const CARD_COLORS: CardColor[] = ["theme", "gold", "blue", "violet", "green", "session", "custom"];
+
+// ---------- automatic ink: light and dark ----------
+
+export type InkChoice = "light" | "dark";
+
+/**
+ * The dark ink for strongly tinted surfaces: dark text, a deeper gold (stays in the gold family, never navy),
+ * and a deeper red. These are the five inks the guard checks.
+ */
+export const DARK_SURFACE_INK = {
+  text: "#0a1a3f", muted: "#374257", primary: "#7a5600", profit: "#7a5600", loss: "#b91c1c",
+};
+
+/**
+ * Every CSS variable the dark ink overrides inside surface containers. The five guard inks, the gold family
+ * (primary, primary-2, on-primary, accent, icon, gauge-arc, c-gold), the derived colours (primary-tint,
+ * chart-grid, chart-axis, gauge-glow), and the seven tone colours in their Ivory-dark form.
+ *
+ * --bg is dynamic (offset from the tinted surface) and is added by cardSurface rather than listed here.
+ */
+export const DARK_INK_VARS: Record<string, string> = {
+  "--text": "#0a1a3f",
+  "--muted": "#374257",
+  "--primary": "#7a5600",
+  "--primary-2": "#5c4100",
+  "--on-primary": "#ffffff",
+  "--accent": "#6b4b00",
+  "--icon": "#7a5600",
+  "--profit": "#7a5600",
+  "--loss": "#b91c1c",
+  "--primary-tint": "rgba(122,86,0,.14)",
+  "--chart-grid": "rgba(55,66,87,.14)",
+  "--chart-axis": "rgba(55,66,87,.3)",
+  "--gauge-arc": "#7a5600",
+  "--gauge-glow": "none",
+  "--c-gold": "#7a5600",
+  "--c-sky": "#0369a1",
+  "--c-rose": "#be123c",
+  "--c-violet": "#6d28d9",
+  "--c-emerald": "#047857",
+  "--c-indigo": "#4338ca",
+  "--c-amber": "#c2410c",
+  "--c-slate": "#475569",
+};
+
+/** The variable names the dark ink ever touches, including the dynamic --bg. */
+export const INK_VAR_NAMES: string[] = [...Object.keys(DARK_INK_VARS), "--bg"];
+
+/** One readable range for a given ink. */
+export interface Band { ink: InkChoice; from: number; to: number }
+
+/**
+ * The readable ranges for a tint across a theme's surface, using both the theme's own ink (light)
+ * and the universal dark ink. Light ink is preferred where both pass.
+ *
+ * Returns ordered, non-overlapping bands. There can be an unreadable gap between the light and dark ranges.
+ */
+export function readableBands(theme: Theme, tint: string, step = 0.01): Band[] {
+  const base = (SURFACE_FAMILY[theme] ?? SURFACE_FAMILY.dark).surface;
+  const lightInk = SURFACE_INK[theme] ?? SURFACE_INK.dark;
+  const bands: Band[] = [];
+  let current: Band | null = null;
+
+  for (let t = 0; t <= 1 + 1e-9; t += step) {
+    const tt = Math.min(1, t);
+    const bg = mixHex(base, tint, tt);
+    const lightOk = inkReadable(lightInk, bg);
+    const darkOk = inkReadable(DARK_SURFACE_INK, bg);
+    const ink: InkChoice | null = lightOk ? "light" : darkOk ? "dark" : null;
+
+    if (ink) {
+      if (current && current.ink === ink) {
+        current.to = tt;
+      } else {
+        if (current) bands.push(current);
+        current = { ink, from: tt, to: tt };
+      }
+    } else {
+      if (current) { bands.push(current); current = null; }
+    }
+  }
+  if (current) bands.push(current);
+  return bands;
+}
+
+/**
+ * Where the slider lands in the bands: maps a 20..100 level linearly across the total readable length,
+ * skipping any unreadable gap, so every slider position is readable and 100% reaches the top of the
+ * last band.
+ */
+export function bandAt(bands: Band[], level: number): { ink: InkChoice; mix: number } | null {
+  if (!bands.length) return null;
+  const lengths = bands.map(b => b.to - b.from);
+  const total = lengths.reduce((a, b) => a + b, 0);
+  if (total <= 0) return { ink: bands[0].ink, mix: bands[0].from };
+
+  const target = total * (clampLevel(level) / 100);
+  let acc = 0;
+  for (let i = 0; i < bands.length; i++) {
+    if (acc + lengths[i] >= target - 1e-9) {
+      return { ink: bands[i].ink, mix: Math.min(bands[i].to, bands[i].from + (target - acc)) };
+    }
+    acc += lengths[i];
+  }
+  const last = bands[bands.length - 1];
+  return { ink: last.ink, mix: last.to };
+}
+
+/**
+ * The full card treatment: surface vars, ink vars when the dark ink is needed, the mix used and which ink.
+ *
+ * When the ink is "light" the theme's own ink applies unchanged and inkVars is null. When the ink is "dark",
+ * inkVars holds every variable to override inside surface containers, including --bg rebuilt at its correct
+ * distance from the tinted surface.
+ */
+export function cardSurface(theme: Theme, tint: string, level: number): {
+  vars: Record<string, string>;
+  inkVars: Record<string, string> | null;
+  mix: number;
+  ink: InkChoice;
+} {
+  const family = SURFACE_FAMILY[theme] ?? SURFACE_FAMILY.dark;
+  const bands = readableBands(theme, tint);
+  const pos = bandAt(bands, level);
+
+  if (!pos) {
+    return { vars: { "--surface": family.surface }, inkVars: null, mix: 0, ink: "light" };
+  }
+
+  const surface = mixHex(family.surface, tint, pos.mix);
+  const vars: Record<string, string> = { "--surface": surface };
+  for (const [name, value] of Object.entries(family.companions)) {
+    vars[name] = offsetFrom(surface, family.surface, value);
+  }
+
+  if (pos.ink === "dark") {
+    const themeBg = THEME_INK[theme]?.bg ?? THEME_INK.dark.bg;
+    const inkVars: Record<string, string> = { ...DARK_INK_VARS };
+    inkVars["--bg"] = offsetFrom(surface, family.surface, themeBg);
+    return { vars, inkVars, mix: pos.mix, ink: "dark" };
+  }
+
+  return { vars, inkVars: null, mix: pos.mix, ink: "light" };
+}
 
 // ---------- the shared palette ----------
 

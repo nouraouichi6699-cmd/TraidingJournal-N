@@ -8,8 +8,9 @@
 // wrong and was rejected twice.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  auroraAlpha, buildPalette, DEFAULT_LIGHTING, dur, fullColourBg, orbAlpha, orbSpread, paletteKey, policeAlpha,
-  POLICE_SECONDS, sessionNow, sessionTrio, speedFactor, surfaceVars, SURFACE_VAR_NAMES, SWATCH,
+  auroraAlpha, buildPalette, cardSurface, DEFAULT_LIGHTING, dur, fullColourBg, INK_VAR_NAMES,
+  orbAlpha, orbSpread, paletteKey, policeAlpha,
+  POLICE_SECONDS, sessionNow, sessionTrio, speedFactor, SURFACE_VAR_NAMES, SWATCH,
   type Lighting, type Rgb, type Stop, type Trio,
 } from "../lib/lighting";
 import { useReduceMotion, useSettings } from "../useSettings";
@@ -106,19 +107,33 @@ export default function Ambient({ theme }: { theme: Theme }) {
       : (SWATCH[light.cardColor] ?? SWATCH.gold);
   useLayoutEffect(() => {
     const root = document.documentElement;
+    const clearInk = () => {
+      delete root.dataset.cardInk;
+      for (const name of INK_VAR_NAMES) root.style.removeProperty(name.replace("--", "--ink-"));
+    };
     // "theme" means the surfaces are left exactly as the theme paints them, so the variables come off entirely.
     if (light.cardColor === "theme") {
       for (const name of SURFACE_VAR_NAMES) root.style.removeProperty(name);
+      clearInk();
       return;
     }
-    const { vars } = surfaceVars(theme, cardTint, light.cardLevel);
+    const { vars, inkVars, ink } = cardSurface(theme, cardTint, light.cardLevel);
     // Any name this theme does not set is removed, so nothing of another theme's family is left behind.
     for (const name of SURFACE_VAR_NAMES) {
       if (name in vars) root.style.setProperty(name, vars[name]);
       else root.style.removeProperty(name);
     }
+    // When the dark ink is needed, write the --ink-* properties and flip the attribute so the CSS block fires.
+    if (ink === "dark" && inkVars) {
+      root.dataset.cardInk = "dark";
+      for (const [name, value] of Object.entries(inkVars)) {
+        root.style.setProperty(name.replace("--", "--ink-"), value);
+      }
+    } else {
+      clearInk();
+    }
     // Taken off on the way out, which is what keeps the login and loading screens on their own colours.
-    return () => { for (const name of SURFACE_VAR_NAMES) root.style.removeProperty(name); };
+    return () => { for (const name of SURFACE_VAR_NAMES) root.style.removeProperty(name); clearInk(); };
   }, [theme, light.cardColor, cardTint, light.cardLevel]);
 
   const canvas = useRef<HTMLCanvasElement | null>(null);

@@ -78,6 +78,50 @@
   --chart-axis: rgba(154, 154, 154, 0.3);
 }
 
+/* Dark ink for strong card colours: when the guard picks the dark ink, Ambient.tsx sets data-card-ink="dark" and
+   --ink-* properties on :root. This block reads them into every surface container — cards, sidebar, header bars,
+   menus, popovers, selects — so text, the gold family and the data colours switch to their darker forms while the
+   page background and anything outside surfaces keep the theme's own ink. */
+:root[data-card-ink="dark"] :is(
+  [class*="bg-surface"],
+  [style*="var(--surface)"],
+  [style*="var(--card-bg)"],
+  [style*="var(--gauge-bg)"],
+  .menu-row,
+  .adv-answer, .adv-user, .adv-item, .adv-tile, .adv-fab, .adv-drawer,
+  .tone-panel,
+  .mz-glass
+) {
+  --text: var(--ink-text);
+  --muted: var(--ink-muted);
+  --primary: var(--ink-primary);
+  --primary-2: var(--ink-primary-2);
+  --on-primary: var(--ink-on-primary);
+  --accent: var(--ink-accent);
+  --icon: var(--ink-icon);
+  --profit: var(--ink-profit);
+  --loss: var(--ink-loss);
+  --primary-tint: var(--ink-primary-tint);
+  --chart-grid: var(--ink-chart-grid);
+  --chart-axis: var(--ink-chart-axis);
+  --gauge-arc: var(--ink-gauge-arc);
+  --gauge-glow: var(--ink-gauge-glow);
+  --bg: var(--ink-bg);
+  --c-gold: var(--ink-c-gold);
+  --c-sky: var(--ink-c-sky);
+  --c-rose: var(--ink-c-rose);
+  --c-violet: var(--ink-c-violet);
+  --c-emerald: var(--ink-c-emerald);
+  --c-indigo: var(--ink-c-indigo);
+  --c-amber: var(--ink-c-amber);
+  --c-slate: var(--ink-c-slate);
+}
+/* The Settings glass is 62% translucent — the page showing through worsens contrast below what the guard
+   measured, so it becomes opaque while the dark ink is in use. */
+:root[data-card-ink="dark"] .mz-glass {
+  background: var(--surface);
+}
+
 * {
   margin: 0;
   padding: 0;

@@ -8,7 +8,7 @@ import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
 import {
-  DEFAULT_LIGHTING, paletteChoice, pushRecent, SWATCH, surfaceVars,
+  cardSurface, DEFAULT_LIGHTING, paletteChoice, pushRecent, SWATCH,
   type CardColor, type LightColor, type LightSpeed, type LightStyle,
 } from "../lib/lighting";
 import { ColorPalette, type SpecialChoice } from "./ColorPalette";
@@ -314,7 +314,10 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
               </span>
             </Row>
             {/* What the guard actually allowed, so a bright colour settling low is explained rather than puzzling. */}
-            <Note text={L("cardsUsed").replace("{n}", String(Math.round(surfaceVars(theme, cardTint, light.cardLevel).mix * 100)))} />
+            {(() => { const cs = cardSurface(theme, cardTint, light.cardLevel); return (<>
+              <Note text={L("cardsUsed").replace("{n}", String(Math.round(cs.mix * 100)))} />
+              <Note text={L(cs.ink === "dark" ? "cardsInkDark" : "cardsInkLight")} />
+            </>); })()}
           </>
         )}
       </Tile>

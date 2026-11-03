@@ -7,6 +7,7 @@ import {
   AA_CONTRAST, contrastRatio, FULL_COLORS, fullColourBg, maxReadableMix, mixHex, relLuminance, THEME_INK,
   AA_LARGE, CARD_COLORS, maxReadableSurfaceMix, offsetFrom, SURFACE_FAMILY, SURFACE_INK, SURFACE_VAR_NAMES,
   surfaceReadable, surfaceVars,
+  bandAt, cardSurface, DARK_INK_VARS, DARK_SURFACE_INK, inkReadable, INK_VAR_NAMES, readableBands,
   isHexColor, normalizeHex, paletteChoice, PRESETS, pushRecent, RECENT_MAX, SWATCH,
 } from "./lighting";
 import type { Theme } from "../types";
@@ -385,6 +386,195 @@ for (const th of THEMES) {
 // A bright colour has to be held back, or the guard would not be doing anything at all.
 is("the brightest of them is clamped well short of the whole way in Navy",
   fullColourBg("dark", PRESETS.find((p) => p.id === "white")!.hex, 100).mix < 0.3);
+
+// =============================================================================
+// Automatic ink: light and dark
+// =============================================================================
+
+console.log("-- the dark ink is dark, gold and never navy");
+{
+  const d = DARK_SURFACE_INK;
+  is("text is dark", relLuminance(d.text) < 0.05);
+  is("muted is dark", relLuminance(d.muted) < 0.1);
+  const [pr, pg, pb] = d.primary.replace("#", "").match(/../g)!.map((x) => parseInt(x, 16));
+  is("primary is in the gold family (r > g > b)", pr > pg && pg > pb);
+  is("primary is not navy (red channel is dominant)", pr > 100 && pb < 20);
+  const [lr, lg, lb] = d.loss.replace("#", "").match(/../g)!.map((x) => parseInt(x, 16));
+  is("loss is red (r dominant)", lr > lg * 3 && lr > lb * 3);
+  is("on-primary reads on the dark gold", contrastRatio(DARK_INK_VARS["--on-primary"], DARK_INK_VARS["--primary"]) >= AA_CONTRAST);
+  is("primary-2 is darker than primary", relLuminance(DARK_INK_VARS["--primary-2"]) < relLuminance(DARK_INK_VARS["--primary"]));
+  is("accent is darker than primary", relLuminance(DARK_INK_VARS["--accent"]) <= relLuminance(DARK_INK_VARS["--primary"]));
+}
+
+console.log("-- the dark ink vars list the right things");
+is("every guard ink is in the vars", ["--text", "--muted", "--primary", "--profit", "--loss"].every((k) => k in DARK_INK_VARS));
+is("the gold family is complete", ["--primary-2", "--on-primary", "--accent", "--icon", "--gauge-arc", "--c-gold"].every((k) => k in DARK_INK_VARS));
+is("the derived colours are in", ["--primary-tint", "--chart-grid", "--chart-axis", "--gauge-glow"].every((k) => k in DARK_INK_VARS));
+is("the seven tone colours are in", ["--c-sky", "--c-rose", "--c-violet", "--c-emerald", "--c-indigo", "--c-amber", "--c-slate"].every((k) => k in DARK_INK_VARS));
+is("INK_VAR_NAMES includes --bg", INK_VAR_NAMES.includes("--bg"));
+is("INK_VAR_NAMES never contains a surface name",
+  !INK_VAR_NAMES.some((n) => ["--surface", "--card-bg", "--gauge-bg", "--gauge-track", "--border", "--skeleton"].includes(n)));
+
+console.log("-- inkReadable agrees with surfaceReadable on every theme's own ink");
+for (const th of THEMES) {
+  const bg1 = SURFACE_FAMILY[th].surface;
+  const bg2 = mixHex(SURFACE_FAMILY[th].surface, "#ffff00", 0.15);
+  is(`${th}: same result on the plain surface`, inkReadable(SURFACE_INK[th], bg1) === surfaceReadable(th, bg1));
+  is(`${th}: same result on a tinted surface`, inkReadable(SURFACE_INK[th], bg2) === surfaceReadable(th, bg2));
+}
+
+console.log("-- readable bands: structure");
+for (const th of THEMES) {
+  for (const tint of TINTS) {
+    const bands = readableBands(th, tint);
+    is(`${th} ${tint}: at least one band`, bands.length >= 1);
+    is(`${th} ${tint}: first band starts at 0 with the light ink`, bands[0].from === 0 && bands[0].ink === "light");
+    is(`${th} ${tint}: bands are ordered and non-overlapping`, bands.every((b, i) =>
+      b.from <= b.to && (i === 0 || b.from > bands[i - 1].to - 0.005)));
+    // Each band's endpoints are readable with their own ink
+    for (const b of bands) {
+      const ink = b.ink === "light" ? SURFACE_INK[th] : DARK_SURFACE_INK;
+      is(`${th} ${tint}: ${b.ink} band start reads`, inkReadable(ink, mixHex(SURFACE_FAMILY[th].surface, tint, b.from)));
+      is(`${th} ${tint}: ${b.ink} band end reads`, inkReadable(ink, mixHex(SURFACE_FAMILY[th].surface, tint, b.to)));
+    }
+  }
+}
+
+console.log("-- the light band matches the old ceiling");
+for (const th of THEMES) {
+  for (const tint of TINTS) {
+    const bands = readableBands(th, tint);
+    const oldCeiling = maxReadableSurfaceMix(th, tint);
+    near(`${th} ${tint}: light band top = old ceiling`, bands[0].to, oldCeiling);
+  }
+}
+
+console.log("-- every slider step is readable with cardSurface, for all twenty and all themes");
+for (const th of THEMES) {
+  const bad: string[] = [];
+  for (const p of PRESETS) {
+    for (const lv of [20, 40, 60, 80, 100]) {
+      const cs = cardSurface(th, p.hex, lv);
+      const bg = cs.vars["--surface"];
+      const ink = cs.ink === "light" ? SURFACE_INK[th] : DARK_SURFACE_INK;
+      if (!inkReadable(ink, bg)) bad.push(`${p.id}@${lv}`);
+    }
+  }
+  is(`${th}: all twenty at every strength are readable`, bad.length === 0, bad.join(", "));
+}
+
+console.log("-- the gap is never landed in");
+for (const th of THEMES) {
+  for (const tint of TINTS) {
+    const bands = readableBands(th, tint);
+    for (const lv of [20, 30, 40, 50, 60, 70, 80, 90, 100]) {
+      const pos = bandAt(bands, lv);
+      if (!pos) continue;
+      // The position must be inside one of the bands, not in a gap
+      const inBand = bands.some((b) => pos.mix >= b.from - 0.005 && pos.mix <= b.to + 0.005 && pos.ink === b.ink);
+      is(`${th} ${tint} @${lv}: slider lands inside a band`, inBand);
+    }
+  }
+}
+
+console.log("-- 100% reaches 1.0 where the dark ink passes at full tint");
+{
+  // Yellow is the flagship case: light ink tops out at ~26%, dark ink picks up at ~83%.
+  const navyY = cardSurface("dark", "#facc15", 100);
+  near("Navy + yellow at 100% reaches the full colour", navyY.mix, 1);
+  eq("and uses the dark ink", navyY.ink, "dark");
+  is("and the surface is readable", inkReadable(DARK_SURFACE_INK, navyY.vars["--surface"]));
+
+  const navyW = cardSurface("dark", "#ffffff", 100);
+  near("Navy + white at 100% reaches the full colour", navyW.mix, 1);
+  eq("and uses the dark ink", navyW.ink, "dark");
+
+  const blackY = cardSurface("black", "#facc15", 100);
+  near("Black + yellow at 100% reaches the full colour", blackY.mix, 1);
+  eq("and uses the dark ink", blackY.ink, "dark");
+
+  const ivoryY = cardSurface("light", "#facc15", 100);
+  is("Ivory + yellow covers nearly the whole range", ivoryY.mix >= 0.99);
+}
+
+console.log("-- bright yellow and a mid-tone in all three themes");
+for (const th of THEMES) {
+  // Bright yellow: should reach 100% with two inks
+  const yBands = readableBands(th, "#facc15");
+  const yTotal = yBands.reduce((a, b) => a + (b.to - b.from), 0);
+  is(`${th} yellow: two-ink total > light-only ceiling`, yTotal > maxReadableSurfaceMix(th, "#facc15") + 0.005 || yTotal > 0.99);
+  const yCs = cardSurface(th, "#facc15", 100);
+  is(`${th} yellow: 100% surface is readable`, inkReadable(
+    yCs.ink === "light" ? SURFACE_INK[th] : DARK_SURFACE_INK, yCs.vars["--surface"]));
+
+  // Mid-tone violet: dark ink may not help on dark/black themes
+  const vBands = readableBands(th, "#a78bfa");
+  const vCs = cardSurface(th, "#a78bfa", 100);
+  is(`${th} violet: 100% surface is readable`, inkReadable(
+    vCs.ink === "light" ? SURFACE_INK[th] : DARK_SURFACE_INK, vCs.vars["--surface"]));
+  // In dark/black themes the dark ink cannot carry a mid-tone, so the ceiling stays the same
+  if (th !== "light") {
+    near(`${th} violet: ceiling unchanged (dark ink cannot carry it)`, vCs.mix, maxReadableSurfaceMix(th, "#a78bfa"));
+  }
+}
+
+console.log("-- --bg keeps its distance from the surface");
+for (const th of THEMES) {
+  const cs = cardSurface(th, "#facc15", 100);
+  if (cs.ink === "dark" && cs.inkVars) {
+    const surf = cs.vars["--surface"];
+    const bg = cs.inkVars["--bg"];
+    is(`${th}: --bg is not the surface`, bg !== surf);
+    // The distance should match the theme's own bg-to-surface distance in absolute size
+    const d = (a: string, b: string) => a.replace("#", "").match(/../g)!.map((x, i) =>
+      parseInt(x, 16) - parseInt(b.replace("#", "").match(/../g)![i], 16));
+    const before = d(THEME_INK[th].bg, SURFACE_FAMILY[th].surface);
+    const after = d(bg, surf);
+    is(`${th}: --bg keeps its absolute distance`, before.every((x, i) => Math.abs(Math.abs(x) - Math.abs(after[i])) <= 1));
+  }
+}
+
+console.log("-- cardSurface with light ink matches surfaceVars exactly");
+// When only the light ink passes (e.g. violet on dark), the two functions should agree.
+for (const th of THEMES) {
+  const tint = "#a78bfa";
+  const bands = readableBands(th, tint);
+  if (bands.length === 1 && bands[0].ink === "light") {
+    for (const lv of [20, 60, 100]) {
+      const sv = surfaceVars(th, tint, lv);
+      const cs = cardSurface(th, tint, lv);
+      near(`${th} violet @${lv}: same mix`, cs.mix, sv.mix);
+      eq(`${th} violet @${lv}: same surface`, cs.vars["--surface"], sv.vars["--surface"]);
+      eq(`${th} violet @${lv}: light ink`, cs.ink, "light");
+      eq(`${th} violet @${lv}: no ink vars`, cs.inkVars, null);
+    }
+  }
+}
+
+console.log("-- the tone colours' contrast on a tinted surface (report, not guard)");
+{
+  const TONES: [string, string][] = [
+    ["--c-sky", "#0369a1"], ["--c-rose", "#be123c"], ["--c-violet", "#6d28d9"],
+    ["--c-emerald", "#047857"], ["--c-indigo", "#4338ca"], ["--c-amber", "#c2410c"], ["--c-slate", "#475569"],
+  ];
+  const below3: string[] = [];
+  for (const th of THEMES) {
+    for (const p of PRESETS) {
+      const cs = cardSurface(th, p.hex, 100);
+      if (cs.ink !== "dark") continue;
+      const bg = cs.vars["--surface"];
+      for (const [name, hex] of TONES) {
+        const r = contrastRatio(hex, bg);
+        if (r < 3) below3.push(`${th} ${p.id} ${name} ${r.toFixed(2)}`);
+      }
+    }
+  }
+  // Report them, not assert — the tones are outside the guard.
+  if (below3.length) console.log("  tone colours below 3:1 on dark-ink surfaces:\n    " + below3.join("\n    "));
+  is("tone contrast report done", true);
+}
+
+eq("an unknown theme in cardSurface falls back", typeof cardSurface("nope" as Theme, "#5ab8f0", 70).vars["--surface"], "string");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;
