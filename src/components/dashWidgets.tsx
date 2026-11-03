@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Ha
 import SymbolsWidget from "./SymbolsWidget";
 import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
+import { CalendarDayCell } from "./CalendarDayCell";
 import { useSettings } from "../useSettings";
 import { symL } from "../i18n";
 import { computeActivity } from "../lib/activity";
@@ -11,7 +12,6 @@ import { fmtMoney } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import { dayKey, type Metrics } from "../lib/dashStats";
 import type { Lang, Trade } from "../types";
-import { contrastRatio, mixHex, AA_CONTRAST } from "../lib/lighting";
 
 type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
@@ -211,14 +211,6 @@ function TradesW({ c }: { c: Ctx }) {
   );
 }
 
-const getCalendarTextColor = (bgColor: string): string => {
-  const lightText = "#ffffff";
-  const darkText = "#0a1a3f";
-  const lightContrast = contrastRatio(lightText, bgColor);
-  const darkContrast = contrastRatio(darkText, bgColor);
-  return darkContrast >= lightContrast && darkContrast >= AA_CONTRAST ? darkText : lightText;
-};
-
 function CalW({ c }: { c: Ctx }) {
   const days = c.m.days;
   const map = new Map(days.map((d) => [d.d, d]));
@@ -256,14 +248,21 @@ function CalW({ c }: { c: Ctx }) {
           return [
             ...wk.map((k, i) => {
               const d = k ? map.get(k) : undefined;
-              const a = d ? 0.28 + (Math.abs(d.pnl) / mx) * 0.5 : 0;
-              const bgColor = d ? mixHex(d.pnl >= 0 ? GREEN : RED, "#ffffff", 1 - a) : undefined;
-              const textColor = d ? getCalendarTextColor(bgColor!) : undefined;
+              if (d && k) {
+                return (
+                  <CalendarDayCell
+                    key={`${wi}-${i}`}
+                    dayData={{
+                      day: k,
+                      net: d.pnl,
+                    }}
+                    hideValues={c.hide}
+                    variant="compact"
+                  />
+                );
+              }
               return (
-                <div key={`${wi}-${i}`} title={d ? `${k} · ${d.n}` : undefined} className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary" style={{ background: d ? `color-mix(in srgb, ${d.pnl >= 0 ? GREEN : RED} ${a * 100}%, transparent)` : k ? "color-mix(in srgb,var(--text) 5%,transparent)" : "transparent" }}>
-                  <span className="text-[9px] leading-none text-muted">{k ? Number(k.slice(8)) : ""}</span>
-                  {d && <span className="tnum truncate text-center text-[10px] font-semibold leading-none" style={{ color: textColor }}>{c.hide ? "•••" : compact(d.pnl)}</span>}
-                </div>
+                <div key={`${wi}-${i}`} className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary" style={{ background: k ? "color-mix(in srgb,var(--text) 5%,transparent)" : "transparent" }} />
               );
             }),
             <div key={`t${wi}`} className="grid min-h-0 place-items-center rounded-md border border-border/70 text-[10px] font-semibold tnum" style={{ color: has && !c.hide ? tone(tot) : "var(--muted)" }}>{has ? (c.hide ? "•••" : compact(tot)) : "—"}</div>,
