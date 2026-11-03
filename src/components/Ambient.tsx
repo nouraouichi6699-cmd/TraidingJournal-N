@@ -49,13 +49,13 @@ export default function Ambient({ theme }: { theme: Theme }) {
     return () => { for (const name of SURFACE_VAR_NAMES) root.style.removeProperty(name); clearInk(); };
   }, [theme, light.cardColor, cardTint, light.cardLevel]);
 
-  if (off) return null;
-
-  // Full colour: one static wash over the whole page.
   const trio: Trio = useMemo(
     () => (light.color === "session" ? sessionTrio(sessionNow(Date.now(), s.sessionBounds)) : light.custom),
     [light.color, light.custom, s.sessionBounds],
   );
+
+  if (off) return null;
+
   const tint = light.color === "session" ? trio.a
     : light.color === "solid" || light.color === "custom" ? light.solid
       : (SWATCH[light.color] ?? SWATCH.gold);

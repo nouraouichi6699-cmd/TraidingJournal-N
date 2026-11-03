@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
@@ -48,6 +48,22 @@ const read = <T extends string>(key: string, allowed: readonly T[], fallback: T,
     return fallback;
   }
 };
+
+class AmbientErrorBoundary extends Component<{ theme: Theme; children?: never }, { error: boolean }> {
+  constructor(props: { theme: Theme; children?: never }) {
+    super(props);
+    this.state = { error: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { error: true };
+  }
+
+  render() {
+    if (this.state.error) return null;
+    return <Ambient theme={this.props.theme} />;
+  }
+}
 
 function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, email, userId }: { lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void; email: string; userId: string }) {
   const t = makeT(lang);
@@ -136,7 +152,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
   return (
     <div className="relative min-h-screen bg-bg text-text">
       {/* The light sits over the page colour and under everything else; the wrapper below keeps content on top. */}
-      <Ambient theme={theme} />
+      <AmbientErrorBoundary theme={theme} />
       <div className="relative z-10">
       <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={handleTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
