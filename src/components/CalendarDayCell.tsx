@@ -42,7 +42,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
   const opacity = monthMax > 0 ? Math.min(0.25, 0.08 + (absNet / monthMax) * 0.17) : 0.08;
 
   if (variant === "compact") {
-    // Dashboard calendar cell
+    const compactOpacity = monthMax > 0 ? Math.min(0.08 + (absNet / monthMax) * 0.40, 0.48) : (net !== 0 ? 0.12 : 0);
     const title = dayData.wins != null || dayData.losses != null || dayData.be != null
       ? `${dayData.day} · ${dayData.wins ?? 0}/${dayData.losses ?? 0}/${dayData.be ?? 0}`
       : dayData.day;
@@ -51,14 +51,29 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         title={title}
         className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary"
         style={{
-          background: net !== 0 ? `color-mix(in srgb, ${net >= 0 ? GREEN : RED} ${Math.min(0.28 + (absNet * 0.5), 0.78) * 100}%, transparent)` : "transparent",
+          background: net !== 0 ? `color-mix(in srgb, ${tintColor} ${compactOpacity * 100}%, var(--surface))` : "color-mix(in srgb,var(--text) 5%,transparent)",
+          borderWidth: "1px",
+          borderStyle: "solid",
+          borderColor: net !== 0 ? `color-mix(in srgb, ${tintColor} 30%, transparent)` : "var(--border)",
         }}
       >
-        <span className="text-[9px] leading-none text-muted">{dayNum}</span>
+        {/* Agenda-paper day number */}
+        <div className="flex flex-col items-center" style={{ width: "12px", height: "15px", gap: "1px" }}>
+          <div className="w-full rounded-sm" style={{ height: "2px", background: "var(--primary)" }} />
+          <div
+            className="w-full rounded-sm flex items-center justify-center flex-1 text-[6px] font-bold"
+            style={{ background: "#f6f1e6", color: "#0a1a3f" }}
+          >
+            {dayNum}
+          </div>
+        </div>
         {net !== 0 && (
-          <span className="tnum truncate text-center text-[10px] font-semibold leading-none" style={{ color: netColor }}>
-            {hideValues ? "•••" : (net > 0 ? "+" : "")}{hideValues ? "" : Math.round(net)}
-          </span>
+          <div className="flex items-baseline justify-end gap-0.5 leading-none tnum" style={{ fontWeight: "bold", color: netColor }}>
+            <span className="truncate text-[10px]">
+              {hideValues ? "•••" : `${net > 0 ? "+" : ""}${Math.round(net)}`}
+            </span>
+            {!hideValues && <span style={{ fontSize: "0.65em", fontWeight: "500" }}>$</span>}
+          </div>
         )}
       </div>
     );

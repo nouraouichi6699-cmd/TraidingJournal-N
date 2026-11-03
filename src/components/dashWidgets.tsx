@@ -258,6 +258,7 @@ function CalW({ c }: { c: Ctx }) {
                     }}
                     hideValues={c.hide}
                     variant="compact"
+                    monthMax={mx}
                   />
                 );
               }
