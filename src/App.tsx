@@ -30,7 +30,8 @@ import NewsView from "./components/NewsView";
 import ProfileView from "./components/ProfileView";
 import SettingsView from "./components/SettingsView";
 import { useProfile } from "./useProfile";
-import { loadSettings, OPEN_SETTINGS, readSettings, useReduceMotion, type SettingsStart } from "./useSettings";
+import { loadSettings, OPEN_SETTINGS, readSettings, setActiveTheme, useActiveTheme, useReduceMotion, useSettings as useSettingsHook, type SettingsStart } from "./useSettings";
+import { isBuiltIn, resolveTheme } from "./lib/customThemes";
 import { setPrivacy } from "./usePrivacy";
 import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
@@ -48,8 +49,37 @@ const read = <T extends string>(key: string, allowed: readonly T[], fallback: T,
   }
 };
 
-function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void; email: string; userId: string }) {
+function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, email, userId }: { lang: Lang; setLang: (l: Lang) => void; theme: Theme; setTheme: (t: Theme) => void; email: string; userId: string }) {
   const t = makeT(lang);
+  const appSettings = useSettingsHook();
+  const activeId = useActiveTheme();
+  const resolved = resolveTheme(activeId, appSettings.customThemes ?? [], deviceTheme);
+  const theme = resolved.base;
+
+  useEffect(() => {
+    if (theme !== deviceTheme) setDeviceTheme(theme);
+  }, [theme, deviceTheme, setDeviceTheme]);
+
+  // If the active custom theme was deleted on another device, fall back to the device theme.
+  useEffect(() => {
+    if (activeId && !isBuiltIn(activeId)) {
+      const ct = (appSettings.customThemes ?? []).find((c) => c.id === activeId);
+      if (!ct) setActiveTheme(deviceTheme);
+    }
+  }, [activeId, appSettings.customThemes, deviceTheme]);
+
+  const handleTheme = (id: string) => {
+    if (isBuiltIn(id)) {
+      setDeviceTheme(id as Theme);
+      setActiveTheme(id);
+    } else {
+      const ct = (appSettings.customThemes ?? []).find((c) => c.id === id);
+      if (ct) {
+        setDeviceTheme(ct.base);
+        setActiveTheme(id);
+      }
+    }
+  };
   useEffect(() => startRowSync(userId), [userId]);
   useEffect(() => startSettingsSync(userId), [userId]);
   // The rules of the trader's strategies, for the Telegram question under each new trade: sent again on every change.
@@ -108,7 +138,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
       {/* The light sits over the page colour and under everything else; the wrapper below keeps content on top. */}
       <Ambient theme={theme} />
       <div className="relative z-10">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={setTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={handleTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={setView} />
         <main className="min-w-0 flex-1 p-4">
@@ -162,7 +192,7 @@ function Main({ lang, setLang, theme, setTheme, email, userId }: { lang: Lang; s
               )}
               {view === "settings" && (
                 <SettingsView
-                  t={t} lang={lang} theme={theme} onLang={setLang} onTheme={setTheme}
+                  t={t} lang={lang} theme={theme} onLang={setLang} onTheme={handleTheme}
                   accounts={accounts} trades={journal.trades} onImport={() => setView("import")}
                   onProfile={() => setView("profile")} start={settingsAt}
                 />

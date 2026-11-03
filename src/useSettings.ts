@@ -4,6 +4,9 @@ import { setNumberLocale } from "./lib/numberFormat";
 import { setBreakEvenRange } from "./lib/outcome";
 import { DEFAULT_LIGHTING, type Lighting } from "./lib/lighting";
 import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
+import { DEFAULT_LOOK, extractLook, migrateIfNeeded, nextFreeNumber, type CustomTheme } from "./lib/customThemes";
+import { stT } from "./i18n";
+import type { Lang } from "./types";
 
 // The settings page's own store. One synced key so the whole lot travels together (settingsSync pushes it like the
 // other user_settings rows). Theme, language and the live privacy toggle are not in here: they keep the per-device
@@ -51,6 +54,9 @@ export interface Settings {
 
   /** The light behind the app. Absent in settings saved before it existed, which read as the defaults. */
   lighting: Lighting;
+
+  /** User-created themes. Each carries its own look; playing and recentColors stay global in lighting. */
+  customThemes: CustomTheme[];
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -72,10 +78,12 @@ export const DEFAULTS: Settings = {
   rates: {},
   ratesDate: "",
   lighting: DEFAULT_LIGHTING,
+  customThemes: [],
 };
 
 export type { BrokerClock, DayStart, SessionBounds };
 export type { Lighting };
+export type { CustomTheme };
 
 /** Where a link into Settings wants to land. */
 export interface SettingsStart { section: string; topic?: string }
@@ -97,13 +105,39 @@ const read = (): Settings => {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
     if (!raw || typeof raw !== "object") return DEFAULTS;
     const saved = raw as Partial<Settings>;
-    return { ...DEFAULTS, ...saved, lighting: { ...DEFAULT_LIGHTING, ...(saved.lighting ?? {}) } };
+    return {
+      ...DEFAULTS, ...saved,
+      lighting: { ...DEFAULT_LIGHTING, ...(saved.lighting ?? {}) },
+      customThemes: Array.isArray(saved.customThemes) ? saved.customThemes : [],
+    };
   } catch {
     return DEFAULTS;
   }
 };
 
 let current = read();
+
+// ---- per-device active theme (not synced) ----
+const AT_KEY = "mizan-active-theme";
+let currentActiveTheme = "";
+try { currentActiveTheme = localStorage.getItem(AT_KEY) ?? ""; } catch {}
+
+export const readActiveTheme = (): string => currentActiveTheme;
+
+export function setActiveTheme(id: string) {
+  currentActiveTheme = id;
+  try { localStorage.setItem(AT_KEY, id); } catch {}
+  subs.forEach((f) => f());
+}
+
+export function useActiveTheme(): string {
+  useSyncExternalStore(
+    (cb) => { subs.add(cb); return () => subs.delete(cb); },
+    () => currentActiveTheme,
+    () => currentActiveTheme,
+  );
+  return currentActiveTheme;
+}
 
 /** Everything outside React that a setting controls: the number locale, and the two attributes the CSS reads. */
 function apply(s: Settings) {
@@ -127,6 +161,42 @@ function apply(s: Settings) {
 /** Called once before the app mounts, and again after a sync pulls a newer copy from another device. */
 export function loadSettings() {
   current = read();
+
+  // Migration: first load after the update. Each device checks independently before sync runs.
+  try {
+    if (localStorage.getItem(AT_KEY) === null) {
+      const customs = current.customThemes;
+      if (customs.length > 0) {
+        // Another device already migrated and synced. Activate the first custom theme.
+        currentActiveTheme = customs[0].id;
+        localStorage.setItem(AT_KEY, customs[0].id);
+      } else {
+        const oldLook = extractLook(current.lighting);
+        const deviceTheme = (localStorage.getItem("mizan-theme") ?? "dark") as "dark" | "light" | "black";
+        const lang = (localStorage.getItem("mizan-lang") ?? "en") as Lang;
+        const L = stT(lang);
+        const n = nextFreeNumber(customs);
+        const name = L("myThemeN").replace("{n}", String(n));
+        const result = migrateIfNeeded(oldLook, deviceTheme, customs, name);
+        if (result) {
+          current = {
+            ...current,
+            customThemes: result.customs,
+            lighting: { ...current.lighting, ...DEFAULT_LOOK },
+          };
+          currentActiveTheme = result.created.id;
+          localStorage.setItem(AT_KEY, result.created.id);
+          localStorage.setItem(KEY, JSON.stringify(current));
+        } else {
+          currentActiveTheme = "";
+          localStorage.setItem(AT_KEY, "");
+        }
+      }
+    } else {
+      currentActiveTheme = localStorage.getItem(AT_KEY) ?? "";
+    }
+  } catch { /* storage errors are not fatal */ }
+
   apply(current);
   subs.forEach((f) => f());
 }

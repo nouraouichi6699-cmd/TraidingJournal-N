@@ -7,7 +7,8 @@ import NotificationsPanel from "./NotificationsPanel";
 import { usePrivacy } from "../usePrivacy";
 import { useDashEdit } from "../useDashEdit";
 import type { Interests } from "../useInterests";
-import { languages, themeNames, type Key } from "../i18n";
+import { languages, stT, themeNames, type Key } from "../i18n";
+import { useActiveTheme, useSettings } from "../useSettings";
 import type { Lang, Theme } from "../types";
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
   name: string;
   avatar: string | null;
   onLang: (l: Lang) => void;
-  onTheme: (t: Theme) => void;
+  onTheme: (t: string) => void;
   onProfile: () => void;
   onSettings: () => void;
   onNews: () => void;
@@ -35,6 +36,10 @@ const calcLabel: Record<Lang, string> = { en: "Position size", ar: "حجم ال�
 export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
   const privacy = usePrivacy();
   const dash = useDashEdit();
+  const appSettings = useSettings();
+  const activeId = useActiveTheme();
+  const customs = appSettings.customThemes ?? [];
+  const L = stT(lang);
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
@@ -135,12 +140,25 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
                 <div className="my-1 h-px bg-border" aria-hidden />
                 <p className="px-2 pb-1 pt-1 text-xs font-semibold text-muted">{t("theme")}</p>
                 {(Object.keys(themeNames) as Theme[]).map((th) => (
-                  <button key={th} role="menuitemradio" aria-checked={theme === th} onClick={() => { onTheme(th); close(); }} className="menu-item">
+                  <button key={th} role="menuitemradio" aria-checked={activeId === th} onClick={() => { onTheme(th); close(); }} className="menu-item">
                     <Palette size={16} className="text-icon" />
                     <span className="flex-1 text-start">{themeNames[th][lang]}</span>
-                    {theme === th && <Check size={16} className="text-icon" />}
+                    {activeId === th && <Check size={16} className="text-icon" />}
                   </button>
                 ))}
+                {customs.length > 0 && (
+                  <>
+                    <div className="my-1 h-px bg-border" aria-hidden />
+                    <p className="px-2 pb-1 pt-1 text-xs font-semibold text-muted">{L("myThemes")}</p>
+                    {customs.map((ct) => (
+                      <button key={ct.id} role="menuitemradio" aria-checked={activeId === ct.id} onClick={() => { onTheme(ct.id); close(); }} className="menu-item">
+                        <Palette size={16} className="text-icon" />
+                        <span className="flex-1 text-start">{ct.name}</span>
+                        {activeId === ct.id && <Check size={16} className="text-icon" />}
+                      </button>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </Dropdown>

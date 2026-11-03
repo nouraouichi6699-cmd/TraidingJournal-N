@@ -866,6 +866,17 @@ const st: Record<string, [string, string, string]> = {
   topSignInIntro: ["If you left your account open on another device, sign out everywhere from here.", "إذا تركت حسابك مفتوحاً في جهاز آخر، سجّل الخروج من كل الأجهزة من هنا.", "Si vous avez laissé votre compte ouvert sur un autre appareil, déconnectez-vous partout d'ici."],
   dataIntro: ["Take your trades with you, and manage the sync keys. Nothing leaves your browser when you export.", "خُذ صفقاتك معك، وأدِر مفاتيح المزامنة. لا يُرسل شيء خارج متصفحك عند التصدير.", "Emportez vos trades, et gérez les clés de synchronisation. Rien ne quitte votre navigateur à l'export."],
 
+  // ---- my themes ----
+  myThemes: ["My themes", "سماتي", "Mes thèmes"],
+  myThemeN: ["My theme {n}", "سمتي {n}", "Mon thème {n}"],
+  savedAsNew: ["Saved as a new theme in My themes", "حُفظت كسمة جديدة في «سماتي»", "Enregistré comme nouveau thème dans « Mes thèmes »"],
+  rename: ["Rename", "إعادة التسمية", "Renommer"],
+  duplicate: ["Duplicate", "نسخ", "Dupliquer"],
+  delete: ["Delete", "حذف", "Supprimer"],
+  deleteConfirm: ["Delete \"{name}\"?", "حذف «{name}»؟", "Supprimer « {name} » ?"],
+  deleteConfirmBody: ["Mizan will switch to the theme it was based on.", "سينتقل ميزان إلى السمة الأساسية.", "Mizan basculera sur le thème de base."],
+  limitReached: ["You can have up to 10 custom themes.", "يمكنك الاحتفاظ بـ 10 سمات مخصصة كحد أقصى.", "Vous pouvez avoir jusqu'à 10 thèmes personnalisés."],
+
   // ---- tile titles ----
   tileTheme: ["Theme", "السمة", "Thème"],
   tileFont: ["Text size", "حجم النص", "Taille du texte"],

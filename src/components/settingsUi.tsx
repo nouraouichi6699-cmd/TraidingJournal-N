@@ -8,7 +8,7 @@ import { SESSION_COLORS } from "../lib/sessionColors";
 import type { SessionBounds } from "../lib/tradingTime";
 
 /** The only colours in the page that are not theme variables; see lib/sessionColors.ts for why. */
-const THEME_CARDS: { id: "dark" | "light" | "black"; bg: string; surface: string; primary: string }[] = [
+export const THEME_CARDS: { id: "dark" | "light" | "black"; bg: string; surface: string; primary: string }[] = [
   // Mirrors the three blocks in index.css. Kept here as literals because a preview has to show a theme's colours
   // while the page itself is wearing a different one, which rules out the variables.
   { id: "dark", bg: "#061126", surface: "#0b1c3d", primary: "#e6b84a" },

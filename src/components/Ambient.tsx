@@ -13,7 +13,8 @@ import {
   POLICE_SECONDS, sessionNow, sessionTrio, speedFactor, SURFACE_VAR_NAMES, SWATCH,
   type Lighting, type Rgb, type Stop, type Trio,
 } from "../lib/lighting";
-import { useReduceMotion, useSettings } from "../useSettings";
+import { useActiveTheme, useReduceMotion, useSettings } from "../useSettings";
+import { resolveTheme } from "../lib/customThemes";
 import type { Theme } from "../types";
 
 /** The far curtain first (higher, fainter, slower), the main one last (lowest, brightest). */
@@ -67,7 +68,13 @@ const orbBg = (rgb: Rgb, alpha: number, spread: number) =>
 export default function Ambient({ theme }: { theme: Theme }) {
   const s = useSettings();
   const still = useReduceMotion();
-  const light: Lighting = { ...DEFAULT_LIGHTING, ...(s.lighting ?? {}) };
+  const activeId = useActiveTheme();
+  const resolved = resolveTheme(activeId, s.customThemes ?? [], theme);
+  const light: Lighting = {
+    ...DEFAULT_LIGHTING, ...resolved.look,
+    playing: s.lighting?.playing ?? DEFAULT_LIGHTING.playing,
+    recentColors: s.lighting?.recentColors ?? [],
+  };
   // The aurora, the flashes and the orbs are glows: over a light page they read as a smudge, so they stay in the
   // dark themes. The full-colour background is a tint rather than a glow, so it works in every theme.
   const darkOnly = light.style === "aurora" || light.style === "police" || light.style === "orbs";

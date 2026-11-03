@@ -3,19 +3,24 @@
 // storage key, default and behaviour it already had: this file decides where a control sits, never what it does.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, Pause, Play, RefreshCw, Send, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
-import { Lamp, Note, Pills, Row, SessionRibbon, ThemeCards, Tile } from "./settingsUi";
+import { Lamp, Note, Pills, Row, SessionRibbon, THEME_CARDS, ThemeCards, Tile } from "./settingsUi";
 import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
 import {
   cardSurface, DEFAULT_LIGHTING, paletteChoice, pushRecent, SWATCH,
-  type CardColor, type LightColor, type LightSpeed, type LightStyle,
+  type CardColor, type LightColor, type Lighting, type LightSpeed, type LightStyle,
 } from "../lib/lighting";
+import {
+  createOnFirstEdit, deleteTheme, duplicateTheme, isBuiltIn, MAX_CUSTOM,
+  nextFreeNumber, renameTheme, resolveTheme, updateLook,
+  type CustomTheme, type ThemeLook,
+} from "../lib/customThemes";
 import { ColorPalette, type SpecialChoice } from "./ColorPalette";
 import { SESSION_TRIO } from "../lib/sessionColors";
 import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
-import { setSettings, useReduceMotion, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
+import { setActiveTheme, setSettings, useActiveTheme, useReduceMotion, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
 import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
 import { classifyOutcome } from "../lib/outcome";
 import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
@@ -29,7 +34,7 @@ interface Props {
   lang: Lang;
   theme: Theme;
   onLang: (l: Lang) => void;
-  onTheme: (t: Theme) => void;
+  onTheme: (t: string) => void;
   accounts: Account[];
   trades: Trade[];
   onImport: () => void;
@@ -53,14 +58,27 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const L = stT(lang);
   const s = useSettings();
   const reduce = useReduceMotion();
+  const activeId = useActiveTheme();
+  const customs = s.customThemes ?? [];
+  const resolved = resolveTheme(activeId, customs, theme);
   const [exportAcc, setExportAcc] = useState("all");
   const [note, setNote] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameBuf, setRenameBuf] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [secId, setSecId] = useState(() => (start && SECTION_IDS.includes(start.section) ? start.section : "display"));
   const [topId, setTopId] = useState(() => start?.topic ?? "");
   const [phone, setPhone] = useState<string | null>(null); // which section the phone is inside, null = the list
   const [pane, setPane] = useState(0); // counts every move, so the content settles in again each time
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 3000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   // Currencies the accounts actually use, minus the base, which needs no rate of its own.
   const needed = useMemo(() => currenciesOf(accounts).filter((c) => c !== s.baseCurrency), [accounts, s.baseCurrency]);
@@ -126,13 +144,106 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     </select>
   );
 
+  const baseColors = Object.fromEntries(THEME_CARDS.map((c) => [c.id, c]));
+  const dotColor = (color: string, solid: string) =>
+    color === "solid" || color === "custom" ? solid : SWATCH[color] ?? solid;
+
+  const doRename = (id: string) => {
+    const trimmed = renameBuf.trim();
+    if (trimmed) setSettings({ customThemes: renameTheme(customs, id, trimmed) });
+    setRenaming(null);
+  };
+  const doDuplicate = (ct: CustomTheme) => {
+    const n = nextFreeNumber(customs);
+    const nm = L("myThemeN").replace("{n}", String(n));
+    const result = duplicateTheme(customs, ct.id, nm);
+    if (result) {
+      setSettings({ customThemes: result.customs });
+      setActiveTheme(result.duplicated.id);
+    } else {
+      setNotice("limitReached");
+    }
+  };
+  const doDelete = () => {
+    if (!deleting) return;
+    const result = deleteTheme(customs, deleting);
+    setSettings({ customThemes: result.customs });
+    if (activeId === deleting) {
+      setActiveTheme(result.fallbackBase);
+      onTheme(result.fallbackBase);
+    }
+    setDeleting(null);
+  };
+
   const look: ReactNode = (
     <>
       <Tile title={L("tileTheme")} wide>
         <ThemeCards
-          value={theme} onChange={onTheme} label={t("theme")}
+          value={activeId} onChange={onTheme} label={t("theme")}
           names={{ dark: themeNames.dark[lang], light: themeNames.light[lang], black: themeNames.black[lang] }}
         />
+        {customs.length > 0 && (
+          <>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs font-semibold text-muted">{L("myThemes")}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(110px,1fr))]">
+              {customs.map((ct) => {
+                const here = activeId === ct.id;
+                const base = baseColors[ct.base] ?? baseColors.dark;
+                const bgDot = dotColor(ct.look.color, ct.look.solid);
+                const cardDot = ct.look.cardColor === "theme" ? null : dotColor(ct.look.cardColor, ct.look.cardSolid);
+                return (
+                  <div key={ct.id} className="flex flex-col gap-1">
+                    <button
+                      type="button" role="radio" aria-checked={here} tabIndex={here ? 0 : -1}
+                      onClick={() => onTheme(ct.id)}
+                      className={`flex flex-col gap-2 rounded-2xl border p-2 text-start transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${here ? "border-primary" : "border-border hover:border-primary/50"}`}
+                      style={here ? { boxShadow: "0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent)" } : undefined}
+                    >
+                      <span aria-hidden="true" className="relative flex h-16 gap-1 overflow-hidden rounded-xl p-1.5" style={{ background: base.bg }} dir="ltr">
+                        <span className="w-1/4 rounded-md" style={{ background: base.surface }} />
+                        <span className="flex min-w-0 flex-1 flex-col gap-1">
+                          <span className="h-2.5 rounded" style={{ background: base.surface }} />
+                          <span className="h-2 w-2/3 rounded" style={{ background: base.primary }} />
+                        </span>
+                        <span className="absolute bottom-1.5 end-1.5 flex gap-1">
+                          <span className="h-3 w-3 rounded-full border border-white/30" style={{ background: bgDot }} />
+                          {cardDot && <span className="h-3 w-3 rounded-full border border-white/30" style={{ background: cardDot }} />}
+                        </span>
+                      </span>
+                      {renaming === ct.id ? (
+                        <input
+                          autoFocus type="text" value={renameBuf}
+                          onChange={(e) => setRenameBuf(e.target.value)}
+                          onBlur={() => doRename(ct.id)}
+                          onKeyDown={(e) => { if (e.key === "Enter") doRename(ct.id); if (e.key === "Escape") setRenaming(null); }}
+                          className="w-full rounded border border-border bg-transparent px-1 text-xs font-medium outline-none focus:border-primary"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="truncate text-xs font-medium">{ct.name}</span>
+                      )}
+                    </button>
+                    {here && renaming !== ct.id && (
+                      <span className="flex gap-1 text-[11px]">
+                        <button type="button" onClick={() => { setRenaming(ct.id); setRenameBuf(ct.name); }} className="text-muted hover:text-text">{L("rename")}</button>
+                        <span className="text-border">·</span>
+                        <button type="button" onClick={() => doDuplicate(ct)} className="text-muted hover:text-text">{L("duplicate")}</button>
+                        <span className="text-border">·</span>
+                        <button type="button" onClick={() => setDeleting(ct.id)} className="text-muted hover:text-loss">{L("delete")}</button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {notice === "savedAsNew" && <p role="status" className="text-xs font-medium text-profit">{L("savedAsNew")}</p>}
+        {notice === "limitReached" && <p role="alert" className="text-xs font-medium text-loss">{L("limitReached")}</p>}
       </Tile>
       <Tile title={L("tileFont")}>
         <Row label={L("fontSize")} sub={L("fontSizeSub")}>
@@ -155,8 +266,43 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   );
 
   // ---- Display > Lighting ----
-  const light = { ...DEFAULT_LIGHTING, ...(s.lighting ?? {}) };
-  const setLight = (patch: Partial<typeof light>) => setSettings({ lighting: { ...light, ...patch } });
+  const light: Lighting = {
+    ...DEFAULT_LIGHTING,
+    ...resolved.look,
+    playing: s.lighting?.playing ?? DEFAULT_LIGHTING.playing,
+    recentColors: s.lighting?.recentColors ?? [],
+  };
+  const setLight = (patch: Partial<Lighting>) => {
+    const lookPatch: Partial<ThemeLook> = {};
+    const globalPatch: Partial<Lighting> = {};
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === "playing" || k === "recentColors") (globalPatch as any)[k] = v;
+      else (lookPatch as any)[k] = v;
+    }
+    const merged: Partial<import("../useSettings").Settings> = {};
+    if (Object.keys(globalPatch).length > 0) {
+      merged.lighting = { ...s.lighting, ...globalPatch };
+    }
+    if (Object.keys(lookPatch).length > 0) {
+      if (!activeId || isBuiltIn(activeId)) {
+        const n = nextFreeNumber(customs);
+        const nm = L("myThemeN").replace("{n}", String(n));
+        const result = createOnFirstEdit(theme, { ...resolved.look, ...lookPatch }, customs, nm);
+        if (result) {
+          merged.customThemes = result.customs;
+          setSettings(merged);
+          setActiveTheme(result.created.id);
+          setNotice("savedAsNew");
+          return;
+        }
+        setNotice("limitReached");
+        if (Object.keys(globalPatch).length > 0) setSettings(merged);
+        return;
+      }
+      merged.customThemes = updateLook(customs, activeId, lookPatch);
+    }
+    if (Object.keys(merged).length > 0) setSettings(merged);
+  };
   const ivory = theme === "light";
   const full = light.style === "full";
   const sessionKey = sessionAt(new Date().getUTCHours(), s.sessionBounds);
@@ -799,6 +945,24 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
           )}
         </div>
       </div>
+
+      {deleting && (() => {
+        const dtName = customs.find((c) => c.id === deleting)?.name ?? "";
+        return (
+        <div role="dialog" aria-modal="true" aria-label={L("deleteConfirm")} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5">
+            <h2 className="font-heading text-lg font-semibold">{L("deleteConfirm").replace("{name}", dtName)}</h2>
+            <p className="mt-2 text-sm text-muted">{L("deleteConfirmBody")}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleting(null)} className={btnGhost}>{L("cancel")}</button>
+              <button type="button" onClick={doDelete} className="min-h-[42px] rounded-full bg-loss px-4 text-[13.5px] font-semibold text-white">
+                {L("delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {asking && (
         <div role="dialog" aria-modal="true" aria-label={L("signOutAllConfirm")} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
