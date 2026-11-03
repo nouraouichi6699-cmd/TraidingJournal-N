@@ -72,7 +72,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         onClick={onSelect}
         aria-pressed={isSelected}
         aria-label={`${dayData.day} · $${hideValues ? "•••" : Math.round(net)}`}
-        className="relative shrink-0 rounded-xl border transition hover:border-[var(--primary)] flex flex-col items-start justify-between sm:w-20 sm:h-24 w-16 h-20 md:w-28 md:h-32 p-1.5 sm:p-2 md:p-2"
+        className="relative shrink-0 rounded-xl border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5"
         style={{
           background: `color-mix(in srgb, ${tintColor} ${opacity * 100}%, var(--surface))`,
           borderColor: isSelected ? "var(--primary)" : "var(--border)",
@@ -80,16 +80,16 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         }}
       >
         {/* Agenda paper day number */}
-        <div className="flex flex-col items-center" style={{ width: "18px", height: "22px", gap: "3px" }}>
+        <div className="flex flex-col items-center" style={{ width: "14px", height: "18px", gap: "2px" }}>
           <div
             className="w-full rounded-sm shadow-sm"
             style={{
-              height: "4px",
+              height: "3px",
               background: "var(--primary)",
             }}
           />
           <div
-            className="w-full rounded-sm flex flex-col items-center justify-center flex-1 text-[7px] sm:text-[8px] md:text-[10px] font-bold"
+            className="w-full rounded-sm flex flex-col items-center justify-center flex-1 text-[5.5px] sm:text-[6px] md:text-[7px] font-bold"
             style={{
               background: "#f6f1e6",
               color: "#0a1a3f",
@@ -106,8 +106,8 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         {/* P&L amount */}
         {net !== 0 && (
           <div
-            className="flex items-baseline justify-end gap-0.5 leading-none text-right sm:text-base md:text-xl w-full"
-            style={{ fontWeight: "bold", color: netColor, fontSize: "clamp(12px, 3vw, 20px)" }}
+            className="flex items-baseline justify-end gap-0.5 leading-none text-right w-full"
+            style={{ fontWeight: "bold", color: netColor, fontSize: "clamp(10px, 2.5vw, 16px)" }}
           >
             <Private hint={`${dayData.day} P&L`}>
               <span dir="ltr" className="tnum">
