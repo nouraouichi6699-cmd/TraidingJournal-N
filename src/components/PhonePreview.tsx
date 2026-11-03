@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { stT } from "../i18n";
 import { useReduceMotion, useSettings } from "../useSettings";
-import { DEFAULT_LIGHTING, dur, SWATCH } from "../lib/lighting";
+import { DEFAULT_LIGHTING, SWATCH } from "../lib/lighting";
 import { SESSION_TRIO } from "../lib/sessionColors";
 import { sessionAt } from "../lib/tradingTime";
 import type { Lang } from "../types";
@@ -145,16 +145,7 @@ export default function PhonePreview({ lang, highlight }: { lang: Lang; highligh
   const fullTint = light.color === "session" ? sessTrio.a
     : light.color === "solid" || light.color === "custom" ? light.solid
       : (SWATCH[light.color] ?? SWATCH.gold);
-  const ring =
-    light.style === "full" ? fullTint
-      : light.style === "police" ? "linear-gradient(90deg, #ff2d55, #2d7bff)"
-      : light.color === "rgb" ? "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)"
-        : light.color === "custom" ? `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`
-          : light.color === "session" ? `linear-gradient(135deg, ${sessTrio.a}, ${sessTrio.b}, ${sessTrio.c})`
-            : light.color === "solid" ? light.solid
-              : (SWATCH[light.color] ?? "#f2c14e");
-  const ringAnim = light.color === "rgb" && light.style !== "police" && light.style !== "full" && !still && light.playing
-    ? `mz-hue ${dur(30, light.speed)} linear infinite` : undefined;
+  const ring = light.style === "full" ? fullTint : "#f2c14e";
   const shakeClass = shake === 0 || still ? "" : shake % 2 ? "mz-shake-a" : "mz-shake-b";
 
   return (
@@ -163,9 +154,9 @@ export default function PhonePreview({ lang, highlight }: { lang: Lang; highligh
         {/* The handset: a metal frame, the camera hole, and a plain screen. */}
         {/* The lit edge: a ring cut out of the light's own colour, so only the frame glows. */}
         <div
-          className="mz-orb pointer-events-none absolute inset-[-3px] rounded-[2.4rem] p-[3px]"
+          className="pointer-events-none absolute inset-[-3px] rounded-[2.4rem] p-[3px]"
           style={{
-            background: ring, animation: ringAnim,
+            background: ring,
             WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             WebkitMaskComposite: "xor", mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             maskComposite: "exclude", opacity: light.style === "off" ? 0.35 : 0.9,

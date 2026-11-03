@@ -4,7 +4,7 @@ import { setNumberLocale } from "./lib/numberFormat";
 import { setBreakEvenRange } from "./lib/outcome";
 import { DEFAULT_LIGHTING, type Lighting } from "./lib/lighting";
 import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
-import { DEFAULT_LOOK, extractLook, migrateIfNeeded, nextFreeNumber, type CustomTheme } from "./lib/customThemes";
+import { DEFAULT_LOOK, extractLook, migrateToSingle, MY_THEME_ID, type CustomTheme } from "./lib/customThemes";
 import { stT } from "./i18n";
 import type { Lang } from "./types";
 
@@ -105,9 +105,11 @@ const read = (): Settings => {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
     if (!raw || typeof raw !== "object") return DEFAULTS;
     const saved = raw as Partial<Settings>;
+    const lit = { ...DEFAULT_LIGHTING, ...(saved.lighting ?? {}) };
+    if (lit.style !== "full" && lit.style !== "off") lit.style = "off";
     return {
       ...DEFAULTS, ...saved,
-      lighting: { ...DEFAULT_LIGHTING, ...(saved.lighting ?? {}) },
+      lighting: lit,
       customThemes: Array.isArray(saved.customThemes) ? saved.customThemes : [],
     };
   } catch {
@@ -162,30 +164,28 @@ function apply(s: Settings) {
 export function loadSettings() {
   current = read();
 
-  // Migration: first load after the update. Each device checks independently before sync runs.
   try {
+    const customs = current.customThemes;
     if (localStorage.getItem(AT_KEY) === null) {
-      const customs = current.customThemes;
+      // First load on this device after the update.
       if (customs.length > 0) {
-        // Another device already migrated and synced. Activate the first custom theme.
+        // Another device already migrated and synced.
         currentActiveTheme = customs[0].id;
         localStorage.setItem(AT_KEY, customs[0].id);
       } else {
         const oldLook = extractLook(current.lighting);
-        const deviceTheme = (localStorage.getItem("mizan-theme") ?? "dark") as "dark" | "light" | "black";
-        const lang = (localStorage.getItem("mizan-lang") ?? "en") as Lang;
-        const L = stT(lang);
-        const n = nextFreeNumber(customs);
-        const name = L("myThemeN").replace("{n}", String(n));
-        const result = migrateIfNeeded(oldLook, deviceTheme, customs, name);
-        if (result) {
-          current = {
-            ...current,
-            customThemes: result.customs,
-            lighting: { ...current.lighting, ...DEFAULT_LOOK },
-          };
-          currentActiveTheme = result.created.id;
-          localStorage.setItem(AT_KEY, result.created.id);
+        const isDefault = Object.keys(DEFAULT_LOOK).every((k) => {
+          const a = (oldLook as any)[k], b = (DEFAULT_LOOK as any)[k];
+          return typeof a === "object" ? JSON.stringify(a) === JSON.stringify(b) : a === b;
+        });
+        if (!isDefault) {
+          const deviceTheme = (localStorage.getItem("mizan-theme") ?? "dark") as "dark" | "light" | "black";
+          const lang = (localStorage.getItem("mizan-lang") ?? "en") as Lang;
+          const L = stT(lang);
+          const created: CustomTheme = { id: MY_THEME_ID, name: L("myTheme"), base: deviceTheme, look: { ...oldLook, custom: { ...oldLook.custom } } };
+          current = { ...current, customThemes: [created], lighting: { ...current.lighting, ...DEFAULT_LOOK } };
+          currentActiveTheme = MY_THEME_ID;
+          localStorage.setItem(AT_KEY, MY_THEME_ID);
           localStorage.setItem(KEY, JSON.stringify(current));
         } else {
           currentActiveTheme = "";
@@ -194,6 +194,18 @@ export function loadSettings() {
       }
     } else {
       currentActiveTheme = localStorage.getItem(AT_KEY) ?? "";
+    }
+    // Migrate old multi-theme data to single "My theme".
+    if (customs.length > 1 || (customs.length === 1 && customs[0].id !== MY_THEME_ID)) {
+      const lang = (localStorage.getItem("mizan-lang") ?? "en") as Lang;
+      const L = stT(lang);
+      const migrated = migrateToSingle(customs, currentActiveTheme, L("myTheme"));
+      current = { ...current, customThemes: migrated };
+      if (migrated.length > 0 && currentActiveTheme !== MY_THEME_ID) {
+        currentActiveTheme = MY_THEME_ID;
+        localStorage.setItem(AT_KEY, MY_THEME_ID);
+      }
+      localStorage.setItem(KEY, JSON.stringify(current));
     }
   } catch { /* storage errors are not fatal */ }
 

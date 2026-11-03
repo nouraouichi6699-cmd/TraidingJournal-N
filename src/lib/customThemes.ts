@@ -21,7 +21,7 @@ export interface CustomTheme {
   look: ThemeLook;
 }
 
-export const MAX_CUSTOM = 10;
+export const MY_THEME_ID = "ct_1";
 
 export const DEFAULT_LOOK: ThemeLook = {
   style: DEFAULT_LIGHTING.style,
@@ -70,74 +70,40 @@ export function resolveTheme(
     return { base: isBuiltIn(activeId) ? activeId : deviceTheme, look: DEFAULT_LOOK };
   }
   const ct = customs.find((c) => c.id === activeId);
-  if (ct) return { base: ct.base, look: ct.look };
+  if (ct) {
+    const look = { ...ct.look };
+    if (look.style !== "full" && look.style !== "off") look.style = "off";
+    return { base: ct.base, look };
+  }
   return { base: deviceTheme, look: DEFAULT_LOOK };
 }
 
-function nextFreeId(customs: CustomTheme[]): string {
-  const used = new Set(customs.map((c) => c.id));
-  for (let n = 1; n <= MAX_CUSTOM + 1; n++) {
-    if (!used.has(`ct_${n}`)) return `ct_${n}`;
-  }
-  return `ct_${Date.now()}`;
+/** Get the single "My theme", or null if none exists. */
+export function getMyTheme(customs: CustomTheme[]): CustomTheme | null {
+  return customs.length > 0 ? customs[0] : null;
 }
 
-export function nextFreeNumber(customs: CustomTheme[]): number {
-  const used = new Set<number>();
-  for (const c of customs) {
-    const m = c.name.match(/(\d+)\s*$/);
-    if (m) used.add(Number(m[1]));
-  }
-  for (let n = 1; n <= MAX_CUSTOM + 1; n++) {
-    if (!used.has(n)) return n;
-  }
-  return customs.length + 1;
+/** Create "My theme" from a built-in base and a look. Returns the new array. */
+export function createMyTheme(
+  base: Theme, look: ThemeLook, name: string,
+): { created: CustomTheme; customs: CustomTheme[] } {
+  const created: CustomTheme = { id: MY_THEME_ID, name, base, look: { ...look, custom: { ...look.custom } } };
+  return { created, customs: [created] };
 }
 
-export function createOnFirstEdit(
-  base: Theme, look: ThemeLook, customs: CustomTheme[], name: string,
-): { created: CustomTheme; customs: CustomTheme[] } | null {
-  if (customs.length >= MAX_CUSTOM) return null;
-  const id = nextFreeId(customs);
-  const created: CustomTheme = { id, name, base, look: { ...look, custom: { ...look.custom } } };
-  return { created, customs: [...customs, created] };
-}
-
-export function migrateIfNeeded(
-  oldLook: ThemeLook, base: Theme, customs: CustomTheme[], name: string,
-): { created: CustomTheme; customs: CustomTheme[] } | null {
-  if (isDefaultLook(oldLook)) return null;
-  if (customs.length >= MAX_CUSTOM) return null;
-  const id = nextFreeId(customs);
-  const created: CustomTheme = { id, name, base, look: { ...oldLook, custom: { ...oldLook.custom } } };
-  return { created, customs: [...customs, created] };
-}
-
-export function duplicateTheme(
-  customs: CustomTheme[], sourceId: string, name: string,
-): { duplicated: CustomTheme; customs: CustomTheme[] } | null {
-  if (customs.length >= MAX_CUSTOM) return null;
-  const source = customs.find((c) => c.id === sourceId);
-  if (!source) return null;
-  const id = nextFreeId(customs);
-  const duplicated: CustomTheme = {
-    id, name, base: source.base,
-    look: { ...source.look, custom: { ...source.look.custom } },
-  };
-  return { duplicated, customs: [...customs, duplicated] };
-}
-
-export function deleteTheme(
-  customs: CustomTheme[], id: string,
-): { customs: CustomTheme[]; fallbackBase: Theme } {
-  const ct = customs.find((c) => c.id === id);
-  return { customs: customs.filter((c) => c.id !== id), fallbackBase: ct?.base ?? "dark" };
-}
-
-export function renameTheme(customs: CustomTheme[], id: string, name: string): CustomTheme[] {
-  return customs.map((c) => (c.id === id ? { ...c, name } : c));
+/** Delete "My theme". Returns the empty array and the base to fall back to. */
+export function deleteMyTheme(customs: CustomTheme[]): { customs: CustomTheme[]; fallbackBase: Theme } {
+  const ct = customs[0];
+  return { customs: [], fallbackBase: ct?.base ?? "dark" };
 }
 
 export function updateLook(customs: CustomTheme[], id: string, patch: Partial<ThemeLook>): CustomTheme[] {
   return customs.map((c) => (c.id === id ? { ...c, look: { ...c.look, ...patch } } : c));
+}
+
+/** Migrate old multi-theme arrays: keep only the first (or the active one), rename it, give it the canonical id. */
+export function migrateToSingle(customs: CustomTheme[], activeId: string, name: string): CustomTheme[] {
+  if (customs.length === 0) return [];
+  const pick = customs.find((c) => c.id === activeId) ?? customs[0];
+  return [{ ...pick, id: MY_THEME_ID, name }];
 }

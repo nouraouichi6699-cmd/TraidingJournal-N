@@ -11,7 +11,7 @@ import type { SessionBounds } from "../lib/tradingTime";
 export const THEME_CARDS: { id: "dark" | "light" | "black"; bg: string; surface: string; primary: string }[] = [
   // Mirrors the three blocks in index.css. Kept here as literals because a preview has to show a theme's colours
   // while the page itself is wearing a different one, which rules out the variables.
-  { id: "dark", bg: "#061126", surface: "#0b1c3d", primary: "#e6b84a" },
+  { id: "dark", bg: "#061126", surface: "#000e2e", primary: "#e6b84a" },
   { id: "light", bg: "#f3f5fa", surface: "#ffffff", primary: "#0a1f5c" },
   { id: "black", bg: "#000000", surface: "#0a0a0a", primary: "#f5b83d" },
 ];

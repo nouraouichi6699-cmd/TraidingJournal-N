@@ -149,14 +149,11 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
                 {customs.length > 0 && (
                   <>
                     <div className="my-1 h-px bg-border" aria-hidden />
-                    <p className="px-2 pb-1 pt-1 text-xs font-semibold text-muted">{L("myThemes")}</p>
-                    {customs.map((ct) => (
-                      <button key={ct.id} role="menuitemradio" aria-checked={activeId === ct.id} onClick={() => { onTheme(ct.id); close(); }} className="menu-item">
-                        <Palette size={16} className="text-icon" />
-                        <span className="flex-1 text-start">{ct.name}</span>
-                        {activeId === ct.id && <Check size={16} className="text-icon" />}
-                      </button>
-                    ))}
+                    <button role="menuitemradio" aria-checked={activeId === customs[0].id} onClick={() => { onTheme(customs[0].id); close(); }} className="menu-item">
+                      <Palette size={16} className="text-icon" />
+                      <span className="flex-1 text-start">{customs[0].name}</span>
+                      {activeId === customs[0].id && <Check size={16} className="text-icon" />}
+                    </button>
                   </>
                 )}
               </>

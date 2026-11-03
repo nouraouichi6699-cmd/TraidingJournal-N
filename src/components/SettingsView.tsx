@@ -2,19 +2,19 @@
 // rather than markup. Personal details stay in the profile and are not repeated here, and every setting keeps the
 // storage key, default and behaviour it already had: this file decides where a control sits, never what it does.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, Pause, Play, RefreshCw, Send, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Database, LogOut, Monitor, RefreshCw, Send, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
 import { Lamp, Note, Pills, Row, SessionRibbon, THEME_CARDS, ThemeCards, Tile } from "./settingsUi";
 import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
 import {
   cardSurface, DEFAULT_LIGHTING, paletteChoice, pushRecent, SWATCH,
-  type CardColor, type LightColor, type Lighting, type LightSpeed, type LightStyle,
+  type CardColor, type LightColor, type Lighting, type LightStyle,
 } from "../lib/lighting";
 import {
-  createOnFirstEdit, deleteTheme, duplicateTheme, isBuiltIn, MAX_CUSTOM,
-  nextFreeNumber, renameTheme, resolveTheme, updateLook,
-  type CustomTheme, type ThemeLook,
+  createMyTheme, deleteMyTheme, getMyTheme, isBuiltIn, MY_THEME_ID,
+  resolveTheme, updateLook,
+  type ThemeLook,
 } from "../lib/customThemes";
 import { ColorPalette, type SpecialChoice } from "./ColorPalette";
 import { SESSION_TRIO } from "../lib/sessionColors";
@@ -64,9 +64,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const [exportAcc, setExportAcc] = useState("all");
   const [note, setNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameBuf, setRenameBuf] = useState("");
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [secId, setSecId] = useState(() => (start && SECTION_IDS.includes(start.section) ? start.section : "display"));
@@ -144,35 +142,14 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     </select>
   );
 
-  const baseColors = Object.fromEntries(THEME_CARDS.map((c) => [c.id, c]));
-  const dotColor = (color: string, solid: string) =>
-    color === "solid" || color === "custom" ? solid : SWATCH[color] ?? solid;
+  const myTheme = getMyTheme(customs);
 
-  const doRename = (id: string) => {
-    const trimmed = renameBuf.trim();
-    if (trimmed) setSettings({ customThemes: renameTheme(customs, id, trimmed) });
-    setRenaming(null);
-  };
-  const doDuplicate = (ct: CustomTheme) => {
-    const n = nextFreeNumber(customs);
-    const nm = L("myThemeN").replace("{n}", String(n));
-    const result = duplicateTheme(customs, ct.id, nm);
-    if (result) {
-      setSettings({ customThemes: result.customs });
-      setActiveTheme(result.duplicated.id);
-    } else {
-      setNotice("limitReached");
-    }
-  };
-  const doDelete = () => {
-    if (!deleting) return;
-    const result = deleteTheme(customs, deleting);
+  const doResetMyTheme = () => {
+    const result = deleteMyTheme(customs);
     setSettings({ customThemes: result.customs });
-    if (activeId === deleting) {
-      setActiveTheme(result.fallbackBase);
-      onTheme(result.fallbackBase);
-    }
-    setDeleting(null);
+    setActiveTheme(result.fallbackBase);
+    onTheme(result.fallbackBase);
+    setDeleting(false);
   };
 
   const look: ReactNode = (
@@ -182,68 +159,29 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
           value={activeId} onChange={onTheme} label={t("theme")}
           names={{ dark: themeNames.dark[lang], light: themeNames.light[lang], black: themeNames.black[lang] }}
         />
-        {customs.length > 0 && (
+        {myTheme && (
           <>
             <div className="mt-1 flex items-center gap-2">
               <span className="h-px flex-1 bg-border" />
-              <span className="text-xs font-semibold text-muted">{L("myThemes")}</span>
+              <span className="text-xs font-semibold text-muted">{L("myTheme")}</span>
               <span className="h-px flex-1 bg-border" />
             </div>
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(110px,1fr))]">
-              {customs.map((ct) => {
-                const here = activeId === ct.id;
-                const base = baseColors[ct.base] ?? baseColors.dark;
-                const bgDot = dotColor(ct.look.color, ct.look.solid);
-                const cardDot = ct.look.cardColor === "theme" ? null : dotColor(ct.look.cardColor, ct.look.cardSolid);
-                return (
-                  <div key={ct.id} className="flex flex-col gap-1">
-                    <button
-                      type="button" role="radio" aria-checked={here} tabIndex={here ? 0 : -1}
-                      onClick={() => onTheme(ct.id)}
-                      className={`flex flex-col gap-2 rounded-2xl border p-2 text-start transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${here ? "border-primary" : "border-border hover:border-primary/50"}`}
-                      style={here ? { boxShadow: "0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent)" } : undefined}
-                    >
-                      <span aria-hidden="true" className="relative flex h-16 gap-1 overflow-hidden rounded-xl p-1.5" style={{ background: base.bg }} dir="ltr">
-                        <span className="w-1/4 rounded-md" style={{ background: base.surface }} />
-                        <span className="flex min-w-0 flex-1 flex-col gap-1">
-                          <span className="h-2.5 rounded" style={{ background: base.surface }} />
-                          <span className="h-2 w-2/3 rounded" style={{ background: base.primary }} />
-                        </span>
-                        <span className="absolute bottom-1.5 end-1.5 flex gap-1">
-                          <span className="h-3 w-3 rounded-full border border-white/30" style={{ background: bgDot }} />
-                          {cardDot && <span className="h-3 w-3 rounded-full border border-white/30" style={{ background: cardDot }} />}
-                        </span>
-                      </span>
-                      {renaming === ct.id ? (
-                        <input
-                          autoFocus type="text" value={renameBuf}
-                          onChange={(e) => setRenameBuf(e.target.value)}
-                          onBlur={() => doRename(ct.id)}
-                          onKeyDown={(e) => { if (e.key === "Enter") doRename(ct.id); if (e.key === "Escape") setRenaming(null); }}
-                          className="w-full rounded border border-border bg-transparent px-1 text-xs font-medium outline-none focus:border-primary"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span className="truncate text-xs font-medium">{ct.name}</span>
-                      )}
-                    </button>
-                    {here && renaming !== ct.id && (
-                      <span className="flex gap-1 text-[11px]">
-                        <button type="button" onClick={() => { setRenaming(ct.id); setRenameBuf(ct.name); }} className="text-muted hover:text-text">{L("rename")}</button>
-                        <span className="text-border">·</span>
-                        <button type="button" onClick={() => doDuplicate(ct)} className="text-muted hover:text-text">{L("duplicate")}</button>
-                        <span className="text-border">·</span>
-                        <button type="button" onClick={() => setDeleting(ct.id)} className="text-muted hover:text-loss">{L("delete")}</button>
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="flex items-center gap-2">
+              <button
+                type="button" role="radio" aria-checked={activeId === MY_THEME_ID} tabIndex={activeId === MY_THEME_ID ? 0 : -1}
+                onClick={() => onTheme(MY_THEME_ID)}
+                className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${activeId === MY_THEME_ID ? "border-primary bg-primary-tint text-primary" : "border-border hover:border-primary/50"}`}
+              >
+                {myTheme.name}
+              </button>
+              {activeId === MY_THEME_ID && (
+                <button type="button" onClick={() => setDeleting(true)} className="text-[11px] text-muted hover:text-loss">{L("resetMyTheme")}</button>
+              )}
             </div>
           </>
         )}
         {notice === "savedAsNew" && <p role="status" className="text-xs font-medium text-profit">{L("savedAsNew")}</p>}
-        {notice === "limitReached" && <p role="alert" className="text-xs font-medium text-loss">{L("limitReached")}</p>}
+        {notice === "baseChanged" && <p role="status" className="text-xs font-medium text-profit">{L("baseChanged")}</p>}
       </Tile>
       <Tile title={L("tileFont")}>
         <Row label={L("fontSize")} sub={L("fontSizeSub")}>
@@ -285,25 +223,27 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     }
     if (Object.keys(lookPatch).length > 0) {
       if (!activeId || isBuiltIn(activeId)) {
-        const n = nextFreeNumber(customs);
-        const nm = L("myThemeN").replace("{n}", String(n));
-        const result = createOnFirstEdit(theme, { ...resolved.look, ...lookPatch }, customs, nm);
-        if (result) {
-          merged.customThemes = result.customs;
+        if (myTheme) {
+          // My theme exists: switch to it, set base to current built-in, apply the edit.
+          const updated = [{ ...myTheme, base: theme, look: { ...myTheme.look, ...lookPatch } }];
+          merged.customThemes = updated;
           setSettings(merged);
-          setActiveTheme(result.created.id);
-          setNotice("savedAsNew");
+          setActiveTheme(MY_THEME_ID);
+          setNotice("baseChanged");
           return;
         }
-        setNotice("limitReached");
-        if (Object.keys(globalPatch).length > 0) setSettings(merged);
+        // Create My theme from the current built-in.
+        const result = createMyTheme(theme, { ...resolved.look, ...lookPatch }, L("myTheme"));
+        merged.customThemes = result.customs;
+        setSettings(merged);
+        setActiveTheme(result.created.id);
+        setNotice("savedAsNew");
         return;
       }
       merged.customThemes = updateLook(customs, activeId, lookPatch);
     }
     if (Object.keys(merged).length > 0) setSettings(merged);
   };
-  const ivory = theme === "light";
   const full = light.style === "full";
   const sessionKey = sessionAt(new Date().getUTCHours(), s.sessionBounds);
   // The colour the cards are actually tinted with, resolved the same way the ambient layer resolves it.
@@ -313,19 +253,13 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const SESSION_NAME = { sessTK: t("sessTK"), sessLN: t("sessLN"), sessNY: t("sessNY"), sessSY: t("sessSY") } as const;
 
   // The swatches that are pictures of what a choice does rather than a colour you could name.
-  const RGB_SWATCH = "conic-gradient(#ff4d4d, #ffcc33, #33e58c, #33b8ff, #9b5cff, #ff4d4d)";
   const SESSION_SWATCH = "conic-gradient(#ffd84d 0 25%, #7fd4ff 0 50%, #ff5a6e 0 75%, #4dffa0 0)";
 
   // The choices that mean something, in the order they have always been in. Full colour has no moving set and takes
   // one colour rather than three, so those two are left out of its row.
   const bgSpecials: SpecialChoice[] = [
-    ...(full ? [] : [{ id: "rgb", label: L("lightRgb"), swatch: RGB_SWATCH }]),
     { id: "gold", label: L("lightGold"), swatch: SWATCH.gold },
     { id: "session", label: L("lightSession"), swatch: SESSION_SWATCH },
-    ...(full ? [] : [{
-      id: "custom", label: L("lightCustom"),
-      swatch: `linear-gradient(135deg, ${light.custom.a}, ${light.custom.b}, ${light.custom.c})`,
-    }]),
   ];
   const cardSpecials: SpecialChoice[] = [
     // A picture of changing nothing, so it needs the card's own edge to be visible at all.
@@ -352,29 +286,15 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const lightTiles: ReactNode = (
     <>
       <Tile title={L("topLight")} wide>
-        {ivory && !full && light.style !== "off" && <Note text={L("lightIvory")} />}
-        {!ivory && reduce && <Note text={L("lightReduced")} />}
 
         <Row label={L("lightStyle")}>
-          <span className="flex flex-wrap items-center gap-2">
-            <Pills<LightStyle>
-              label={L("lightStyle")} value={light.style}
-              // Full colour does not offer the moving colours, so a switch to it moves that choice to a colour it has.
-              onChange={(v) => setLight(v === "full" && light.color === "rgb" ? { style: v, color: "gold" } : { style: v })}
-              options={[
-                { v: "aurora", label: L("lightAurora") }, { v: "police", label: L("lightPolice") },
-                { v: "orbs", label: L("lightOrbs") }, { v: "full", label: L("lightFull") },
-                { v: "off", label: L("lightOff") },
-              ]}
-            />
-            <button
-              type="button" aria-pressed={!light.playing} aria-label={L(light.playing ? "lightPause" : "lightPlay")}
-              onClick={() => setLight({ playing: !light.playing })}
-              className="grid h-11 w-11 place-items-center rounded-full border border-border transition hover:bg-primary-tint"
-            >
-              {light.playing ? <Pause size={15} /> : <Play size={15} />}
-            </button>
-          </span>
+          <Pills<LightStyle>
+            label={L("lightStyle")} value={light.style}
+            onChange={(v) => setLight(v === "full" && light.color === "rgb" ? { style: v, color: "gold" } : { style: v })}
+            options={[
+              { v: "off", label: L("lightOff") }, { v: "full", label: L("lightFull") },
+            ]}
+          />
         </Row>
 
         {light.style !== "off" && (
@@ -398,24 +318,9 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
           </div>
         )}
 
-        {light.style !== "off" && !full && light.color === "custom" && (
-          <div className="flex flex-wrap gap-3 rounded-2xl border border-border p-3">
-            {(["a", "b", "c"] as const).map((k, i) => (
-              <label key={k} className="flex flex-col items-center gap-1 text-[11px] text-muted">
-                <input
-                  type="color" aria-label={L(["lightLower", "lightMiddle", "lightTips"][i])} value={light.custom[k]}
-                  onChange={(e) => setLight({ color: "custom", custom: { ...light.custom, [k]: e.target.value } })}
-                  className="h-8 w-10 cursor-pointer rounded-lg border border-border bg-transparent p-0"
-                />
-                {L(["lightLower", "lightMiddle", "lightTips"][i])}
-              </label>
-            ))}
-          </div>
-        )}
-
         {light.style !== "off" && (
           <>
-            {full && <Note text={L("lightFullNote")} />}
+            <Note text={L("lightFullNote")} />
             <Row label={L("lightLevel")}>
               <span className="flex items-center gap-2">
                 <input
@@ -426,12 +331,6 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
                 <span className="tnum w-10 text-xs font-semibold" dir="ltr">{light.level}%</span>
               </span>
             </Row>
-            {!full && <Row label={L("lightSpeed")}>
-              <Pills<LightSpeed>
-                label={L("lightSpeed")} value={light.speed} onChange={(v) => setLight({ speed: v })}
-                options={[{ v: "slow", label: L("lightCalm") }, { v: "normal", label: L("lightNormal") }, { v: "fast", label: L("lightFast") }]}
-              />
-            </Row>}
           </>
         )}
       </Tile>
@@ -946,23 +845,20 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         </div>
       </div>
 
-      {deleting && (() => {
-        const dtName = customs.find((c) => c.id === deleting)?.name ?? "";
-        return (
-        <div role="dialog" aria-modal="true" aria-label={L("deleteConfirm")} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+      {deleting && (
+        <div role="dialog" aria-modal="true" aria-label={L("resetMyThemeConfirm")} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5">
-            <h2 className="font-heading text-lg font-semibold">{L("deleteConfirm").replace("{name}", dtName)}</h2>
-            <p className="mt-2 text-sm text-muted">{L("deleteConfirmBody")}</p>
+            <h2 className="font-heading text-lg font-semibold">{L("resetMyThemeConfirm")}</h2>
+            <p className="mt-2 text-sm text-muted">{L("resetMyThemeBody")}</p>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setDeleting(null)} className={btnGhost}>{L("cancel")}</button>
-              <button type="button" onClick={doDelete} className="min-h-[42px] rounded-full bg-loss px-4 text-[13.5px] font-semibold text-white">
-                {L("delete")}
+              <button type="button" onClick={() => setDeleting(false)} className={btnGhost}>{L("cancel")}</button>
+              <button type="button" onClick={doResetMyTheme} className="min-h-[42px] rounded-full bg-loss px-4 text-[13.5px] font-semibold text-white">
+                {L("resetMyTheme")}
               </button>
             </div>
           </div>
         </div>
-        );
-      })()}
+      )}
 
       {asking && (
         <div role="dialog" aria-modal="true" aria-label={L("signOutAllConfirm")} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">

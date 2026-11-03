@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --card-bg: #081a3a;
+  --card-bg: #031031;
   --gauge-bg: var(--card-bg);
-  --gauge-track: #1c3263;
+  --gauge-track: #112454;
   --gauge-arc: #ffc107;
   --gauge-glow: drop-shadow(0 0 5px rgba(255, 193, 7, .55));
   --bg: #061126;
-  --surface: #0b1c3d;
-  --border: #1d3466;
+  --surface: #000e2e;
+  --border: #122657;
   --text: #ffffff;
   --muted: #a9b8d6;
   --primary: #e6b84a;
@@ -20,7 +20,7 @@
   --profit: #e6b84a;
   --loss: #f87171;
   --primary-tint: rgba(230, 184, 74, 0.14);
-  --skeleton: #112650;
+  --skeleton: #061841;
   --icon: #e6b84a;
   --brand-navy: #0a1f5c;
   --brand-gold: #f2c14e;
@@ -1208,25 +1208,3 @@ h6 {
 :root[data-reduce-motion="1"] .mz-shake-b,
 :root[data-reduce-motion="1"] .mz-banner { animation: none; }
 
-/* ---------- Ambient lighting ---------- */
-/* Copied from the design sheet unchanged: these timings and distances were tuned by eye over many rounds. */
-@keyframes mz-hue { to { filter: hue-rotate(360deg); } }
-@keyframes mz-drift-a { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(220px, 120px); } 66% { transform: translate(-60px, 200px); } }
-@keyframes mz-drift-b { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(-240px, -90px); } 66% { transform: translate(-80px, -220px); } }
-@keyframes mz-drift-c { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(180px, -160px); } }
-@keyframes mz-twinkle { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
-@keyframes mz-meteor {
-  0% { opacity: 0; transform: translate(0, 0) rotate(-20deg); }
-  1% { opacity: 1; }
-  6%, 100% { opacity: 0; transform: translate(-560px, 204px) rotate(-20deg); }
-}
-/* Two brightenings to a cycle, and no cycle shorter than 1.5s: see policeFlashesPerSecond in lib/lighting.ts. */
-@keyframes mz-police { 0%, 100% { opacity: .06; } 4% { opacity: 1; } 10% { opacity: .12; } 16% { opacity: 1; } 24% { opacity: .06; } }
-
-.mz-orb { will-change: transform, opacity; }
-
-@media (prefers-reduced-motion: reduce) {
-  .mz-orb { animation: none !important; }
-}
-
-:root[data-reduce-motion="1"] .mz-orb { animation: none !important; }
