@@ -236,7 +236,7 @@ export type InkChoice = "light" | "dark";
  * and a deeper red. These are the five inks the guard checks.
  */
 export const DARK_SURFACE_INK = {
-  text: "#0a1a3f", muted: "#374257", primary: "#7a5600", profit: "#15803d", loss: "#b91c1c",
+  text: "#0a1a3f", muted: "#374257", primary: "#7a5600", profit: "#166534", loss: "#b91c1c",
 };
 
 /**
@@ -254,7 +254,7 @@ export const DARK_INK_VARS: Record<string, string> = {
   "--on-primary": "#ffffff",
   "--accent": "#6b4b00",
   "--icon": "#7a5600",
-  "--profit": "#15803d",
+  "--profit": "#166534",
   "--loss": "#b91c1c",
   "--primary-tint": "rgba(122,86,0,.14)",
   "--chart-grid": "rgba(55,66,87,.14)",

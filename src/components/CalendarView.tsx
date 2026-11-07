@@ -35,9 +35,9 @@ const REGIONS: Record<string, string[]> = {
 };
 const IMPACTS: Impact[] = ["high", "medium", "low", "none"];
 const IMP_STYLE: Record<Impact, string> = {
-  high: "bg-[color-mix(in_srgb,var(--loss)_15%,transparent)] text-[var(--loss)] border-[color-mix(in_srgb,var(--loss)_40%,transparent)]",
-  medium: "bg-[#f59e0b]/15 text-[#f59e0b] border-[#f59e0b]/40",
-  low: "bg-[color-mix(in_srgb,var(--profit)_15%,transparent)] text-[var(--profit)] border-[color-mix(in_srgb,var(--profit)_40%,transparent)]",
+  high: "bg-[color-mix(in_srgb,var(--impact-high)_15%,transparent)] text-[var(--impact-high)] border-[color-mix(in_srgb,var(--impact-high)_40%,transparent)]",
+  medium: "bg-[color-mix(in_srgb,var(--impact-medium)_15%,transparent)] text-[var(--impact-medium)] border-[color-mix(in_srgb,var(--impact-medium)_40%,transparent)]",
+  low: "bg-[color-mix(in_srgb,var(--impact-low)_15%,transparent)] text-[var(--impact-low)] border-[color-mix(in_srgb,var(--impact-low)_40%,transparent)]",
   none: "bg-primary-tint text-muted border-border",
   holiday: "bg-[#3b82f6]/15 text-[#3b82f6] border-[#3b82f6]/40",
 };

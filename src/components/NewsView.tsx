@@ -27,7 +27,7 @@ const CAT_ICON = { forex: DollarSign, crypto: Bitcoin, geopolitics: Globe2, econ
 
 // Severity colours as requested: very high = black + red text, medium = white + blue text, normal = green + white text.
 const SEV_STYLE: Record<Level, string> = {
-  high: "bg-black text-[var(--loss)] border border-[color-mix(in_srgb,var(--loss)_60%,transparent)]",
+  high: "bg-black text-[var(--impact-high)] border border-[color-mix(in_srgb,var(--impact-high)_60%,transparent)]",
   medium: "bg-white text-[#2563eb] border border-[#2563eb]/30",
   low: "bg-[#16a34a] text-white border border-[#16a34a]",
 };
@@ -233,7 +233,7 @@ export default function NewsView({ t, lang, interests }: { t: (k: Key) => string
                 type="button"
                 onClick={() => { setDir("none"); setOpen(idx); }}
                 style={{ ["--i" as string]: idx }}
-                className={`news-card group relative flex h-full w-full overflow-hidden rounded-2xl border bg-surface text-start ${hero ? "flex-col sm:flex-row" : "flex-col"} ${level === "high" ? "border-[color-mix(in_srgb,var(--loss)_50%,transparent)]" : "border-border"}`}
+                className={`news-card group relative flex h-full w-full overflow-hidden rounded-2xl border bg-surface text-start ${hero ? "flex-col sm:flex-row" : "flex-col"} ${level === "high" ? "border-[color-mix(in_srgb,var(--impact-high)_50%,transparent)]" : "border-border"}`}
               >
                 <div className={`relative shrink-0 overflow-hidden ${hero ? "h-48 sm:h-auto sm:w-[46%]" : "h-40"}`}>
                   <Cover item={i} big={hero} className="h-full w-full transition-transform duration-500 group-hover:scale-110" />
@@ -272,7 +272,7 @@ export default function NewsView({ t, lang, interests }: { t: (k: Key) => string
               <button type="button" aria-label="previous" disabled={open === 0} onClick={() => go(-1)} className="icon-btn shrink-0 border border-border bg-surface disabled:opacity-30 directional-icon">
                 <ChevronLeft size={20} className="text-icon" />
               </button>
-              <article key={i.id} className={`max-h-[90vh] min-w-0 flex-1 overflow-y-auto rounded-2xl border bg-surface ${level === "high" ? "border-[color-mix(in_srgb,var(--loss)_60%,transparent)]" : "border-icon"} ${dir === "next" ? "news-slide-next" : dir === "prev" ? "news-slide-prev" : ""}`}>
+              <article key={i.id} className={`max-h-[90vh] min-w-0 flex-1 overflow-y-auto rounded-2xl border bg-surface ${level === "high" ? "border-[color-mix(in_srgb,var(--impact-high)_60%,transparent)]" : "border-icon"} ${dir === "next" ? "news-slide-next" : dir === "prev" ? "news-slide-prev" : ""}`}>
                 <div className="relative h-52 overflow-hidden sm:h-64">
                   <Cover item={i} big className="h-full w-full" />
                   <span className="absolute start-4 top-4"><Sev level={level} t={t} big /></span>
