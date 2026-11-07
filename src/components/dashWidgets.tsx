@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, DollarSign, Percent, Scale, CalendarDays, Hash, Trophy, Layers, Repeat, Target, LineChart, BarChart3, ListOrdered, CalendarRange, Info, PieChart, Grid3x3, Flame } from "lucide-react";
 import SymbolsWidget from "./SymbolsWidget";
 import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
 import { CalendarDayCell } from "./CalendarDayCell";
-import { useSettings } from "../useSettings";
+import { setSettings, useSettings } from "../useSettings";
 import { symL } from "../i18n";
+import { supabase } from "../lib/supabase";
+import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
@@ -211,15 +213,40 @@ function TradesW({ c }: { c: Ctx }) {
   );
 }
 
+const CAL_IMPACTS: EconImpact[] = ["high", "medium", "low"];
+const CAL_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"];
+
 function CalW({ c }: { c: Ctx }) {
   const days = c.m.days;
   const map = new Map(days.map((d) => [d.d, d]));
   const [month, setMonth] = useState(() => (days.length ? days[days.length - 1].d.slice(0, 7) : new Date().toISOString().slice(0, 7)));
   useEffect(() => { if (days.length && !days.some((d) => d.d.startsWith(month))) setMonth(days[days.length - 1].d.slice(0, 7)); }, [days.length]); // eslint-disable-line
+  const settings = useSettings();
+  const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
+
+  useEffect(() => {
+    supabase.from("econ_events").select("id,time,currency,title,impact")
+      .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
+  }, []);
+
+  const econFiltered = useMemo(
+    () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
+    [econRaw, settings.econImpacts, settings.econCurrencies],
+  );
+  const econByDay = useMemo(() => econEventsByDay(econFiltered), [econFiltered]);
+
+  const toggleImpact = (imp: EconImpact) => {
+    const cur = settings.econImpacts;
+    setSettings({ econImpacts: cur.includes(imp) ? cur.filter((i) => i !== imp) : [...cur, imp] });
+  };
+  const toggleCurrency = (cur: string) => {
+    const list = settings.econCurrencies;
+    setSettings({ econCurrencies: list.includes(cur) ? list.filter((c) => c !== cur) : [...list, cur] });
+  };
+
   const [y, mo] = month.split("-").map(Number);
   const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  // Monday-first by default, as it always was; Sunday-first shifts both the lead blanks and the names below.
-  const sunFirst = useSettings().weekStart === "sun";
+  const sunFirst = settings.weekStart === "sun";
   const dow = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
   const lead = sunFirst ? dow : (dow + 6) % 7;
   const cells: (string | null)[] = [...Array(lead).fill(null), ...Array.from({ length: dim }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
@@ -230,15 +257,85 @@ function CalW({ c }: { c: Ctx }) {
   const step = (n: number) => { const d = new Date(Date.UTC(y, mo - 1 + n, 1)); setMonth(d.toISOString().slice(0, 7)); };
   const title = new Intl.DateTimeFormat(c.lang, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, mo - 1, 1)));
   const wd = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(c.lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, (sunFirst ? 0 : 1) + i))));
+
+  const impLabel: Record<EconImpact, string> = { high: TR("H", "م", "H")[c.lang], medium: TR("M", "و", "M")[c.lang], low: TR("L", "م", "F")[c.lang] };
+  const [showCurPicker, setShowCurPicker] = useState(false);
+
   return (
     <div className="flex h-full flex-col" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="mb-2 flex items-center justify-between">
+      {/* Nav row */}
+      <div className="mb-1 flex items-center justify-between">
         <div className="flex items-center gap-1">
           <button type="button" aria-label="previous month" onClick={() => step(-1)} className="icon-btn !h-7 !w-7"><ChevronLeft size={15} className="text-icon rtl:rotate-180" /></button>
           <span className="min-w-[110px] text-center text-sm font-semibold capitalize">{title}</span>
           <button type="button" aria-label="next month" onClick={() => step(1)} className="icon-btn !h-7 !w-7"><ChevronRight size={15} className="text-icon rtl:rotate-180" /></button>
         </div>
         <div className="tnum text-xs text-muted">{TR("Monthly", "الشهر", "Mois")[c.lang]}: <b style={{ color: c.hide ? undefined : tone(mTotal) }}>{money(c, mTotal)}</b></div>
+      </div>
+      {/* Filter chips row */}
+      <div className="mb-1.5 flex flex-wrap items-center gap-1" role="group" aria-label={TR("Economic event filters", "فلاتر الأحداث الاقتصادية", "Filtres événements économiques")[c.lang]}>
+        {CAL_IMPACTS.map((imp) => {
+          const on = settings.econImpacts.includes(imp);
+          return (
+            <button
+              key={imp}
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => toggleImpact(imp)}
+              aria-pressed={on}
+              className="rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase transition"
+              style={{
+                borderColor: on ? `var(--impact-${imp})` : "var(--border)",
+                color: on ? `var(--impact-${imp})` : "var(--muted)",
+                background: on ? `color-mix(in srgb, var(--impact-${imp}) 15%, transparent)` : "transparent",
+              }}
+            >
+              {impLabel[imp]}
+            </button>
+          );
+        })}
+        {/* Currency picker button */}
+        <div className="relative">
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setShowCurPicker((v) => !v)}
+            aria-expanded={showCurPicker}
+            aria-label={TR("Currency filter", "فلتر العملات", "Filtre devises")[c.lang]}
+            className="rounded-full border border-border px-1.5 py-0.5 text-[9px] font-semibold text-muted transition hover:text-text"
+          >
+            {settings.econCurrencies.length === CAL_CURRENCIES.length
+              ? TR("All cur.", "كل العملات", "Toutes")[c.lang]
+              : `${settings.econCurrencies.length} cur.`}
+          </button>
+          {showCurPicker && (
+            <div
+              className="absolute start-0 top-full z-50 mt-1 flex flex-wrap gap-1 rounded-xl border border-border bg-surface p-2 shadow-xl"
+              style={{ minWidth: "160px" }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {CAL_CURRENCIES.map((cur) => {
+                const on = settings.econCurrencies.includes(cur);
+                return (
+                  <button
+                    key={cur}
+                    type="button"
+                    onClick={() => toggleCurrency(cur)}
+                    aria-pressed={on}
+                    className="rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition"
+                    style={{
+                      borderColor: on ? "var(--icon)" : "var(--border)",
+                      color: on ? "var(--icon)" : "var(--muted)",
+                      background: on ? "var(--primary-tint)" : "transparent",
+                    }}
+                  >
+                    {cur}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <div className="grid min-h-0 flex-1 gap-1" style={{ gridTemplateColumns: "repeat(7,minmax(0,1fr)) minmax(0,1.15fr)", gridTemplateRows: `auto repeat(${weeks.length},minmax(0,1fr))` }}>
         {wd.map((w) => <div key={w} className="text-center text-[10px] uppercase text-muted">{w}</div>)}
@@ -249,16 +346,19 @@ function CalW({ c }: { c: Ctx }) {
             ...wk.map((k, i) => {
               const d = k ? map.get(k) : undefined;
               if (d && k) {
+                const dayEvs = econByDay.get(k) ?? [];
+                const { dots, extra } = selectDots(dayEvs);
+                const tooltipLines = dayEvs.map((e) => econTooltipLine(e));
                 return (
                   <CalendarDayCell
                     key={`${wi}-${i}`}
-                    dayData={{
-                      day: k,
-                      net: d.pnl,
-                    }}
+                    dayData={{ day: k, net: d.pnl }}
                     hideValues={c.hide}
                     variant="compact"
                     monthMax={mx}
+                    econDots={dots.length ? dots : undefined}
+                    econExtra={extra}
+                    econTooltipLines={tooltipLines.length ? tooltipLines : undefined}
                   />
                 );
               }

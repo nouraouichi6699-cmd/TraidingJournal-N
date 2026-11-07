@@ -57,6 +57,11 @@ export interface Settings {
 
   /** User-created themes. Each carries its own look; playing and recentColors stay global in lighting. */
   customThemes: CustomTheme[];
+
+  /** Impact levels shown as dots on the P&L calendar (high, medium, low). */
+  econImpacts: ("high" | "medium" | "low")[];
+  /** Currencies shown as dots on the P&L calendar. */
+  econCurrencies: string[];
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -79,6 +84,8 @@ export const DEFAULTS: Settings = {
   ratesDate: "",
   lighting: DEFAULT_LIGHTING,
   customThemes: [],
+  econImpacts: ["high", "medium"],
+  econCurrencies: ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"],
 };
 
 export type { BrokerClock, DayStart, SessionBounds };

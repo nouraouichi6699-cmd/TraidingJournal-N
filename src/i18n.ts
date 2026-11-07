@@ -558,6 +558,8 @@ const dict = {
   saveChanges: { en: "Save changes", ar: "حفظ التغييرات", fr: "Enregistrer" },
   saved: { en: "Saved", ar: "تم الحفظ", fr: "Enregistré" },
   imgTooBig: { en: "Image is larger than 2MB.", ar: "الصورة أكبر من 2MB.", fr: "L'image dépasse 2 Mo." },
+  econEvents: { en: "Economic events", ar: "الأحداث الاقتصادية", fr: "Événements économiques" },
+  econCurrencies: { en: "Currencies", ar: "العملات", fr: "Devises" },
 } satisfies Dict;
 
 export type Key = keyof typeof dict;

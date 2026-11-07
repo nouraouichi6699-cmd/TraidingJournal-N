@@ -3,10 +3,13 @@ import { dayList, dayStats, dayTrades, type DayStats } from "../lib/dayByDay";
 import { fmt, fmtHold } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
+import { useSettings } from "../useSettings";
 import { GREEN, RED } from "./dashWidgets";
 import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
+import { supabase } from "../lib/supabase";
+import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, type StoredEconEvent } from "../lib/econEvents";
 import type { Lang, Trade } from "../types";
 
 type L = [string, string, string]; // en, ar, fr
@@ -30,6 +33,7 @@ const asDate = (s: string | null) => { if (!s) return null; const d = new Date(/
 export default function DayByDayTab({ lang, trades, onImport, currency = null, focusDay }: { lang: Lang; trades: Trade[]; onImport?: () => void; currency?: string | null; focusDay?: string }) {
   const k = i(lang), T = (x: L) => x[k];
   const { hidden } = usePrivacy();
+  const settings = useSettings();
   const days = useMemo(() => dayList(trades), [trades]);
   const [sel, setSel] = useState<string | null>(focusDay ?? null);
   const [tab, setTab] = useState<"overview" | "notes" | "trades">("trades");
@@ -38,6 +42,17 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const st = useMemo(() => dayStats(rows), [rows]);
   const activeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [day]);
+
+  const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
+  useEffect(() => {
+    supabase.from("econ_events").select("id,time,currency,title,impact")
+      .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
+  }, []);
+  const econFiltered = useMemo(
+    () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
+    [econRaw, settings.econImpacts, settings.econCurrencies],
+  );
+  const econByDay = useMemo(() => econEventsByDay(econFiltered), [econFiltered]);
 
   const money = (v: number | null, sign = true, cents = false) => (v == null ? "—" : hidden ? "••••" : fmtMoney(v, { sign, cents, currency })); // summaries whole, trade rows with cents
   const tone = (v: number | null) => (hidden || v == null || v === 0 ? undefined : v > 0 ? GREEN : RED);
@@ -98,6 +113,9 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                   hideValues={hidden}
                   variant="full"
                   monthMax={monthMax}
+                  econDots={(() => { const evs = econByDay.get(d.day) ?? []; const { dots } = selectDots(evs); return dots.length ? dots : undefined; })()}
+                  econExtra={(() => { const evs = econByDay.get(d.day) ?? []; return selectDots(evs).extra; })()}
+                  econTooltipLines={(() => { const evs = econByDay.get(d.day) ?? []; return evs.length ? evs.map((e) => econTooltipLine(e)) : undefined; })()}
                 />
               </div>
             );

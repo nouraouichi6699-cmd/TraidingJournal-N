@@ -1,6 +1,7 @@
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import Private from "./Private";
 import type { Lang } from "../types";
+import type { EconImpact } from "../lib/econEvents";
 
 /* ── Agenda-page icon literal map (mirrors src/index.css --calendar-* vars) ───
    dark  (Navy, Black): paper #f6f1e6  ring #5a4410
@@ -23,6 +24,12 @@ export interface CalendarDayCellProps {
   hideValues?: boolean;
   variant?: "full" | "compact"; // "full" for DayByDayTab, "compact" for dashboard
   monthMax?: number;
+  /** Pre-filtered, ordered impact dots (at most 3). */
+  econDots?: { impact: EconImpact }[];
+  /** Count of events beyond the first 3. */
+  econExtra?: number;
+  /** One line per event for the hover/focus tooltip (time currency title impact). */
+  econTooltipLines?: string[];
 }
 
 export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProps>(
@@ -34,7 +41,14 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     hideValues = false,
     variant = "full",
     monthMax = 0,
+    econDots,
+    econExtra = 0,
+    econTooltipLines,
   }, ref) => {
+    const baseId = useId();
+    const tooltipId = `econ-tt-${baseId}`;
+    const hasDots = econDots && econDots.length > 0;
+    const hasTooltip = econTooltipLines && econTooltipLines.length > 0;
     const dayNum = Number(dayData.day.slice(8));
     const net = dayData.net ?? 0;
     const absNet = Math.abs(net);
@@ -89,7 +103,9 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
       return (
         <div
           title={title}
-          className="flex min-h-0 flex-col justify-between overflow-hidden rounded-[8px] p-1 transition hover:ring-1 hover:ring-primary"
+          tabIndex={hasDots ? 0 : undefined}
+          aria-describedby={hasTooltip ? tooltipId : undefined}
+          className="group relative flex min-h-0 flex-col justify-between overflow-visible rounded-[8px] p-1 transition hover:ring-1 hover:ring-primary"
           style={{
             background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
             borderWidth: "1px",
@@ -117,6 +133,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
               )}
             </div>
           )}
+          {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} />}
         </div>
       );
     }
@@ -129,7 +146,8 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         onClick={onSelect}
         aria-pressed={isSelected}
         aria-label={`${dayData.day} · $${hideValues ? "•••" : Math.round(net)}`}
-        className="relative shrink-0 rounded-[8px] border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5"
+        aria-describedby={hasTooltip ? tooltipId : undefined}
+        className="group relative shrink-0 rounded-[8px] border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5 overflow-visible"
         style={{
           background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
           borderColor: isSelected
@@ -159,8 +177,60 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
             </Private>
           </div>
         )}
+        {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} />}
       </button>
     );
   }
 );
 CalendarDayCell.displayName = "CalendarDayCell";
+
+function EconDotsOverlay({
+  dots,
+  extra,
+  tooltipId,
+  tooltipLines,
+}: {
+  dots: { impact: EconImpact }[];
+  extra: number;
+  tooltipId?: string;
+  tooltipLines?: string[];
+}) {
+  return (
+    <>
+      {/* Dots: absolute top-right, above the agenda icon, below the top edge */}
+      <div
+        aria-hidden="true"
+        className="absolute end-0.5 top-0.5 flex items-center gap-px"
+        style={{ zIndex: 1 }}
+      >
+        {dots.map((d, i) => (
+          <span
+            key={i}
+            className="inline-block h-1.5 w-1.5 rounded-full"
+            style={{ background: `var(--impact-${d.impact})`, flexShrink: 0 }}
+          />
+        ))}
+        {extra > 0 && (
+          <span
+            style={{ fontSize: "7px", lineHeight: 1, color: "var(--muted)", flexShrink: 0 }}
+          >
+            +{extra}
+          </span>
+        )}
+      </div>
+      {/* Tooltip: appears on hover / focus-within */}
+      {tooltipLines && tooltipLines.length > 0 && (
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className="pointer-events-none absolute bottom-full start-0 z-50 mb-1 w-max max-w-[200px] rounded-lg border border-border bg-surface p-2 leading-relaxed opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          style={{ fontSize: "10px" }}
+        >
+          {tooltipLines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

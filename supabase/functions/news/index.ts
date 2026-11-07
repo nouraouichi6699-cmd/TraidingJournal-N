@@ -167,6 +167,28 @@ export interface CalEvent { id: string; time: string; currency: string; title: s
 const CAL_URLS = ["https://nfs.faireconomy.media/ff_calendar_thisweek.json", "https://nfs.faireconomy.media/ff_calendar_nextweek.json"];
 let calCache: { at: number; events: CalEvent[]; ok: boolean } | null = null;
 
+async function upsertCalEvents(events: CalEvent[]): Promise<void> {
+  const SB = Deno.env.get("SUPABASE_URL") ?? "";
+  const SR = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!SB || !SR || !events.length) return;
+  const now = new Date().toISOString();
+  const rows = events.map((e) => ({
+    id: e.id, time: e.time, currency: e.currency, title: e.title, impact: e.impact,
+    previous: e.previous, forecast: e.forecast, actual: e.actual, updated_at: now,
+  }));
+  await fetch(`${SB}/rest/v1/econ_events`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${SR}`,
+      "apikey": SR,
+      "Prefer": "resolution=merge-duplicates",
+    },
+    body: JSON.stringify(rows),
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => {});
+}
+
 export function normalizeCal(rows: unknown): CalEvent[] {
   if (!Array.isArray(rows)) return [];
   const out: CalEvent[] = [];
@@ -201,6 +223,7 @@ async function loadCalendar() {
   const events = parts.flatMap((p) => p.ev).sort((a, b) => +new Date(a.time) - +new Date(b.time));
   // Keep the last good data if a refresh fails entirely.
   calCache = events.length || !calCache ? { at: Date.now(), events, ok: parts.some((p) => p.ok) } : { ...calCache, at: Date.now() - 10 * 60_000 };
+  if (events.length) upsertCalEvents(events).catch(() => {});
   return calCache;
 }
 
