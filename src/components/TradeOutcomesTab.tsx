@@ -68,7 +68,7 @@ export default function TradeOutcomesTab({ lang, o, recent, onImport, currency =
   );
 
   // Wins / losses / breakevens proportion bar
-  const total = o.totalTrades as number, seg = [["wins", o.winningTrades, GREEN], ["losses", o.losingTrades, RED], ["be", o.breakevenTrades, "var(--muted)"]] as const;
+  const total = o.totalTrades as number, seg = [["wins", o.winningTrades, GREEN], ["losses", o.losingTrades, RED], ["be", o.breakevenTrades, "var(--breakeven)"]] as const;
   const proportion = (
     <div>
       <div dir="ltr" className="flex h-3 overflow-hidden rounded-full" style={{ background: "var(--gauge-track)" }} role="img" aria-label={seg.map(([k, n]) => `${T(k)} ${n}`).join(", ")}>
@@ -82,7 +82,7 @@ export default function TradeOutcomesTab({ lang, o, recent, onImport, currency =
 
   // Last-60 strip with arrow-key navigation
   const cur = active != null ? recent[active] : null;
-  const dotColor = (k: RecentTrade["kind"]) => (k === "win" ? GREEN : k === "loss" ? RED : "var(--muted)");
+  const dotColor = (k: RecentTrade["kind"]) => (k === "win" ? GREEN : k === "loss" ? RED : "var(--breakeven)");
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
     e.preventDefault();

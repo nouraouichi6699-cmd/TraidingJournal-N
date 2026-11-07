@@ -38,8 +38,9 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     const dayNum = Number(dayData.day.slice(8));
     const net = dayData.net ?? 0;
     const absNet = Math.abs(net);
-    const netColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
-    const tintVar = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
+    const isBreakeven = !hideValues && net !== 0 && Math.round(net) === 0;
+    const netColor = hideValues ? "var(--muted)" : isBreakeven ? "var(--breakeven)" : net > 0 ? "var(--profit)" : net < 0 ? "var(--loss)" : "var(--muted)";
+    const tintVar = hideValues ? "var(--muted)" : isBreakeven ? "var(--breakeven)" : net > 0 ? "var(--profit)" : net < 0 ? "var(--loss)" : "var(--muted)";
     const tintPct = monthMax > 0 ? Math.round(Math.min(25, 8 + (absNet / monthMax) * 17)) : 8;
     const borderPct = Math.round(40 + (tintPct - 8) / 17 * 20);
 

@@ -19,6 +19,7 @@
   --accent: #f2d58a;
   --profit: #22c55e;
   --loss: #f87171;
+  --breakeven: #60a5fa;
   --impact-high: #f87171;
   --impact-medium: #f59e0b;
   --impact-low: #22c55e;
@@ -52,6 +53,7 @@
   --accent: #9a6f00;
   --profit: #15803d;
   --loss: #b91c1c;
+  --breakeven: #1d4ed8;
   --impact-high: #f87171;
   --impact-medium: #f59e0b;
   --impact-low: #22c55e;
@@ -80,6 +82,7 @@
   --accent: #ffd36b;
   --profit: #22c55e;
   --loss: #f87171;
+  --breakeven: #60a5fa;
   --impact-high: #f87171;
   --impact-medium: #f59e0b;
   --impact-low: #22c55e;
@@ -116,6 +119,7 @@
   --icon: var(--ink-icon);
   --profit: var(--ink-profit);
   --loss: var(--ink-loss);
+  --breakeven: var(--ink-breakeven);
   --primary-tint: var(--ink-primary-tint);
   --chart-grid: var(--ink-chart-grid);
   --chart-axis: var(--ink-chart-axis);

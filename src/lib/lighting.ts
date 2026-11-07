@@ -256,6 +256,7 @@ export const DARK_INK_VARS: Record<string, string> = {
   "--icon": "#7a5600",
   "--profit": "#166534",
   "--loss": "#b91c1c",
+  "--breakeven": "#1d4ed8",
   "--primary-tint": "rgba(122,86,0,.14)",
   "--chart-grid": "rgba(55,66,87,.14)",
   "--chart-axis": "rgba(55,66,87,.3)",

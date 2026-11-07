@@ -13,7 +13,7 @@ export default function StreakWidget({ c }: { c: Ctx }) {
     <span className="tnum inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[10px] font-bold" style={{ color: col, borderColor: `color-mix(in srgb, ${col} 45%, transparent)`, background: `color-mix(in srgb, ${col} 14%, transparent)` }}><span className="opacity-80">{label}</span>{n}</span>
   );
   const block = (title: string, x: Streak) => {
-    const col = x.current.kind === "win" ? GREEN : x.current.kind === "loss" ? RED : "var(--muted)";
+    const col = x.current.kind === "win" ? GREEN : x.current.kind === "loss" ? RED : "var(--breakeven)";
     const Icon = x.current.kind === "loss" ? TrendingDown : Flame;
     return (
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2">
@@ -22,7 +22,7 @@ export default function StreakWidget({ c }: { c: Ctx }) {
           <Icon style={{ width: "clamp(1.1rem,min(14cqh,6cqw),2rem)", height: "clamp(1.1rem,min(14cqh,6cqw),2rem)" }} />
           <span className="text-xs font-semibold text-muted">{title}</span>
         </div>
-        <div className="flex items-center justify-center gap-1">{pill(L("best"), x.bestWin, GREEN)}{pill(L("be"), x.bestBE, "var(--muted)")}{pill(L("worst"), x.worstLoss, RED)}</div>
+        <div className="flex items-center justify-center gap-1">{pill(L("best"), x.bestWin, GREEN)}{pill(L("be"), x.bestBE, "var(--breakeven)")}{pill(L("worst"), x.worstLoss, RED)}</div>
       </div>
     );
   };
