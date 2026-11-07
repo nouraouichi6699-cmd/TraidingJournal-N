@@ -100,7 +100,7 @@ const S4: M[] = [
   ["mcDD95", ["Monte Carlo 95th percentile maximum drawdown", "الشريحة 95 لأقصى تراجع (مونت كارلو)", "95e centile du drawdown max (Monte Carlo)"], ["A severe drawdown: only 5% of the paths fall further.", "تراجع حاد: 5% فقط من المسارات تهبط أكثر.", "Un drawdown sévère : seules 5 % des trajectoires tombent plus bas."]],
   ["mcRec", ["Monte Carlo median recovery time", "وسيط زمن التعافي (مونت كارلو)", "Temps de récupération médian (Monte Carlo)"], ["Median number of trades a path needs to climb from the bottom of its deepest drawdown back to that drawdown's peak.", "وسيط عدد الصفقات التي يحتاجها المسار للصعود من قاع أعمق تراجع إلى قمته.", "Nombre médian de trades pour remonter du creux du pire drawdown jusqu'à son pic."]],
 ];
-const GREEN = "#22c55e", RED = "#f87171", NEUTRAL = "var(--primary)";
+const GREEN = "var(--profit)", RED = "var(--loss)", NEUTRAL = "var(--primary)";
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 type V = [string, string, string | undefined]; // value, colour, reason
 type Bench = { state: "loading" } | { state: "ok"; bars: Bar[] } | { state: "error"; e: LoadError };

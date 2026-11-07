@@ -241,7 +241,7 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
       <span>{n(L(T.nTrades).replace("{n}", String(p.n)))}</span>
       <span dir="ltr">{p.winRate == null ? "—" : `${Math.round(p.winRate)}%`}</span>
-      <span dir="ltr" className={`font-semibold ${p.net > 0 ? "text-[#22c55e]" : p.net < 0 ? "text-[#f87171]" : ""}`}><Private hint={tr("privacyReveal")}>{fmtMoney(p.net, { sign: true, currency: cur })}</Private></span>
+      <span dir="ltr" className={`font-semibold ${p.net > 0 ? "text-[var(--profit)]" : p.net < 0 ? "text-[var(--loss)]" : ""}`}><Private hint={tr("privacyReveal")}>{fmtMoney(p.net, { sign: true, currency: cur })}</Private></span>
     </span>
   );
   const rulesCard = ruleTexts.length > 0 && (
@@ -249,7 +249,7 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
       {rr.answered === 0 ? <p className="text-sm text-muted">{L(T.askHint)}</p> : (
         <div className="flex flex-col gap-3">
           <div className="grid gap-2 sm:grid-cols-2">
-            {([[T.keptAll, rr.kept, "border-[#22c55e]/40"], [T.brokeAny, rr.broke, "border-[#f87171]/40"]] as [L3, Part, string][]).map(([h, p, b]) => (
+            {([[T.keptAll, rr.kept, "border-[color-mix(in_srgb,var(--profit)_40%,transparent)]"], [T.brokeAny, rr.broke, "border-[color-mix(in_srgb,var(--loss)_40%,transparent)]"]] as [L3, Part, string][]).map(([h, p, b]) => (
               <div key={L(h)} className={`rounded-xl border bg-bg/60 p-3 ${b}`}>
                 <p className="mb-1 text-sm font-semibold">{L(h)}</p>
                 {partLine(p)}
@@ -261,11 +261,11 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
               <p className="mb-1.5 text-xs font-semibold text-muted">{L(T.brokeList)}</p>
               <ol className="flex flex-col gap-1.5">
                 {rr.each.map((r, k) => (
-                  <li key={r.i} className={`flex flex-col gap-1 rounded-xl border p-2.5 ${k === 0 && r.net < 0 ? "border-[#f87171]/50 bg-[#f87171]/5" : "border-border"}`}>
+                  <li key={r.i} className={`flex flex-col gap-1 rounded-xl border p-2.5 ${k === 0 && r.net < 0 ? "border-[color-mix(in_srgb,var(--loss)_50%,transparent)] bg-[color-mix(in_srgb,var(--loss)_5%,transparent)]" : "border-border"}`}>
                     <span className="flex items-start gap-2 text-sm">
-                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#f87171]/15 text-[11px] font-bold text-[#f87171] tabular-nums">{r.i + 1}</span>
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--loss)_15%,transparent)] text-[11px] font-bold text-[var(--loss)] tabular-nums">{r.i + 1}</span>
                       <span className="min-w-0 flex-1" dir="auto">{n(ruleTexts[r.i])}</span>
-                      {k === 0 && r.net < 0 && <span className="shrink-0 rounded-full bg-[#f87171]/15 px-2 py-0.5 text-[10px] font-semibold text-[#f87171]">{L(T.costs)}</span>}
+                      {k === 0 && r.net < 0 && <span className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--loss)_15%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--loss)]">{L(T.costs)}</span>}
                     </span>
                     <span className="ps-7">{partLine(r)}</span>
                   </li>
@@ -279,12 +279,12 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
   );
   // The deeper results: the P&L curve, eight figures, and long vs short (same numbers as the dashboard).
   const money = (v: number | null, sign = true) => (v == null ? "—" : fmtMoney(v, { sign, currency: cur }));
-  const tone = (v: number | null) => (v == null || v === 0 ? "" : v > 0 ? "text-[#22c55e]" : "text-[#f87171]");
+  const tone = (v: number | null) => (v == null || v === 0 ? "" : v > 0 ? "text-[var(--profit)]" : "text-[var(--loss)]");
   const curveSvg = (v: number[]) => {
     const W = 300, H = 56, pts = [0, ...v], lo = Math.min(...pts), hi = Math.max(...pts), span = hi - lo || 1;
     const x = (i: number) => (i / (pts.length - 1)) * W, y = (p: number) => 2 + (1 - (p - lo) / span) * (H - 4);
     const d = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join(""), z = y(0).toFixed(1);
-    const c = v[v.length - 1] >= 0 ? "#22c55e" : "#f87171";
+    const c = v[v.length - 1] > 0 ? "var(--profit)" : v[v.length - 1] < 0 ? "var(--loss)" : "var(--muted)";
     return (
       <div>
         <p className="mb-1 text-[11px] text-muted">{L(T.sCurve)}</p>
@@ -305,7 +305,7 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
           [L(T.sAvg), money(st.avgTrade), tone(st.avgTrade), true, ""],
           [L(T.sWinLoss), `${money(st.avgWin)} / ${money(st.avgLoss, false)}`, "", true, ""],
           [L(T.sR), st.avgR == null ? "—" : `${st.avgR > 0 ? "+" : ""}${st.avgR.toFixed(2)}R`, tone(st.avgR), false, st.rN < st.n ? L(T.sStop).replace("{n}", String(st.rN)).replace("{m}", String(st.n)) : ""],
-          [L(T.sDD), money(-st.maxDD, false), st.maxDD > 0 ? "text-[#f87171]" : "", true, ""],
+          [L(T.sDD), money(-st.maxDD, false), st.maxDD > 0 ? "text-[var(--loss)]" : "", true, ""],
           [L(T.sStreak), `${st.winStreak} / ${st.lossStreak}`, "", false, ""],
           [L(T.sBest), `${money(st.best)} / ${money(st.worst, false)}`, "", true, ""],
           [L(T.sHold), st.holdMin == null ? "—" : fmtHold(st.holdMin), "", false, ""],
@@ -339,7 +339,7 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
       <div className="flex flex-col gap-4">
         {cond.best || cond.worst ? (
           <div className="grid gap-2 sm:grid-cols-2">
-            {([[T.wBest, cond.best, "border-[#22c55e]/40", TrendingUp, "text-[#22c55e]"], [T.wWorst, cond.worst, "border-[#f87171]/40", TrendingDown, "text-[#f87171]"]] as const).map(([h, x, b, Icon, c]) => x && (
+            {([[T.wBest, cond.best, "border-[color-mix(in_srgb,var(--profit)_40%,transparent)]", TrendingUp, "text-[var(--profit)]"], [T.wWorst, cond.worst, "border-[color-mix(in_srgb,var(--loss)_40%,transparent)]", TrendingDown, "text-[var(--loss)]"]] as const).map(([h, x, b, Icon, c]) => x && (
               <div key={L(h)} className={`rounded-xl border bg-bg/60 p-3 ${b}`}>
                 <p className={`mb-1 flex items-center gap-1.5 text-xs font-semibold ${c}`}><Icon size={14} />{L(h)}</p>
                 <p className="mb-1 text-sm font-semibold" dir="auto">{groupName(x.g)}</p>
@@ -390,7 +390,7 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
                     {([
                       [L(T.closed), String(res.closed), res.linked > res.closed ? L(T.openN).replace("{n}", String(res.linked - res.closed)) : "", ""],
                       [L(T.winRate), res.winRate == null ? "—" : `${Math.round(res.winRate)}%`, "", ""],
-                      [L(T.net), res.closed ? fmtMoney(res.net, { sign: true, currency: cur }) : "—", "", res.net > 0 ? "text-[#22c55e]" : res.net < 0 ? "text-[#f87171]" : ""],
+                      [L(T.net), res.closed ? fmtMoney(res.net, { sign: true, currency: cur }) : "—", "", res.net > 0 ? "text-[var(--profit)]" : res.net < 0 ? "text-[var(--loss)]" : ""],
                     ] as [string, string, string, string][]).map(([label, value, sub, tone], i) => (
                       <div key={label} className="min-w-0 rounded-xl border border-border bg-bg/60 p-3">
                         <p className="truncate text-xs text-muted">{label}</p>
@@ -460,8 +460,8 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
         )}
         {(own.stop || own.target) && (
           <div className="grid gap-4 sm:grid-cols-2">
-            {own.stop && <Card title={L(T.stop)} icon={ShieldAlert} tone="text-[#f87171]"><p className="text-sm" dir="auto">{own.stop}</p></Card>}
-            {own.target && <Card title={L(T.target)} icon={Goal} tone="text-[#22c55e]"><p className="text-sm" dir="auto">{own.target}</p></Card>}
+            {own.stop && <Card title={L(T.stop)} icon={ShieldAlert} tone="text-[var(--loss)]"><p className="text-sm" dir="auto">{own.stop}</p></Card>}
+            {own.target && <Card title={L(T.target)} icon={Goal} tone="text-[var(--profit)]"><p className="text-sm" dir="auto">{own.target}</p></Card>}
           </div>
         )}
         {own.notes && <Card title={L(T.notesT)} icon={StickyNote}><p className="whitespace-pre-line text-sm" dir="auto">{own.notes}</p></Card>}
@@ -559,14 +559,14 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
             </Card>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Card title={L(T.stop)} icon={ShieldAlert} tone="text-[#f87171]"><p className="text-sm">{n(t.stop)}</p></Card>
-              <Card title={L(T.target)} icon={Goal} tone="text-[#22c55e]"><p className="text-sm">{n(t.target)}</p></Card>
+              <Card title={L(T.stop)} icon={ShieldAlert} tone="text-[var(--loss)]"><p className="text-sm">{n(t.stop)}</p></Card>
+              <Card title={L(T.target)} icon={Goal} tone="text-[var(--profit)]"><p className="text-sm">{n(t.target)}</p></Card>
             </div>
 
             <Card title={L(T.mistakes)} icon={AlertTriangle}>
               <ul className="flex flex-col gap-2">
                 {t.mistakes.map((m, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm"><X size={15} className="mt-0.5 shrink-0 text-[#f87171]" /><span>{n(m)}</span></li>
+                  <li key={i} className="flex gap-2.5 text-sm"><X size={15} className="mt-0.5 shrink-0 text-[var(--loss)]" /><span>{n(m)}</span></li>
                 ))}
               </ul>
             </Card>

@@ -17,7 +17,7 @@
   --primary-2: #b8892b;
   --on-primary: #0a1a3f;
   --accent: #f2d58a;
-  --profit: #e6b84a;
+  --profit: #22c55e;
   --loss: #f87171;
   --primary-tint: rgba(230, 184, 74, 0.14);
   --skeleton: #061841;
@@ -45,7 +45,7 @@
   --primary-2: #1b3a8a;
   --on-primary: #f2c14e;
   --accent: #9a6f00;
-  --profit: #946900;
+  --profit: #15803d;
   --loss: #b91c1c;
   --primary-tint: rgba(10, 31, 92, 0.09);
   --skeleton: #e8ecf5;
@@ -68,7 +68,7 @@
   --primary-2: #d99a1c;
   --on-primary: #1a1200;
   --accent: #ffd36b;
-  --profit: #f5b83d;
+  --profit: #22c55e;
   --loss: #f87171;
   --primary-tint: rgba(245, 184, 61, 0.14);
   --skeleton: #151515;
@@ -969,7 +969,7 @@ h6 {
 /* gold flying around the candle on a success */
 .ch-party { position: absolute; inset: 0; pointer-events: none; }
 .ch-party i { position: absolute; left: 50%; top: 42%; width: 6px; height: 6px; margin: -3px; border-radius: 2px; background: var(--icon); opacity: 0; animation: ch-party 2.6s ease-out infinite; }
-.ch-party i:nth-child(3n) { background: #22c55e; }
+.ch-party i:nth-child(3n) { background: var(--profit); }
 .ch-party i:nth-child(3n + 1) { background: #fde68a; border-radius: 50%; }
 @keyframes ch-party { 0% { opacity: 0; transform: rotate(var(--a)) translateY(-8px) scale(.4); } 18%, 62% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-50px) scale(1) rotate(160deg); } }
 @media (prefers-reduced-motion: reduce) { .ch-card, .ch-ring-low, .ch-cell, .ch-say, .ch-party i { animation: none; } .ch-party { display: none; } }

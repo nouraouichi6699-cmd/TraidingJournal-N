@@ -146,15 +146,15 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
       { horizon: s.daysLeft != null ? Math.max(1, Math.round((s.daysLeft * 5) / 7)) : 250 });
   }, [s, c, trades]);
 
-  const pill = s.status === "passed" ? ["border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]", <Check key="i" size={13} />] : s.status === "failed" ? ["border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]", <X key="i" size={13} />]
+  const pill = s.status === "passed" ? ["border-[color-mix(in_srgb,var(--profit)_40%,transparent)] bg-[color-mix(in_srgb,var(--profit)_10%,transparent)] text-[var(--profit)]", <Check key="i" size={13} />] : s.status === "failed" ? ["border-[color-mix(in_srgb,var(--loss)_40%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)] text-[var(--loss)]", <X key="i" size={13} />]
     : ["border-border text-text", <span key="i" className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full rounded-full bg-[var(--icon)] opacity-60 motion-safe:animate-ping" /><span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--icon)]" /></span>];
   const first = s.breaches[0];
   const banner = pending ? [fill(L(T.pending), { d: dayLabel(c.start, lang) }), "border-[var(--icon)] bg-primary-tint"]
     : s.status === "failed" && first
-    ? [(first.rule === "daily" ? fill(L(T.failedDaily), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : first.rule === "max" ? fill(L(T.failedMax), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : fill(L(T.failedTime), { d: dayLabel(first.day, lang), l: first.limit })) + (self ? ` ${L(T.selfFailed)}` : ""), "border-[#f87171]/50 bg-[#f87171]/10"]
-    : s.status === "passed" && s.passedOn ? [fill(L(T.passedOn), { d: dayLabel(s.passedOn, lang) }) + (self ? ` ${L(T.selfPassed)}` : ""), "border-[#22c55e]/50 bg-[#22c55e]/10"]
+    ? [(first.rule === "daily" ? fill(L(T.failedDaily), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : first.rule === "max" ? fill(L(T.failedMax), { d: dayLabel(first.day, lang), v: m(first.value), l: m(first.limit) }) : fill(L(T.failedTime), { d: dayLabel(first.day, lang), l: first.limit })) + (self ? ` ${L(T.selfFailed)}` : ""), "border-[color-mix(in_srgb,var(--loss)_50%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)]"]
+    : s.status === "passed" && s.passedOn ? [fill(L(T.passedOn), { d: dayLabel(s.passedOn, lang) }) + (self ? ` ${L(T.selfPassed)}` : ""), "border-[color-mix(in_srgb,var(--profit)_50%,transparent)] bg-[color-mix(in_srgb,var(--profit)_10%,transparent)]"]
       : s.waiting.length ? [s.waiting.includes("days") ? fill(L(T.waitDays), { n: c.minDays - s.tradingDays, m: c.minDays }) : fill(L(T.waitCons), { p: Math.round((s.consistency?.share ?? 0) * 100), m: c.consistency ?? 0 }), "border-[var(--icon)] bg-primary-tint"]
-        : s.risk ? [s.risk.amount <= 0 ? L(T.riskZero) : fill(L(s.risk.rule === "daily" ? T.riskDaily : T.riskMax), { m: m(s.risk.amount) }), s.risk.amount <= 0 || (s.risk.rule === "daily" ? s.today?.used ?? 0 : s.maxLoss?.used ?? 0) >= 0.8 ? "border-[#f87171]/50 bg-[#f87171]/10" : "border-[var(--icon)] bg-primary-tint"] : null;
+        : s.risk ? [s.risk.amount <= 0 ? L(T.riskZero) : fill(L(s.risk.rule === "daily" ? T.riskDaily : T.riskMax), { m: m(s.risk.amount) }), s.risk.amount <= 0 || (s.risk.rule === "daily" ? s.today?.used ?? 0 : s.maxLoss?.used ?? 0) >= 0.8 ? "border-[color-mix(in_srgb,var(--loss)_50%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)]" : "border-[var(--icon)] bg-primary-tint"] : null;
   // the candle's mood: gold flying on a pass, anger on a fail, worry near a limit, joy near the target, else eyeing the target
   const used = Math.max(s.today?.used ?? 0, s.maxLoss?.used ?? 0);
   const mood: Mood = pending ? "jealous" : s.status === "passed" ? "happy" : s.status === "failed" ? "angry"
@@ -176,7 +176,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
         {!ask && (
           <div className="flex gap-1.5">
             <button type="button" onClick={onEdit} aria-label={L(T.edit)} title={L(T.edit)} className="icon-btn !h-8 !w-8 border border-border"><Pencil size={14} /></button>
-            <button type="button" onClick={() => setAsk(true)} aria-label={L(T.remove)} title={L(T.remove)} className="icon-btn !h-8 !w-8 border border-border text-[#f87171]"><Trash2 size={14} /></button>
+            <button type="button" onClick={() => setAsk(true)} aria-label={L(T.remove)} title={L(T.remove)} className="icon-btn !h-8 !w-8 border border-border text-[var(--loss)]"><Trash2 size={14} /></button>
           </div>
         )}
       </div>
@@ -203,7 +203,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
             <p className="text-xs font-medium text-muted">{L(T.target)}</p>
             {s.target ? (
               <>
-                <p className={`mt-1 text-lg font-semibold tnum ${s.pnl >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.target.amount)}</span></p>
+                <p className={`mt-1 text-lg font-semibold tnum ${s.pnl > 0 ? "text-[var(--profit)]" : s.pnl < 0 ? "text-[var(--loss)]" : "text-muted"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.target.amount)}</span></p>
                 <p className="mt-0.5 text-xs text-muted">{s.status === "passed" || s.target.left <= 0 ? L(T.reached) : tx(fill(L(T.toGo), { p: Math.round(s.target.progress * 100), m: m(s.target.left) }))}</p>
               </>
             ) : <p className="mt-1 text-sm text-muted">{L(T.noTarget)}</p>}
@@ -215,7 +215,7 @@ function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Chal
             <p className="text-xs font-medium text-muted">{L(T.daily)}</p>
             {s.today ? (
               <>
-                <p className={`mt-1 text-lg font-semibold tnum ${s.today.pnl > 0 ? "text-[#22c55e]" : s.today.pnl < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(s.today.pnl, true)}</p>
+                <p className={`mt-1 text-lg font-semibold tnum ${s.today.pnl > 0 ? "text-[var(--profit)]" : s.today.pnl < 0 ? "text-[var(--loss)]" : ""}`} dir="ltr">{m(s.today.pnl, true)}</p>
                 <p className="mt-0.5 text-xs text-muted">{tx(`${fill(L(T.used), { u: m(Math.max(0, -s.today.pnl)), l: m(s.today.limit) })} · ${fill(L(T.room), { m: m(s.today.room) })}`)}</p>
               </>
             ) : <p className="mt-1 text-sm text-muted">{L(T.none)}</p>}

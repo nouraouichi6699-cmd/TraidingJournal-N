@@ -70,7 +70,7 @@ const T = {
   retry: { en: "Try again", ar: "إعادة المحاولة", fr: "Réessayer" },
 } satisfies Record<string, L3>;
 
-const UP = "#22c55e", DOWN = "#f87171", RATE = 5; // candles per second at 1x
+const UP = "var(--profit)", DOWN = "var(--loss)", RATE = 5; // candles per second at 1x
 const SPEEDS = [1, 2, 4, 8];
 const loc = (lang: Lang) => (lang === "ar" ? "ar-u-nu-latn" : lang);
 const hhmm = (ms: number) => new Date(ms).toISOString().slice(11, 16);
@@ -287,7 +287,7 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
     if (m == null || hidden) return rr ?? `${sg(move)}${price(plain ? Math.abs(move) : move)}`;
     return `${fmtMoney(plain ? Math.abs(m) : m, { cents: true, sign: !plain, currency })}${rr ? ` (${rr})` : ""}`;
   };
-  const tone = (v: number) => (v > 0 ? "text-[#22c55e]" : v < 0 ? "text-[#f87171]" : "text-muted");
+  const tone = (v: number) => (v > 0 ? "text-[var(--profit)]" : v < 0 ? "text-[var(--loss)]" : "text-muted");
 
   const events: Ev[] = useMemo(() => {
     if (!r) return [];
@@ -329,7 +329,7 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">{L(T.title)}</p>
             <h2 id="replay-title" className="mt-0.5 flex flex-wrap items-center gap-2 font-heading text-lg font-semibold">
               <span dir="ltr">{trade.symbol.replace(/^[^:]+:/, "")}</span>
-              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${trade.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{L(T[trade.side])}</span>
+              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${trade.side === "long" ? "border-[color-mix(in_srgb,var(--profit)_40%,transparent)] bg-[color-mix(in_srgb,var(--profit)_10%,transparent)] text-[var(--profit)]" : "border-[color-mix(in_srgb,var(--loss)_40%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)] text-[var(--loss)]"}`}>{L(T[trade.side])}</span>
               <span className="text-sm font-medium text-muted" dir="ltr">{trade.qty.toLocaleString("en-US")}</span>
               {trade.pnl != null && <span className={`text-sm font-semibold ${tone(trade.pnl)}`} dir="ltr">{hidden ? "••••" : fmtMoney(trade.pnl, { cents: true, sign: true, currency })}</span>}
               {inPlan !== undefined && <span className="rounded-full border border-border px-2.5 py-0.5 text-xs font-semibold text-muted">{inPlan ? "✅" : "❌"} {L(inPlan ? T.planIn : T.planOut)}</span>}
@@ -407,7 +407,7 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
                   return (
                     <li key={j}>
                       <button type="button" onClick={() => go(ev.i)} className={`flex w-full items-start gap-3 rounded-lg px-2 py-1.5 text-start text-sm transition-opacity hover:bg-primary-tint ${seen ? "" : "opacity-40"}`}>
-                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${ev.tone === "up" ? "bg-[#22c55e]" : ev.tone === "down" ? "bg-[#f87171]" : "bg-[var(--muted)]"}`} />
+                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${ev.tone === "up" ? "bg-[var(--profit)]" : ev.tone === "down" ? "bg-[var(--loss)]" : "bg-[var(--muted)]"}`} />
                         <span className="mt-px shrink-0 whitespace-nowrap text-xs text-muted tnum" dir="ltr">{when(ev.t)}</span>
                         <span className="min-w-0 flex-1">{lang === "ar" ? ltrNumbers(ev.text) : ev.text}</span>
                       </button>

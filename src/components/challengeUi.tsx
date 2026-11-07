@@ -18,7 +18,7 @@ export const todayFor = (a: Account | undefined, now = Date.now()) => nowFor(a, 
 export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
 export const loc = (lang: Lang) => (lang === "ar" ? "ar-u-nu-latn" : lang === "en" ? "en-GB" : lang); // day before month in every language
 export const dayLabel = (d: string, lang: Lang) => new Intl.DateTimeFormat(loc(lang), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
-export const dangerColor = (u: number) => (u >= 0.8 ? "#f87171" : u >= 0.5 ? "#f59e0b" : "var(--icon)");
+export const dangerColor = (u: number) => (u >= 0.8 ? "var(--loss)" : u >= 0.5 ? "#f59e0b" : "var(--icon)");
 
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null), [w, setW] = useState(0);
@@ -67,11 +67,11 @@ export function BalanceChart({ size, goal, floor, start, rows, money, lang, labe
         <svg width={W} height={H} role="img" aria-label={label}>
           <line x1={L} x2={L + pw} y1={y(size)} y2={y(size)} stroke="var(--border)" strokeDasharray="2 3" />
           {goal != null && <line x1={L} x2={L + pw} y1={y(goal)} y2={y(goal)} stroke="var(--profit)" strokeDasharray="5 4" />}
-          {floorPath && <path d={floorPath} fill="none" stroke="#f87171" strokeWidth={1.2} strokeDasharray="5 4" />}
+          {floorPath && <path d={floorPath} fill="none" stroke="var(--loss)" strokeWidth={1.2} strokeDasharray="5 4" />}
           <path d={line} fill="none" stroke="var(--icon)" strokeWidth={2} strokeLinejoin="round" />
-          {rows.map((r, i) => <circle key={r.day} cx={x(i)} cy={y(r.end)} r={r.bad ? 4.5 : 2.5} fill={r.bad ? "#f87171" : "var(--icon)"} stroke="var(--surface)" strokeWidth={r.bad ? 1.5 : 0}><title>{`${r.day} · ${money(r.pnl)}`}</title></circle>)}
+          {rows.map((r, i) => <circle key={r.day} cx={x(i)} cy={y(r.end)} r={r.bad ? 4.5 : 2.5} fill={r.bad ? "var(--loss)" : "var(--icon)"} stroke="var(--surface)" strokeWidth={r.bad ? 1.5 : 0}><title>{`${r.day} · ${money(r.pnl)}`}</title></circle>)}
           {goal != null && tag(goal, "var(--profit)", money(goal).replace(/^\+/, ""))}
-          {floor != null && tag(floor, "#f87171", money(floor).replace(/^\+/, ""))}
+          {floor != null && tag(floor, "var(--loss)", money(floor).replace(/^\+/, ""))}
           <circle cx={L} cy={y(size)} r={2.5} fill="var(--muted)" />
           <text x={L} y={H - 5} fontSize={10} fill="var(--muted)">{dayLabel(start, lang)}</text>
           {n > 1 && <text x={L + pw} y={H - 5} fontSize={10} fill="var(--muted)" textAnchor="end">{dayLabel(rows[n - 1].day, lang)}</text>}
@@ -133,8 +133,8 @@ export function DayMap({ start, today, days, lang, money }: { start: string; tod
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
         <p className="text-xs font-medium text-muted">{MAP.title[lang]}</p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
-          <span className="flex items-center gap-1.5"><span className={`${sq} bg-[#22c55e]/80`} />{MAP.kept[lang]}</span>
-          <span className="flex items-center gap-1.5"><span className={`${sq} bg-[#f87171]/90`} />{MAP.broke[lang]}</span>
+          <span className="flex items-center gap-1.5"><span className={`${sq} bg-[color-mix(in_srgb,var(--profit)_80%,transparent)]`} />{MAP.kept[lang]}</span>
+          <span className="flex items-center gap-1.5"><span className={`${sq} bg-[color-mix(in_srgb,var(--loss)_90%,transparent)]`} />{MAP.broke[lang]}</span>
           <span className="flex items-center gap-1.5"><span className={`${sq} border border-border`} />{MAP.none[lang]}</span>
         </div>
       </div>
@@ -143,7 +143,7 @@ export function DayMap({ start, today, days, lang, money }: { start: string; tod
           <div key={w[0]} className="flex gap-1">
             {w.map((d) => {
               const info = by.get(d), before = d < from;
-              const cls = before ? "" : info ? (info.bad ? "bg-[#f87171]/90" : "bg-[#22c55e]/80") : `border border-border ${wdOf(d) >= 5 ? "opacity-50" : ""}`;
+              const cls = before ? "" : info ? (info.bad ? "bg-[color-mix(in_srgb,var(--loss)_90%,transparent)]" : "bg-[color-mix(in_srgb,var(--profit)_80%,transparent)]") : `border border-border ${wdOf(d) >= 5 ? "opacity-50" : ""}`;
               const tip = before ? undefined : `${dayLabel(d, lang)}${d === today ? ` (${MAP.today[lang]})` : ""} · ${info ? `${MAP[info.bad ? "broke" : "kept"][lang]} · ${money(info.pnl)}` : MAP.none[lang]}`;
               return <span key={d} title={tip} className={`ch-cell ${sq} ${cls} ${d === today ? "outline outline-1 outline-offset-1 outline-[var(--icon)]" : ""}`} style={{ animationDelay: `${Math.min(n++, 120) * 10}ms` }} />;
             })}

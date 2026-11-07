@@ -76,7 +76,7 @@ const M2: [string, L, L][] = [
   ["relTrade", ["Average benchmark-relative trade return", "متوسط عائد الصفقة نسبةً إلى المعيار", "Rendement moyen relatif par trade"], ["Trade P&L in % of the balance before it, minus the benchmark move between the daily closes before the entry and before the exit (0 for trades inside one day).", "ربح الصفقة كنسبة من الرصيد قبلها، مطروحاً منه تحرك المعيار بين الإغلاقين اليوميين السابقين للدخول والخروج (0 للصفقات داخل اليوم نفسه).", "P&L du trade en % du solde avant lui, moins le mouvement de la référence entre les clôtures avant l'entrée et avant la sortie (0 pour un trade dans la journée)."]],
 ];
 const BARS: [number, string][] = [[5, "M5"], [15, "M15"], [60, "H1"], [240, "H4"], [1440, "D1"]];
-const GREEN = "#22c55e", RED = "#f87171", NEUTRAL = "var(--primary)";
+const GREEN = "var(--profit)", RED = "var(--loss)", NEUTRAL = "var(--primary)";
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 type Load = { state: "loading" } | { state: "ok"; p: Prices } | { state: "error"; e: LoadError };
 
@@ -215,8 +215,8 @@ export default function BenchmarkTab({ lang, trades, start, flows, currency }: {
           <button type="button" onClick={() => { clearDownloads(); setReload((x) => x + 1); }} className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:border-[var(--primary)]"><RefreshCw size={13} className="text-icon" />{T(TXT.refresh)}</button>
         </span>
       </div>
-      {statusLine && <p className={`text-xs ${bench.state === "error" ? "text-[#f87171]" : "text-muted"}`}>{statusLine}</p>}
-      {csvMsg && <p className="text-xs text-[#f87171]">{csvMsg}</p>}
+      {statusLine && <p className={`text-xs ${bench.state === "error" ? "text-[var(--loss)]" : "text-muted"}`}>{statusLine}</p>}
+      {csvMsg && <p className="text-xs text-[var(--loss)]">{csvMsg}</p>}
     </div>
   );
   const chip = (s: string) => {
@@ -225,7 +225,7 @@ export default function BenchmarkTab({ lang, trades, start, flows, currency }: {
     return (
       <button key={s} type="button" onClick={() => { setEditing(editing === s ? null : s); setDraft(map[s] ?? tickerOf(s)?.yahoo ?? ""); }} title={off ? T(TXT.offScale) : undefined}
         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${editing === s ? "border-[var(--primary)]" : "border-border"} ${ok && !off ? "" : "text-muted"}`}>
-        {ok && !off ? <Check size={12} className="text-[#22c55e]" /> : <AlertTriangle size={12} className="text-[var(--primary)]" />}
+        {ok && !off ? <Check size={12} className="text-[var(--profit)]" /> : <AlertTriangle size={12} className="text-[var(--primary)]" />}
         <span className="font-semibold" dir="ltr">{s.replace(/^[^:]+:/, "")}</span><span>{src}</span>
       </button>
     );
@@ -249,7 +249,7 @@ export default function BenchmarkTab({ lang, trades, start, flows, currency }: {
           <button type="button" onClick={() => { const m = { ...map }; if (draft.trim()) m[editing] = draft.trim(); else delete m[editing]; saveMap(m); setMapState(m); setEditing(null); }} className="rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-on-primary">{T(TXT.save)}</button>
           {csvButton(`sym:${editing}`)}
           {readCsv(`sym:${editing}`) && <button type="button" onClick={() => { clearCsv(`sym:${editing}`); setReload((x) => x + 1); }} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold">{T(TXT.removeCsv)}</button>}
-          {syms[editing]?.state === "error" && <span className="text-xs text-[#f87171]">{errText((syms[editing] as { e: LoadError }).e)}</span>}
+          {syms[editing]?.state === "error" && <span className="text-xs text-[var(--loss)]">{errText((syms[editing] as { e: LoadError }).e)}</span>}
         </div>
       )}
     </div>

@@ -5,14 +5,14 @@ import { Sparkles } from "lucide-react";
 import { currencySuffix, ltrNumbers } from "../lib/money";
 import type { Key } from "../i18n";
 
-const GREEN = "#22c55e", RED = "#f87171";
+const GREEN = "var(--profit)", RED = "var(--loss)";
 const SESSIONS = ["sessTK", "sessLN", "sessNY", "sessSY"] as const;
 
 /** Rules of the What-if analysis (all optional; an empty rule set replays the real trades). */
 export function WhatIfPanel({ rules, onChange, symbols, t, weekdays, currency }: { rules: WhatIfRules; onChange: (r: WhatIfRules) => void; symbols: string[]; t: (k: Key) => string; weekdays: string[]; currency: string | null }) {
   const set = (p: Partial<WhatIfRules>) => onChange({ ...rules, ...p });
   const flip = <T,>(arr: T[] | undefined, v: T) => ((arr ?? []).includes(v) ? (arr ?? []).filter((x) => x !== v) : [...(arr ?? []), v]);
-  const chip = (on: boolean) => `rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${on ? "border-[var(--loss,#f87171)] bg-[color-mix(in_srgb,#f87171_16%,transparent)] text-[#f87171] line-through" : "border-border hover:border-icon"}`;
+  const chip = (on: boolean) => `rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${on ? "border-[color-mix(in_srgb,var(--loss)_60%,transparent)] bg-[color-mix(in_srgb,var(--loss)_16%,transparent)] text-[var(--loss)] line-through" : "border-border hover:border-icon"}`;
   const head = "mb-1.5 text-xs font-semibold text-muted";
   const select = "field !w-auto !py-1 text-sm";
   return (
@@ -121,7 +121,7 @@ export function GoldenRules({ ideas, base, current, onApply, t, money, weekdays,
         return (
           <div key={`${i.kind}:${i.value}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border py-2 text-sm">
             <span className="min-w-[200px] flex-1 font-semibold" dir="auto">{label(i)}</span>
-            <span className="tnum font-bold text-[#22c55e]" dir="ltr">{plus(i.gain)}</span>
+            <span className="tnum font-bold text-[var(--profit)]" dir="ltr">{plus(i.gain)}</span>
             <span className="text-xs text-muted" dir={rtl ? "rtl" : undefined}>{t("chMaxDD")} <span className="tnum" dir="ltr">{money(-base)} → {money(-(base + i.ddChange))}</span></span>
             <span className="text-xs text-muted">{rtl ? ltrNumbers(`${i.removed} ${t("chRemoved")}`) : `${i.removed} ${t("chRemoved")}`}</span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.both ? "bg-primary-tint text-icon" : "bg-[#fb923c]/15 text-[#fb923c]"}`}>{i.both ? `✓ ${t("chBothHalves")}` : t("chOneHalf")}</span>
@@ -153,9 +153,9 @@ export function SizeTable({ z, t, rtl }: { z: Sizing; t: (k: Key) => string; rtl
             <tr key={name} className={`border-b border-border/60 ${best ? "bg-primary-tint" : ""}`}>
               <td className="px-2 py-1.5 font-semibold">{name}{best && <span className="ms-1.5 text-icon">· {t("chSuggested")}</span>}</td>
               <td className="px-2 py-1.5 tnum" dir="ltr">{pc(l.f * 100, 2)}</td>
-              <td className={`px-2 py-1.5 tnum ${l.growth >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{l.growth > 0 ? "+" : ""}{pc(l.growth, Math.abs(l.growth) >= 100 ? 0 : 1)}</td>
-              <td className="px-2 py-1.5 tnum text-[#f87171]" dir="ltr">-{pc(l.ddMed)}</td>
-              <td className="px-2 py-1.5 tnum text-[#f87171]" dir="ltr">-{pc(l.dd95)}</td>
+              <td className={`px-2 py-1.5 tnum ${l.growth > 0 ? "text-[var(--profit)]" : l.growth < 0 ? "text-[var(--loss)]" : ""}`} dir="ltr">{l.growth > 0 ? "+" : ""}{pc(l.growth, Math.abs(l.growth) >= 100 ? 0 : 1)}</td>
+              <td className="px-2 py-1.5 tnum text-[var(--loss)]" dir="ltr">-{pc(l.ddMed)}</td>
+              <td className="px-2 py-1.5 tnum text-[var(--loss)]" dir="ltr">-{pc(l.dd95)}</td>
             </tr>
           ))}
         </tbody>

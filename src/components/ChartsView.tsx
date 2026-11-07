@@ -30,8 +30,8 @@ interface Props {
 
 const STORE = "mizan-charts";
 const ALL = "__all";
-const GREEN = "#22c55e";
-const RED = "#f87171";
+const GREEN = "var(--profit)";
+const RED = "var(--loss)";
 const PALETTE = ["#f5b83d", "#22c55e", "#60a5fa", "#f472b6", "#a78bfa", "#fb923c", "#2dd4bf", "#f87171"];
 const RANGES = ["all", "1M", "3M", "6M", "YTD", "1Y", "custom"] as const;
 type Range = (typeof RANGES)[number];
@@ -1187,8 +1187,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
                       <span>{bidi(caption)}</span>
                     </p>
                     <p className="mt-1 flex flex-wrap items-baseline gap-3">
-                      <span className={`font-heading text-4xl font-bold tnum ${headVal < 0 && metric !== "size" && metric !== "prop" ? "text-[#f87171]" : ""}`} dir="ltr">{answer}</span>
-                      {pct != null && !pctMode && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[#f87171]/15 text-[#f87171]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>}
+                      <span className={`font-heading text-4xl font-bold tnum ${headVal < 0 && metric !== "size" && metric !== "prop" ? "text-[var(--loss)]" : ""}`} dir="ltr">{answer}</span>
+                      {pct != null && !pctMode && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 0 ? "bg-primary-tint text-icon" : "bg-[color-mix(in_srgb,var(--loss)_15%,transparent)] text-[var(--loss)]"}`} dir="ltr">{pct >= 0 ? "+" : ""}{fmt(pct)}%</span>}
                     </p>
                   </div>
                   {facts.length > 0 && (

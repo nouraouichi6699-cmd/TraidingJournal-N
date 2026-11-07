@@ -60,7 +60,7 @@ const M2: [string, L, L][] = [
   ["var95", ["Portfolio value at risk (95%)", "القيمة المعرّضة للخطر للمحفظة (95%)", "Value at Risk du portefeuille (95 %)"], ["Historical: the 5th percentile of the portfolio's daily returns (weekdays + weekend days with trades), a loss not exceeded on 95% of days. In brackets: that loss on the latest balance.", "تاريخية: المئين الخامس لعوائد المحفظة اليومية (أيام الأسبوع + عطل نهاية الأسبوع التي فيها صفقات)، خسارة لا تُتجاوز في 95% من الأيام. بين القوسين: تلك الخسارة على آخر رصيد.", "Historique : 5e centile des rendements quotidiens du portefeuille (jours ouvrés + week-ends avec trades), perte non dépassée 95 % des jours. Entre parenthèses : cette perte sur le dernier solde."]],
   ["es95", ["Portfolio expected shortfall (95%)", "العجز المتوقع للمحفظة (95%)", "Expected shortfall du portefeuille (95 %)"], ["Average of the daily returns at or below the 5th percentile: the average loss on the worst 5% of days. In brackets: on the latest balance.", "متوسط العوائد اليومية عند المئين الخامس أو تحته: متوسط الخسارة في أسوأ 5% من الأيام. بين القوسين: على آخر رصيد.", "Moyenne des rendements quotidiens au 5e centile ou en dessous : perte moyenne des 5 % pires jours. Entre parenthèses : sur le dernier solde."]],
 ];
-const GREEN = "#22c55e", RED = "#f87171", NEUTRAL = "var(--primary)";
+const GREEN = "var(--profit)", RED = "var(--loss)", NEUTRAL = "var(--primary)";
 
 export default function PortfolioTab({ lang, trades, accounts, flows, history, currency }: { lang: Lang; trades: Trade[]; accounts: Account[]; flows: CashFlow[]; history: Trade[]; currency: string | null }) {
   const k = i(lang), T = (x: L) => x[k];

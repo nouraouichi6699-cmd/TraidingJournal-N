@@ -145,9 +145,9 @@ export const SURFACE_FAMILY: Record<Theme, { surface: string; companions: Record
 
 /** The five things that have to stay legible on a card. */
 export const SURFACE_INK: Record<Theme, { text: string; muted: string; primary: string; profit: string; loss: string }> = {
-  dark: { text: "#ffffff", muted: "#a9b8d6", primary: "#e6b84a", profit: "#e6b84a", loss: "#f87171" },
-  light: { text: "#0a1a3f", muted: "#4b5a7d", primary: "#0a1f5c", profit: "#946900", loss: "#b91c1c" },
-  black: { text: "#ffffff", muted: "#9a9a9a", primary: "#f5b83d", profit: "#f5b83d", loss: "#f87171" },
+  dark: { text: "#ffffff", muted: "#a9b8d6", primary: "#e6b84a", profit: "#22c55e", loss: "#f87171" },
+  light: { text: "#0a1a3f", muted: "#4b5a7d", primary: "#0a1f5c", profit: "#15803d", loss: "#b91c1c" },
+  black: { text: "#ffffff", muted: "#9a9a9a", primary: "#f5b83d", profit: "#22c55e", loss: "#f87171" },
 };
 
 /** WCAG for something that is not text: an outline, a bar, a dot. */
@@ -236,7 +236,7 @@ export type InkChoice = "light" | "dark";
  * and a deeper red. These are the five inks the guard checks.
  */
 export const DARK_SURFACE_INK = {
-  text: "#0a1a3f", muted: "#374257", primary: "#7a5600", profit: "#7a5600", loss: "#b91c1c",
+  text: "#0a1a3f", muted: "#374257", primary: "#7a5600", profit: "#15803d", loss: "#b91c1c",
 };
 
 /**
@@ -254,7 +254,7 @@ export const DARK_INK_VARS: Record<string, string> = {
   "--on-primary": "#ffffff",
   "--accent": "#6b4b00",
   "--icon": "#7a5600",
-  "--profit": "#7a5600",
+  "--profit": "#15803d",
   "--loss": "#b91c1c",
   "--primary-tint": "rgba(122,86,0,.14)",
   "--chart-grid": "rgba(55,66,87,.14)",

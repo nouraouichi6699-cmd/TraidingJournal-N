@@ -35,9 +35,9 @@ const REGIONS: Record<string, string[]> = {
 };
 const IMPACTS: Impact[] = ["high", "medium", "low", "none"];
 const IMP_STYLE: Record<Impact, string> = {
-  high: "bg-[#ef4444]/15 text-[#f87171] border-[#ef4444]/40",
+  high: "bg-[color-mix(in_srgb,var(--loss)_15%,transparent)] text-[var(--loss)] border-[color-mix(in_srgb,var(--loss)_40%,transparent)]",
   medium: "bg-[#f59e0b]/15 text-[#f59e0b] border-[#f59e0b]/40",
-  low: "bg-[#22c55e]/15 text-[#22c55e] border-[#22c55e]/40",
+  low: "bg-[color-mix(in_srgb,var(--profit)_15%,transparent)] text-[var(--profit)] border-[color-mix(in_srgb,var(--profit)_40%,transparent)]",
   none: "bg-primary-tint text-muted border-border",
   holiday: "bg-[#3b82f6]/15 text-[#3b82f6] border-[#3b82f6]/40",
 };
@@ -82,7 +82,7 @@ const actualTone = (e: Ev) => {
   if (!e.actual || isNaN(a) || isNaN(f)) return "text-text";
   if (a === f) return "text-muted";
   const better = LOWER_BETTER.test(e.title) ? a < f : a > f;
-  return better ? "text-[#22c55e]" : "text-[#f87171]";
+  return better ? "text-[var(--profit)]" : "text-[var(--loss)]";
 };
 const isSpeech = (t: string) => /speaks|speech|testifies|press conference|conference/i.test(t);
 
@@ -378,7 +378,7 @@ export default function CalendarView({ t, lang, interests }: { t: (k: Key) => st
                       <span className="tnum text-muted">{dateCell(e)}</span>
                       <span className="tnum text-xs font-semibold">
                         {l ?? (mins < 30 && e.impact !== "holiday"
-                          ? <span className="flex items-center gap-1.5 text-[#f87171]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#f87171]" />{t("calLive")}</span>
+                          ? <span className="flex items-center gap-1.5 text-[var(--loss)]"><span className="h-2 w-2 animate-pulse rounded-full bg-[var(--loss)]" />{t("calLive")}</span>
                           : <span className="text-muted">{t("calReleased")}</span>)}
                       </span>
                       <span className="flex items-center gap-2 font-semibold"><Flag cur={e.currency} />{e.currency}</span>
@@ -401,7 +401,7 @@ export default function CalendarView({ t, lang, interests }: { t: (k: Key) => st
                             {(() => {
                               const f = num(e.forecast), p = num(e.previous);
                               if (isNaN(f) || isNaN(p)) return null;
-                              return f > p ? <ArrowUp size={15} className="text-[#22c55e]" strokeWidth={3} /> : f < p ? <ArrowDown size={15} className="text-[#f87171]" strokeWidth={3} /> : <Equal size={15} className="text-[#3b82f6]" strokeWidth={3} />;
+                              return f > p ? <ArrowUp size={15} className="text-[var(--profit)]" strokeWidth={3} /> : f < p ? <ArrowDown size={15} className="text-[var(--loss)]" strokeWidth={3} /> : <Equal size={15} className="text-[#3b82f6]" strokeWidth={3} />;
                             })()}
                           </p>
                         </div>

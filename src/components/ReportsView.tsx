@@ -255,12 +255,12 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
             <Card title={L(TX.split)}>
               <div className="space-y-4">
                 <div dir="ltr" className="flex h-3 overflow-hidden rounded-full bg-border">
-                  <div style={{ width: `${(a.long / a.trades) * 100}%`, background: "#22c55e" }} />
-                  <div style={{ width: `${(a.short / a.trades) * 100}%`, background: "#f87171" }} />
+                  <div style={{ width: `${(a.long / a.trades) * 100}%`, background: "var(--profit)" }} />
+                  <div style={{ width: `${(a.short / a.trades) * 100}%`, background: "var(--loss)" }} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><div className="flex items-center gap-1 text-[11px] text-muted"><TrendingUp size={13} className="text-[#22c55e]" />{L(TX.lg)}</div><div className="tnum font-heading text-xl font-bold text-[#22c55e]">{a.long}</div></div>
-                  <div><div className="flex items-center gap-1 text-[11px] text-muted"><TrendingDown size={13} className="text-[#f87171]" />{L(TX.sh)}</div><div className="tnum font-heading text-xl font-bold text-[#f87171]">{a.short}</div></div>
+                  <div><div className="flex items-center gap-1 text-[11px] text-muted"><TrendingUp size={13} className="text-[var(--profit)]" />{L(TX.lg)}</div><div className="tnum font-heading text-xl font-bold text-[var(--profit)]">{a.long}</div></div>
+                  <div><div className="flex items-center gap-1 text-[11px] text-muted"><TrendingDown size={13} className="text-[var(--loss)]" />{L(TX.sh)}</div><div className="tnum font-heading text-xl font-bold text-[var(--loss)]">{a.short}</div></div>
                 </div>
                 <div className="rounded-xl bg-primary-tint p-3 text-center">
                   <div className="text-[11px] text-muted">{L(TX.ratio)}</div>

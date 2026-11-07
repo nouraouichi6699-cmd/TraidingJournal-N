@@ -333,7 +333,7 @@ export function OwnFields({ lang, d, set, bad, tried, cur, size, symbols }: { la
 }
 
 // ---------- the card ----------
-const ROSE = "border-[#f87171]/50 bg-[#f87171]/10", AMBER = "border-[#f59e0b]/50 bg-[#f59e0b]/10", GREEN = "border-[#22c55e]/50 bg-[#22c55e]/10", PLAIN = "border-[var(--icon)] bg-primary-tint";
+const ROSE = "border-[color-mix(in_srgb,var(--loss)_50%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)]", AMBER = "border-[#f59e0b]/50 bg-[#f59e0b]/10", GREEN = "border-[color-mix(in_srgb,var(--profit)_50%,transparent)] bg-[color-mix(in_srgb,var(--profit)_10%,transparent)]", PLAIN = "border-[var(--icon)] bg-primary-tint";
 const addDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 864e5).toISOString().slice(0, 10);
 
 export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemove, onChange, onRetry }: {
@@ -385,7 +385,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
     }
   };
   const log = [...s.violations].reverse(), shown = all ? log : log.slice(0, 6);
-  const scoreColor = s.score == null ? "var(--icon)" : s.score >= 80 ? "var(--profit)" : s.score >= 50 ? "#f59e0b" : "#f87171";
+  const scoreColor = s.score == null ? "var(--icon)" : s.score >= 80 ? "var(--profit)" : s.score >= 50 ? "#f59e0b" : "var(--loss)";
   const overall = amount(rules.overall, c.size), floor = overall != null ? c.size - overall : null;
   const chips: string[] = [
     ...(rules.maxTrades != null ? [fill(L(OT.cTrades), { n: s.today.n, m: rules.maxTrades })] : []),
@@ -400,7 +400,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h3 className="font-heading text-base font-semibold">{account.name} · {c.name}</h3>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${ended ? "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]" : "border-border text-text"}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${ended ? "border-[color-mix(in_srgb,var(--loss)_40%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)] text-[var(--loss)]" : "border-border text-text"}`}>
               {ended ? <X size={13} /> : <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full rounded-full bg-[var(--icon)] opacity-60 motion-safe:animate-ping" /><span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--icon)]" /></span>}
               {L(ended ? OT.ended : OT.active)}
             </span>
@@ -412,7 +412,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
         {!ask && (
           <div className="flex gap-1.5">
             <button type="button" onClick={onEdit} aria-label={L(OT.edit)} title={L(OT.edit)} className="icon-btn !h-8 !w-8 border border-border"><Pencil size={14} /></button>
-            <button type="button" onClick={() => setAsk(true)} aria-label={L(OT.remove)} title={L(OT.remove)} className="icon-btn !h-8 !w-8 border border-border text-[#f87171]"><Trash2 size={14} /></button>
+            <button type="button" onClick={() => setAsk(true)} aria-label={L(OT.remove)} title={L(OT.remove)} className="icon-btn !h-8 !w-8 border border-border text-[var(--loss)]"><Trash2 size={14} /></button>
           </div>
         )}
       </div>
@@ -452,8 +452,8 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
           <p className="text-xs font-medium text-muted">{L(OT.cost)}</p>
           {s.cost.broke.n + s.cost.kept.n === 0 ? <p className="mt-1 text-sm text-muted">{L(OT.costNone)}</p> : (
             <div className="mt-1.5 space-y-1.5 text-sm">
-              <p className="flex flex-wrap items-baseline justify-between gap-x-2"><span className="text-muted">{tx(fill(L(OT.costBroke), { n: nTrades(s.cost.broke.n, lang) }))}</span><span dir="ltr" className={`font-semibold tnum ${s.cost.broke.net < 0 ? "text-[#f87171]" : s.cost.broke.net > 0 ? "text-[#22c55e]" : ""}`}>{m(s.cost.broke.net, true)}</span></p>
-              <p className="flex flex-wrap items-baseline justify-between gap-x-2"><span className="text-muted">{tx(fill(L(OT.costKept), { n: nTrades(s.cost.kept.n, lang) }))}</span><span dir="ltr" className={`font-semibold tnum ${s.cost.kept.net < 0 ? "text-[#f87171]" : s.cost.kept.net > 0 ? "text-[#22c55e]" : ""}`}>{m(s.cost.kept.net, true)}</span></p>
+              <p className="flex flex-wrap items-baseline justify-between gap-x-2"><span className="text-muted">{tx(fill(L(OT.costBroke), { n: nTrades(s.cost.broke.n, lang) }))}</span><span dir="ltr" className={`font-semibold tnum ${s.cost.broke.net < 0 ? "text-[var(--loss)]" : s.cost.broke.net > 0 ? "text-[var(--profit)]" : ""}`}>{m(s.cost.broke.net, true)}</span></p>
+              <p className="flex flex-wrap items-baseline justify-between gap-x-2"><span className="text-muted">{tx(fill(L(OT.costKept), { n: nTrades(s.cost.kept.n, lang) }))}</span><span dir="ltr" className={`font-semibold tnum ${s.cost.kept.net < 0 ? "text-[var(--loss)]" : s.cost.kept.net > 0 ? "text-[var(--profit)]" : ""}`}>{m(s.cost.kept.net, true)}</span></p>
             </div>
           )}
         </div>
@@ -463,14 +463,14 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
               <Ring value={s.goal.progress} color="var(--profit)" text={pct(s.goal.progress)} label={L(OT.goal)} />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted">{L(OT.goal)}</p>
-                <p className={`mt-1 text-lg font-semibold tnum ${s.pnl >= 0 ? "text-[#22c55e]" : "text-[#f87171]"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.goal.amount)}</span></p>
+                <p className={`mt-1 text-lg font-semibold tnum ${s.pnl > 0 ? "text-[var(--profit)]" : s.pnl < 0 ? "text-[var(--loss)]" : "text-muted"}`} dir="ltr">{m(s.pnl, true)} <span className="text-sm font-medium text-muted">/ {m(s.goal.amount)}</span></p>
                 <p className="mt-0.5 text-xs text-muted">{s.goal.reached ? L(OT.reached) : tx(fill(L(OT.toGo), { p: Math.round(s.goal.progress * 100), m: m(s.goal.left) }))}</p>
               </div>
             </>
           ) : (
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted">{L(OT.today)}</p>
-              <p className={`mt-1 text-lg font-semibold tnum ${s.today.net > 0 ? "text-[#22c55e]" : s.today.net < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(s.today.net, true)}</p>
+              <p className={`mt-1 text-lg font-semibold tnum ${s.today.net > 0 ? "text-[var(--profit)]" : s.today.net < 0 ? "text-[var(--loss)]" : ""}`} dir="ltr">{m(s.today.net, true)}</p>
               <p className="mt-0.5 text-xs text-muted">{tx(nTrades(s.today.n, lang))}</p>
             </div>
           )}
@@ -485,7 +485,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
                 label={tx(fill(L(OT.used), { u: m(x.used * x.limit), l: m(x.limit), r: m(x.room) }))} />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted">{L(x.key === "daily" ? OT.roomDaily : x.key === "weekly" ? OT.roomWeekly : x.key === "monthly" ? OT.roomMonthly : OT.roomOverall)}</p>
-                <p className={`mt-1 text-lg font-semibold tnum ${x.net > 0 ? "text-[#22c55e]" : x.net < 0 ? "text-[#f87171]" : ""}`} dir="ltr">{m(x.net, true)}</p>
+                <p className={`mt-1 text-lg font-semibold tnum ${x.net > 0 ? "text-[var(--profit)]" : x.net < 0 ? "text-[var(--loss)]" : ""}`} dir="ltr">{m(x.net, true)}</p>
                 <p className="mt-0.5 text-xs text-muted">{tx(fill(L(OT.used), { u: m(x.used * x.limit), l: m(x.limit), r: m(x.room) }))}</p>
               </div>
             </div>
@@ -498,7 +498,7 @@ export function OwnCard({ c, account, trades, lang, profileName, onEdit, onRemov
       <BalanceChart size={c.size} goal={s.goal ? c.size + s.goal.amount : null} floor={floor} start={c.start} rows={s.days.map((d) => ({ ...d, floor }))} money={(v) => m(v)} lang={lang} label={L(OT.balance)} />
 
       <div className="mt-4">
-        <p className="text-sm font-semibold">{L(OT.log)}{log.length > 0 && <span className="ms-2 rounded-full border border-[#f87171]/40 bg-[#f87171]/10 px-2 py-0.5 text-[11px] font-bold text-[#f87171] tnum">{log.length}</span>}</p>
+        <p className="text-sm font-semibold">{L(OT.log)}{log.length > 0 && <span className="ms-2 rounded-full border border-[color-mix(in_srgb,var(--loss)_40%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)] px-2 py-0.5 text-[11px] font-bold text-[var(--loss)] tnum">{log.length}</span>}</p>
         {log.length === 0 ? <p className="mt-1.5 text-sm text-muted">{L(OT.logNone)}</p> : (
           <ul className="mt-2 divide-y divide-border rounded-xl border border-border">
             {shown.map((v, i) => {

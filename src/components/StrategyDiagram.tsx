@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { Diagram, Tone } from "../lib/strategies";
 
 const PL = 8, PR = 54, PT = 16, PB = 10;
-const UP = "#22c55e", DOWN = "#f87171";
+const UP = "var(--profit)", DOWN = "var(--loss)";
 const KS = 60;     // ms between two candles
 const LD = 1500;   // ms to draw a swing path
 const COLOR: Record<Tone, string> = { gold: "var(--icon)", muted: "var(--muted)", demand: UP, supply: DOWN, gap: "var(--icon)", range: "var(--muted)" };

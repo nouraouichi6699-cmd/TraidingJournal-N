@@ -15,7 +15,7 @@ import type { Lang, Trade } from "../types";
 
 type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
-export const GREEN = "#12d65f", RED = "#ff3b4f";
+export const GREEN = "var(--profit)", RED = "var(--loss)";
 
 export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number; cur: string | null; allClosed?: Trade[]; flows?: CashFlow[]; from?: string }
 // cur: shared account currency (null = mixed). allClosed / flows / from: unfiltered history of the selected accounts, for balance-based %.
@@ -111,7 +111,7 @@ function ScoreW({ c }: { c: Ctx }) {
       <div className="min-h-0 flex-1"><Radar c={c} /></div>
       <div className="mt-1 flex items-center gap-3">
         <div className="tnum font-heading text-3xl font-bold text-primary">{Math.round(o)}</div>
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-border"><div className="h-full rounded-full" style={{ width: `${o}%`, background: "linear-gradient(90deg,#f87171,var(--primary),#22c55e)" }} /></div>
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-border"><div className="h-full rounded-full" style={{ width: `${o}%`, background: "linear-gradient(90deg,var(--loss),var(--primary),var(--profit))" }} /></div>
       </div>
     </div>
   );

@@ -34,8 +34,8 @@ const PLAN = {
   hint: { en: "From your answers to the Telegram new-trade buttons.", ar: "من إجاباتك على أزرار رسالة الصفقة الجديدة في تيليغرام.", fr: "D'après vos réponses aux boutons Telegram des nouveaux trades." },
 };
 
-const GREEN = "text-[#22c55e]";
-const RED = "text-[#f87171]";
+const GREEN = "text-[var(--profit)]";
+const RED = "text-[var(--loss)]";
 const COLS_KEY = "mizan-journal-cols";
 // Columns that hold numbers: the client can hide any of them.
 const NUMERIC = ["entry", "exit", "size", "pips", "pnl"] as const;
@@ -136,7 +136,7 @@ export default function JournalView({ t, lang, accounts, trades, onOpenReport, o
                   <tr key={x.key} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 font-medium" dir="ltr"><span className="inline-flex items-center gap-2"><SymbolIcon symbol={x.symbol} />{instrument(x.symbol)}</span></td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${x.side === "long" ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e]" : "border-[#f87171]/40 bg-[#f87171]/10 text-[#f87171]"}`}>{t(x.side)}</span>
+                      <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${x.side === "long" ? "border-[color-mix(in_srgb,var(--profit)_40%,transparent)] bg-[color-mix(in_srgb,var(--profit)_10%,transparent)] text-[var(--profit)]" : "border-[color-mix(in_srgb,var(--loss)_40%,transparent)] bg-[color-mix(in_srgb,var(--loss)_10%,transparent)] text-[var(--loss)]"}`}>{t(x.side)}</span>
                     </td>
                     <td className="px-4 py-3"><StrategyPicker value={links[x.key]} mine={mine} custom={custom} lang={lang} onChange={(id) => { setLinks(linkTrade(x.key, id)); setMine(readMine()); }} /></td>
                     {show("entry") && <td className="px-4 py-3 tnum" dir="ltr">{fmt(x.entryPrice, x.entryPrice < 10 ? 5 : 2)}<span className="block text-xs text-muted">{when(x.entryTime)}</span></td>}

@@ -100,7 +100,7 @@ const S3: M[] = [
   ["area", ["Average trade pain area", "متوسط مساحة الألم في الصفقة", "Aire de douleur moyenne"], ["Floating loss × time spent below zero, in money × hours.", "الخسارة العائمة × الزمن تحت الصفر، بالمال × الساعات.", "Perte latente × temps sous zéro, en argent × heures."]],
   ["cover", ["Price-path metric coverage", "تغطية مقاييس مسار السعر", "Couverture des métriques de parcours"], ["Share of the period's closed trades whose price path was measured.", "نسبة الصفقات المغلقة في الفترة التي قيس مسار سعرها.", "Part des trades clôturés de la période dont le parcours a été mesuré."]],
 ];
-const GREEN = "#22c55e", RED = "#f87171", NEUTRAL = "var(--primary)";
+const GREEN = "var(--profit)", RED = "var(--loss)", NEUTRAL = "var(--primary)";
 type V = [string, string, string | undefined];
 const clockLabel = (m: TimeModel) => { const u = (h: number) => `UTC${h >= 0 ? "+" : "-"}${Math.abs(h)}`; return m.dst === "none" ? u(m.base) : `${u(m.base)} / ${u(m.base + 1)} (${m.dst === "us" ? "US" : "EU"} DST)`; };
 const CLOCKS: TimeModel[] = [...MODELS.filter((m) => m.dst === "none"), ...MODELS.filter((m) => m.dst !== "none" && m.base >= -8 && m.base <= 4)];
@@ -248,12 +248,12 @@ export default function PathTab({ lang, trades, accounts, history, currency }: {
           <RefreshCw size={13} className={`text-icon ${progress ? "animate-spin" : ""}`} />{T(TXT.refresh)}
         </button>
       </div>
-      {status.map((s, n) => <p key={n} className={`text-xs ${n === status.length - 1 && error ? "text-[#f87171]" : "text-muted"}`}>{ltrNumbers(s)}</p>)}
+      {status.map((s, n) => <p key={n} className={`text-xs ${n === status.length - 1 && error ? "text-[var(--loss)]" : "text-muted"}`}>{ltrNumbers(s)}</p>)}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted">{T(TXT.symbols)}</span>
         {symbols.map((s) => { const [a, b] = measuredOf(s), ok = a === b && b > 0; return (
           <button key={s} type="button" onClick={() => { setEditing(editing === s ? null : s); setCsvMsg(null); }} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${editing === s ? "border-[var(--primary)]" : "border-border"} ${a ? "" : "text-muted"}`}>
-            {ok ? <Check size={12} className="text-[#22c55e]" /> : <AlertTriangle size={12} className="text-[var(--primary)]" />}
+            {ok ? <Check size={12} className="text-[var(--profit)]" /> : <AlertTriangle size={12} className="text-[var(--primary)]" />}
             <span className="font-semibold" dir="ltr">{s.replace(/^[^:]+:/, "")}</span><span className="tnum" dir="ltr">{a}/{b}</span>
           </button>); })}
       </div>

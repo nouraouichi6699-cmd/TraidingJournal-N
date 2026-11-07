@@ -1,6 +1,5 @@
 import { useRef, type CSSProperties, forwardRef } from "react";
 import Private from "./Private";
-import { RED, GREEN } from "./dashWidgets";
 import type { Lang } from "../types";
 
 interface DayData {
@@ -35,7 +34,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
 
   const absNet = Math.abs(dayData.net ?? 0);
   const net = dayData.net ?? 0;
-  const netColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--primary)" : RED;
+  const netColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
   const tintColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
 
   // Calculate opacity for full variant based on monthMax
