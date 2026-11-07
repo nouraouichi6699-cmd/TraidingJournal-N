@@ -13,7 +13,7 @@
 //  3. Drag MizanSync onto any chart and paste the sync key from Mizan (Import page) in its inputs.
 // Keep MT5 open: closed trades reach Mizan within a minute. The status shows in the chart's top-left corner.
 #property copyright   "Mizan"
-#property version     "1.04"
+#property version     "1.05"
 #property description "Sends your trades to your Mizan journal automatically."
 #property description "Read-only: it never opens, changes or closes a trade."
 
@@ -303,7 +303,7 @@ string CalValue(const long raw, const uint digits, const ENUM_CALENDAR_EVENT_UNI
       case CALENDAR_MULTIPLIER_BILLIONS:  s += "B"; break;
       case CALENDAR_MULTIPLIER_TRILLIONS: s += "T"; break;
      }
-   if(unit == CALENDAR_EVENT_UNIT_PERCENT)
+   if(unit == CALENDAR_UNIT_PERCENT)
       s += "%";
    return s;
   }
