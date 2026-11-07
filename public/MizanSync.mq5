@@ -3,6 +3,8 @@
 //+------------------------------------------------------------------+
 // Read-only: this Expert Advisor never opens, changes or closes a trade. It reads the account history and the
 // open positions and sends them to Mizan, where they become the trades of the account the sync key was made for.
+// It also reads MT5's built-in economic calendar (history included) and sends it along, separately from the trades:
+// a calendar hiccup never blocks or delays a trade sync.
 //
 // Setup (once):
 //  1. Tools > Options > Expert Advisors: tick "Allow WebRequest for listed URL" and add
@@ -11,7 +13,7 @@
 //  3. Drag MizanSync onto any chart and paste the sync key from Mizan (Import page) in its inputs.
 // Keep MT5 open: closed trades reach Mizan within a minute. The status shows in the chart's top-left corner.
 #property copyright   "Mizan"
-#property version     "1.03"
+#property version     "1.04"
 #property description "Sends your trades to your Mizan journal automatically."
 #property description "Read-only: it never opens, changes or closes a trade."
 
@@ -20,21 +22,28 @@ input string InpUrl   = "https://lfdddmcktywktnrkthbx.supabase.co/functions/v1/m
 input int    InpDays  = 90;  // First sync: days of history
 input int    InpEvery = 60;  // Check every (seconds)
 
-#define BATCH     300   // positions per request (the server takes up to 2000)
-#define RECENT    3     // days of history checked after the first sync
-#define HEARTBEAT 600   // seconds: resend at least this often, so Mizan shows the link is alive
+#define BATCH      300   // positions per request (the server takes up to 2000)
+#define RECENT     3     // days of history checked after the first sync
+#define HEARTBEAT  600   // seconds: resend at least this often, so Mizan shows the link is alive
+#define CAL_DAYS   400   // first calendar sync: days of history
+#define CAL_LEAD   14    // calendar sync: days ahead of now
+#define CAL_HOURS  3600  // calendar sync: at most once this often (seconds)
+#define CAL_BATCH  500   // calendar events per request
 
-string   g_key   = "";
-datetime g_from  = 0;      // server time of the last sync that saw the whole history (0 = first sync: InpDays)
-datetime g_beat  = 0;      // local time of the last timer event (a big jump = the PC slept)
-datetime g_calm  = 0;      // local time from which MT5 counts as settled after a sleep or a lost connection
-bool     g_dirty = true;   // a deal or a position changed since the last check
-bool     g_stop  = false;  // the server refused the key: wait until the inputs change
-bool     g_told  = false;  // the "allow WebRequest" alert was shown
-datetime g_next  = 0;      // local time of the next check
-datetime g_sent  = 0;      // local time of the last successful send
-string   g_last  = "";     // what was last sent
-int      g_err   = 0;      // GetLastError() after a failed WebRequest
+string   g_key     = "";
+datetime g_from    = 0;      // server time of the last sync that saw the whole history (0 = first sync: InpDays)
+datetime g_beat    = 0;      // local time of the last timer event (a big jump = the PC slept)
+datetime g_calm    = 0;      // local time from which MT5 counts as settled after a sleep or a lost connection
+bool     g_dirty   = true;   // a deal or a position changed since the last check
+bool     g_stop    = false;  // the server refused the key: wait until the inputs change
+bool     g_told    = false;  // the "allow WebRequest" alert was shown
+datetime g_next    = 0;      // local time of the next check
+datetime g_sent    = 0;      // local time of the last successful send
+string   g_last    = "";     // what was last sent
+int      g_err     = 0;      // GetLastError() after a failed WebRequest
+datetime g_calFrom = 0;      // server time covered by the calendar so far (0 = first sync: CAL_DAYS back)
+datetime g_calNext = 0;      // local time of the next allowed calendar check
+string   g_calCur[9] = {"USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"};
 
 //--- text helpers
 void Show(const string line)
@@ -267,6 +276,110 @@ void Fail(const int code, const string reply)
    Print("Mizan Sync: HTTP ", code, " ", reply);
   }
 
+//--- economic calendar
+// MQL5's ENUM_CALENDAR_EVENT_IMPORTANCE, mapped to Mizan's impact scale. NONE is skipped (empty string).
+string CalImpact(const ENUM_CALENDAR_EVENT_IMPORTANCE imp)
+  {
+   switch(imp)
+     {
+      case CALENDAR_IMPORTANCE_HIGH:     return "high";
+      case CALENDAR_IMPORTANCE_MODERATE: return "medium";
+      case CALENDAR_IMPORTANCE_LOW:      return "low";
+      default:                          return "";
+     }
+  }
+
+// actual/forecast/previous are scaled integers (LONG_MIN = no value); unit, multiplier and digits say how to show them.
+string CalValue(const long raw, const uint digits, const ENUM_CALENDAR_EVENT_UNIT unit, const ENUM_CALENDAR_EVENT_MULTIPLIER mult)
+  {
+   if(raw == LONG_MIN)
+      return "";
+   double v = raw / MathPow(10.0, (double)digits);
+   string s = DoubleToString(v, (int)digits);
+   switch(mult)
+     {
+      case CALENDAR_MULTIPLIER_THOUSANDS: s += "K"; break;
+      case CALENDAR_MULTIPLIER_MILLIONS:  s += "M"; break;
+      case CALENDAR_MULTIPLIER_BILLIONS:  s += "B"; break;
+      case CALENDAR_MULTIPLIER_TRILLIONS: s += "T"; break;
+     }
+   if(unit == CALENDAR_EVENT_UNIT_PERCENT)
+      s += "%";
+   return s;
+  }
+
+// Trade server time -> UTC, as the database expects (a timestamp with no offset, read as UTC).
+string CalWhen(const datetime tServer, const long offset)
+  {
+   return When(tServer - (datetime)offset);
+  }
+
+string CalItem(const MqlCalendarValue &v, const MqlCalendarEvent &e, const string cur, const long offset)
+  {
+   return "{\"id\":\"" + IntegerToString((long)v.id) + "\",\"time\":\"" + CalWhen(v.time, offset)
+          + "\",\"currency\":\"" + cur + "\",\"title\":\"" + Esc(e.name) + "\",\"impact\":\"" + CalImpact(e.importance)
+          + "\",\"previous\":\"" + CalValue(v.prev_value, e.digits, e.unit, e.multiplier)
+          + "\",\"forecast\":\"" + CalValue(v.forecast_value, e.digits, e.unit, e.multiplier)
+          + "\",\"actual\":\"" + CalValue(v.actual_value, e.digits, e.unit, e.multiplier) + "\"}";
+  }
+
+// Reads the calendar from the last covered point (or CAL_DAYS back, first run) to CAL_LEAD days ahead, and sends it.
+// Best-effort only: never sets g_stop, never shows an Alert, never touches the trade-sync status line or its timing.
+void SyncCalendar()
+  {
+   datetime now = TimeCurrent();
+   datetime from = g_calFrom == 0 ? now - CAL_DAYS * 86400 : g_calFrom;
+   datetime to   = now + CAL_LEAD * 86400;
+   long offset = (long)TimeTradeServer() - (long)TimeGMT();
+
+   string items[];
+   datetime maxTime = from;
+   for(int c = 0; c < ArraySize(g_calCur); c++)
+     {
+      MqlCalendarValue values[];
+      if(!CalendarValueHistory(values, from, to, NULL, g_calCur[c]))
+         continue;
+      for(int i = 0; i < ArraySize(values); i++)
+        {
+         MqlCalendarEvent ev;
+         if(!CalendarEventById(values[i].event_id, ev))
+            continue;
+         if(ev.importance == CALENDAR_IMPORTANCE_NONE)
+            continue;
+         Push(items, CalItem(values[i], ev, g_calCur[c], offset));
+         if(values[i].time > maxTime)
+            maxTime = values[i].time;
+        }
+     }
+
+   int total = ArraySize(items);
+   if(total == 0)
+     {
+      g_calFrom = maxTime;
+      return;
+     }
+
+   string head = "{\"token\":\"" + Esc(g_key) + "\",\"action\":\"calendar\",\"events\":[";
+   bool okAll = true;
+   for(int start = 0; start < total; start += CAL_BATCH)
+     {
+      int stop = start + CAL_BATCH < total ? start + CAL_BATCH : total;
+      string body = head;
+      for(int i = start; i < stop; i++)
+         body += (i > start ? "," : "") + items[i];
+      body += "]}";
+      string reply;
+      int code = Post(body, reply);
+      if(code != 200)
+        {
+         okAll = false;
+         break;
+        }
+     }
+   if(okAll)
+      g_calFrom = maxTime;
+  }
+
 // Sends the open positions and the positions closed since `from` (server time). False when it should retry.
 bool Sync(const datetime from)
   {
@@ -356,6 +469,8 @@ int OnInit()
    g_stop = false;
    g_next = 0;
    g_last = "";
+   g_calFrom = 0;
+   g_calNext = 0;
    Show("Connecting to Mizan...");
    EventSetTimer(5);
    return INIT_SUCCEEDED;
@@ -383,6 +498,12 @@ void OnTimer()
    if(t - g_beat > 60 || !TerminalInfoInteger(TERMINAL_CONNECTED))
       g_calm = t + 120; // after a sleep or a lost connection, MT5 first reloads the account history
    g_beat = t;
+   // Calendar: its own hourly cadence, independent of the trade-sync gating below; a failure here is silent and retried next hour.
+   if(!g_stop && t >= g_calNext)
+     {
+      SyncCalendar();
+      g_calNext = t + CAL_HOURS;
+     }
    if(g_stop || (!g_dirty && t < g_next))
       return;
    g_dirty = false;

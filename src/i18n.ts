@@ -996,5 +996,8 @@ const st: Record<string, [string, string, string]> = {
   mt5Keys: ["MT5 sync keys", "مفاتيح مزامنة MT5", "Clés de synchronisation MT5"],
   mt5KeysSub: ["Each account's sync key is on the import page, next to the account it belongs to.", "مفتاح المزامنة لكل حساب في صفحة الاستيراد، إلى جانب حسابه.", "La clé de chaque compte se trouve sur la page d'import, à côté du compte concerné."],
   openImport: ["Open the import page", "فتح صفحة الاستيراد", "Ouvrir la page d'import"],
+  econSourceMt5: ["MetaTrader 5", "MetaTrader 5", "MetaTrader 5"],
+  econSourceFf: ["ForexFactory", "ForexFactory", "ForexFactory"],
+  mt5NewsNote: ["Update MizanSync to also bring in your economic news history for this account.", "حدّث MizanSync لإدراج سجل الأخبار الاقتصادية لهذا الحساب أيضاً.", "Mettez à jour MizanSync pour inclure aussi l'historique des actualités économiques de ce compte."],
 };
 export const stT = (lang: Lang) => (k: string): string => st[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;

@@ -9,7 +9,8 @@ import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
-import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, type StoredEconEvent } from "../lib/econEvents";
+import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
+import { stT } from "../i18n";
 import type { Lang, Trade } from "../types";
 
 type L = [string, string, string]; // en, ar, fr
@@ -43,16 +44,28 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const activeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [day]);
 
+  const L = stT(lang);
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
+  const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
   useEffect(() => {
     supabase.from("econ_events").select("id,time,currency,title,impact")
       .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
+    supabase.from("econ_events_mt5").select("id,time,currency,title,impact")
+      .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
   }, []);
   const econFiltered = useMemo(
     () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
     [econRaw, settings.econImpacts, settings.econCurrencies],
   );
-  const econByDay = useMemo(() => econEventsByDay(econFiltered), [econFiltered]);
+  const econMt5Filtered = useMemo(
+    () => filterEconEvents(econMt5Raw, settings.econImpacts, settings.econCurrencies),
+    [econMt5Raw, settings.econImpacts, settings.econCurrencies],
+  );
+  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Raw), [econMt5Raw]);
+  const econByDay = useMemo(
+    () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
+    [econMt5Filtered, econFiltered, econMt5Range],
+  );
 
   const money = (v: number | null, sign = true, cents = false) => (v == null ? "—" : hidden ? "••••" : fmtMoney(v, { sign, cents, currency })); // summaries whole, trade rows with cents
   const tone = (v: number | null) => (hidden || v == null || v === 0 ? undefined : v > 0 ? GREEN : RED);
@@ -113,9 +126,10 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                   hideValues={hidden}
                   variant="full"
                   monthMax={monthMax}
-                  econDots={(() => { const evs = econByDay.get(d.day) ?? []; const { dots } = selectDots(evs); return dots.length ? dots : undefined; })()}
-                  econExtra={(() => { const evs = econByDay.get(d.day) ?? []; return selectDots(evs).extra; })()}
-                  econTooltipLines={(() => { const evs = econByDay.get(d.day) ?? []; return evs.length ? evs.map((e) => econTooltipLine(e)) : undefined; })()}
+                  econDots={(() => { const evs = econByDay.get(d.day)?.events ?? []; const { dots } = selectDots(evs); return dots.length ? dots : undefined; })()}
+                  econExtra={(() => { const evs = econByDay.get(d.day)?.events ?? []; return selectDots(evs).extra; })()}
+                  econTooltipLines={(() => { const evs = econByDay.get(d.day)?.events ?? []; return evs.length ? evs.map((e) => econTooltipLine(e)) : undefined; })()}
+                  econSourceLabel={(() => { const src = econByDay.get(d.day)?.source; return src === "mt5" ? L("econSourceMt5") : src === "ff" ? L("econSourceFf") : undefined; })()}
                 />
               </div>
             );

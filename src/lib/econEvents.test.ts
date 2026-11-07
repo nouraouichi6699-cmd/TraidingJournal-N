@@ -1,5 +1,8 @@
 // Run: npx tsx src/lib/econEvents.test.ts
-import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine } from "./econEvents";
+import {
+  filterEconEvents, econEventsByDay, selectDots, econTooltipLine,
+  mapMt5Importance, validateMt5CalendarEvent, mt5CoverageRange, dayCoveredByMt5, mergeEconByDay,
+} from "./econEvents";
 
 let pass = 0, fail = 0;
 const is = (name: string, c: boolean, d = "") => {
@@ -84,6 +87,55 @@ is("tooltip contains time", line.includes("14:30"));
 is("tooltip contains currency", line.includes("USD"));
 is("tooltip contains title", line.includes("CPI"));
 is("tooltip contains impact", line.includes("high"));
+
+// ---- mapMt5Importance ----
+is("HIGH -> high", mapMt5Importance("HIGH") === "high");
+is("MODERATE -> medium", mapMt5Importance("MODERATE") === "medium");
+is("LOW -> low", mapMt5Importance("LOW") === "low");
+is("NONE -> null (skip)", mapMt5Importance("NONE") === null);
+is("unknown -> null", mapMt5Importance("WHATEVER") === null);
+
+// ---- validateMt5CalendarEvent ----
+const goodRaw = { id: "123", time: "2026-11-07T14:30", currency: "usd", title: "CPI", impact: "high", previous: "3.1%", forecast: "3.2%", actual: "" };
+const good = validateMt5CalendarEvent(goodRaw);
+is("valid event accepted", good !== null);
+is("currency upper-cased", good?.currency === "USD");
+is("missing id rejected", validateMt5CalendarEvent({ ...goodRaw, id: "" }) === null);
+is("id too long rejected", validateMt5CalendarEvent({ ...goodRaw, id: "x".repeat(41) }) === null);
+is("bad time format rejected", validateMt5CalendarEvent({ ...goodRaw, time: "2026-11-07 14:30" }) === null);
+is("bad currency rejected", validateMt5CalendarEvent({ ...goodRaw, currency: "1" }) === null);
+is("empty title rejected", validateMt5CalendarEvent({ ...goodRaw, title: "" }) === null);
+is("title too long rejected", validateMt5CalendarEvent({ ...goodRaw, title: "x".repeat(201) }) === null);
+is("bad impact rejected", validateMt5CalendarEvent({ ...goodRaw, impact: "holiday" }) === null);
+is("previous too long rejected", validateMt5CalendarEvent({ ...goodRaw, previous: "x".repeat(41) }) === null);
+is("non-object rejected", validateMt5CalendarEvent("nope") === null);
+is("null rejected", validateMt5CalendarEvent(null) === null);
+
+// ---- mt5CoverageRange ----
+const range = mt5CoverageRange([{ time: "2026-11-05T10:00:00Z" }, { time: "2026-11-07T10:00:00Z" }, { time: "2026-11-01T10:00:00Z" }]);
+is("range min is earliest day", range?.min === "2026-11-01");
+is("range max is latest day", range?.max === "2026-11-07");
+is("empty events -> null range", mt5CoverageRange([]) === null);
+
+// ---- dayCoveredByMt5 ----
+is("day inside range covered", dayCoveredByMt5("2026-11-03", range));
+is("day at range edge covered", dayCoveredByMt5("2026-11-01", range));
+is("day outside range not covered", !dayCoveredByMt5("2026-12-01", range));
+is("no range: nothing covered", !dayCoveredByMt5("2026-11-03", null));
+
+// ---- mergeEconByDay ----
+const mt5Day = new Map([["2026-11-07", [{ time: "2026-11-07T10:00:00Z", id: "m1" }]]]);
+const ffDay = new Map([
+  ["2026-11-07", [{ time: "2026-11-07T12:00:00Z", id: "f1" }]],
+  ["2026-11-20", [{ time: "2026-11-20T12:00:00Z", id: "f2" }]],
+]);
+const mt5OnlyRange = { min: "2026-11-01", max: "2026-11-10" };
+const merged = mergeEconByDay(mt5Day, ffDay, mt5OnlyRange);
+is("day covered by MT5 uses MT5 events", merged.get("2026-11-07")?.source === "mt5" && merged.get("2026-11-07")?.events[0].id === "m1");
+is("day outside MT5 range falls back to FF", merged.get("2026-11-20")?.source === "ff" && merged.get("2026-11-20")?.events[0].id === "f2");
+is("merge covers all days from both sources", merged.size === 2);
+const mergedNoMt5 = mergeEconByDay(new Map(), ffDay, null);
+is("no MT5 data: every day is FF", mergedNoMt5.get("2026-11-07")?.source === "ff" && mergedNoMt5.get("2026-11-20")?.source === "ff");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

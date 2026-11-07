@@ -5,6 +5,8 @@
 // duplicates. Closed trades already in the journal are not rewritten, and trades the user deleted stay deleted.
 // An account without a starting balance gets one from MT5 (MizanSync 1.02+): the balance now minus the result of its
 // trades, so the journal's balance matches MT5. A balance set by the user or by a report import is never touched.
+// A second request shape, action:"calendar" (MizanSync 1.04+), carries the user's MT5 economic calendar history instead
+// of positions: it upserts econ_events_mt5, scoped to the user who owns the key. It never touches trades or the account.
 // Setup once: deploy, and turn "Verify JWT" off (an EA has no Supabase session; the sync key is checked here).
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -14,6 +16,30 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 type Pos = { id: string; symbol: string; type: "buy" | "sell"; volume: number; openTime: string; openPrice: number; closeTime?: string | null; closePrice?: number | null; sl?: number; tp?: number; commission?: number; swap?: number; profit?: number; status: "open" | "closed" };
 const valid = (p: Pos) => !!p && ID.test(String(p.id)) && typeof p.symbol === "string" && p.symbol.length > 0 && p.symbol.length <= 40 && (p.type === "buy" || p.type === "sell")
   && Number.isFinite(p.volume) && p.volume > 0 && WHEN.test(p.openTime ?? "") && Number.isFinite(p.openPrice) && (p.status === "open" || (p.status === "closed" && WHEN.test(p.closeTime ?? "") && Number.isFinite(p.closePrice)));
+
+// ---- economic calendar (action: "calendar") ----
+const CAL_CUR = /^[A-Z]{3,4}$/;
+const CAL_MAX = 500; // the EA sends at most this many events per request
+type CalEvt = { id: string; time: string; currency: string; title: string; impact: "high" | "medium" | "low"; previous?: string; forecast?: string; actual?: string };
+export function validCalEvent(raw: unknown): CalEvt | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = typeof r.id === "string" ? r.id : "";
+  const time = typeof r.time === "string" ? r.time : "";
+  const currency = typeof r.currency === "string" ? r.currency.toUpperCase() : "";
+  const title = typeof r.title === "string" ? r.title.trim() : "";
+  const impact = typeof r.impact === "string" ? r.impact : "";
+  const previous = typeof r.previous === "string" ? r.previous : "";
+  const forecast = typeof r.forecast === "string" ? r.forecast : "";
+  const actual = typeof r.actual === "string" ? r.actual : "";
+  if (!id || id.length > 40) return null;
+  if (!WHEN.test(time)) return null;
+  if (!CAL_CUR.test(currency)) return null;
+  if (!title || title.length > 200) return null;
+  if (impact !== "high" && impact !== "medium" && impact !== "low") return null;
+  if (previous.length > 40 || forecast.length > 40 || actual.length > 40) return null;
+  return { id, time, currency, title, impact, previous, forecast, actual };
+}
 
 async function sha256(s: string) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -39,6 +65,20 @@ Deno.serve(async (req) => {
     const uid = row.user_id, accountId = row.key.slice("mt5-sync:".length);
     const acc = ((await (await db(`accounts?select=id,login,server,start_balance&id=eq.${accountId}&user_id=eq.${uid}&deleted_at=is.null`)).json()) as { id: string; login: string | null; server: string | null; start_balance: number | null }[])[0];
     if (!acc) return json({ ok: false, error: "noAccount" }, 404);
+
+    // Economic calendar history, scoped to the user (not to this account): never blocks or shares with the trade sync above.
+    if (body.action === "calendar") {
+      const events = Array.isArray(body.events) ? body.events : [];
+      if (events.length > CAL_MAX) return json({ ok: false, error: "too many events in one request" }, 413);
+      const rows = events.map(validCalEvent).filter((e: CalEvt | null): e is CalEvt => e !== null)
+        .map((e: CalEvt) => ({ user_id: uid, id: e.id, time: e.time, currency: e.currency, title: e.title, impact: e.impact, previous: e.previous ?? "", forecast: e.forecast ?? "", actual: e.actual ?? "", updated_at: new Date().toISOString() }));
+      if (rows.length) {
+        const w = await db("econ_events_mt5?on_conflict=user_id,id", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(rows) });
+        if (!w.ok) return json({ ok: false, error: `save failed: ${(await w.text()).slice(0, 200)}` }, 500);
+      }
+      return json({ ok: true, saved: rows.length, ignored: events.length - rows.length });
+    }
+
     const login = body.login == null ? "" : String(body.login).replace(/\D/g, "").slice(0, 20);
     if (acc.login && login && acc.login !== login) return json({ ok: false, error: "wrongAccount", expected: acc.login }, 409);
 

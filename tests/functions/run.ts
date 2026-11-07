@@ -21,7 +21,7 @@ const at = (iso: string) => { fake = RealDate.parse(iso); };
 
 // ---------- in-memory PostgREST ----------
 type Row = Record<string, any>;
-const db: Record<string, Row[]> = { user_settings: [], accounts: [], trades: [], tg_state: [] };
+const db: Record<string, Row[]> = { user_settings: [], accounts: [], trades: [], tg_state: [], econ_events_mt5: [] };
 const TS = new Set(["at", "updated_at", "synced_at", "deleted_at"]);
 const val = (r: Row, k: string) => { const [path, last] = k.split("->>"), parts = path.split("->"); let v: any = r[parts[0]]; for (const q of parts.slice(1)) v = v?.[q]; if (last !== undefined) v = v?.[last]; return v === undefined ? null : v; };
 function cmp(k: string, a: any, b: string) {
@@ -902,6 +902,37 @@ async function main() {
   await sync("2026-11-25T12:05", [opened("99303", "2026-11-25T12:02", 1.07)]);
   const r3 = sends().slice(n0).map((c) => c.body).find((b) => /new trade EURUSD/.test(b.text));
   ok(!!r3 && /Is it in your plan\?$/.test(r3.text) && r3.reply_markup.inline_keyboard[0][0].callback_data === "p1:acc1:99303", "no rules: in my plan / outside my plan");
+
+  // ---- 32. calendar sync (action: "calendar") ----
+  console.log("32. calendar sync");
+  const calItem = (id: string, extra: Record<string, unknown> = {}) => ({ id, time: "2026-11-07T14:30", currency: "USD", title: "CPI", impact: "high", previous: "3.1%", forecast: "3.2%", actual: "", ...extra });
+  const syncCal = (events: unknown[]) => post(0, { token: KEY, action: "calendar", events });
+  r = await syncCal([calItem("c1"), calItem("c2", { currency: "eur", impact: "medium" })]);
+  ok(r.ok && r.saved === 2 && r.ignored === 0, `calendar saved ${JSON.stringify(r)}`);
+  ok(db.econ_events_mt5.length === 2 && db.econ_events_mt5.every((x) => x.user_id === "u1"), "calendar rows scoped to the key's user");
+  const c2row = db.econ_events_mt5.find((x) => x.id === "c2");
+  ok(c2row?.currency === "EUR" && c2row?.impact === "medium", "currency upper-cased, fields stored");
+
+  r = await syncCal([calItem("c1", { actual: "3.5%" }), calItem("c3")]);
+  ok(r.ok && r.saved === 2 && db.econ_events_mt5.length === 3, "re-sync upserts by (user_id, id), adds only the new one");
+  ok(db.econ_events_mt5.find((x) => x.id === "c1")?.actual === "3.5%", "existing event updated in place");
+
+  r = await syncCal([calItem("bad1", { time: "2026-11-07 14:30" }), calItem("bad2", { impact: "holiday" }), calItem("bad3", { id: "" }), calItem("ok1")]);
+  ok(r.ok && r.saved === 1 && r.ignored === 3, `invalid events ignored, valid one saved ${JSON.stringify(r)}`);
+
+  r = await syncCal(Array.from({ length: 501 }, (_, i) => calItem(`m${i}`)));
+  ok(r.ok === false, "more than 500 events in one request refused");
+
+  const badKeyCal = await post(0, { token: "not-a-real-sync-key-at-all", action: "calendar", events: [calItem("x")] });
+  ok(badKeyCal.ok === false && badKeyCal.error === "badToken", "calendar: bad token refused like trade sync");
+
+  db.accounts.push({ id: "acc2", user_id: "u2", name: "MT5 Demo 2", currency: "USD", login: null, server: null, start_balance: 0, deleted_at: null });
+  const KEY2 = "mzn_test_sync_key_0987654321";
+  db.user_settings.push({ user_id: "u2", key: "mt5-sync:acc2", value: { hash: sha(KEY2), created: "2026-10-01T00:00:00Z" }, deleted_at: null });
+  const tradesBefore = db.trades.length;
+  await post(0, { token: KEY2, action: "calendar", events: [calItem("other-user-1")] });
+  ok(!db.econ_events_mt5.some((x) => x.user_id === "u2" && x.id === "c1") && db.econ_events_mt5.some((x) => x.user_id === "u2" && x.id === "other-user-1"), "a different user's key writes only its own rows, never another user's");
+  ok(db.trades.length === tradesBefore, "calendar sync never touches trades");
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

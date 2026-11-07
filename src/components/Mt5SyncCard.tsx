@@ -4,6 +4,7 @@ import { Check, Copy, Download, PlugZap } from "lucide-react";
 import type { Account, Lang } from "../types";
 import { createSyncKey, readSyncKey, removeSyncKey, type SyncKey } from "../lib/mt5Sync";
 import { SUPABASE_URL } from "../lib/supabase";
+import { stT } from "../i18n";
 
 const T = {
   title: { en: "MT5 auto-sync", ar: "مزامنة MT5 التلقائية", fr: "Synchro auto MT5" },
@@ -91,12 +92,14 @@ function CopyButton({ text, lang, primary }: { text: string; lang: Lang; primary
 }
 
 function Steps({ lang }: { lang: Lang }) {
+  const L = stT(lang);
   const items = [
     <>
       <a href={`${import.meta.env.BASE_URL}MizanSync.mq5`} download className="mb-1.5 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary">
         <Download size={14} /> {T.download[lang]}
       </a>
       <span className="block">{fill(T.s1[lang], { a: <Path steps={["File", "Open Data Folder", "MQL5", "Experts"]} /> })}</span>
+      <span className="mt-1 block text-xs text-muted">{L("mt5NewsNote")}</span>
     </>,
     <>
       {fill(T.s2[lang], { a: <Path steps={["Tools", "Options", "Expert Advisors"]} />, b: <Code>Allow WebRequest for listed URL</Code>, c: <Code>{HOST}</Code> })}

@@ -30,6 +30,8 @@ export interface CalendarDayCellProps {
   econExtra?: number;
   /** One line per event for the hover/focus tooltip (time currency title impact). */
   econTooltipLines?: string[];
+  /** Small label at the end of the tooltip naming the day's event source ("MetaTrader 5" or "ForexFactory"). */
+  econSourceLabel?: string;
 }
 
 export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProps>(
@@ -44,6 +46,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     econDots,
     econExtra = 0,
     econTooltipLines,
+    econSourceLabel,
   }, ref) => {
     const baseId = useId();
     const tooltipId = `econ-tt-${baseId}`;
@@ -133,7 +136,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
               )}
             </div>
           )}
-          {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} />}
+          {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} sourceLabel={econSourceLabel} />}
         </div>
       );
     }
@@ -177,7 +180,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
             </Private>
           </div>
         )}
-        {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} />}
+        {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} sourceLabel={econSourceLabel} />}
       </button>
     );
   }
@@ -189,11 +192,13 @@ function EconDotsOverlay({
   extra,
   tooltipId,
   tooltipLines,
+  sourceLabel,
 }: {
   dots: { impact: EconImpact }[];
   extra: number;
   tooltipId?: string;
   tooltipLines?: string[];
+  sourceLabel?: string;
 }) {
   return (
     <>
@@ -229,6 +234,7 @@ function EconDotsOverlay({
           {tooltipLines.map((line, i) => (
             <div key={i}>{line}</div>
           ))}
+          {sourceLabel && <div className="mt-1 text-[9px] text-muted">{sourceLabel}</div>}
         </div>
       )}
     </>

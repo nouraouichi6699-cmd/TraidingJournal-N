@@ -5,9 +5,9 @@ import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { setSettings, useSettings } from "../useSettings";
-import { symL } from "../i18n";
+import { symL, stT } from "../i18n";
 import { supabase } from "../lib/supabase";
-import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
+import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
@@ -222,18 +222,30 @@ function CalW({ c }: { c: Ctx }) {
   const [month, setMonth] = useState(() => (days.length ? days[days.length - 1].d.slice(0, 7) : new Date().toISOString().slice(0, 7)));
   useEffect(() => { if (days.length && !days.some((d) => d.d.startsWith(month))) setMonth(days[days.length - 1].d.slice(0, 7)); }, [days.length]); // eslint-disable-line
   const settings = useSettings();
+  const L = stT(c.lang);
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
+  const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
 
   useEffect(() => {
     supabase.from("econ_events").select("id,time,currency,title,impact")
       .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
+    supabase.from("econ_events_mt5").select("id,time,currency,title,impact")
+      .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
   }, []);
 
   const econFiltered = useMemo(
     () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
     [econRaw, settings.econImpacts, settings.econCurrencies],
   );
-  const econByDay = useMemo(() => econEventsByDay(econFiltered), [econFiltered]);
+  const econMt5Filtered = useMemo(
+    () => filterEconEvents(econMt5Raw, settings.econImpacts, settings.econCurrencies),
+    [econMt5Raw, settings.econImpacts, settings.econCurrencies],
+  );
+  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Raw), [econMt5Raw]);
+  const econByDay = useMemo(
+    () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
+    [econMt5Filtered, econFiltered, econMt5Range],
+  );
 
   const toggleImpact = (imp: EconImpact) => {
     const cur = settings.econImpacts;
@@ -346,9 +358,11 @@ function CalW({ c }: { c: Ctx }) {
             ...wk.map((k, i) => {
               const d = k ? map.get(k) : undefined;
               if (d && k) {
-                const dayEvs = econByDay.get(k) ?? [];
+                const dayEntry = econByDay.get(k);
+                const dayEvs = dayEntry?.events ?? [];
                 const { dots, extra } = selectDots(dayEvs);
                 const tooltipLines = dayEvs.map((e) => econTooltipLine(e));
+                const sourceLabel = dayEntry?.source === "mt5" ? L("econSourceMt5") : dayEntry?.source === "ff" ? L("econSourceFf") : undefined;
                 return (
                   <CalendarDayCell
                     key={`${wi}-${i}`}
@@ -359,6 +373,7 @@ function CalW({ c }: { c: Ctx }) {
                     econDots={dots.length ? dots : undefined}
                     econExtra={extra}
                     econTooltipLines={tooltipLines.length ? tooltipLines : undefined}
+                    econSourceLabel={sourceLabel}
                   />
                 );
               }
