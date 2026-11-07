@@ -1,9 +1,14 @@
-import { useRef, type CSSProperties, forwardRef } from "react";
+import { forwardRef } from "react";
 import Private from "./Private";
 import type { Lang } from "../types";
 
+/* ── Agenda-page icon literal map (mirrors src/index.css --calendar-* vars) ───
+   dark  (Navy, Black): paper #f6f1e6  ring #5a4410
+   light (Ivory):       paper #ffffff  ring #f2c14e
+   ─────────────────────────────────────────────────────────────────────────── */
+
 interface DayData {
-  day: string; // YYYY-MM-DD format
+  day: string; // YYYY-MM-DD
   net: number | null;
   wins?: number;
   losses?: number;
@@ -17,7 +22,7 @@ export interface CalendarDayCellProps {
   lang?: Lang;
   hideValues?: boolean;
   variant?: "full" | "compact"; // "full" for DayByDayTab, "compact" for dashboard
-  monthMax?: number; // Max absolute net for the month (for opacity scaling in "full" variant)
+  monthMax?: number;
 }
 
 export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProps>(
@@ -31,52 +36,89 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     monthMax = 0,
   }, ref) => {
     const dayNum = Number(dayData.day.slice(8));
+    const net = dayData.net ?? 0;
+    const absNet = Math.abs(net);
+    const netColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
+    const tintVar = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
+    const tintPct = monthMax > 0 ? Math.round(Math.min(25, 8 + (absNet / monthMax) * 17)) : 8;
+    const borderPct = Math.round(40 + (tintPct - 8) / 17 * 20);
 
-  const absNet = Math.abs(dayData.net ?? 0);
-  const net = dayData.net ?? 0;
-  const netColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
-  const tintColor = hideValues || net === 0 ? "var(--muted)" : net > 0 ? "var(--profit)" : "var(--loss)";
-
-  // Calculate opacity for full variant based on monthMax
-  const opacity = monthMax > 0 ? Math.min(0.25, 0.08 + (absNet / monthMax) * 0.17) : 0.08;
-
-  if (variant === "compact") {
-    const compactOpacity = monthMax > 0 ? Math.min(0.08 + (absNet / monthMax) * 0.40, 0.48) : (net !== 0 ? 0.12 : 0);
-    const title = dayData.wins != null || dayData.losses != null || dayData.be != null
-      ? `${dayData.day} · ${dayData.wins ?? 0}/${dayData.losses ?? 0}/${dayData.be ?? 0}`
-      : dayData.day;
-    return (
+    // Agenda page icon — 18×20 narrow, 24×26 desktop; 6px strip; two 3×4 rings
+    const AgendaIcon = (
       <div
-        title={title}
-        className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary"
         style={{
-          background: net !== 0 ? `color-mix(in srgb, ${tintColor} ${compactOpacity * 100}%, var(--surface))` : "color-mix(in srgb,var(--text) 5%,transparent)",
-          borderWidth: "1px",
-          borderStyle: "solid",
-          borderColor: net !== 0 ? `color-mix(in srgb, ${tintColor} 30%, transparent)` : "var(--border)",
+          width: "clamp(18px, calc(18px + 1.5vw), 24px)",
+          height: "clamp(20px, calc(20px + 1.5vw), 26px)",
+          borderRadius: "4px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+          overflow: "hidden",
+          flexShrink: 0,
+          opacity: net === 0 ? 0.55 : 1,
         }}
       >
-        {/* Agenda-paper day number */}
-        <div className="flex flex-col items-center" style={{ width: "12px", height: "15px", gap: "1px" }}>
-          <div className="w-full rounded-sm" style={{ height: "2px", background: "var(--primary)" }} />
-          <div
-            className="w-full rounded-sm flex items-center justify-center flex-1 text-[6px] font-bold"
-            style={{ background: "#f6f1e6", color: "#0a1a3f" }}
-          >
-            {dayNum}
-          </div>
+        {/* Top strip with binding rings */}
+        <div style={{ height: "6px", background: "var(--primary)", position: "relative" }}>
+          <div style={{
+            position: "absolute", left: "6px", top: "2px",
+            width: "3px", height: "4px", borderRadius: "2px",
+            background: "var(--calendar-ring)",
+          }} />
+          <div style={{
+            position: "absolute", right: "6px", top: "2px",
+            width: "3px", height: "4px", borderRadius: "2px",
+            background: "var(--calendar-ring)",
+          }} />
         </div>
-        {net !== 0 && (
-          <div className="flex items-baseline justify-end gap-0.5 leading-none tnum" style={{ fontWeight: "bold", color: netColor }}>
-            <span className="truncate text-[10px]">
-              {hideValues ? "•••" : `${net > 0 ? "+" : ""}${Math.round(net)}`}
-            </span>
-            {!hideValues && <span style={{ fontSize: "0.65em", fontWeight: "500" }}>$</span>}
-          </div>
-        )}
+        {/* Paper body */}
+        <div style={{
+          height: "calc(100% - 6px)",
+          background: "var(--calendar-paper)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: "clamp(9px, 1.5vw, 13px)", fontWeight: 600, color: "#0a1a3f",
+        }}>
+          {dayNum}
+        </div>
       </div>
     );
-  }
+
+    if (variant === "compact") {
+      const title = dayData.wins != null || dayData.losses != null || dayData.be != null
+        ? `${dayData.day} · ${dayData.wins ?? 0}/${dayData.losses ?? 0}/${dayData.be ?? 0}`
+        : dayData.day;
+      return (
+        <div
+          title={title}
+          className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary"
+          style={{
+            background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
+            borderWidth: "1px",
+            borderStyle: "solid",
+            borderColor: net !== 0
+              ? `color-mix(in srgb, ${tintVar} ${borderPct}%, transparent)`
+              : "var(--border)",
+          }}
+        >
+          {AgendaIcon}
+          {net !== 0 && (
+            <div
+              className="flex items-baseline justify-end leading-none tnum"
+              style={{ fontWeight: 600, color: netColor, fontSize: "clamp(10px, 2vw, 13px)" }}
+            >
+              {hideValues ? (
+                <span>•••</span>
+              ) : (
+                <>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {net > 0 ? "+" : ""}{Math.round(net)}
+                  </span>
+                  <span style={{ fontSize: "0.75em", fontWeight: 500, flexShrink: 0 }}>$</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
 
     // Full variant (DayByDayTab)
     return (
@@ -88,48 +130,32 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         aria-label={`${dayData.day} · $${hideValues ? "•••" : Math.round(net)}`}
         className="relative shrink-0 rounded-xl border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5"
         style={{
-          background: `color-mix(in srgb, ${tintColor} ${opacity * 100}%, var(--surface))`,
-          borderColor: isSelected ? "var(--primary)" : "var(--border)",
+          background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
+          borderColor: isSelected
+            ? "var(--primary)"
+            : `color-mix(in srgb, ${tintVar} ${borderPct}%, transparent)`,
           borderWidth: "1px",
         }}
       >
-        {/* Agenda paper day number */}
-        <div className="flex flex-col items-center" style={{ width: "14px", height: "18px", gap: "2px" }}>
-          <div
-            className="w-full rounded-sm shadow-sm"
-            style={{
-              height: "3px",
-              background: "var(--primary)",
-            }}
-          />
-          <div
-            className="w-full rounded-sm flex flex-col items-center justify-center flex-1 text-[5.5px] sm:text-[6px] md:text-[7px] font-bold"
-            style={{
-              background: "#f6f1e6",
-              color: "#0a1a3f",
-            }}
-          >
-            {dayNum}
-            {/* Binding rings */}
-            <div className="flex gap-0.5 mt-0.5">
-              <div className="w-0.5 h-0.5 rounded-full border border-gray-400" />
-              <div className="w-0.5 h-0.5 rounded-full border border-gray-400" />
-            </div>
-          </div>
-        </div>
-        {/* P&L amount */}
+        {AgendaIcon}
+        {/* P&L amount — bottom-right, ~20px desktop / ~13px narrow, currency after */}
         {net !== 0 && (
           <div
-            className="flex items-baseline justify-end gap-0.5 leading-none text-right w-full"
-            style={{ fontWeight: "bold", color: netColor, fontSize: "clamp(10px, 2.5vw, 16px)" }}
+            className="flex items-baseline justify-end leading-none text-right w-full tnum"
+            style={{ fontWeight: 600, color: netColor, fontSize: "clamp(13px, 3vw, 20px)" }}
           >
             <Private hint={`${dayData.day} P&L`}>
-              <span dir="ltr" className="tnum">
-                {hideValues ? "•••" : (net > 0 ? "+" : "")}
-                {hideValues ? "" : Math.round(net)}
-              </span>
+              {hideValues ? (
+                <span>•••</span>
+              ) : (
+                <>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {net > 0 ? "+" : ""}{Math.round(net)}
+                  </span>
+                  <span style={{ fontSize: "0.75em", fontWeight: 500, flexShrink: 0 }}>$</span>
+                </>
+              )}
             </Private>
-            <span style={{ fontSize: "0.65em", fontWeight: "500" }}>$</span>
           </div>
         )}
       </button>
