@@ -8,8 +8,8 @@ import { TgAlerts, TgLink, TgPeople, TgStatus } from "./TelegramPanels";
 import PhonePreview from "./PhonePreview";
 import { useTelegram } from "../useTelegram";
 import {
-  cardSurface, DEFAULT_LIGHTING, paletteChoice, pushRecent, SWATCH,
-  type CardColor, type LightColor, type Lighting, type LightStyle,
+  cardSurface, DEFAULT_LIGHTING, maxGlassTransparency, paletteChoice, pushRecent, SWATCH,
+  type CardColor, type IconStyle, type LightColor, type Lighting, type LightStyle,
 } from "../lib/lighting";
 import {
   createMyTheme, deleteMyTheme, getMyTheme, isBuiltIn, MY_THEME_ID,
@@ -363,6 +363,33 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
               <Note text={L("cardsUsed").replace("{n}", String(Math.round(cs.mix * 100)))} />
               <Note text={L(cs.ink === "dark" ? "cardsInkDark" : "cardsInkLight")} />
             </>); })()}
+          </>
+        )}
+      </Tile>
+
+      <Tile title={L("tileIcons")}>
+        <Row label={L("iconStyle")}>
+          <Pills<IconStyle>
+            label={L("iconStyle")} value={light.iconStyle}
+            onChange={(v) => setLight({ iconStyle: v })}
+            options={[{ v: "normal", label: L("iconStyleNormal") }, { v: "glass", label: L("iconStyleGlass") }]}
+          />
+        </Row>
+        {light.iconStyle === "glass" && (
+          <>
+            <Row label={L("iconTransparency")}>
+              <span className="flex items-center gap-2">
+                <input
+                  type="range" min="0" max={maxGlassTransparency(resolved.base)} step="5"
+                  value={light.iconTransparency} aria-label={L("iconTransparency")}
+                  onChange={(e) => setLight({ iconTransparency: Number(e.target.value) })}
+                  className="w-40 cursor-pointer accent-[var(--primary)]"
+                />
+                <span className="tnum w-10 text-xs font-semibold" dir="ltr">{light.iconTransparency}%</span>
+              </span>
+            </Row>
+            <Note text={L("iconGlassSub")} />
+            <Note text={L("iconUsed").replace("{n}", String(100 - light.iconTransparency))} />
           </>
         )}
       </Tile>
@@ -779,7 +806,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
                   key={x.id} type="button" onClick={() => { setSecId(x.id); setTopId(""); setPhone(x.id); setPane((n) => n + 1); }}
                   className={`flex min-h-[64px] items-center gap-3 px-4 text-start transition hover:bg-primary-tint ${i ? "border-t border-border" : ""}`}
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon"><x.icon size={18} /></span>
+                  <span className="mz-icon-tile grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon"><x.icon size={18} /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">{x.label}</span>
                     <span className="block truncate text-xs text-muted">{x.desc}</span>
@@ -817,7 +844,9 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
                 key={x.id} type="button" aria-current={here ? "page" : undefined} onClick={() => goSection(x.id)}
                 className={`flex min-h-[64px] w-[88px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${here ? "bg-primary-tint font-semibold text-primary" : "font-normal text-muted hover:text-text"}`}
               >
-                <x.icon size={19} />
+                <span className={`inline-flex items-center justify-center rounded-xl p-1${!here ? " mz-icon-tile" : ""}`}>
+                  <x.icon size={19} />
+                </span>
                 <span className="w-full truncate text-center">{x.label}</span>
               </button>
             );

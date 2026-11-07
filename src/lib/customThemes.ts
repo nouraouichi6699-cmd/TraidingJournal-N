@@ -1,5 +1,5 @@
 import type { Theme } from "../types";
-import { DEFAULT_LIGHTING, type CardColor, type LightColor, type LightSpeed, type LightStyle, type Trio } from "./lighting";
+import { DEFAULT_LIGHTING, type CardColor, type IconStyle, type LightColor, type LightSpeed, type LightStyle, type Trio } from "./lighting";
 
 /** The per-theme look: everything that changes how the lighting and cards look. playing and recentColors are global. */
 export interface ThemeLook {
@@ -12,6 +12,9 @@ export interface ThemeLook {
   cardColor: CardColor;
   cardSolid: string;
   cardLevel: number;
+  iconStyle: IconStyle;
+  /** 0..100. 0 = solid tile, 100 = most transparent (clamped per theme). */
+  iconTransparency: number;
 }
 
 export interface CustomTheme {
@@ -33,6 +36,8 @@ export const DEFAULT_LOOK: ThemeLook = {
   cardColor: DEFAULT_LIGHTING.cardColor,
   cardSolid: DEFAULT_LIGHTING.cardSolid,
   cardLevel: DEFAULT_LIGHTING.cardLevel,
+  iconStyle: DEFAULT_LIGHTING.iconStyle,
+  iconTransparency: DEFAULT_LIGHTING.iconTransparency,
 };
 
 const BUILT_INS: readonly string[] = ["dark", "light", "black"];
@@ -45,7 +50,8 @@ export function looksEqual(a: ThemeLook, b: ThemeLook): boolean {
   return a.style === b.style && a.color === b.color
     && a.custom.a === b.custom.a && a.custom.b === b.custom.b && a.custom.c === b.custom.c
     && a.solid === b.solid && a.level === b.level && a.speed === b.speed
-    && a.cardColor === b.cardColor && a.cardSolid === b.cardSolid && a.cardLevel === b.cardLevel;
+    && a.cardColor === b.cardColor && a.cardSolid === b.cardSolid && a.cardLevel === b.cardLevel
+    && a.iconStyle === b.iconStyle && a.iconTransparency === b.iconTransparency;
 }
 
 export function isDefaultLook(look: ThemeLook): boolean {
@@ -55,11 +61,13 @@ export function isDefaultLook(look: ThemeLook): boolean {
 export function extractLook(l: {
   style: LightStyle; color: LightColor; custom: Trio; solid: string;
   level: number; speed: LightSpeed; cardColor: CardColor; cardSolid: string; cardLevel: number;
+  iconStyle: IconStyle; iconTransparency: number;
 }): ThemeLook {
   return {
     style: l.style, color: l.color, custom: { ...l.custom }, solid: l.solid,
     level: l.level, speed: l.speed,
     cardColor: l.cardColor, cardSolid: l.cardSolid, cardLevel: l.cardLevel,
+    iconStyle: l.iconStyle, iconTransparency: l.iconTransparency,
   };
 }
 

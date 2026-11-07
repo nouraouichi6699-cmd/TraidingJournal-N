@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo } from "react";
 import {
-  cardSurface, DEFAULT_LIGHTING, fullColourBg, INK_VAR_NAMES,
+  cardSurface, clampGlassTransparency, DEFAULT_LIGHTING, fullColourBg, INK_VAR_NAMES,
   sessionNow, sessionTrio, SURFACE_VAR_NAMES, SWATCH,
   type Lighting, type Trio,
 } from "../lib/lighting";
@@ -18,6 +18,22 @@ export default function Ambient({ theme }: { theme: Theme }) {
     recentColors: s.lighting?.recentColors ?? [],
   };
   const off = light.style === "off";
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (light.iconStyle === "glass") {
+      const alpha = 100 - clampGlassTransparency(light.iconTransparency, resolved.base);
+      root.dataset.iconGlass = "";
+      root.style.setProperty("--icon-tile-alpha", `${alpha}%`);
+    } else {
+      delete root.dataset.iconGlass;
+      root.style.removeProperty("--icon-tile-alpha");
+    }
+    return () => {
+      delete root.dataset.iconGlass;
+      root.style.removeProperty("--icon-tile-alpha");
+    };
+  }, [resolved.base, light.iconStyle, light.iconTransparency]);
 
   const cardTint = light.cardColor === "session" ? sessionTrio(sessionNow(Date.now(), s.sessionBounds)).a
     : light.cardColor === "custom" ? light.cardSolid

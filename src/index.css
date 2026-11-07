@@ -1163,6 +1163,65 @@ h6 {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
 }
 
+/* ---------- Glass icon tiles ---------- */
+/* One small frosted tile per visible icon. --icon-tile-alpha (set by Ambient.tsx) is a percentage: 100% = solid
+   surface fill, lower = more transparent. The blur is scoped to the small tile only — no large-area filter. */
+:root[data-icon-glass] .icon-btn:not(.mz-no-glass),
+:root[data-icon-glass] .mz-icon-tile {
+  background: color-mix(in srgb, var(--surface) var(--icon-tile-alpha, 100%), transparent);
+  backdrop-filter: blur(5px) saturate(140%);
+  -webkit-backdrop-filter: blur(5px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 25%, transparent),
+    0 2px 8px color-mix(in srgb, #000 24%, transparent);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Skip glass on active sidebar / dock items — they wear the gold pill */
+:root[data-icon-glass] .mz-icon-tile[aria-current="page"] {
+  background: unset;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Hover: keep glass tile visible, add a primary-tint border highlight */
+:root[data-icon-glass] .icon-btn:not(.mz-no-glass):hover,
+:root[data-icon-glass] .mz-icon-tile:not([aria-current="page"]):hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, color-mix(in srgb, var(--text) 18%, transparent));
+}
+
+/* Dark card ink: glass becomes opaque (matches mz-glass behaviour) */
+:root[data-card-ink="dark"] .icon-btn:not(.mz-no-glass),
+:root[data-card-ink="dark"] .mz-icon-tile {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--surface);
+}
+
+/* Fallback: backdrop-filter not supported → solid tile */
+@supports not (backdrop-filter: blur(1px)) {
+  :root[data-icon-glass] .icon-btn:not(.mz-no-glass),
+  :root[data-icon-glass] .mz-icon-tile:not([aria-current="page"]) {
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Accessibility: reduce transparency preference → solid tiles */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-icon-glass] .icon-btn:not(.mz-no-glass),
+  :root[data-icon-glass] .mz-icon-tile:not([aria-current="page"]) {
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
 /* The lamp: every on/off setting in Settings. Off reads as a recess, lit as a bulb with its glow. */
 .mz-lamp {
   position: relative;

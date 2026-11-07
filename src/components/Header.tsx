@@ -160,7 +160,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             )}
           </Dropdown>
 
-          <button type="button" aria-label={t("profile")} title={t("profile")} onClick={onProfile} className="icon-btn overflow-hidden rounded-full border-2 border-primary" style={{ boxShadow: "0 0 10px 0 color-mix(in srgb, var(--primary) 45%, transparent)" }}>
+          <button type="button" aria-label={t("profile")} title={t("profile")} onClick={onProfile} className="icon-btn mz-no-glass overflow-hidden rounded-full border-2 border-primary" style={{ boxShadow: "0 0 10px 0 color-mix(in srgb, var(--primary) 45%, transparent)" }}>
             {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : <User {...ic} />}
           </button>
         </div>

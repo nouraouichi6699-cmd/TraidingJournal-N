@@ -8,6 +8,7 @@ import {
   surfaceReadable, surfaceVars,
   bandAt, cardSurface, DARK_INK_VARS, DARK_SURFACE_INK, inkReadable, INK_VAR_NAMES, readableBands,
   isHexColor, normalizeHex, paletteChoice, PRESETS, pushRecent, RECENT_MAX, SWATCH,
+  clampGlassTransparency, ICON_COLOR, maxGlassTransparency,
 } from "./lighting";
 import type { Theme } from "../types";
 import { SESSION_COLORS, SESSION_TRIO } from "./sessionColors";
@@ -486,6 +487,47 @@ console.log("-- the tone colours' contrast on a tinted surface (report, not guar
 }
 
 eq("an unknown theme in cardSurface falls back", typeof cardSurface("nope" as Theme, "#5ab8f0", 70).vars["--surface"], "string");
+
+console.log("-- glass icon tiles: ICON_COLOR mirrors index.css");
+eq("dark icon colour is gold", ICON_COLOR.dark, "#e6b84a");
+eq("light icon colour is dark gold", ICON_COLOR.light, "#946900");
+eq("black icon colour is bright gold", ICON_COLOR.black, "#f5b83d");
+
+console.log("-- glass icon tiles: maxGlassTransparency ensures 3:1 contrast");
+for (const theme of THEMES) {
+  const max = maxGlassTransparency(theme);
+  is(`${theme}: maxGlassTransparency is 0..100`, max >= 0 && max <= 100);
+  // At the max transparency the icon must still meet AA_LARGE (3:1) against the composited tile.
+  const surface = (SURFACE_FAMILY[theme] ?? SURFACE_FAMILY.dark).surface;
+  const bg = THEME_INK[theme].bg;
+  const icon = ICON_COLOR[theme];
+  const alpha = (100 - max) / 100;
+  const tileAtMax = mixHex(bg, surface, alpha);
+  is(`${theme}: icon contrast >= 3:1 at max transparency`, contrastRatio(icon, tileAtMax) >= AA_LARGE);
+  // One step above max must fail (unless max is already 100).
+  if (max < 100) {
+    const alphaBeyond = (100 - (max + 1)) / 100;
+    const tileBeyond = mixHex(bg, surface, alphaBeyond);
+    is(`${theme}: icon contrast < 3:1 one step above max`, contrastRatio(icon, tileBeyond) < AA_LARGE);
+  }
+}
+
+console.log("-- glass icon tiles: clampGlassTransparency");
+for (const theme of THEMES) {
+  const max = maxGlassTransparency(theme);
+  eq(`${theme}: clamp(0) = 0`, clampGlassTransparency(0, theme), 0);
+  eq(`${theme}: clamp(max) = max`, clampGlassTransparency(max, theme), max);
+  eq(`${theme}: clamp(max+1) = max`, clampGlassTransparency(max + 1, theme), max);
+  eq(`${theme}: clamp(200) = max`, clampGlassTransparency(200, theme), max);
+  eq(`${theme}: clamp(-5) = 0`, clampGlassTransparency(-5, theme), 0);
+  eq(`${theme}: clamp(NaN) = 0`, clampGlassTransparency(NaN, theme), 0);
+  eq(`${theme}: clamp(Infinity) = max`, clampGlassTransparency(Infinity, theme), max);
+  eq(`${theme}: clamp(50.6) rounds`, clampGlassTransparency(50.6, theme), Math.min(max, 51));
+}
+
+console.log("-- DEFAULT_LIGHTING has icon fields");
+eq("iconStyle default is normal", DEFAULT_LIGHTING.iconStyle, "normal");
+eq("iconTransparency default is 50", DEFAULT_LIGHTING.iconTransparency, 50);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

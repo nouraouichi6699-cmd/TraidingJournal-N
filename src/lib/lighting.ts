@@ -449,6 +449,43 @@ export function paletteChoice(stored: string, specials: string[], hex: string, l
   return stored === "solid" ? { kind: "own", hex: h } : { kind: "none" };
 }
 
+// ---------- glass icon tiles ----------
+
+export type IconStyle = "normal" | "glass";
+
+/**
+ * The --icon colour for each theme, mirrored from index.css.
+ * Used to verify the icon keeps at least 3:1 contrast against its frosted tile.
+ */
+export const ICON_COLOR: Record<Theme, string> = {
+  dark: "#e6b84a",
+  light: "#946900",
+  black: "#f5b83d",
+};
+
+/**
+ * How transparent the glass icon tile can be (0–100) while the icon keeps at least 3:1 contrast
+ * against the tile composited over the page bg behind it. Walks down from 100.
+ */
+export function maxGlassTransparency(theme: Theme): number {
+  const surface = (SURFACE_FAMILY[theme] ?? SURFACE_FAMILY.dark).surface;
+  const bg = (THEME_INK[theme] ?? THEME_INK.dark).bg;
+  const icon = ICON_COLOR[theme] ?? ICON_COLOR.dark;
+  for (let t = 100; t >= 0; t--) {
+    const alpha = (100 - t) / 100; // fill opacity: 0 when transparent=100, 1 when transparent=0
+    const tileColor = mixHex(bg, surface, alpha);
+    if (contrastRatio(icon, tileColor) >= AA_LARGE) return t;
+  }
+  return 0;
+}
+
+/** 0..100 slider value, clamped so the icon keeps at least 3:1 contrast in that theme. */
+export function clampGlassTransparency(transparency: number, theme: Theme): number {
+  const max = maxGlassTransparency(theme);
+  // NaN → 0; Infinity → max (most transparent); -Infinity → 0 (solid); finite → clamped.
+  return Number.isNaN(transparency) ? 0 : Math.max(0, Math.min(max, Math.round(transparency)));
+}
+
 /** The whole lighting setting, as it is stored. */
 export interface Lighting {
   style: LightStyle;
@@ -471,6 +508,11 @@ export interface Lighting {
 
   /** The last few colours of the customer's own, newest first, shared by every colour row. */
   recentColors: string[];
+
+  // ---- icon tile style ----
+  iconStyle: IconStyle;
+  /** 0..100. 0 = solid tile, 100 = most transparent (clamped per theme). */
+  iconTransparency: number;
 }
 
 export const DEFAULT_LIGHTING: Lighting = {
@@ -485,4 +527,6 @@ export const DEFAULT_LIGHTING: Lighting = {
   cardSolid: "#5ab8f0",
   cardLevel: 70,
   recentColors: [],
+  iconStyle: "normal",
+  iconTransparency: 50,
 };

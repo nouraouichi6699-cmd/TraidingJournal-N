@@ -60,7 +60,9 @@ export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
                       transition={{ type: "spring", stiffness: 180, damping: 28, mass: 1.1 }}
                     />
                   )}
-                  <Icon size={19} strokeWidth={1.9} className={`relative z-10 shrink-0 transition-transform group-hover:scale-110 ${on ? "" : "text-icon"}`} />
+                  <span className={`relative z-10 inline-flex shrink-0 items-center justify-center rounded-xl p-1${!on ? " mz-icon-tile" : ""}`}>
+                    <Icon size={19} strokeWidth={1.9} className={`transition-transform group-hover:scale-110 ${on ? "" : "text-icon"}`} />
+                  </span>
                   {open && <span className="relative z-10 truncate">{t(id)}</span>}
                 </button>
               );
