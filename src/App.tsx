@@ -37,6 +37,7 @@ import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
 import { publishBotRules } from "./lib/tradeRules";
 import { CHANGED } from "./lib/myStrategies";
+import { clearEconCacheForUser } from "./lib/econNewsCache";
 import type { Lang, Theme } from "./types";
 
 const read = <T extends string>(key: string, allowed: readonly T[], fallback: T, migrate: Record<string, T> = {}): T => {
@@ -216,7 +217,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
               {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
               {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
               {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} />}
-              {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} />}
+              {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} userId={userId} onOpenDay={(day) => { setReportsNav({ tab: "daybyday", day }); setView("reports"); }} />}
               {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
               {view === "advisor" && <AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} />}
               {view === "strategies" && <Suspense fallback={<LoadingScreen t={t} lang={lang} variant="compact" />}><StrategiesView lang={lang} t={t} trades={journal.trades} accounts={accounts} onOpenJournal={() => setView("journal")} /></Suspense>}
@@ -261,7 +262,14 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession((prev) => {
+        // Sign-out (or switching to a different account): drop this device's cached news so the
+        // next person signed in here never sees rows that were fetched for someone else.
+        if (prev && prev.user.id && (!s || s.user.id !== prev.user.id)) void clearEconCacheForUser(prev.user.id);
+        return s;
+      });
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 

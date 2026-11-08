@@ -5,9 +5,11 @@ import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { setSettings, useSettings } from "../useSettings";
-import { symL, stT } from "../i18n";
+import { symL } from "../i18n";
 import { supabase } from "../lib/supabase";
-import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
+import { filterEconEvents, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
+import { econCacheKey, econMonthRange, mergeEconCacheRows } from "../lib/econCache";
+import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
@@ -19,7 +21,7 @@ type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 export const GREEN = "var(--profit)", RED = "var(--loss)";
 
-export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number; cur: string | null; allClosed?: Trade[]; flows?: CashFlow[]; from?: string }
+export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number; cur: string | null; allClosed?: Trade[]; flows?: CashFlow[]; from?: string; userId?: string; onOpenDay?: (day: string) => void }
 // cur: shared account currency (null = mixed). allClosed / flows / from: unfiltered history of the selected accounts, for balance-based %.
 export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; gauge?: boolean; render: (c: Ctx) => ReactNode }
 
@@ -222,35 +224,46 @@ function CalW({ c }: { c: Ctx }) {
   const [month, setMonth] = useState(() => (days.length ? days[days.length - 1].d.slice(0, 7) : new Date().toISOString().slice(0, 7)));
   useEffect(() => { if (days.length && !days.some((d) => d.d.startsWith(month))) setMonth(days[days.length - 1].d.slice(0, 7)); }, [days.length]); // eslint-disable-line
   const settings = useSettings();
-  const L = stT(c.lang);
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
 
+  // Neither query is filtered by impact/currency: the cache stores every row for the month (so toggling
+  // a filter chip never needs a refetch), and mt5CoverageRange (below) needs every MT5 row regardless of
+  // the filter, to correctly tell "MT5 has no data for this day" apart from "MT5 has data but it's
+  // filtered out" -- the latter must still suppress the FF fallback. Filtering happens client-side below.
   useEffect(() => {
-    const [y, mo] = month.split("-").map(Number);
-    const monthStart = new Date(Date.UTC(y, mo - 1, 1)).toISOString();
-    const monthEnd = new Date(Date.UTC(y, mo, 0, 23, 59, 59, 999)).toISOString();
-    const impacts = settings.econImpacts, currencies = settings.econCurrencies;
-    if (!impacts.length || !currencies.length) { setEconRaw([]); return; } // matches filterEconEvents: empty filter -> no events
+    const { start: monthStart, end: monthEnd } = econMonthRange(month);
+    const userId = c.userId;
+    let cancelled = false;
 
-    // Filtered server-side: ForexFactory rows are shared/global, so narrowing here is a pure win.
-    supabase.from("econ_events")
-      .select("id,time,currency,title,impact")
-      .gte("time", monthStart)
-      .lte("time", monthEnd)
-      .in("impact", impacts)
-      .in("currency", currencies)
-      .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
+    void (async () => {
+      let cachedFf: StoredEconEvent[] | undefined, cachedMt5: StoredEconEvent[] | undefined;
+      if (userId) {
+        const cached = await getCachedEconMonth(userId, month);
+        if (cached) {
+          cachedFf = cached.ff; cachedMt5 = cached.mt5;
+          if (!cancelled) { setEconRaw(cached.ff); setEconMt5Raw(cached.mt5); } // stale-while-revalidate: paint the cached month first
+        }
+      }
 
-    // NOT filtered by impact/currency: mt5CoverageRange (below) needs every row this user has,
-    // regardless of the filter, to correctly tell "MT5 has no data for this day" apart from
-    // "MT5 has data but it's filtered out" -- the latter must still suppress the FF fallback.
-    supabase.from("econ_events_mt5")
-      .select("id,time,currency,title,impact")
-      .gte("time", monthStart)
-      .lte("time", monthEnd)
-      .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
-  }, [month, settings.econImpacts, settings.econCurrencies]);
+      const [ff, mt5] = await Promise.all([
+        supabase.from("econ_events").select("id,time,currency,title,impact").gte("time", monthStart).lte("time", monthEnd)
+          .then(({ data }) => data as StoredEconEvent[] | null, () => null),
+        supabase.from("econ_events_mt5").select("id,time,currency,title,impact").gte("time", monthStart).lte("time", monthEnd)
+          .then(({ data }) => data as StoredEconEvent[] | null, () => null),
+      ]);
+      if (cancelled) return;
+
+      // A failed source (null) falls back to the cached rows, so a network error never blanks the calendar.
+      const merged = mergeEconCacheRows(userId ? { ff: cachedFf ?? [], mt5: cachedMt5 ?? [] } : null, { ff, mt5 });
+      if (ff != null) setEconRaw(merged.ff);
+      if (mt5 != null) setEconMt5Raw(merged.mt5);
+      if (userId && (ff != null || mt5 != null))
+        void putCachedEconMonth({ key: econCacheKey(userId, month), userId, month, savedAt: Date.now(), ff: merged.ff, mt5: merged.mt5 });
+    })();
+
+    return () => { cancelled = true; };
+  }, [month, c.userId]);
 
   const econFiltered = useMemo(
     () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
@@ -378,11 +391,8 @@ function CalW({ c }: { c: Ctx }) {
             ...wk.map((k, i) => {
               const d = k ? map.get(k) : undefined;
               if (d && k) {
-                const dayEntry = econByDay.get(k);
-                const dayEvs = dayEntry?.events ?? [];
+                const dayEvs = econByDay.get(k)?.events ?? [];
                 const { dots, extra } = selectDots(dayEvs);
-                const tooltipLines = dayEvs.map((e) => econTooltipLine(e));
-                const sourceLabel = dayEntry?.source === "mt5" ? L("econSourceMt5") : dayEntry?.source === "ff" ? L("econSourceFf") : undefined;
                 return (
                   <CalendarDayCell
                     key={`${wi}-${i}`}
@@ -392,13 +402,21 @@ function CalW({ c }: { c: Ctx }) {
                     monthMax={mx}
                     econDots={dots.length ? dots : undefined}
                     econExtra={extra}
-                    econTooltipLines={tooltipLines.length ? tooltipLines : undefined}
-                    econSourceLabel={sourceLabel}
+                    onSelect={c.onOpenDay ? () => c.onOpenDay!(k) : undefined}
                   />
                 );
               }
+              const openEmptyDay = k && c.onOpenDay ? () => c.onOpenDay!(k) : undefined;
               return (
-                <div key={`${wi}-${i}`} className="flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary" style={{ background: k ? "color-mix(in srgb,var(--text) 5%,transparent)" : "transparent" }} />
+                <div
+                  key={`${wi}-${i}`}
+                  role={openEmptyDay ? "button" : undefined}
+                  tabIndex={openEmptyDay ? 0 : undefined}
+                  onClick={openEmptyDay}
+                  onKeyDown={openEmptyDay ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEmptyDay(); } } : undefined}
+                  className={`flex min-h-0 flex-col justify-between overflow-hidden rounded-md p-1 transition hover:ring-1 hover:ring-primary ${openEmptyDay ? "cursor-pointer" : ""}`}
+                  style={{ background: k ? "color-mix(in srgb,var(--text) 5%,transparent)" : "transparent" }}
+                />
               );
             }),
             <div key={`t${wi}`} className="grid min-h-0 place-items-center rounded-md border border-border/70 text-[10px] font-semibold tnum" style={{ color: has && !c.hide ? tone(tot) : "var(--muted)" }}>{has ? (c.hide ? "•••" : compact(tot)) : "—"}</div>,

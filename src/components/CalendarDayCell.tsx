@@ -106,9 +106,12 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
       return (
         <div
           title={title}
-          tabIndex={hasDots ? 0 : undefined}
+          role={onSelect ? "button" : undefined}
+          tabIndex={onSelect ? 0 : undefined}
           aria-describedby={hasTooltip ? tooltipId : undefined}
-          className="group relative flex min-h-0 flex-col justify-between overflow-visible rounded-[8px] p-1 transition hover:ring-1 hover:ring-primary"
+          onClick={onSelect}
+          onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } } : undefined}
+          className={`group relative flex min-h-0 flex-col justify-between overflow-visible rounded-[8px] p-1 transition hover:ring-1 hover:ring-primary ${onSelect ? "cursor-pointer" : ""}`}
           style={{
             background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
             borderWidth: "1px",

@@ -14,7 +14,7 @@ import { commonCurrency } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import type { Account, Lang, Trade } from "../types";
 
-interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; flows?: CashFlow[] }
+interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; flows?: CashFlow[]; userId?: string; onOpenDay?: (day: string) => void }
 const STORE = "mizan-dashboard-v2", FILTER = "mizan-dash-filter";
 const COLS = 12, PAD = 8;
 
@@ -71,7 +71,7 @@ const fromKey = (r: string) => {
   d.setDate(d.getDate() - Number(r)); return d.toISOString().slice(0, 10);
 };
 
-export default function DashboardView({ lang, accounts: accountsIn, trades: allIn, flows: flowsIn = [] }: Props) {
+export default function DashboardView({ lang, accounts: accountsIn, trades: allIn, flows: flowsIn = [], userId, onOpenDay }: Props) {
   const { editing, toggle } = useDashEdit();
   const { hidden } = usePrivacy();
   const [cells, setCells] = useState<Cell[]>(load);
@@ -102,7 +102,7 @@ export default function DashboardView({ lang, accounts: accountsIn, trades: allI
     return all.filter((t) => (acc === "all" || t.accountId === acc) && (!from || (dayKey(t) || "9") >= from));
   }, [all, acc, filter.range]);
   const c: Ctx = useMemo(() => { const closed = trades.filter((x) => x.status === "closed" && x.pnl != null); return { trades, closed, m: metrics(closed), hide: hidden, lang, start: accounts.filter((a) => acc === "all" || a.id === acc).reduce((x, a) => x + (a.startBalance || 0), 0), cur: commonCurrency(accounts.filter((a) => acc === "all" || a.id === acc)),
-    allClosed: all.filter((x) => (acc === "all" || x.accountId === acc) && x.status === "closed" && x.pnl != null), flows: flows.filter((f) => acc === "all" || f.accountId === acc), from: fromKey(filter.range) }; }, [trades, hidden, lang, accounts, acc, all, flows, filter.range]);
+    allClosed: all.filter((x) => (acc === "all" || x.accountId === acc) && x.status === "closed" && x.pnl != null), flows: flows.filter((f) => acc === "all" || f.accountId === acc), from: fromKey(filter.range), userId, onOpenDay }; }, [trades, hidden, lang, accounts, acc, all, flows, filter.range, userId, onOpenDay]);
 
   const narrow = W < 640;
   const can = editing && !narrow;
