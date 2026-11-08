@@ -3,6 +3,9 @@ import {
   filterEconEvents, econEventsByDay, selectDots, econTooltipLine,
   mapMt5Importance, validateMt5CalendarEvent, mt5CoverageRange, dayCoveredByMt5, mergeEconByDay,
 } from "./econEvents";
+import { dayKey } from "./dashStats";
+import { DEFAULTS } from "../useSettings";
+import type { Trade } from "../types";
 
 let pass = 0, fail = 0;
 const is = (name: string, c: boolean, d = "") => {
@@ -136,6 +139,69 @@ is("day outside MT5 range falls back to FF", merged.get("2026-11-20")?.source ==
 is("merge covers all days from both sources", merged.size === 2);
 const mergedNoMt5 = mergeEconByDay(new Map(), ffDay, null);
 is("no MT5 data: every day is FF", mergedNoMt5.get("2026-11-07")?.source === "ff" && mergedNoMt5.get("2026-11-20")?.source === "ff");
+
+// ---- end-to-end: one month of sample MT5 + ForexFactory rows, through the exact pipeline the
+// dashboard and Day-by-day calendars run (filter -> group by day -> coverage -> merge -> dots),
+// under the real DEFAULT settings. Reproduces the reported bug (no dot on any day, any month)
+// and proves it is fixed: dots appear on the right days, under both default and custom filters.
+console.log("\n-- end-to-end: a month of MT5 + FF rows --");
+
+// MT5 calendar history, as stored in econ_events_mt5 (mt5-sync "calendar" action), covering the
+// whole month -- same shape dashWidgets.tsx / DayByDayTab.tsx select from Supabase.
+const novMt5 = [
+  { id: "m1", time: "2026-11-03T13:30:00Z", currency: "USD", title: "NFP", impact: "high" },
+  { id: "m2", time: "2026-11-10T09:00:00Z", currency: "EUR", title: "ECB rate decision", impact: "high" },
+  { id: "m3", time: "2026-11-10T10:00:00Z", currency: "EUR", title: "ECB presser", impact: "medium" },
+  { id: "m4", time: "2026-11-12T23:50:00Z", currency: "JPY", title: "Tankan survey", impact: "low" }, // low only: no dot by default
+  { id: "m5", time: "2026-11-18T14:00:00Z", currency: "GBP", title: "CPI", impact: "medium" },
+  { id: "m6", time: "2026-11-25T13:30:00Z", currency: "USD", title: "GDP", impact: "high" },
+];
+// ForexFactory rows, as stored in econ_events (news function "calendar" upsert) -- would be the
+// fallback for any day the MT5 range does not cover. None here fall in November, confirming the
+// merge correctly prefers MT5 for every November day once MT5 covers the whole month.
+const novFf = [{ id: "f1", time: "2026-10-15T12:00:00Z", currency: "USD", title: "October CPI", impact: "high" }];
+
+// Sample closed trades on some of the same days, exactly as the trades table stores them, to
+// prove event day-keys line up with trade day-keys (point 4): both must reduce to the same
+// YYYY-MM-DD under the default (neutral) trading-time settings.
+const sampleTrade = (exitTime: string): Trade => ({
+  key: "a1:1", accountId: "a1", no: 1, symbol: "EURUSD", side: "long", qty: 1,
+  entryTime: exitTime, entryPrice: 1, exitTime, exitPrice: 1, pnl: 10, returnPct: 1, commission: 0,
+  status: "closed",
+});
+const tradeDays = [sampleTrade("2026-11-03T14:00:00Z"), sampleTrade("2026-11-10T11:00:00Z"), sampleTrade("2026-11-18T15:00:00Z")];
+
+const { econImpacts, econCurrencies } = DEFAULTS; // ["high","medium"], all 9 currencies -- the real defaults
+const mt5Filtered = filterEconEvents(novMt5, econImpacts, econCurrencies);
+const ffFiltered = filterEconEvents(novFf, econImpacts, econCurrencies);
+const mt5Range = mt5CoverageRange(novMt5); // unfiltered, per the coverage-range fix
+const novByDay = mergeEconByDay(econEventsByDay(mt5Filtered), econEventsByDay(ffFiltered), mt5Range);
+
+for (const t of tradeDays) is(`trade day-key ${dayKey(t)} matches an event day-key`, novByDay.has(dayKey(t)));
+
+is("Nov 3 (high): 1 dot", selectDots(novByDay.get("2026-11-03")?.events ?? []).dots.length === 1);
+is("Nov 3 dot is high", selectDots(novByDay.get("2026-11-03")?.events ?? []).dots[0]?.impact === "high");
+is("Nov 10 (high+medium): 2 dots, high first", (() => {
+  const d = selectDots(novByDay.get("2026-11-10")?.events ?? []).dots;
+  return d.length === 2 && d[0].impact === "high" && d[1].impact === "medium";
+})());
+is("Nov 12 (low only, default filter excludes low): no day entry at all", !novByDay.has("2026-11-12"));
+is("Nov 18 (medium): 1 dot", selectDots(novByDay.get("2026-11-18")?.events ?? []).dots.length === 1);
+is("Nov 25 (high, no trade that day): still has a dot", selectDots(novByDay.get("2026-11-25")?.events ?? []).dots.length === 1);
+is("source for every November day is mt5 (MT5 covers the whole month)", ["2026-11-03", "2026-11-10", "2026-11-18", "2026-11-25"].every((d) => novByDay.get(d)?.source === "mt5"));
+is("October FF-only day (outside the MT5 range) correctly falls back to ff, not mt5", novByDay.get("2026-10-15")?.source === "ff");
+
+// With "low" turned on (a user who enables it in the chips), the previously-empty day gets a dot.
+const mt5WithLow = filterEconEvents(novMt5, ["high", "medium", "low"], econCurrencies);
+const byDayWithLow = mergeEconByDay(econEventsByDay(mt5WithLow), econEventsByDay(filterEconEvents(novFf, ["high", "medium", "low"], econCurrencies)), mt5Range);
+is("enabling 'low' reveals the Nov 12 dot", selectDots(byDayWithLow.get("2026-11-12")?.events ?? []).dots[0]?.impact === "low");
+
+// Currency filter: dropping EUR removes the Nov 10 ECB dots even though impact still matches.
+const noEur = econCurrencies.filter((c) => c !== "EUR");
+const mt5NoEur = filterEconEvents(novMt5, econImpacts, noEur);
+const byDayNoEur = mergeEconByDay(econEventsByDay(mt5NoEur), econEventsByDay(filterEconEvents(novFf, econImpacts, noEur)), mt5CoverageRange(novMt5));
+is("dropping EUR from the currency filter removes the Nov 10 dots", !byDayNoEur.has("2026-11-10"));
+is("other days are unaffected by the EUR filter", selectDots(byDayNoEur.get("2026-11-03")?.events ?? []).dots.length === 1);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -230,20 +230,27 @@ function CalW({ c }: { c: Ctx }) {
     const [y, mo] = month.split("-").map(Number);
     const monthStart = new Date(Date.UTC(y, mo - 1, 1)).toISOString();
     const monthEnd = new Date(Date.UTC(y, mo, 0, 23, 59, 59, 999)).toISOString();
+    const impacts = settings.econImpacts, currencies = settings.econCurrencies;
+    if (!impacts.length || !currencies.length) { setEconRaw([]); return; } // matches filterEconEvents: empty filter -> no events
 
+    // Filtered server-side: ForexFactory rows are shared/global, so narrowing here is a pure win.
     supabase.from("econ_events")
       .select("id,time,currency,title,impact")
       .gte("time", monthStart)
       .lte("time", monthEnd)
-      .in("impact", ["high", "medium", "low"])
+      .in("impact", impacts)
+      .in("currency", currencies)
       .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
 
+    // NOT filtered by impact/currency: mt5CoverageRange (below) needs every row this user has,
+    // regardless of the filter, to correctly tell "MT5 has no data for this day" apart from
+    // "MT5 has data but it's filtered out" -- the latter must still suppress the FF fallback.
     supabase.from("econ_events_mt5")
       .select("id,time,currency,title,impact")
       .gte("time", monthStart)
       .lte("time", monthEnd)
       .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
-  }, [month]);
+  }, [month, settings.econImpacts, settings.econCurrencies]);
 
   const econFiltered = useMemo(
     () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
@@ -310,8 +317,9 @@ function CalW({ c }: { c: Ctx }) {
               className="rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase transition"
               style={{
                 borderColor: on ? `var(--impact-${imp})` : "var(--border)",
-                color: on ? `var(--impact-${imp})` : "var(--muted)",
-                background: on ? `color-mix(in srgb, var(--impact-${imp}) 15%, transparent)` : "transparent",
+                color: on ? "#0a1a3f" : "var(--muted)",
+                background: on ? `var(--impact-${imp})` : "transparent",
+                boxShadow: on ? `0 0 0 1px var(--impact-${imp})` : "none",
               }}
             >
               {impLabel[imp]}

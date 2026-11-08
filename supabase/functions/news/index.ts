@@ -167,31 +167,27 @@ export interface CalEvent { id: string; time: string; currency: string; title: s
 const CAL_URLS = ["https://nfs.faireconomy.media/ff_calendar_thisweek.json", "https://nfs.faireconomy.media/ff_calendar_nextweek.json"];
 let calCache: { at: number; events: CalEvent[]; ok: boolean } | null = null;
 
+// Only high/medium/low carry a dot on the calendar; "none" and "holiday" are never shown, so they are not worth a row.
 async function upsertCalEvents(events: CalEvent[]): Promise<void> {
   const SB = Deno.env.get("SUPABASE_URL") ?? "";
   const SR = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!SB || !SR || !events.length) return;
-  const now = new Date().toISOString();
-  const rows = events.map((e) => ({
-    id: e.id, time: e.time, currency: e.currency, title: e.title, impact: e.impact,
-    previous: e.previous, forecast: e.forecast, actual: e.actual, updated_at: now,
-  }));
+  const rows = events
+    .filter((e): e is CalEvent & { impact: "high" | "medium" | "low" } => e.impact === "high" || e.impact === "medium" || e.impact === "low")
+    .map((e) => ({ id: e.id, time: e.time, currency: e.currency, title: e.title, impact: e.impact, previous: e.previous, forecast: e.forecast, actual: e.actual, updated_at: new Date().toISOString() }));
+  if (!SB || !SR || !rows.length) return;
   try {
-    const res = await fetch(`${SB}/rest/v1/econ_events`, {
+    const res = await fetch(`${SB}/rest/v1/econ_events?on_conflict=id`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "content-type": "application/json",
         "authorization": `Bearer ${SR}`,
         "apikey": SR,
-        "Prefer": "resolution=merge-duplicates",
+        "prefer": "resolution=merge-duplicates,return=minimal",
       },
       body: JSON.stringify(rows),
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`econ_events upsert failed: ${res.status} ${text}`);
-    }
+    if (!res.ok) console.error(`econ_events upsert failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
   } catch (err) {
     console.error(`econ_events upsert error: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -231,7 +227,10 @@ async function loadCalendar() {
   const events = parts.flatMap((p) => p.ev).sort((a, b) => +new Date(a.time) - +new Date(b.time));
   // Keep the last good data if a refresh fails entirely.
   calCache = events.length || !calCache ? { at: Date.now(), events, ok: parts.some((p) => p.ok) } : { ...calCache, at: Date.now() - 10 * 60_000 };
-  if (events.length) upsertCalEvents(events).catch(() => {});
+  // Awaited (not fire-and-forget): the edge runtime may tear down this request's
+  // execution context right after the Response is returned, which would silently
+  // kill an un-awaited background write before it reaches Postgres.
+  if (events.length) await upsertCalEvents(events);
   return calCache;
 }
 

@@ -54,7 +54,7 @@ function rest(url: URL, init: RequestInit): Response {
   if (!T) return new Response(JSON.stringify({ message: "no table" }), { status: 404 });
   const filters = [...url.searchParams.entries()].filter(([k]) => !RES.has(k));
   const pick = (rows: Row[]) => rows.filter((r) => filters.every(([k, f]) => match(r, k, f)));
-  const method = (init.method ?? "GET").toUpperCase(), prefer = String((init.headers as Record<string, string>)?.prefer ?? "");
+  const method = (init.method ?? "GET").toUpperCase(), prefer = new Headers(init.headers).get("prefer") ?? "";
   if (method === "GET") {
     let out = pick(T);
     const order = url.searchParams.get("order");
@@ -99,7 +99,7 @@ const J = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status
 (globalThis as any).fetch = async (input: string | URL | Request, init: RequestInit = {}) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
   if (url.origin === SB && url.pathname.startsWith("/rest/v1/")) {
-    const auth = String((init.headers as Record<string, string>)?.authorization ?? "");
+    const auth = new Headers(init.headers).get("authorization") ?? "";
     if (auth !== `Bearer ${SR}`) return J({ message: "rls" }, 401);
     return rest(url, init);
   }
@@ -936,15 +936,32 @@ async function main() {
   ok(db.trades.length === tradesBefore, "calendar sync never touches trades");
 
   // ---- 34. news: ForexFactory calendar events stored in econ_events ----
+  // Reproduces the reported bug: the news function fetched and returned calendar events fine,
+  // but never actually finished writing them to econ_events because the upsert ran un-awaited
+  // after loadCalendar() had already returned. The write must be done (no setTimeout here)
+  // by the time this await resolves, or this test fails exactly like the real bug did.
   console.log("34. news: calendar upsert");
   at("2026-11-20T12:00:00Z");
   calEvents = [
     { title: "Employment Report", country: "USD", date: "2026-11-20T13:30:00Z", impact: "High", forecast: "205K", previous: "200K" },
     { title: "CPI Monthly", country: "CAD", date: "2026-11-20T10:00:00Z", impact: "Medium", forecast: "", previous: "2.3%" },
+    { title: "Minor Chat", country: "JPY", date: "2026-11-20T09:00:00Z", impact: "Low", forecast: "", previous: "" },
+    { title: "Bank Holiday", country: "GBP", date: "2026-11-20T00:00:00Z", impact: "Holiday", forecast: "", previous: "" },
   ];
+  const r34 = await post(2, { type: "calendar" });
+  ok(Array.isArray(r34.events) && r34.events.length > 0, `news returns calendar events for display (got ${r34.events?.length})`);
+  ok(db.econ_events.some((x) => x.title === "Employment Report" && x.currency === "USD" && x.impact === "high"), "high-impact event written to econ_events immediately (no race)");
+  ok(db.econ_events.some((x) => x.title === "CPI Monthly" && x.currency === "CAD" && x.impact === "medium"), "medium-impact event written");
+  ok(db.econ_events.some((x) => x.title === "Minor Chat" && x.currency === "JPY" && x.impact === "low"), "low-impact event is still stored (it is a valid dot type, just unchecked by default)");
+  ok(db.econ_events.filter((x) => x.title === "Minor Chat").length === 1, "duplicate fetch from both calendar URLs collapses to one row per id (on_conflict)");
+  ok(!db.econ_events.some((x) => x.title === "Bank Holiday"), "holiday event not stored (never a dot type)");
+  const empCountBefore = db.econ_events.filter((x) => x.title === "Employment Report").length;
+  at("2026-11-20T12:20:00Z"); // past the 15-minute calendar cache, forces a re-fetch + re-upsert
+  calEvents = [{ ...calEvents[0], forecast: "999K" }]; // same id (same date|currency|title), updated forecast
   await post(2, { type: "calendar" });
-  ok(db.econ_events.some((x) => x.title === "Employment Report" && x.currency === "USD"), `Employment Report upserted`);
-  ok(db.econ_events.some((x) => x.title === "CPI Monthly" && x.currency === "CAD"), `CPI Monthly upserted`);
+  const empRows = db.econ_events.filter((x) => x.title === "Employment Report");
+  ok(empRows.length === empCountBefore, "re-sync merges by id (on_conflict), does not duplicate the row");
+  ok(empRows[0]?.forecast === "999K", "merged row carries the updated field");
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

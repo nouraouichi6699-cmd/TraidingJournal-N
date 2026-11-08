@@ -9,7 +9,7 @@ import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
-import { filterEconEvents, econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
+import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
 import { stT } from "../i18n";
 import type { Lang, Trade } from "../types";
 
@@ -47,30 +47,52 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const L = stT(lang);
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
+  const [econMt5Times, setEconMt5Times] = useState<{ time: string }[]>([]);
+  const oldestDay = days.length ? days[days.length - 1].day : null, newestDay = days.length ? days[0].day : null;
+
   useEffect(() => {
-    const now = new Date();
-    const twoYearsAgo = new Date(now.getTime() - 2 * 365.25 * 24 * 60 * 60 * 1000).toISOString();
+    if (!oldestDay || !newestDay) { setEconRaw([]); setEconMt5Raw([]); setEconMt5Times([]); return; }
+    const rangeStart = `${oldestDay}T00:00:00.000Z`, rangeEnd = `${newestDay}T23:59:59.999Z`;
+    const impacts = settings.econImpacts, currencies = settings.econCurrencies;
+    let cancelled = false;
 
-    supabase.from("econ_events")
-      .select("id,time,currency,title,impact")
-      .gte("time", twoYearsAgo)
-      .in("impact", ["high", "medium", "low"])
-      .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
+    // Supabase/PostgREST caps a single response at 1000 rows: page with .range() rather than
+    // trust one request, since a long trading history can hold many thousands of calendar rows.
+    const pageAll = async <T,>(build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null }>): Promise<T[]> => {
+      const out: T[] = [];
+      for (let from = 0; from < 50_000; from += 1000) {
+        const { data } = await build(from, from + 999);
+        if (!data || !data.length) break;
+        out.push(...(data as T[]));
+        if (data.length < 1000) break;
+      }
+      return out;
+    };
 
-    supabase.from("econ_events_mt5")
-      .select("id,time,currency,title,impact")
-      .gte("time", twoYearsAgo)
-      .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
-  }, []);
-  const econFiltered = useMemo(
-    () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
-    [econRaw, settings.econImpacts, settings.econCurrencies],
-  );
-  const econMt5Filtered = useMemo(
-    () => filterEconEvents(econMt5Raw, settings.econImpacts, settings.econCurrencies),
-    [econMt5Raw, settings.econImpacts, settings.econCurrencies],
-  );
-  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Raw), [econMt5Raw]);
+    if (!impacts.length || !currencies.length) {
+      setEconRaw([]); setEconMt5Raw([]);
+    } else {
+      // Filtered server-side by impact + currency: ForexFactory rows are shared/global, pure win.
+      pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events").select("id,time,currency,title,impact")
+        .gte("time", rangeStart).lte("time", rangeEnd).in("impact", impacts).in("currency", currencies).range(from, to))
+        .then((rows) => { if (!cancelled) setEconRaw(rows); });
+      pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events_mt5").select("id,time,currency,title,impact")
+        .gte("time", rangeStart).lte("time", rangeEnd).in("impact", impacts).in("currency", currencies).range(from, to))
+        .then((rows) => { if (!cancelled) setEconMt5Raw(rows); });
+    }
+    // NOT filtered by impact/currency, and only the "time" column: mt5CoverageRange needs every
+    // row this user has in range to tell "MT5 has no data for this day" apart from "MT5 has data
+    // but it's filtered out" -- the latter must still suppress the ForexFactory fallback.
+    pageAll<{ time: string }>((from, to) => supabase.from("econ_events_mt5").select("time")
+      .gte("time", rangeStart).lte("time", rangeEnd).range(from, to))
+      .then((rows) => { if (!cancelled) setEconMt5Times(rows); });
+
+    return () => { cancelled = true; };
+  }, [oldestDay, newestDay, settings.econImpacts, settings.econCurrencies]);
+
+  const econFiltered = econRaw; // already filtered server-side
+  const econMt5Filtered = econMt5Raw; // already filtered server-side
+  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Times), [econMt5Times]);
   const econByDay = useMemo(
     () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
     [econMt5Filtered, econFiltered, econMt5Range],
