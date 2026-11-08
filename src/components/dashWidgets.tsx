@@ -227,11 +227,23 @@ function CalW({ c }: { c: Ctx }) {
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
 
   useEffect(() => {
-    supabase.from("econ_events").select("id,time,currency,title,impact")
+    const [y, mo] = month.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(y, mo - 1, 1)).toISOString();
+    const monthEnd = new Date(Date.UTC(y, mo, 0, 23, 59, 59, 999)).toISOString();
+
+    supabase.from("econ_events")
+      .select("id,time,currency,title,impact")
+      .gte("time", monthStart)
+      .lte("time", monthEnd)
+      .in("impact", ["high", "medium", "low"])
       .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
-    supabase.from("econ_events_mt5").select("id,time,currency,title,impact")
+
+    supabase.from("econ_events_mt5")
+      .select("id,time,currency,title,impact")
+      .gte("time", monthStart)
+      .lte("time", monthEnd)
       .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
-  }, []);
+  }, [month]);
 
   const econFiltered = useMemo(
     () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),

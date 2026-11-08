@@ -176,17 +176,25 @@ async function upsertCalEvents(events: CalEvent[]): Promise<void> {
     id: e.id, time: e.time, currency: e.currency, title: e.title, impact: e.impact,
     previous: e.previous, forecast: e.forecast, actual: e.actual, updated_at: now,
   }));
-  await fetch(`${SB}/rest/v1/econ_events`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${SR}`,
-      "apikey": SR,
-      "Prefer": "resolution=merge-duplicates",
-    },
-    body: JSON.stringify(rows),
-    signal: AbortSignal.timeout(10000),
-  }).catch(() => {});
+  try {
+    const res = await fetch(`${SB}/rest/v1/econ_events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "authorization": `Bearer ${SR}`,
+        "apikey": SR,
+        "Prefer": "resolution=merge-duplicates",
+      },
+      body: JSON.stringify(rows),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`econ_events upsert failed: ${res.status} ${text}`);
+    }
+  } catch (err) {
+    console.error(`econ_events upsert error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 export function normalizeCal(rows: unknown): CalEvent[] {

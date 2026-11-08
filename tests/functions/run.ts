@@ -21,7 +21,7 @@ const at = (iso: string) => { fake = RealDate.parse(iso); };
 
 // ---------- in-memory PostgREST ----------
 type Row = Record<string, any>;
-const db: Record<string, Row[]> = { user_settings: [], accounts: [], trades: [], tg_state: [], econ_events_mt5: [] };
+const db: Record<string, Row[]> = { user_settings: [], accounts: [], trades: [], tg_state: [], econ_events_mt5: [], econ_events: [] };
 const TS = new Set(["at", "updated_at", "synced_at", "deleted_at"]);
 const val = (r: Row, k: string) => { const [path, last] = k.split("->>"), parts = path.split("->"); let v: any = r[parts[0]]; for (const q of parts.slice(1)) v = v?.[q]; if (last !== undefined) v = v?.[last]; return v === undefined ? null : v; };
 function cmp(k: string, a: any, b: string) {
@@ -147,8 +147,9 @@ const unlock = () => { const r = db.tg_state.find((x) => x.id === "tick"); if (r
 async function main() {
   await import(`${REPO}/mt5-sync/index.ts`);
   await import(`${REPO}/telegram/index.ts`);
+  await import(`${REPO}/news/index.ts`);
   const lib = await import(`${REPO}/telegram/index.ts`);
-  ok(handlers.length === 2, "both functions registered");
+  ok(handlers.length === 3, "three functions registered");
 
   // ---- pure helpers ----
   ok(lib.lossStreak([{ pnl: -1 }, { pnl: -2 }, { pnl: 0 }, { pnl: -5 }]).n === 2, "streak stops at 0");
@@ -933,6 +934,17 @@ async function main() {
   await post(0, { token: KEY2, action: "calendar", events: [calItem("other-user-1")] });
   ok(!db.econ_events_mt5.some((x) => x.user_id === "u2" && x.id === "c1") && db.econ_events_mt5.some((x) => x.user_id === "u2" && x.id === "other-user-1"), "a different user's key writes only its own rows, never another user's");
   ok(db.trades.length === tradesBefore, "calendar sync never touches trades");
+
+  // ---- 34. news: ForexFactory calendar events stored in econ_events ----
+  console.log("34. news: calendar upsert");
+  at("2026-11-20T12:00:00Z");
+  calEvents = [
+    { title: "Employment Report", country: "USD", date: "2026-11-20T13:30:00Z", impact: "High", forecast: "205K", previous: "200K" },
+    { title: "CPI Monthly", country: "CAD", date: "2026-11-20T10:00:00Z", impact: "Medium", forecast: "", previous: "2.3%" },
+  ];
+  await post(2, { type: "calendar" });
+  ok(db.econ_events.some((x) => x.title === "Employment Report" && x.currency === "USD"), `Employment Report upserted`);
+  ok(db.econ_events.some((x) => x.title === "CPI Monthly" && x.currency === "CAD"), `CPI Monthly upserted`);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

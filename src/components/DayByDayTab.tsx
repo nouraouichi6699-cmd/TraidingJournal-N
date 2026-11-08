@@ -48,9 +48,18 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
   useEffect(() => {
-    supabase.from("econ_events").select("id,time,currency,title,impact")
+    const now = new Date();
+    const twoYearsAgo = new Date(now.getTime() - 2 * 365.25 * 24 * 60 * 60 * 1000).toISOString();
+
+    supabase.from("econ_events")
+      .select("id,time,currency,title,impact")
+      .gte("time", twoYearsAgo)
+      .in("impact", ["high", "medium", "low"])
       .then(({ data }) => { if (data) setEconRaw(data as StoredEconEvent[]); }, () => {});
-    supabase.from("econ_events_mt5").select("id,time,currency,title,impact")
+
+    supabase.from("econ_events_mt5")
+      .select("id,time,currency,title,impact")
+      .gte("time", twoYearsAgo)
       .then(({ data }) => { if (data) setEconMt5Raw(data as StoredEconEvent[]); }, () => {});
   }, []);
   const econFiltered = useMemo(
