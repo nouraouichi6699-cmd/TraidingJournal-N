@@ -9,8 +9,10 @@ import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
-import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
-import { stT } from "../i18n";
+import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEvents, type StoredEconEvent } from "../lib/econEvents";
+import { classifyZone, eventCounts, zoneDayStats, type NewsZone, type ZoneSettings } from "../lib/newsZones";
+import { tradeOutcomeOf } from "../lib/outcome";
+import { stT, makeT } from "../i18n";
 import type { Lang, Trade } from "../types";
 
 type L = [string, string, string]; // en, ar, fr
@@ -37,7 +39,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const settings = useSettings();
   const days = useMemo(() => dayList(trades), [trades]);
   const [sel, setSel] = useState<string | null>(focusDay ?? null);
-  const [tab, setTab] = useState<"overview" | "notes" | "trades">("trades");
+  const [tab, setTab] = useState<"overview" | "notes" | "trades">("overview");
   const day = days.find((d) => d.day === sel)?.day ?? days[0]?.day ?? null; // falls back to the newest day when the filter hides the selection
   const rows = useMemo(() => (day ? dayTrades(trades, day) : []), [trades, day]);
   const st = useMemo(() => dayStats(rows), [rows]);
@@ -45,6 +47,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [day]);
 
   const L = stT(lang);
+  const tt = makeT(lang);
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
   const [econMt5Times, setEconMt5Times] = useState<{ time: string }[]>([]);
@@ -53,7 +56,6 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   useEffect(() => {
     if (!oldestDay || !newestDay) { setEconRaw([]); setEconMt5Raw([]); setEconMt5Times([]); return; }
     const rangeStart = `${oldestDay}T00:00:00.000Z`, rangeEnd = `${newestDay}T23:59:59.999Z`;
-    const impacts = settings.econImpacts, currencies = settings.econCurrencies;
     let cancelled = false;
 
     // Supabase/PostgREST caps a single response at 1000 rows: page with .range() rather than
@@ -69,17 +71,15 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
       return out;
     };
 
-    if (!impacts.length || !currencies.length) {
-      setEconRaw([]); setEconMt5Raw([]);
-    } else {
-      // Filtered server-side by impact + currency: ForexFactory rows are shared/global, pure win.
-      pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events").select("id,time,currency,title,impact")
-        .gte("time", rangeStart).lte("time", rangeEnd).in("impact", impacts).in("currency", currencies).range(from, to))
-        .then((rows) => { if (!cancelled) setEconRaw(rows); });
-      pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events_mt5").select("id,time,currency,title,impact")
-        .gte("time", rangeStart).lte("time", rangeEnd).in("impact", impacts).in("currency", currencies).range(from, to))
-        .then((rows) => { if (!cancelled) setEconMt5Raw(rows); });
-    }
+    // Not filtered by impact/currency server-side: the day timeline (and its news zones) needs every event in
+    // range, whatever the calendar's own dot filters say, plus the forecast/previous/actual fields the dots never
+    // needed. The calendar-dot view below still honours the impact/currency filters, applied client-side.
+    pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events").select("id,time,currency,title,impact,previous,forecast,actual")
+      .gte("time", rangeStart).lte("time", rangeEnd).range(from, to))
+      .then((rows) => { if (!cancelled) setEconRaw(rows); });
+    pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events_mt5").select("id,time,currency,title,impact,previous,forecast,actual")
+      .gte("time", rangeStart).lte("time", rangeEnd).range(from, to))
+      .then((rows) => { if (!cancelled) setEconMt5Raw(rows); });
     // NOT filtered by impact/currency, and only the "time" column: mt5CoverageRange needs every
     // row this user has in range to tell "MT5 has no data for this day" apart from "MT5 has data
     // but it's filtered out" -- the latter must still suppress the ForexFactory fallback.
@@ -88,15 +88,40 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
       .then((rows) => { if (!cancelled) setEconMt5Times(rows); });
 
     return () => { cancelled = true; };
-  }, [oldestDay, newestDay, settings.econImpacts, settings.econCurrencies]);
+  }, [oldestDay, newestDay]);
 
-  const econFiltered = econRaw; // already filtered server-side
-  const econMt5Filtered = econMt5Raw; // already filtered server-side
+  // The nav list's dots still honour the calendar's own impact/currency filters (applied client-side now).
+  const econFiltered = useMemo(() => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies), [econRaw, settings.econImpacts, settings.econCurrencies]);
+  const econMt5Filtered = useMemo(() => filterEconEvents(econMt5Raw, settings.econImpacts, settings.econCurrencies), [econMt5Raw, settings.econImpacts, settings.econCurrencies]);
   const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Times), [econMt5Times]);
   const econByDay = useMemo(
     () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
     [econMt5Filtered, econFiltered, econMt5Range],
   );
+  // The timeline and its news zones use every event in range, regardless of the calendar's dot filters.
+  const allEventsByDay = useMemo(
+    () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
+    [econMt5Raw, econRaw, econMt5Range],
+  );
+  const zoneSettings: ZoneSettings = useMemo(() => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium }), [settings.newsWindowMin, settings.newsCountMedium]);
+
+  // ---- that day's news + trades timeline, and the trades' news zones ----
+  const dayEvents = useMemo((): StoredEconEvent[] => (day ? allEventsByDay.get(day)?.events ?? [] : []), [allEventsByDay, day]);
+  const tradeZones = useMemo(
+    () => rows.map((t) => ({ trade: t, ...classifyZone(t.symbol, t.entryTime, t.exitTime, dayEvents, zoneSettings) })),
+    [rows, dayEvents, zoneSettings],
+  );
+  const zStats = useMemo(() => zoneDayStats(tradeZones.map((z) => ({ trade: z.trade, zone: z.zone }))), [tradeZones]);
+  type TimelineItem = { at: number } & ({ kind: "news"; event: StoredEconEvent } | { kind: "trade"; trade: Trade; zone: NewsZone | null });
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+    for (const e of dayEvents) { const at = asDate(e.time)?.getTime(); if (at != null) items.push({ at, kind: "news", event: e }); }
+    for (const z of tradeZones) { const at = asDate(z.trade.entryTime)?.getTime(); if (at != null) items.push({ at, kind: "trade", trade: z.trade, zone: z.zone }); }
+    return items.sort((a, b) => a.at - b.at);
+  }, [dayEvents, tradeZones]);
+  const zoneLabel = (z: NewsZone): string => ({ before: L("zoneBefore"), atRelease: L("zoneAtRelease"), after: L("zoneAfter"), held: L("zoneHeld"), normal: L("zoneNormal") }[z]);
+  const zoneColor = (z: NewsZone): string => (z === "held" || z === "atRelease" ? "var(--impact-high)" : z === "before" || z === "after" ? "var(--impact-medium)" : "var(--muted)");
+  const impactLabel = (imp: "high" | "medium" | "low"): string => (imp === "high" ? tt("impHigh") : imp === "medium" ? tt("impMed") : tt("impLow"));
 
   const money = (v: number | null, sign = true, cents = false) => (v == null ? "—" : hidden ? "••••" : fmtMoney(v, { sign, cents, currency })); // summaries whole, trade rows with cents
   const tone = (v: number | null) => (hidden || v == null || v === 0 ? undefined : v > 0 ? GREEN : RED);
@@ -179,6 +204,84 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
             <section className="overflow-hidden rounded-2xl border border-border" style={cardBg}>
               <div className="border-b border-border px-5 py-3 font-heading text-sm font-semibold">{tab === "trades" ? T(X.history) : day && dt.format(new Date(day + "T00:00:00Z"))}</div>
               <div className="p-4">{strip(st)}</div>
+              {tab === "overview" && (
+                <div className="space-y-5 p-4 pt-0">
+                  <div>
+                    <h3 className="mb-2 font-heading text-sm font-semibold">{L("timeline")}</h3>
+                    {timeline.length === 0 ? (
+                      <div className="rounded-xl border border-border p-6 text-center text-sm text-muted">{L("timelineEmpty")}</div>
+                    ) : (
+                      <ol className="flex flex-col gap-2" aria-label={L("timeline")}>
+                        {timeline.map((item) => {
+                          if (item.kind === "news") {
+                            const e = item.event;
+                            const counted = eventCounts(e.impact, zoneSettings);
+                            const d = asDate(e.time);
+                            const actualDiffers = !!e.actual && e.actual !== e.forecast;
+                            return (
+                              <li key={`n-${e.id}`} className="flex items-start gap-3 rounded-xl border border-border px-3 py-2" style={{ ...cardBg, opacity: counted ? 1 : 0.55 }}>
+                                <div className="tnum w-14 shrink-0 text-xs text-muted" dir="ltr">{d ? tm.format(d) : "—"}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: `var(--impact-${e.impact})`, background: `color-mix(in srgb, var(--impact-${e.impact}) 20%, transparent)` }}>{impactLabel(e.impact)}</span>
+                                    <span className="text-xs font-semibold text-muted">{e.currency}</span>
+                                    <span className="truncate text-sm font-medium">{e.title}</span>
+                                    {!counted && <span className="text-[11px] italic text-muted">({L("notCounted")})</span>}
+                                  </div>
+                                  <div className="tnum mt-1 font-mono text-[11px] text-muted" dir="ltr">
+                                    {tt("colActual")} <span className={actualDiffers ? "font-bold text-text" : undefined}>{e.actual || "—"}</span>
+                                    {" · "}{L("forecast")} {e.forecast || "—"}
+                                    {" · "}{tt("colPrev")} {e.previous || "—"}
+                                  </div>
+                                </div>
+                              </li>
+                            );
+                          }
+                          const t = item.trade, long = t.side === "long";
+                          const outcome = tradeOutcomeOf(t);
+                          const pnlColor = outcome === "win" ? GREEN : outcome === "loss" ? RED : "var(--breakeven)";
+                          const d1 = asDate(t.entryTime), d2 = asDate(t.exitTime);
+                          return (
+                            <li key={`t-${t.key}`} className="flex items-start gap-3 rounded-xl border border-border px-3 py-2" style={cardBg}>
+                              <div className="tnum w-14 shrink-0 text-xs text-muted" dir="ltr">{d1 ? tm.format(d1) : "—"}</div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full px-3 py-0.5 text-xs font-bold" style={{ color: long ? "var(--primary)" : RED, background: `color-mix(in srgb, ${long ? "var(--primary)" : RED} 14%, transparent)` }}>{T(long ? X.buy : X.sell)}</span>
+                                  <span className="text-sm font-semibold">{t.symbol}</span>
+                                  <span className="tnum text-xs text-muted" dir="ltr">{fmt(t.qty)}</span>
+                                  <span className="tnum text-xs text-muted" dir="ltr">{d1 ? tm.format(d1) : "—"} → {d2 ? tm.format(d2) : "—"}</span>
+                                  <span className="tnum text-sm font-semibold" style={{ color: pnlColor }}>
+                                    <Private hint={`${t.symbol} P&L`}>{money(t.pnl, false, true)}</Private>
+                                  </span>
+                                </div>
+                                {item.zone == null ? (
+                                  <div className="mt-1 text-[11px] text-muted">{L("newsUnavailable")}</div>
+                                ) : (
+                                  <span className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: zoneColor(item.zone), background: `color-mix(in srgb, ${zoneColor(item.zone)} 16%, transparent)` }}>
+                                    {zoneLabel(item.zone)}
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="mb-2 font-heading text-sm font-semibold">{L("zoneStats")}</h3>
+                    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border sm:grid-cols-3 xl:grid-cols-5" style={{ background: "var(--border)" }}>
+                      {zStats.map((z) => (
+                        <div key={z.zone} className="p-3" style={cardBg}>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: zoneColor(z.zone) }}>{zoneLabel(z.zone)}</div>
+                          <div className="tnum mt-1 text-lg font-bold">{z.trades}</div>
+                          <div className="tnum text-[11px] text-muted" dir="ltr">{z.winRate == null ? "—" : `${fmt(z.winRate)}%`} · {money(z.net, true)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               {tab === "trades" && (
                 <div className="overflow-x-auto" dir="ltr">
                   <table className="w-full min-w-[760px] text-sm">

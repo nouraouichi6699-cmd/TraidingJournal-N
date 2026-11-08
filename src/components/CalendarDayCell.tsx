@@ -1,5 +1,7 @@
 import { forwardRef, useId } from "react";
+import { AlertTriangle } from "lucide-react";
 import Private from "./Private";
+import { stT } from "../i18n";
 import type { Lang } from "../types";
 import type { EconImpact } from "../lib/econEvents";
 
@@ -32,6 +34,8 @@ export interface CalendarDayCellProps {
   econTooltipLines?: string[];
   /** Small label at the end of the tooltip naming the day's event source ("MetaTrader 5" or "ForexFactory"). */
   econSourceLabel?: string;
+  /** This day has a trade entered at/through a counted news release (Day by day's "at release" or "held through" zone). Compact variant only. */
+  zoneWarning?: boolean;
 }
 
 export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProps>(
@@ -47,10 +51,12 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     econExtra = 0,
     econTooltipLines,
     econSourceLabel,
+    zoneWarning = false,
   }, ref) => {
     const baseId = useId();
     const tooltipId = `econ-tt-${baseId}`;
     const hasDots = econDots && econDots.length > 0;
+    const warnLabel = zoneWarning ? stT(lang)("zoneWarning") : "";
     const hasTooltip = econTooltipLines && econTooltipLines.length > 0;
     const dayNum = Number(dayData.day.slice(8));
     const net = dayData.net ?? 0;
@@ -140,6 +146,17 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
             </div>
           )}
           {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} sourceLabel={econSourceLabel} />}
+          {zoneWarning && (
+            <div
+              role="img"
+              aria-label={warnLabel}
+              title={warnLabel}
+              className="absolute bottom-0.5 start-0.5"
+              style={{ zIndex: 1 }}
+            >
+              <AlertTriangle size={9} color="var(--impact-high)" strokeWidth={2.5} />
+            </div>
+          )}
         </div>
       );
     }

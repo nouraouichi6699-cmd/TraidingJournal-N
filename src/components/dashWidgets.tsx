@@ -9,6 +9,7 @@ import { symL } from "../i18n";
 import { supabase } from "../lib/supabase";
 import { filterEconEvents, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
 import { econCacheKey, econMonthRange, mergeEconCacheRows } from "../lib/econCache";
+import { classifyZone } from "../lib/newsZones";
 import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
@@ -279,6 +280,26 @@ function CalW({ c }: { c: Ctx }) {
     [econMt5Filtered, econFiltered, econMt5Range],
   );
 
+  // Unfiltered by the dot chips above: a trade's news zone depends on its own symbol's currencies and the
+  // Analysis > News settings, not on which currencies the user happens to be showing dots for.
+  const allEconByDay = useMemo(
+    () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
+    [econMt5Raw, econRaw, econMt5Range],
+  );
+  const zoneSettings = useMemo(() => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium }), [settings.newsWindowMin, settings.newsCountMedium]);
+  const warnDays = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of c.closed) {
+      const day = dayKey(t);
+      if (!day || set.has(day)) continue;
+      const events = allEconByDay.get(day)?.events ?? [];
+      if (!events.length) continue;
+      const zone = classifyZone(t.symbol, t.entryTime, t.exitTime, events, zoneSettings).zone;
+      if (zone === "atRelease" || zone === "held") set.add(day);
+    }
+    return set;
+  }, [c.closed, allEconByDay, zoneSettings]);
+
   const toggleImpact = (imp: EconImpact) => {
     const cur = settings.econImpacts;
     setSettings({ econImpacts: cur.includes(imp) ? cur.filter((i) => i !== imp) : [...cur, imp] });
@@ -399,9 +420,11 @@ function CalW({ c }: { c: Ctx }) {
                     dayData={{ day: k, net: d.pnl }}
                     hideValues={c.hide}
                     variant="compact"
+                    lang={c.lang}
                     monthMax={mx}
                     econDots={dots.length ? dots : undefined}
                     econExtra={extra}
+                    zoneWarning={warnDays.has(k)}
                     onSelect={c.onOpenDay ? () => c.onOpenDay!(k) : undefined}
                   />
                 );

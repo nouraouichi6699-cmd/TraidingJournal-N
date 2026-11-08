@@ -62,6 +62,12 @@ export interface Settings {
   econImpacts: ("high" | "medium" | "low")[];
   /** Currencies shown as dots on the P&L calendar. */
   econCurrencies: string[];
+
+  // ---- Day by day's news zones ----
+  /** Minutes either side of a counted event that still count as "before" / "after" it, in the day-by-day timeline. */
+  newsWindowMin: 15 | 30 | 60;
+  /** Off (the default) counts high-impact news only; on also counts medium. Low impact never counts. */
+  newsCountMedium: boolean;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -86,6 +92,8 @@ export const DEFAULTS: Settings = {
   customThemes: [],
   econImpacts: ["high", "medium"],
   econCurrencies: ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"],
+  newsWindowMin: 60,
+  newsCountMedium: false,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };

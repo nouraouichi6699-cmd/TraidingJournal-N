@@ -587,6 +587,21 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     </>
   );
 
+  const newsTiles: ReactNode = (
+    <Tile title={L("tileNewsWindow")}>
+      <Row label={L("newsWindow")} sub={L("newsWindowSub")}>
+        <Pills<"15" | "30" | "60">
+          label={L("newsWindow")} value={String(s.newsWindowMin) as "15" | "30" | "60"}
+          onChange={(v) => setSettings({ newsWindowMin: Number(v) as 15 | 30 | 60 })}
+          options={[{ v: "15", label: "15m" }, { v: "30", label: "30m" }, { v: "60", label: "60m" }]}
+        />
+      </Row>
+      <Row label={L("newsCountMedium")} sub={L("newsCountMediumSub")}>
+        <Lamp label={L("newsCountMedium")} on={s.newsCountMedium} onChange={(v) => setSettings({ newsCountMedium: v })} />
+      </Row>
+    </Tile>
+  );
+
   const currencyTiles: ReactNode = (
     <>
       <Tile title={L("tileUnified")}>
@@ -697,6 +712,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         { id: "sessions", label: L("topSessions"), intro: L("topSessionsIntro"), tiles: sessionTiles },
         { id: "results", label: L("topResults"), intro: L("topResultsIntro"), tiles: resultTiles },
         { id: "currency", label: L("topCurrency"), intro: L("topCurrencyIntro"), tiles: currencyTiles },
+        { id: "news", label: L("topNews"), intro: L("topNewsIntro"), tiles: newsTiles },
       ],
     },
     {

@@ -843,6 +843,13 @@ const st: Record<string, [string, string, string]> = {
   topResultsIntro: ["A very small trade counts as neither a win nor a loss. Decide here what \"very small\" means to you.", "الصفقة الصغيرة جداً لا تُعتبر ربحاً ولا خسارة. حدّد هنا ما هو «صغير جداً» بالنسبة لك.", "Un trade très petit ne compte ni comme gain ni comme perte. Définissez ici ce qui est « très petit » pour vous."],
   topCurrency: ["Currency", "العملة", "Devise"],
   topCurrencyIntro: ["Accounts in different currencies? Turn this on to add them all up in one currency when showing all accounts.", "عندك حسابات بعملات مختلفة؟ فعّل هذا لتُجمع كلها بعملة واحدة عند عرض «كل الحسابات».", "Des comptes en devises différentes ? Activez ceci pour tout additionner dans une seule devise en vue « tous les comptes »."],
+  topNews: ["News", "الأخبار", "Actualités"],
+  topNewsIntro: ["How close a trade has to be to an economic release for Day by day to flag it.", "إلى أي مدى يجب أن تكون الصفقة قريبة من حدث اقتصادي ليُشار إليها في «يوماً بيوم».", "À quelle distance un trade doit être d'une annonce économique pour que « Jour par jour » le signale."],
+  tileNewsWindow: ["Before / after window", "نطاق قبل / بعد", "Fenêtre avant / après"],
+  newsWindow: ["Window", "النطاق", "Fenêtre"],
+  newsWindowSub: ["How many minutes before or after an event still count as near it.", "كم دقيقة قبل أو بعد الحدث تُعتبر قريبة منه.", "Combien de minutes avant ou après un événement comptent encore comme proches."],
+  newsCountMedium: ["Count medium-impact news too", "اعتبر الأخبار متوسطة التأثير أيضاً", "Compter aussi les actualités à impact moyen"],
+  newsCountMediumSub: ["Off counts high-impact news only. Low-impact news is never counted.", "عند الإيقاف، تُحتسب الأخبار عالية التأثير فقط. الأخبار منخفضة التأثير لا تُحتسب أبداً.", "Désactivé, seules les actualités à fort impact comptent. Les actualités à faible impact ne comptent jamais."],
   secTelegram: ["Telegram", "تيليغرام", "Telegram"],
   secTelegramDesc: ["Your trades, your risks and your challenges, as messages on your phone.", "صفقاتك ومخاطرك وتحدياتك، رسائل تصلك على هاتفك في لحظتها.", "Vos trades, vos risques et vos challenges, en messages sur votre téléphone."],
   topTgLink: ["Link", "الربط", "Liaison"],
@@ -999,5 +1006,19 @@ const st: Record<string, [string, string, string]> = {
   econSourceMt5: ["MetaTrader 5", "MetaTrader 5", "MetaTrader 5"],
   econSourceFf: ["ForexFactory", "ForexFactory", "ForexFactory"],
   mt5NewsNote: ["Update MizanSync to also bring in your economic news history for this account.", "حدّث MizanSync لإدراج سجل الأخبار الاقتصادية لهذا الحساب أيضاً.", "Mettez à jour MizanSync pour inclure aussi l'historique des actualités économiques de ce compte."],
+
+  // ---- Day by day: news + trades timeline ----
+  timeline: ["Timeline", "الخط الزمني", "Chronologie"],
+  timelineEmpty: ["No news or trades for this day.", "لا أخبار ولا صفقات هذا اليوم.", "Aucune actualité ni trade ce jour-là."],
+  notCounted: ["not counted", "لا تُحتسب", "non comptée"],
+  forecast: ["Forecast", "المتوقع", "Prévision"],
+  newsUnavailable: ["news matching not available for this symbol", "مطابقة الأخبار غير متوفرة لهذا الرمز", "correspondance des actualités indisponible pour ce symbole"],
+  zoneBefore: ["Before news", "قبل الخبر", "Avant l'actualité"],
+  zoneAtRelease: ["At release", "عند الصدور", "À la publication"],
+  zoneAfter: ["After news", "بعد الخبر", "Après l'actualité"],
+  zoneHeld: ["Held through news", "محتفظ بها خلال الخبر", "Maintenue pendant l'actualité"],
+  zoneNormal: ["Normal time", "وقت عادي", "Temps normal"],
+  zoneStats: ["By news zone", "حسب منطقة الخبر", "Par zone d'actualité"],
+  zoneWarning: ["Trade at or through a news release", "صفقة عند أو خلال صدور خبر", "Trade à ou pendant la publication d'une actualité"],
 };
 export const stT = (lang: Lang) => (k: string): string => st[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;
