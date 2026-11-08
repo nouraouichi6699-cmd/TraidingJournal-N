@@ -1020,5 +1020,6 @@ const st: Record<string, [string, string, string]> = {
   zoneNormal: ["Normal time", "وقت عادي", "Temps normal"],
   zoneStats: ["By news zone", "حسب منطقة الخبر", "Par zone d'actualité"],
   zoneWarning: ["Trade at or through a news release", "صفقة عند أو خلال صدور خبر", "Trade à ou pendant la publication d'une actualité"],
+  mySymbolsOnly: ["My symbols only", "رموزي فقط", "Mes symboles seulement"],
 };
 export const stT = (lang: Lang) => (k: string): string => st[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;

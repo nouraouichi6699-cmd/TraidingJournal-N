@@ -3,14 +3,15 @@ import { dayList, dayStats, dayTrades, type DayStats } from "../lib/dayByDay";
 import { fmt, fmtHold } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
-import { useSettings } from "../useSettings";
+import { setSettings, useSettings } from "../useSettings";
 import { GREEN, RED } from "./dashWidgets";
 import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
-import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEvents, type StoredEconEvent } from "../lib/econEvents";
+import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEvents, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
 import { classifyZone, eventCounts, zoneDayStats, type NewsZone, type ZoneSettings } from "../lib/newsZones";
+import { EconFilterChips } from "./EconFilterChips";
 import { tradeOutcomeOf } from "../lib/outcome";
 import { stT, makeT } from "../i18n";
 import type { Lang, Trade } from "../types";
@@ -106,19 +107,31 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const zoneSettings: ZoneSettings = useMemo(() => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium }), [settings.newsWindowMin, settings.newsCountMedium]);
 
   // ---- that day's news + trades timeline, and the trades' news zones ----
+  // The trades' news zones always use every event in range: whether a trade sat in a news window doesn't
+  // depend on the timeline's own display filters below.
   const dayEvents = useMemo((): StoredEconEvent[] => (day ? allEventsByDay.get(day)?.events ?? [] : []), [allEventsByDay, day]);
   const tradeZones = useMemo(
     () => rows.map((t) => ({ trade: t, ...classifyZone(t.symbol, t.entryTime, t.exitTime, dayEvents, zoneSettings) })),
     [rows, dayEvents, zoneSettings],
   );
   const zStats = useMemo(() => zoneDayStats(tradeZones.map((z) => ({ trade: z.trade, zone: z.zone }))), [tradeZones]);
+
+  // That day's traded symbols' currencies, for the "My symbols only" chip. Empty on days without trades, so the
+  // chip has no effect then.
+  const dayCurrencies = useMemo(() => dayTradedCurrencies(rows.map((t) => t.symbol)), [rows]);
+  // The timeline's own display filters: the same impact/currency chips as the dashboard calendar, plus
+  // (when on) restricting to the currencies of that day's traded symbols.
+  const timelineEvents = useMemo(
+    () => filterByMySymbols(filterEconEvents(dayEvents, settings.econImpacts, settings.econCurrencies), settings.myNewsSymbolsOnly, dayCurrencies),
+    [dayEvents, settings.econImpacts, settings.econCurrencies, settings.myNewsSymbolsOnly, dayCurrencies],
+  );
   type TimelineItem = { at: number } & ({ kind: "news"; event: StoredEconEvent } | { kind: "trade"; trade: Trade; zone: NewsZone | null });
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
-    for (const e of dayEvents) { const at = asDate(e.time)?.getTime(); if (at != null) items.push({ at, kind: "news", event: e }); }
+    for (const e of timelineEvents) { const at = asDate(e.time)?.getTime(); if (at != null) items.push({ at, kind: "news", event: e }); }
     for (const z of tradeZones) { const at = asDate(z.trade.entryTime)?.getTime(); if (at != null) items.push({ at, kind: "trade", trade: z.trade, zone: z.zone }); }
     return items.sort((a, b) => a.at - b.at);
-  }, [dayEvents, tradeZones]);
+  }, [timelineEvents, tradeZones]);
   const zoneLabel = (z: NewsZone): string => ({ before: L("zoneBefore"), atRelease: L("zoneAtRelease"), after: L("zoneAfter"), held: L("zoneHeld"), normal: L("zoneNormal") }[z]);
   const zoneColor = (z: NewsZone): string => (z === "held" || z === "atRelease" ? "var(--impact-high)" : z === "before" || z === "after" ? "var(--impact-medium)" : "var(--muted)");
   const impactLabel = (imp: "high" | "medium" | "low"): string => (imp === "high" ? tt("impHigh") : imp === "medium" ? tt("impMed") : tt("impLow"));
@@ -208,6 +221,24 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                 <div className="space-y-5 p-4 pt-0">
                   <div>
                     <h3 className="mb-2 font-heading text-sm font-semibold">{L("timeline")}</h3>
+                    <EconFilterChips
+                      lang={lang}
+                      extra={
+                        <button
+                          type="button"
+                          onClick={() => setSettings({ myNewsSymbolsOnly: !settings.myNewsSymbolsOnly })}
+                          aria-pressed={settings.myNewsSymbolsOnly}
+                          className="rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition"
+                          style={{
+                            borderColor: settings.myNewsSymbolsOnly ? "var(--icon)" : "var(--border)",
+                            color: settings.myNewsSymbolsOnly ? "var(--icon)" : "var(--muted)",
+                            background: settings.myNewsSymbolsOnly ? "var(--primary-tint)" : "transparent",
+                          }}
+                        >
+                          {L("mySymbolsOnly")}
+                        </button>
+                      }
+                    />
                     {timeline.length === 0 ? (
                       <div className="rounded-xl border border-border p-6 text-center text-sm text-muted">{L("timelineEmpty")}</div>
                     ) : (
@@ -218,6 +249,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                             const counted = eventCounts(e.impact, zoneSettings);
                             const d = asDate(e.time);
                             const actualDiffers = !!e.actual && e.actual !== e.forecast;
+                            const hasValues = !!e.actual || !!e.forecast || !!e.previous;
                             return (
                               <li key={`n-${e.id}`} className="flex items-start gap-3 rounded-xl border border-border px-3 py-2" style={{ ...cardBg, opacity: counted ? 1 : 0.55 }}>
                                 <div className="tnum w-14 shrink-0 text-xs text-muted" dir="ltr">{d ? tm.format(d) : "—"}</div>
@@ -228,11 +260,13 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                                     <span className="truncate text-sm font-medium">{e.title}</span>
                                     {!counted && <span className="text-[11px] italic text-muted">({L("notCounted")})</span>}
                                   </div>
-                                  <div className="tnum mt-1 font-mono text-[11px] text-muted" dir="ltr">
-                                    {tt("colActual")} <span className={actualDiffers ? "font-bold text-text" : undefined}>{e.actual || "—"}</span>
-                                    {" · "}{L("forecast")} {e.forecast || "—"}
-                                    {" · "}{tt("colPrev")} {e.previous || "—"}
-                                  </div>
+                                  {hasValues && (
+                                    <div className="tnum mt-1 font-mono text-[11px] text-muted" dir="ltr">
+                                      {tt("colActual")} <span className={actualDiffers ? "font-bold text-text" : undefined}>{e.actual || "—"}</span>
+                                      {" · "}{L("forecast")} {e.forecast || "—"}
+                                      {" · "}{tt("colPrev")} {e.previous || "—"}
+                                    </div>
+                                  )}
                                 </div>
                               </li>
                             );

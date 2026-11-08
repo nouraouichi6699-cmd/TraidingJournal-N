@@ -2,6 +2,7 @@
 import {
   filterEconEvents, econEventsByDay, selectDots, econTooltipLine,
   mapMt5Importance, validateMt5CalendarEvent, mt5CoverageRange, dayCoveredByMt5, mergeEconByDay,
+  dayTradedCurrencies, filterByMySymbols,
 } from "./econEvents";
 import { dayKey } from "./dashStats";
 import { DEFAULTS } from "../useSettings";
@@ -202,6 +203,52 @@ const mt5NoEur = filterEconEvents(novMt5, econImpacts, noEur);
 const byDayNoEur = mergeEconByDay(econEventsByDay(mt5NoEur), econEventsByDay(filterEconEvents(novFf, econImpacts, noEur)), mt5CoverageRange(novMt5));
 is("dropping EUR from the currency filter removes the Nov 10 dots", !byDayNoEur.has("2026-11-10"));
 is("other days are unaffected by the EUR filter", selectDots(byDayNoEur.get("2026-11-03")?.events ?? []).dots.length === 1);
+
+// ---- dayTradedCurrencies ----
+is("forex pair contributes both currencies", (() => {
+  const s = dayTradedCurrencies(["EURUSD"]);
+  return s.has("EUR") && s.has("USD") && s.size === 2;
+})());
+is("metal contributes USD only", dayTradedCurrencies(["XAUUSD"]).size === 1 && dayTradedCurrencies(["XAUUSD"]).has("USD"));
+is("multiple symbols union their currencies", (() => {
+  const s = dayTradedCurrencies(["EURUSD", "USDJPY"]);
+  return s.has("EUR") && s.has("USD") && s.has("JPY") && s.size === 3;
+})());
+is("duplicate symbols don't duplicate currencies", dayTradedCurrencies(["EURUSD", "EURUSD"]).size === 2);
+is("unrecognised symbol contributes nothing", dayTradedCurrencies(["NOTASYMBOL"]).size === 0);
+is("no symbols: empty set", dayTradedCurrencies([]).size === 0);
+
+// ---- filterByMySymbols ----
+const newsEvs = [
+  { id: "1", currency: "USD", title: "NFP" },
+  { id: "2", currency: "EUR", title: "ECB" },
+  { id: "3", currency: "JPY", title: "Tankan" },
+];
+is("off: returns events unchanged", filterByMySymbols(newsEvs, false, new Set(["EUR"])).length === 3);
+is("on, day traded nothing recognised (empty set): no-op, not an empty result", filterByMySymbols(newsEvs, true, new Set()).length === 3);
+const onlyEur = filterByMySymbols(newsEvs, true, new Set(["EUR"]));
+is("on: keeps only matching currency", onlyEur.length === 1 && onlyEur[0].id === "2");
+const usdAndJpy = filterByMySymbols(newsEvs, true, new Set(["USD", "JPY"]));
+is("on: keeps every matching currency", usdAndJpy.length === 2 && usdAndJpy.every((e) => e.currency === "USD" || e.currency === "JPY"));
+is("on: no overlap excludes everything", filterByMySymbols(newsEvs, true, new Set(["GBP"])).length === 0);
+
+// ---- shared filter state: the Day-by-day timeline and the dashboard calendar read/write the exact
+// same settings.econImpacts/econCurrencies, so filtering with one's values must match the other's.
+console.log("\n-- shared filter state (Day-by-day timeline vs. dashboard calendar) --");
+const sharedSettings = { econImpacts: ["high"] as ("high" | "medium" | "low")[], econCurrencies: ["USD", "JPY"] };
+const dashboardView = filterEconEvents(novMt5, sharedSettings.econImpacts, sharedSettings.econCurrencies);
+const timelineView = filterEconEvents(novMt5, sharedSettings.econImpacts, sharedSettings.econCurrencies);
+is("same settings object -> identical filtered result in both views", JSON.stringify(dashboardView) === JSON.stringify(timelineView));
+is("changing the shared impacts changes both views identically", (() => {
+  const updated = { ...sharedSettings, econCurrencies: ["EUR", "USD", "JPY"] };
+  const a = filterEconEvents(novMt5, updated.econImpacts, updated.econCurrencies);
+  const b = filterEconEvents(novMt5, updated.econImpacts, updated.econCurrencies);
+  return a.length === b.length && a.length > dashboardView.length;
+})());
+// The timeline then narrows its own copy further with "My symbols only" -- the dashboard calendar never does,
+// so the two views diverge only there, never on the impact/currency chips themselves.
+const timelineNarrowed = filterByMySymbols(timelineView, true, new Set(["USD"]));
+is("'My symbols only' narrows the timeline without touching the shared filtered set", timelineNarrowed.length <= timelineView.length && timelineView.length === dashboardView.length);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

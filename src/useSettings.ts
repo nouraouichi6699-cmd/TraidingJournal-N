@@ -68,6 +68,8 @@ export interface Settings {
   newsWindowMin: 15 | 30 | 60;
   /** Off (the default) counts high-impact news only; on also counts medium. Low impact never counts. */
   newsCountMedium: boolean;
+  /** On (the default): the day-by-day timeline only shows news in the currencies of that day's traded symbols. */
+  myNewsSymbolsOnly: boolean;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -94,6 +96,7 @@ export const DEFAULTS: Settings = {
   econCurrencies: ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"],
   newsWindowMin: 60,
   newsCountMedium: false,
+  myNewsSymbolsOnly: true,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };

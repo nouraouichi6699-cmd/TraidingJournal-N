@@ -1,3 +1,5 @@
+import { symbolCurrencies } from "./symbolCurrencies";
+
 export type EconImpact = "high" | "medium" | "low";
 
 export interface StoredEconEvent {
@@ -26,6 +28,24 @@ export function filterEconEvents<T extends { impact: string; currency: string }>
       impacts.includes(e.impact as EconImpact) &&
       currencies.includes(e.currency),
   );
+}
+
+/** Currencies of a set of traded symbols, for the day-by-day timeline's "My symbols only" filter. */
+export function dayTradedCurrencies(symbols: string[]): Set<string> {
+  const set = new Set<string>();
+  for (const s of symbols) for (const c of symbolCurrencies(s) ?? []) set.add(c);
+  return set;
+}
+
+/** Narrows events to a day's traded symbols' currencies when mySymbolsOnly is on; a no-op when it's off or the
+ *  day traded nothing with a recognised currency (so the chip never hides everything on such a day). */
+export function filterByMySymbols<T extends { currency: string }>(
+  events: T[],
+  mySymbolsOnly: boolean,
+  dayCurrencies: Set<string>,
+): T[] {
+  if (!mySymbolsOnly || dayCurrencies.size === 0) return events;
+  return events.filter((e) => dayCurrencies.has(e.currency));
 }
 
 /** Group events by their UTC calendar day (YYYY-MM-DD). */

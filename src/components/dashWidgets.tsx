@@ -4,13 +4,14 @@ import SymbolsWidget from "./SymbolsWidget";
 import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
 import { CalendarDayCell } from "./CalendarDayCell";
-import { setSettings, useSettings } from "../useSettings";
+import { useSettings } from "../useSettings";
 import { symL } from "../i18n";
 import { supabase } from "../lib/supabase";
-import { filterEconEvents, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type EconImpact, type StoredEconEvent } from "../lib/econEvents";
+import { filterEconEvents, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
 import { econCacheKey, econMonthRange, mergeEconCacheRows } from "../lib/econCache";
 import { classifyZone } from "../lib/newsZones";
 import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
+import { EconFilterChips } from "./EconFilterChips";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
@@ -216,9 +217,6 @@ function TradesW({ c }: { c: Ctx }) {
   );
 }
 
-const CAL_IMPACTS: EconImpact[] = ["high", "medium", "low"];
-const CAL_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"];
-
 function CalW({ c }: { c: Ctx }) {
   const days = c.m.days;
   const map = new Map(days.map((d) => [d.d, d]));
@@ -300,15 +298,6 @@ function CalW({ c }: { c: Ctx }) {
     return set;
   }, [c.closed, allEconByDay, zoneSettings]);
 
-  const toggleImpact = (imp: EconImpact) => {
-    const cur = settings.econImpacts;
-    setSettings({ econImpacts: cur.includes(imp) ? cur.filter((i) => i !== imp) : [...cur, imp] });
-  };
-  const toggleCurrency = (cur: string) => {
-    const list = settings.econCurrencies;
-    setSettings({ econCurrencies: list.includes(cur) ? list.filter((c) => c !== cur) : [...list, cur] });
-  };
-
   const [y, mo] = month.split("-").map(Number);
   const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
   const sunFirst = settings.weekStart === "sun";
@@ -323,9 +312,6 @@ function CalW({ c }: { c: Ctx }) {
   const title = new Intl.DateTimeFormat(c.lang, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, mo - 1, 1)));
   const wd = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(c.lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, (sunFirst ? 0 : 1) + i))));
 
-  const impLabel: Record<EconImpact, string> = { high: TR("H", "م", "H")[c.lang], medium: TR("M", "و", "M")[c.lang], low: TR("L", "م", "F")[c.lang] };
-  const [showCurPicker, setShowCurPicker] = useState(false);
-
   return (
     <div className="flex h-full flex-col" onPointerDown={(e) => e.stopPropagation()}>
       {/* Nav row */}
@@ -337,72 +323,7 @@ function CalW({ c }: { c: Ctx }) {
         </div>
         <div className="tnum text-xs text-muted">{TR("Monthly", "الشهر", "Mois")[c.lang]}: <b style={{ color: c.hide ? undefined : tone(mTotal) }}>{money(c, mTotal)}</b></div>
       </div>
-      {/* Filter chips row */}
-      <div className="mb-1.5 flex flex-wrap items-center gap-1" role="group" aria-label={TR("Economic event filters", "فلاتر الأحداث الاقتصادية", "Filtres événements économiques")[c.lang]}>
-        {CAL_IMPACTS.map((imp) => {
-          const on = settings.econImpacts.includes(imp);
-          return (
-            <button
-              key={imp}
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => toggleImpact(imp)}
-              aria-pressed={on}
-              className="rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase transition"
-              style={{
-                borderColor: on ? `var(--impact-${imp})` : "var(--border)",
-                color: on ? "#0a1a3f" : "var(--muted)",
-                background: on ? `var(--impact-${imp})` : "transparent",
-                boxShadow: on ? `0 0 0 1px var(--impact-${imp})` : "none",
-              }}
-            >
-              {impLabel[imp]}
-            </button>
-          );
-        })}
-        {/* Currency picker button */}
-        <div className="relative">
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setShowCurPicker((v) => !v)}
-            aria-expanded={showCurPicker}
-            aria-label={TR("Currency filter", "فلتر العملات", "Filtre devises")[c.lang]}
-            className="rounded-full border border-border px-1.5 py-0.5 text-[9px] font-semibold text-muted transition hover:text-text"
-          >
-            {settings.econCurrencies.length === CAL_CURRENCIES.length
-              ? TR("All cur.", "كل العملات", "Toutes")[c.lang]
-              : `${settings.econCurrencies.length} cur.`}
-          </button>
-          {showCurPicker && (
-            <div
-              className="absolute start-0 top-full z-50 mt-1 flex flex-wrap gap-1 rounded-xl border border-border bg-surface p-2 shadow-xl"
-              style={{ minWidth: "160px" }}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              {CAL_CURRENCIES.map((cur) => {
-                const on = settings.econCurrencies.includes(cur);
-                return (
-                  <button
-                    key={cur}
-                    type="button"
-                    onClick={() => toggleCurrency(cur)}
-                    aria-pressed={on}
-                    className="rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition"
-                    style={{
-                      borderColor: on ? "var(--icon)" : "var(--border)",
-                      color: on ? "var(--icon)" : "var(--muted)",
-                      background: on ? "var(--primary-tint)" : "transparent",
-                    }}
-                  >
-                    {cur}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      <EconFilterChips lang={c.lang} />
       <div className="grid min-h-0 flex-1 gap-1" style={{ gridTemplateColumns: "repeat(7,minmax(0,1fr)) minmax(0,1.15fr)", gridTemplateRows: `auto repeat(${weeks.length},minmax(0,1fr))` }}>
         {wd.map((w) => <div key={w} className="text-center text-[10px] uppercase text-muted">{w}</div>)}
         <div className="text-center text-[10px] uppercase text-muted">{TR("Week", "الأسبوع", "Sem.")[c.lang]}</div>

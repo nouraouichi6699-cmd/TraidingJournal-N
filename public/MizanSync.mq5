@@ -13,7 +13,7 @@
 //  3. Drag MizanSync onto any chart and paste the sync key from Mizan (Import page) in its inputs.
 // Keep MT5 open: closed trades reach Mizan within a minute. The status shows in the chart's top-left corner.
 #property copyright   "Mizan"
-#property version     "1.05"
+#property version     "1.06"
 #property description "Sends your trades to your Mizan journal automatically."
 #property description "Read-only: it never opens, changes or closes a trade."
 
@@ -25,10 +25,11 @@ input int    InpEvery = 60;  // Check every (seconds)
 #define BATCH      300   // positions per request (the server takes up to 2000)
 #define RECENT     3     // days of history checked after the first sync
 #define HEARTBEAT  600   // seconds: resend at least this often, so Mizan shows the link is alive
-#define CAL_DAYS   400   // first calendar sync: days of history
-#define CAL_LEAD   14    // calendar sync: days ahead of now
-#define CAL_HOURS  3600  // calendar sync: at most once this often (seconds)
-#define CAL_BATCH  500   // calendar events per request
+#define CAL_DAYS     400   // first calendar sync: days of history
+#define CAL_LEAD     14    // calendar sync: days ahead of now
+#define CAL_HOURS    3600  // calendar sync: at most once this often (seconds)
+#define CAL_BATCH    500   // calendar events per request
+#define CAL_FMT_VER  2     // bump when CalValue's math changes: forces one full resend so the server overwrites old rows
 
 string   g_key     = "";
 datetime g_from    = 0;      // server time of the last sync that saw the whole history (0 = first sync: InpDays)
@@ -44,6 +45,8 @@ int      g_err     = 0;      // GetLastError() after a failed WebRequest
 datetime g_calFrom = 0;      // server time covered by the calendar so far (0 = first sync: CAL_DAYS back)
 datetime g_calNext = 0;      // local time of the next allowed calendar check
 string   g_calCur[9] = {"USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "CNY"};
+string   g_calFromVar = "";  // terminal global variable name: remembers g_calFrom across restarts, per account
+string   g_calVerVar  = "";  // terminal global variable name: the calendar value-format version last fully sent
 
 //--- text helpers
 void Show(const string line)
@@ -289,12 +292,13 @@ string CalImpact(const ENUM_CALENDAR_EVENT_IMPORTANCE imp)
      }
   }
 
-// actual/forecast/previous are scaled integers (LONG_MIN = no value); unit, multiplier and digits say how to show them.
+// actual/forecast/previous are scaled integers, always *10^6 regardless of digits (LONG_MIN = no value);
+// digits only says how many decimal places to display, and unit/multiplier say what to append.
 string CalValue(const long raw, const uint digits, const ENUM_CALENDAR_EVENT_UNIT unit, const ENUM_CALENDAR_EVENT_MULTIPLIER mult)
   {
    if(raw == LONG_MIN)
       return "";
-   double v = raw / MathPow(10.0, (double)digits);
+   double v = raw / 1000000.0;
    string s = DoubleToString(v, (int)digits);
    switch(mult)
      {
@@ -356,6 +360,8 @@ void SyncCalendar()
    if(total == 0)
      {
       g_calFrom = maxTime;
+      GlobalVariableSet(g_calFromVar, (double)g_calFrom);
+      GlobalVariableSet(g_calVerVar, (double)CAL_FMT_VER);
       return;
      }
 
@@ -377,7 +383,13 @@ void SyncCalendar()
         }
      }
    if(okAll)
+     {
       g_calFrom = maxTime;
+      // Only once the whole range (from this run's `from`, which may be CAL_DAYS back) is confirmed sent does the
+      // watermark advance and the format version get recorded -- so a failed resend retries the full range next hour.
+      GlobalVariableSet(g_calFromVar, (double)g_calFrom);
+      GlobalVariableSet(g_calVerVar, (double)CAL_FMT_VER);
+     }
   }
 
 // Sends the open positions and the positions closed since `from` (server time). False when it should retry.
@@ -469,8 +481,21 @@ int OnInit()
    g_stop = false;
    g_next = 0;
    g_last = "";
-   g_calFrom = 0;
    g_calNext = 0;
+
+   // The calendar watermark persists across restarts in a terminal global variable, scoped to this account, so a
+   // normal restart does not resend CAL_DAYS of history every time. But when CAL_FMT_VER has gone up since the
+   // last fully-sent run (e.g. this update's value-scaling fix), force one full resend so the server's upsert
+   // overwrites the rows it already has with the corrected values.
+   long login = AccountInfoInteger(ACCOUNT_LOGIN);
+   g_calFromVar = "MizanSync_CalFrom_" + IntegerToString(login);
+   g_calVerVar  = "MizanSync_CalFmtVer_" + IntegerToString(login);
+   double sentVer = GlobalVariableCheck(g_calVerVar) ? GlobalVariableGet(g_calVerVar) : 0;
+   if((int)sentVer >= CAL_FMT_VER && GlobalVariableCheck(g_calFromVar))
+      g_calFrom = (datetime)GlobalVariableGet(g_calFromVar);
+   else
+      g_calFrom = 0; // first run, or the value format changed since the last full send: resend CAL_DAYS back
+
    Show("Connecting to Mizan...");
    EventSetTimer(5);
    return INIT_SUCCEEDED;
