@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Star } from "lucide-react";
 import { setSettings, useSettings } from "../useSettings";
 import type { EconImpact } from "../lib/econEvents";
 import type { Lang } from "../types";
@@ -24,6 +25,7 @@ export function EconFilterChips({ lang, extra }: { lang: Lang; extra?: React.Rea
     const list = settings.econCurrencies;
     setSettings({ econCurrencies: list.includes(cur) ? list.filter((c) => c !== cur) : [...list, cur] });
   };
+  const toggleKeyEvents = () => setSettings({ keyEventsOnly: !settings.keyEventsOnly });
 
   return (
     <div className="mb-1.5 flex flex-wrap items-center gap-1" role="group" aria-label={TR("Economic event filters", "فلاتر الأحداث الاقتصادية", "Filtres événements économiques")[lang]}>
@@ -48,6 +50,23 @@ export function EconFilterChips({ lang, extra }: { lang: Lang; extra?: React.Rea
           </button>
         );
       })}
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={toggleKeyEvents}
+        aria-pressed={settings.keyEventsOnly}
+        aria-label={TR("Key events only (NFP, CPI, PPI, FOMC)", "الأحداث الرئيسية فقط (NFP، CPI، PPI، FOMC)", "Événements clés seulement (NFP, CPI, PPI, FOMC)")[lang]}
+        title={TR("Key events only (NFP, CPI, PPI, FOMC)", "الأحداث الرئيسية فقط (NFP، CPI، PPI، FOMC)", "Événements clés seulement (NFP, CPI, PPI, FOMC)")[lang]}
+        className="rounded-full border p-1 transition"
+        style={{
+          borderColor: settings.keyEventsOnly ? "var(--c-gold)" : "var(--border)",
+          color: settings.keyEventsOnly ? "#0a1a3f" : "var(--muted)",
+          background: settings.keyEventsOnly ? "var(--c-gold)" : "transparent",
+          boxShadow: settings.keyEventsOnly ? "0 0 0 1px var(--c-gold)" : "none",
+        }}
+      >
+        <Star size={11} fill={settings.keyEventsOnly ? "currentColor" : "none"} />
+      </button>
       <div className="relative">
         <button
           type="button"

@@ -70,6 +70,9 @@ export interface Settings {
   newsCountMedium: boolean;
   /** On (the default): the day-by-day timeline only shows news in the currencies of that day's traded symbols. */
   myNewsSymbolsOnly: boolean;
+  /** Off (the default). On: calendar dots, the day-by-day timeline and trade news-zone classification all use
+   *  only key events (NFP, CPI, PPI, FOMC) instead of the impact chips; the currency filter still applies. */
+  keyEventsOnly: boolean;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -97,6 +100,7 @@ export const DEFAULTS: Settings = {
   newsWindowMin: 60,
   newsCountMedium: false,
   myNewsSymbolsOnly: true,
+  keyEventsOnly: false,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };

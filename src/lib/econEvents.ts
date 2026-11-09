@@ -1,4 +1,5 @@
 import { symbolCurrencies } from "./symbolCurrencies";
+import { isKeyEvent } from "./keyEvents";
 
 export type EconImpact = "high" | "medium" | "low";
 
@@ -27,6 +28,24 @@ export function filterEconEvents<T extends { impact: string; currency: string }>
       (e.impact === "high" || e.impact === "medium" || e.impact === "low") &&
       impacts.includes(e.impact as EconImpact) &&
       currencies.includes(e.currency),
+  );
+}
+
+/** Keep only events matching the user's display filters: impact + currency normally, or just currency + key
+ *  events (NFP/CPI/PPI/FOMC) when keyEventsOnly is on -- the impact chips step aside in that mode, the currency
+ *  filter still applies. Drives calendar dots and the day-by-day timeline's news list, never zone classification. */
+export function filterEconEventsForDisplay<T extends { impact: string; currency: string; title: string }>(
+  events: T[],
+  impacts: EconImpact[],
+  currencies: string[],
+  keyEventsOnly: boolean,
+): (T & { impact: EconImpact })[] {
+  if (!keyEventsOnly) return filterEconEvents(events, impacts, currencies);
+  return events.filter(
+    (e): e is T & { impact: EconImpact } =>
+      (e.impact === "high" || e.impact === "medium" || e.impact === "low") &&
+      currencies.includes(e.currency) &&
+      isKeyEvent(e.title),
   );
 }
 

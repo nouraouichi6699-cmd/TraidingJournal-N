@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/econEvents.test.ts
 import {
-  filterEconEvents, econEventsByDay, selectDots, econTooltipLine,
+  filterEconEvents, filterEconEventsForDisplay, econEventsByDay, selectDots, econTooltipLine,
   mapMt5Importance, validateMt5CalendarEvent, mt5CoverageRange, dayCoveredByMt5, mergeEconByDay,
   dayTradedCurrencies, filterByMySymbols,
 } from "./econEvents";
@@ -43,6 +43,27 @@ is("empty impacts returns empty", f5.length === 0);
 
 const f6 = filterEconEvents(evs, ["high", "medium", "low"], []);
 is("empty currencies returns empty", f6.length === 0);
+
+// ---- filterEconEventsForDisplay ----
+// evs[0] is {impact:"high", currency:"USD", title:"CPI"} -- a real key event, useful here as-is.
+is("keyEventsOnly off: behaves exactly like filterEconEvents", (() => {
+  const a = filterEconEventsForDisplay(evs, ["high", "medium"], ["USD", "EUR", "GBP"], false);
+  const b = filterEconEvents(evs, ["high", "medium"], ["USD", "EUR", "GBP"]);
+  return JSON.stringify(a) === JSON.stringify(b);
+})());
+const keyEvs = [
+  { impact: "high", currency: "USD", title: "CPI m/m" },
+  { impact: "low", currency: "USD", title: "Non-Farm Payrolls" }, // low impact, but a key event
+  { impact: "high", currency: "USD", title: "Retail Sales m/m" }, // high impact, not a key event
+  { impact: "high", currency: "EUR", title: "Core CPI y/y" }, // key event, wrong currency
+  { impact: "holiday", currency: "USD", title: "FOMC Statement" }, // key event, but impact is not high/medium/low
+];
+const keyOn = filterEconEventsForDisplay(keyEvs, ["high"], ["USD"], true);
+is("keyEventsOnly on: impact chips are bypassed (low-impact NFP included)", keyOn.some((e) => e.title === "Non-Farm Payrolls"));
+is("keyEventsOnly on: non-key high-impact event excluded", !keyOn.some((e) => e.title === "Retail Sales m/m"));
+is("keyEventsOnly on: currency filter still applies", !keyOn.some((e) => e.title === "Core CPI y/y"));
+is("keyEventsOnly on: malformed impact still excluded", !keyOn.some((e) => e.title === "FOMC Statement"));
+is("keyEventsOnly on: exactly the two valid USD key events", keyOn.length === 2);
 
 // ---- econEventsByDay ----
 const dateEvs = [

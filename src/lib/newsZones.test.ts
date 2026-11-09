@@ -5,9 +5,12 @@ import type { Trade } from "../types";
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, d = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${c ? "" : "  " + d}`); };
 
-const W60: ZoneSettings = { windowMin: 60, countMedium: false };
-const W60med: ZoneSettings = { windowMin: 60, countMedium: true };
-const ev = (time: string, currency = "USD", impact: ZoneNewsEvent["impact"] = "high"): ZoneNewsEvent => ({ time, currency, impact });
+const W60: ZoneSettings = { windowMin: 60, countMedium: false, keyEventsOnly: false };
+const W60med: ZoneSettings = { windowMin: 60, countMedium: true, keyEventsOnly: false };
+const W60key: ZoneSettings = { windowMin: 60, countMedium: false, keyEventsOnly: true };
+// "Retail Sales m/m" is a deliberately non-key title, so the impact-based tests below aren't accidentally
+// affected if keyEventsOnly's matching is ever widened.
+const ev = (time: string, currency = "USD", impact: ZoneNewsEvent["impact"] = "high", title = "Retail Sales m/m"): ZoneNewsEvent => ({ time, currency, impact, title });
 
 // ---- at-release boundaries: exactly 5 min before, exactly 15 min after ----
 const T0 = "2026-01-05T12:00:00Z";
@@ -49,6 +52,12 @@ ok("unknown symbol -> zone is null, not \"normal\"", unknown.zone === null && un
 ok("medium impact not counted by default", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "USD", "medium")], W60).zone === "normal");
 ok("medium impact counted when the setting is on", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "USD", "medium")], W60med).zone === "atRelease");
 ok("low impact never counts, even with the setting on", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "USD", "low")], W60med).zone === "normal");
+
+// ---- keyEventsOnly: title decides instead of impact ----
+ok("keyEventsOnly on: a high-impact non-key event no longer counts", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "USD", "high", "Retail Sales m/m")], W60key).zone === "normal");
+ok("keyEventsOnly on: a low-impact key event counts", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "USD", "low", "Non-Farm Payrolls")], W60key).zone === "atRelease");
+ok("keyEventsOnly on: FOMC counts", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "USD", "medium", "FOMC Statement")], W60key).zone === "atRelease");
+ok("keyEventsOnly on: currency filter still applies to a key event", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [ev(T0, "JPY", "high", "Non-Farm Payrolls")], W60key).zone === "normal");
 
 // ---- no events at all -> normal (not null) ----
 ok("no events -> normal", classifyZone("EURUSD", T0, "2026-01-05T12:05:00Z", [], W60).zone === "normal");

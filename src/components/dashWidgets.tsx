@@ -7,7 +7,7 @@ import { CalendarDayCell } from "./CalendarDayCell";
 import { useSettings } from "../useSettings";
 import { symL } from "../i18n";
 import { supabase } from "../lib/supabase";
-import { filterEconEvents, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
+import { filterEconEventsForDisplay, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
 import { econCacheKey, econMonthRange, mergeEconCacheRows } from "../lib/econCache";
 import { classifyZone } from "../lib/newsZones";
 import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
@@ -265,12 +265,12 @@ function CalW({ c }: { c: Ctx }) {
   }, [month, c.userId]);
 
   const econFiltered = useMemo(
-    () => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies),
-    [econRaw, settings.econImpacts, settings.econCurrencies],
+    () => filterEconEventsForDisplay(econRaw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),
+    [econRaw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
   );
   const econMt5Filtered = useMemo(
-    () => filterEconEvents(econMt5Raw, settings.econImpacts, settings.econCurrencies),
-    [econMt5Raw, settings.econImpacts, settings.econCurrencies],
+    () => filterEconEventsForDisplay(econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),
+    [econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
   );
   const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Raw), [econMt5Raw]);
   const econByDay = useMemo(
@@ -284,7 +284,10 @@ function CalW({ c }: { c: Ctx }) {
     () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
     [econMt5Raw, econRaw, econMt5Range],
   );
-  const zoneSettings = useMemo(() => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium }), [settings.newsWindowMin, settings.newsCountMedium]);
+  const zoneSettings = useMemo(
+    () => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium, keyEventsOnly: settings.keyEventsOnly }),
+    [settings.newsWindowMin, settings.newsCountMedium, settings.keyEventsOnly],
+  );
   const warnDays = useMemo(() => {
     const set = new Set<string>();
     for (const t of c.closed) {

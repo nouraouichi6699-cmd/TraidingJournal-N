@@ -9,8 +9,9 @@ import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
-import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEvents, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
-import { classifyZone, eventCounts, zoneDayStats, type NewsZone, type ZoneSettings } from "../lib/newsZones";
+import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEventsForDisplay, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
+import { classifyZone, isCountedEvent, zoneDayStats, type NewsZone, type ZoneSettings } from "../lib/newsZones";
+import { keyEventKind } from "../lib/keyEvents";
 import { EconFilterChips } from "./EconFilterChips";
 import { tradeOutcomeOf } from "../lib/outcome";
 import { stT, makeT } from "../i18n";
@@ -92,8 +93,14 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   }, [oldestDay, newestDay]);
 
   // The nav list's dots still honour the calendar's own impact/currency filters (applied client-side now).
-  const econFiltered = useMemo(() => filterEconEvents(econRaw, settings.econImpacts, settings.econCurrencies), [econRaw, settings.econImpacts, settings.econCurrencies]);
-  const econMt5Filtered = useMemo(() => filterEconEvents(econMt5Raw, settings.econImpacts, settings.econCurrencies), [econMt5Raw, settings.econImpacts, settings.econCurrencies]);
+  const econFiltered = useMemo(
+    () => filterEconEventsForDisplay(econRaw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),
+    [econRaw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
+  );
+  const econMt5Filtered = useMemo(
+    () => filterEconEventsForDisplay(econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),
+    [econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
+  );
   const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Times), [econMt5Times]);
   const econByDay = useMemo(
     () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
@@ -104,7 +111,10 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
     [econMt5Raw, econRaw, econMt5Range],
   );
-  const zoneSettings: ZoneSettings = useMemo(() => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium }), [settings.newsWindowMin, settings.newsCountMedium]);
+  const zoneSettings: ZoneSettings = useMemo(
+    () => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium, keyEventsOnly: settings.keyEventsOnly }),
+    [settings.newsWindowMin, settings.newsCountMedium, settings.keyEventsOnly],
+  );
 
   // ---- that day's news + trades timeline, and the trades' news zones ----
   // The trades' news zones always use every event in range: whether a trade sat in a news window doesn't
@@ -122,8 +132,8 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   // The timeline's own display filters: the same impact/currency chips as the dashboard calendar, plus
   // (when on) restricting to the currencies of that day's traded symbols.
   const timelineEvents = useMemo(
-    () => filterByMySymbols(filterEconEvents(dayEvents, settings.econImpacts, settings.econCurrencies), settings.myNewsSymbolsOnly, dayCurrencies),
-    [dayEvents, settings.econImpacts, settings.econCurrencies, settings.myNewsSymbolsOnly, dayCurrencies],
+    () => filterByMySymbols(filterEconEventsForDisplay(dayEvents, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly), settings.myNewsSymbolsOnly, dayCurrencies),
+    [dayEvents, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly, settings.myNewsSymbolsOnly, dayCurrencies],
   );
   type TimelineItem = { at: number } & ({ kind: "news"; event: StoredEconEvent } | { kind: "trade"; trade: Trade; zone: NewsZone | null });
   const timeline = useMemo<TimelineItem[]>(() => {
@@ -246,7 +256,8 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                         {timeline.map((item) => {
                           if (item.kind === "news") {
                             const e = item.event;
-                            const counted = eventCounts(e.impact, zoneSettings);
+                            const counted = isCountedEvent(e, zoneSettings);
+                            const key = keyEventKind(e.title);
                             const d = asDate(e.time);
                             const actualDiffers = !!e.actual && e.actual !== e.forecast;
                             const hasValues = !!e.actual || !!e.forecast || !!e.previous;
@@ -256,6 +267,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: `var(--impact-${e.impact})`, background: `color-mix(in srgb, var(--impact-${e.impact}) 20%, transparent)` }}>{impactLabel(e.impact)}</span>
+                                    {key && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: "#0a1a3f", background: "var(--c-gold)" }}>{key}</span>}
                                     <span className="text-xs font-semibold text-muted">{e.currency}</span>
                                     <span className="truncate text-sm font-medium">{e.title}</span>
                                     {!counted && <span className="text-[11px] italic text-muted">({L("notCounted")})</span>}

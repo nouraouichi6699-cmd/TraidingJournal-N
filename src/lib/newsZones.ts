@@ -3,6 +3,7 @@
 import type { Trade } from "../types";
 import { tradeCore } from "./stats";
 import { symbolCurrencies } from "./symbolCurrencies";
+import { isKeyEvent } from "./keyEvents";
 
 export type NewsZone = "before" | "atRelease" | "after" | "held" | "normal";
 export const NEWS_ZONES: NewsZone[] = ["before", "atRelease", "after", "held", "normal"];
@@ -12,12 +13,16 @@ export interface ZoneSettings {
   windowMin: number;
   /** Off (the default) counts high-impact events only; on also counts medium. Low impact never counts. */
   countMedium: boolean;
+  /** Off (the default): impact decides what counts (above). On: only key events (NFP/CPI/PPI/FOMC) count,
+   *  whatever their impact -- the currency match above still applies either way. */
+  keyEventsOnly: boolean;
 }
 
 export interface ZoneNewsEvent {
   time: string;
   currency: string;
   impact: "high" | "medium" | "low";
+  title: string;
 }
 
 const MIN = 60_000;
@@ -30,6 +35,11 @@ const parseTime = (s: string | null | undefined): number | null => {
 /** High impact always counts; medium only when the setting turns it on; low never counts. */
 export const eventCounts = (impact: "high" | "medium" | "low", settings: ZoneSettings): boolean =>
   impact === "high" || (impact === "medium" && settings.countMedium);
+
+/** Whether an event counts toward zone classification / the timeline's "counted" display: by impact normally,
+ *  or by key-event title when keyEventsOnly is on. */
+export const isCountedEvent = (e: { impact: "high" | "medium" | "low"; title: string }, settings: ZoneSettings): boolean =>
+  settings.keyEventsOnly ? isKeyEvent(e.title) : eventCounts(e.impact, settings);
 
 export interface ZoneResult {
   /** null when the symbol's currencies are not known: there is no zone to show for it at all. */
@@ -61,7 +71,7 @@ export function classifyZone(
 
   let best: { rank: number; zone: NewsZone; event: ZoneNewsEvent; dist: number } | null = null;
   for (const e of events) {
-    if (!eventCounts(e.impact, settings) || !cur.has(e.currency)) continue;
+    if (!isCountedEvent(e, settings) || !cur.has(e.currency)) continue;
     const t = parseTime(e.time);
     if (t == null) continue;
 
