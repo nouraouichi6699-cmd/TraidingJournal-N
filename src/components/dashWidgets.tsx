@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabase";
 import { filterEconEventsForDisplay, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
 import { econCacheKey, econMonthRange, mergeEconCacheRows } from "../lib/econCache";
 import { keyEventWindowTradeCount } from "../lib/newsZones";
-import { keyEventDayLabel, nextKeyEvent } from "../lib/keyEvents";
+import { keyEventDayLabel, keyEventDayFullLabel, nextKeyEvent } from "../lib/keyEvents";
 import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
 import { EconFilterChips } from "./EconFilterChips";
 import { computeActivity } from "../lib/activity";
@@ -302,18 +302,20 @@ function CalW({ c }: { c: Ctx }) {
   // day (filled flame + glow) when at least one trade that day sits inside that key event's window --
   // always a real key event (NFP/CPI/PPI/FOMC), regardless of the keyEventsOnly display toggle.
   const keyEventMarkers = useMemo(() => {
-    const m = new Map<string, { label: string; count: number }>();
+    const m = new Map<string, { label: string; fullLabel: string; count: number }>();
     for (const [day, { events }] of allEconByDay) {
-      const label = keyEventDayLabel(events.filter((e) => settings.econCurrencies.includes(e.currency)));
-      if (!label) continue;
+      const dayEvents = events.filter((e) => settings.econCurrencies.includes(e.currency));
+      const label = keyEventDayLabel(dayEvents);
+      const fullLabel = keyEventDayFullLabel(dayEvents);
+      if (!label || !fullLabel) continue;
       const count = keyEventWindowTradeCount(closedByDay.get(day) ?? [], events, settings.newsWindowMin);
-      m.set(day, { label, count });
+      m.set(day, { label, fullLabel, count });
     }
     return m;
   }, [allEconByDay, closedByDay, settings.econCurrencies, settings.newsWindowMin]);
   const L = stT(c.lang);
-  const flameAria = (marker: { label: string; count: number } | undefined): string | undefined =>
-    !marker ? undefined : marker.count > 0 ? L("tradedDuringKey").replace("{k}", marker.label).replace("{n}", String(marker.count)) : L("keyEventDayLabel").replace("{k}", marker.label);
+  const flameAria = (marker: { fullLabel: string; count: number } | undefined): string | undefined =>
+    !marker ? undefined : marker.count > 0 ? L("tradedDuringKey").replace("{k}", marker.fullLabel).replace("{n}", String(marker.count)) : L("keyEventDayLabel").replace("{k}", marker.fullLabel);
 
   // "Next key event" header line: looks ahead from today, not from whichever month is displayed, so it
   // needs its own small fetch bounded to the next 14 days rather than the grid's per-displayed-month one.

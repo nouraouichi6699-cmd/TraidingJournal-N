@@ -42,20 +42,39 @@ export function isKeyEvent(title: string): boolean {
 // ---------- calendar day markers: the flame icon (key-event day / danger day) ----------
 
 /**
- * The short flame label for a day's key events ("NFP", or "NFP +1" when the day has several) --
- * or null when none of the given events is a key event. The earliest key event (ties broken by
- * title) names the label; any further key events that day just add to the count. Callers pass
- * events already narrowed to the day and to whatever currency filter applies; impact never matters
- * here, a key event counts whatever its impact.
+ * The distinct key-event kinds present among the given events, earliest occurrence first (ties
+ * broken by kind, alphabetically) -- duplicates of the same kind (e.g. two CPI releases) collapse
+ * to one entry. Empty when none of the events is a key event. Callers pass events already narrowed
+ * to the day and to whatever currency filter applies; impact never matters here, a key event counts
+ * whatever its impact.
  */
-export function keyEventDayLabel(events: { time: string; title: string }[]): string | null {
+export function keyEventDayKinds(events: { time: string; title: string }[]): KeyEventKind[] {
   const keyed = events
     .map((e) => ({ time: e.time, kind: keyEventKind(e.title) }))
     .filter((e): e is { time: string; kind: KeyEventKind } => e.kind != null)
     .sort((a, b) => a.time.localeCompare(b.time) || a.kind.localeCompare(b.kind));
-  if (!keyed.length) return null;
-  const extra = keyed.length - 1;
-  return extra > 0 ? `${keyed[0].kind} +${extra}` : keyed[0].kind;
+  const kinds: KeyEventKind[] = [];
+  for (const e of keyed) if (!kinds.includes(e.kind)) kinds.push(e.kind);
+  return kinds;
+}
+
+/**
+ * The flame marker's short display label: every distinct kind when there are at most two ("NFP",
+ * "CPI · PPI"), or just the first kind plus an ellipsis when there are more ("CPI…") -- a variant
+ * count never appears, since the marker has no room for one. Null when there's no key event. The
+ * accessible label should use keyEventDayFullLabel instead, which never truncates.
+ */
+export function keyEventDayLabel(events: { time: string; title: string }[]): string | null {
+  const kinds = keyEventDayKinds(events);
+  if (!kinds.length) return null;
+  if (kinds.length <= 2) return kinds.join(" · ");
+  return `${kinds[0]}…`;
+}
+
+/** The full, untruncated list of the day's distinct key-event kinds, for accessible labels. Null when there's none. */
+export function keyEventDayFullLabel(events: { time: string; title: string }[]): string | null {
+  const kinds = keyEventDayKinds(events);
+  return kinds.length ? kinds.join(" · ") : null;
 }
 
 const parseIso = (s: string): number | null => {

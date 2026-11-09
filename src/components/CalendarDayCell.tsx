@@ -9,6 +9,12 @@ import type { EconImpact } from "../lib/econEvents";
    light (Ivory):       paper #ffffff  ring #f2c14e
    ─────────────────────────────────────────────────────────────────────────── */
 
+// Sized from the cell's own box (container-query units, set up via containerType: "size" on each
+// cell below), not the viewport: a dashboard grid cell can be much shorter than a vw-based guess
+// would assume, and the amount must never overflow or clip. min(…cqh, …cqw) also keeps a very
+// narrow cell from overflowing sideways.
+const AMOUNT_FS = "clamp(9px, min(34cqh, 22cqw), 19px)";
+
 interface DayData {
   day: string; // YYYY-MM-DD
   net: number | null;
@@ -146,6 +152,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
           onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } } : undefined}
           className={`group relative flex min-h-0 flex-col justify-between overflow-visible rounded-[8px] p-1 transition hover:ring-1 hover:ring-primary ${onSelect ? "cursor-pointer" : ""}`}
           style={{
+            containerType: "size",
             background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
             borderWidth: "1px",
             borderStyle: "solid",
@@ -157,7 +164,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
           {net !== 0 && (
             <div
               className="relative flex items-baseline justify-end leading-none tnum"
-              style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: "clamp(13px, 2.5vw, 19px)", letterSpacing: "-0.02em" }}
+              style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: AMOUNT_FS, letterSpacing: "-0.02em" }}
             >
               {hideValues ? (
                 <span>•••</span>
@@ -192,6 +199,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         aria-describedby={hasTooltip ? tooltipId : undefined}
         className="group relative shrink-0 rounded-[8px] border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5 overflow-visible"
         style={{
+          containerType: "size",
           background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
           borderColor: isSelected ? "var(--primary)" : borderColor,
           borderWidth: "1px",
@@ -199,11 +207,11 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
       >
         {Glow}
         {AgendaIcon}
-        {/* P&L amount — bottom-right, ~20px desktop / ~13px narrow, currency after */}
+        {/* P&L amount — bottom-right, sized from the cell's own box so it always fits, currency after */}
         {net !== 0 && (
           <div
             className="relative flex items-baseline justify-end leading-none text-right w-full tnum"
-            style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: "clamp(13px, 2.5vw, 19px)", letterSpacing: "-0.02em" }}
+            style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: AMOUNT_FS, letterSpacing: "-0.02em" }}
           >
             <Private hint={`${dayData.day} P&L`}>
               {hideValues ? (

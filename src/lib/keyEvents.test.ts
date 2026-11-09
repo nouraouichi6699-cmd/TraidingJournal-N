@@ -1,5 +1,5 @@
 // Run: npx tsx src/lib/keyEvents.test.ts
-import { isKeyEvent, keyEventKind, keyEventDayLabel, nextKeyEvent } from "./keyEvents";
+import { isKeyEvent, keyEventKind, keyEventDayKinds, keyEventDayLabel, keyEventDayFullLabel, nextKeyEvent } from "./keyEvents";
 
 let pass = 0, fail = 0;
 const is = (name: string, c: boolean, d = "") => {
@@ -61,19 +61,26 @@ is("empty title is not a key event", keyEventKind("") === null);
 is("isKeyEvent true for NFP", isKeyEvent("Non-Farm Payrolls"));
 is("isKeyEvent false for GDP", !isKeyEvent("GDP q/q"));
 
-// ---- keyEventDayLabel: the calendar flame marker's short label ----
-is("no events -> null", keyEventDayLabel([]) === null);
+// ---- keyEventDayKinds / keyEventDayLabel / keyEventDayFullLabel: the calendar flame marker ----
+is("no events -> no kinds, null label", keyEventDayKinds([]).length === 0 && keyEventDayLabel([]) === null && keyEventDayFullLabel([]) === null);
 is("no key events among them -> null", keyEventDayLabel([{ time: "2026-01-05T12:00:00Z", title: "GDP q/q" }]) === null);
 is("one key event -> its kind, no count", keyEventDayLabel([{ time: "2026-01-05T12:30:00Z", title: "Non-Farm Payrolls" }]) === "NFP");
 is(
-  "two key events -> earliest's kind + the rest",
+  "two distinct kinds -> both, joined, earliest first",
   keyEventDayLabel([
     { time: "2026-01-05T19:00:00Z", title: "FOMC Statement" },
     { time: "2026-01-05T12:30:00Z", title: "Non-Farm Payrolls" },
-  ]) === "NFP +1",
+  ]) === "NFP · FOMC",
 );
 is(
-  "a non-key event among key ones doesn't add to the count",
+  "duplicates of the same kind collapse to one entry",
+  keyEventDayLabel([
+    { time: "2026-01-05T12:30:00Z", title: "CPI m/m" },
+    { time: "2026-01-05T14:30:00Z", title: "Core CPI y/y" },
+  ]) === "CPI",
+);
+is(
+  "a non-key event among key ones is ignored",
   keyEventDayLabel([
     { time: "2026-01-05T08:30:00Z", title: "GDP q/q" },
     { time: "2026-01-05T12:30:00Z", title: "Non-Farm Payrolls" },
@@ -81,11 +88,19 @@ is(
 );
 is(
   "tie at the same time breaks by kind, alphabetically",
-  keyEventDayLabel([
+  keyEventDayKinds([
     { time: "2026-01-05T12:30:00Z", title: "PPI m/m" },
     { time: "2026-01-05T12:30:00Z", title: "CPI m/m" },
-  ]) === "CPI +1",
+  ]).join(",") === "CPI,PPI",
 );
+const threeKinds = [
+  { time: "2026-01-05T08:30:00Z", title: "Non-Farm Payrolls" },
+  { time: "2026-01-05T12:30:00Z", title: "CPI m/m" },
+  { time: "2026-01-05T19:00:00Z", title: "FOMC Statement" },
+];
+is("three distinct kinds -> display label truncates to the first plus an ellipsis", keyEventDayLabel(threeKinds) === "NFP…");
+is("three distinct kinds -> accessible label lists all of them, untruncated", keyEventDayFullLabel(threeKinds) === "NFP · CPI · FOMC");
+is("two distinct kinds -> full label matches the display label", keyEventDayFullLabel(threeKinds.slice(0, 2)) === keyEventDayLabel(threeKinds.slice(0, 2)));
 
 // ---- nextKeyEvent: the calendar header's "Next key event" pick ----
 const now = Date.parse("2026-01-01T00:00:00Z");

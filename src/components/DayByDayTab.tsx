@@ -12,7 +12,7 @@ import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
 import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEventsForDisplay, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
 import { classifyZone, isCountedEvent, keyEventWindowTradeCount, type NewsZone, type ZoneSettings } from "../lib/newsZones";
-import { keyEventKind, keyEventDayLabel } from "../lib/keyEvents";
+import { keyEventKind, keyEventDayLabel, keyEventDayFullLabel } from "../lib/keyEvents";
 import { rulerZoneSpans, rulerBar } from "../lib/newsRuler";
 import { EconFilterChips } from "./EconFilterChips";
 import { tradeOutcomeOf } from "../lib/outcome";
@@ -177,18 +177,19 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     return m;
   }, [trades]);
   const dayMarkers = useMemo(() => {
-    const m = new Map<string, { label: string; count: number }>();
+    const m = new Map<string, { label: string; fullLabel: string; count: number }>();
     for (const d of days) {
-      const evs = allEventsByDay.get(d.day)?.events ?? [];
-      const label = keyEventDayLabel(evs.filter((e) => settings.econCurrencies.includes(e.currency)));
-      if (!label) continue;
-      const count = keyEventWindowTradeCount(tradesByDay.get(d.day) ?? [], evs, settings.newsWindowMin);
-      m.set(d.day, { label, count });
+      const evs = (allEventsByDay.get(d.day)?.events ?? []).filter((e) => settings.econCurrencies.includes(e.currency));
+      const label = keyEventDayLabel(evs);
+      const fullLabel = keyEventDayFullLabel(evs);
+      if (!label || !fullLabel) continue;
+      const count = keyEventWindowTradeCount(tradesByDay.get(d.day) ?? [], allEventsByDay.get(d.day)?.events ?? [], settings.newsWindowMin);
+      m.set(d.day, { label, fullLabel, count });
     }
     return m;
   }, [days, allEventsByDay, tradesByDay, settings.econCurrencies, settings.newsWindowMin]);
-  const flameAria = (m?: { label: string; count: number }): string | undefined =>
-    !m ? undefined : m.count > 0 ? L("tradedDuringKey").replace("{k}", m.label).replace("{n}", String(m.count)) : L("keyEventDayLabel").replace("{k}", m.label);
+  const flameAria = (m?: { fullLabel: string; count: number }): string | undefined =>
+    !m ? undefined : m.count > 0 ? L("tradedDuringKey").replace("{k}", m.fullLabel).replace("{n}", String(m.count)) : L("keyEventDayLabel").replace("{k}", m.fullLabel);
 
   const money = (v: number | null, sign = true, cents = false) => (v == null ? "—" : hidden ? "••••" : fmtMoney(v, { sign, cents, currency })); // summaries whole, trade rows with cents
   const tone = (v: number | null) => (hidden || v == null || v === 0 ? undefined : v > 0 ? GREEN : RED);
