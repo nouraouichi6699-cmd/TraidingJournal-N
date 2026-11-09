@@ -14,7 +14,7 @@ import { commonCurrency } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import type { Account, Lang, Trade } from "../types";
 
-interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; flows?: CashFlow[]; userId?: string; onOpenDay?: (day: string) => void }
+interface Props { t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; flows?: CashFlow[]; userId?: string; onOpenDay?: (day: string, hotspot?: boolean) => void }
 const STORE = "mizan-dashboard-v2", FILTER = "mizan-dash-filter";
 const COLS = 12, PAD = 8;
 

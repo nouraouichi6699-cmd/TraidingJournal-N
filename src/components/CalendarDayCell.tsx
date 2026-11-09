@@ -1,7 +1,6 @@
 import { forwardRef, useId } from "react";
-import { AlertTriangle } from "lucide-react";
+import { Flame } from "lucide-react";
 import Private from "./Private";
-import { stT } from "../i18n";
 import type { Lang } from "../types";
 import type { EconImpact } from "../lib/econEvents";
 
@@ -26,7 +25,7 @@ export interface CalendarDayCellProps {
   hideValues?: boolean;
   variant?: "full" | "compact"; // "full" for DayByDayTab, "compact" for dashboard
   monthMax?: number;
-  /** Pre-filtered, ordered impact dots (at most 3). */
+  /** Pre-filtered, ordered impact dots (at most 3). Hidden on a day that shows the flame marker instead. */
   econDots?: { impact: EconImpact }[];
   /** Count of events beyond the first 3. */
   econExtra?: number;
@@ -34,8 +33,14 @@ export interface CalendarDayCellProps {
   econTooltipLines?: string[];
   /** Small label at the end of the tooltip naming the day's event source ("MetaTrader 5" or "ForexFactory"). */
   econSourceLabel?: string;
-  /** This day has a trade entered at/through a counted news release (Day by day's "at release" or "held through" zone). Compact variant only. */
-  zoneWarning?: boolean;
+  /** Short flame label for a day with a key event (NFP/CPI/PPI/FOMC) matching the currency filter -- e.g.
+   *  "NFP", or "NFP +1" when the day has several. Replaces the news dots at the top-right when present. */
+  flameLabel?: string | null;
+  /** This day also has a trade inside that key event's window (any zone, including held-through): a hot
+   *  glow and a filled flame, instead of the plain outline shown for a key-event day with no trade in it. */
+  flameDanger?: boolean;
+  /** Accessible description for the flame marker, e.g. "Traded during NFP: 2 trades" or "Key event: NFP". */
+  flameAriaLabel?: string;
 }
 
 export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProps>(
@@ -43,7 +48,6 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     dayData,
     isSelected = false,
     onSelect,
-    lang = "en",
     hideValues = false,
     variant = "full",
     monthMax = 0,
@@ -51,13 +55,15 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     econExtra = 0,
     econTooltipLines,
     econSourceLabel,
-    zoneWarning = false,
+    flameLabel = null,
+    flameDanger = false,
+    flameAriaLabel,
   }, ref) => {
     const baseId = useId();
     const tooltipId = `econ-tt-${baseId}`;
-    const hasDots = econDots && econDots.length > 0;
-    const warnLabel = zoneWarning ? stT(lang)("zoneWarning") : "";
+    const hasDots = econDots && econDots.length > 0 && !flameLabel;
     const hasTooltip = econTooltipLines && econTooltipLines.length > 0;
+    const danger = !!flameLabel && flameDanger;
     const dayNum = Number(dayData.day.slice(8));
     const net = dayData.net ?? 0;
     const absNet = Math.abs(net);
@@ -66,11 +72,20 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     const tintVar = hideValues ? "var(--muted)" : isBreakeven ? "var(--breakeven)" : net > 0 ? "var(--profit)" : net < 0 ? "var(--loss)" : "var(--muted)";
     const tintPct = monthMax > 0 ? Math.round(Math.min(25, 8 + (absNet / monthMax) * 17)) : 8;
     const borderPct = Math.round(40 + (tintPct - 8) / 17 * 20);
+    const borderColor = danger
+      ? "color-mix(in srgb, var(--impact-medium) 65%, transparent)"
+      : net !== 0
+        ? `color-mix(in srgb, ${tintVar} ${borderPct}%, transparent)`
+        : "var(--border)";
 
-    // Agenda page icon — 12×14 narrow, 15×17 desktop; 4px strip; two 2×2 rings
+    // Agenda page icon — 12×14 narrow, 15×17 desktop; 4px strip; two 2×2 rings. Given an explicit z-index
+    // (and so does the amount below) so the danger-day glow -- a plain z-index:auto absolute div -- always
+    // paints underneath both, never over the amount or the agenda page.
     const AgendaIcon = (
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           width: "clamp(12px, 1.2vw, 15px)",
           height: "clamp(14px, 1.4vw, 17px)",
           borderRadius: "3px",
@@ -105,6 +120,18 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
       </div>
     );
 
+    const Glow = danger ? (
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          borderRadius: "inherit",
+          background: "radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--impact-medium) 45%, transparent), transparent 65%)",
+          boxShadow: "inset 0 0 10px color-mix(in srgb, var(--impact-medium) 35%, transparent)",
+        }}
+      />
+    ) : null;
+
     if (variant === "compact") {
       const title = dayData.wins != null || dayData.losses != null || dayData.be != null
         ? `${dayData.day} · ${dayData.wins ?? 0}/${dayData.losses ?? 0}/${dayData.be ?? 0}`
@@ -122,16 +149,15 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
             background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
             borderWidth: "1px",
             borderStyle: "solid",
-            borderColor: net !== 0
-              ? `color-mix(in srgb, ${tintVar} ${borderPct}%, transparent)`
-              : "var(--border)",
+            borderColor,
           }}
         >
+          {Glow}
           {AgendaIcon}
           {net !== 0 && (
             <div
-              className="flex items-baseline justify-end leading-none tnum"
-              style={{ fontWeight: 600, color: netColor, fontSize: "clamp(13px, 2.5vw, 19px)", letterSpacing: "-0.02em" }}
+              className="relative flex items-baseline justify-end leading-none tnum"
+              style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: "clamp(13px, 2.5vw, 19px)", letterSpacing: "-0.02em" }}
             >
               {hideValues ? (
                 <span>•••</span>
@@ -145,17 +171,11 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
               )}
             </div>
           )}
-          {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} sourceLabel={econSourceLabel} />}
-          {zoneWarning && (
-            <div
-              role="img"
-              aria-label={warnLabel}
-              title={warnLabel}
-              className="absolute bottom-0.5 start-0.5"
-              style={{ zIndex: 1 }}
-            >
-              <AlertTriangle size={9} color="var(--impact-high)" strokeWidth={2.5} />
-            </div>
+          {hasTooltip && <EconTooltip id={tooltipId} lines={econTooltipLines!} sourceLabel={econSourceLabel} />}
+          {flameLabel ? (
+            <FlameMarker label={flameLabel} danger={danger} ariaLabel={flameAriaLabel ?? flameLabel} />
+          ) : (
+            hasDots && <EconDots dots={econDots!} extra={econExtra} />
           )}
         </div>
       );
@@ -173,18 +193,17 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         className="group relative shrink-0 rounded-[8px] border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5 overflow-visible"
         style={{
           background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
-          borderColor: isSelected
-            ? "var(--primary)"
-            : `color-mix(in srgb, ${tintVar} ${borderPct}%, transparent)`,
+          borderColor: isSelected ? "var(--primary)" : borderColor,
           borderWidth: "1px",
         }}
       >
+        {Glow}
         {AgendaIcon}
         {/* P&L amount — bottom-right, ~20px desktop / ~13px narrow, currency after */}
         {net !== 0 && (
           <div
-            className="flex items-baseline justify-end leading-none text-right w-full tnum"
-            style={{ fontWeight: 600, color: netColor, fontSize: "clamp(13px, 2.5vw, 19px)", letterSpacing: "-0.02em" }}
+            className="relative flex items-baseline justify-end leading-none text-right w-full tnum"
+            style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: "clamp(13px, 2.5vw, 19px)", letterSpacing: "-0.02em" }}
           >
             <Private hint={`${dayData.day} P&L`}>
               {hideValues ? (
@@ -200,63 +219,55 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
             </Private>
           </div>
         )}
-        {hasDots && <EconDotsOverlay dots={econDots!} extra={econExtra} tooltipId={hasTooltip ? tooltipId : undefined} tooltipLines={econTooltipLines} sourceLabel={econSourceLabel} />}
+        {hasTooltip && <EconTooltip id={tooltipId} lines={econTooltipLines!} sourceLabel={econSourceLabel} />}
+        {flameLabel ? (
+          <FlameMarker label={flameLabel} danger={danger} ariaLabel={flameAriaLabel ?? flameLabel} />
+        ) : (
+          hasDots && <EconDots dots={econDots!} extra={econExtra} />
+        )}
       </button>
     );
   }
 );
 CalendarDayCell.displayName = "CalendarDayCell";
 
-function EconDotsOverlay({
-  dots,
-  extra,
-  tooltipId,
-  tooltipLines,
-  sourceLabel,
-}: {
-  dots: { impact: EconImpact }[];
-  extra: number;
-  tooltipId?: string;
-  tooltipLines?: string[];
-  sourceLabel?: string;
-}) {
+function FlameMarker({ label, danger, ariaLabel }: { label: string; danger: boolean; ariaLabel: string }) {
   return (
-    <>
-      {/* Dots: absolute top-right, above the agenda icon, below the top edge */}
-      <div
-        aria-hidden="true"
-        className="absolute end-0.5 top-0.5 flex items-center gap-px"
-        style={{ zIndex: 1 }}
-      >
-        {dots.map((d, i) => (
-          <span
-            key={i}
-            className="inline-block h-1.5 w-1.5 rounded-full"
-            style={{ background: `var(--impact-${d.impact})`, flexShrink: 0 }}
-          />
-        ))}
-        {extra > 0 && (
-          <span
-            style={{ fontSize: "7px", lineHeight: 1, color: "var(--muted)", flexShrink: 0 }}
-          >
-            +{extra}
-          </span>
-        )}
-      </div>
-      {/* Tooltip: appears on hover / focus-within */}
-      {tooltipLines && tooltipLines.length > 0 && (
-        <div
-          id={tooltipId}
-          role="tooltip"
-          className="pointer-events-none absolute bottom-full start-0 z-50 mb-1 w-max max-w-[200px] rounded-lg border border-border bg-surface p-2 leading-relaxed opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-          style={{ fontSize: "10px" }}
-        >
-          {tooltipLines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-          {sourceLabel && <div className="mt-1 text-[9px] text-muted">{sourceLabel}</div>}
-        </div>
-      )}
-    </>
+    <div
+      role="img"
+      aria-label={ariaLabel}
+      title={ariaLabel}
+      className="absolute end-0.5 top-0.5 flex items-center gap-0.5"
+      style={{ zIndex: 2 }}
+    >
+      <Flame size={10} strokeWidth={2.25} color="var(--impact-medium)" fill={danger ? "var(--impact-medium)" : "none"} />
+      <span style={{ fontSize: "7px", lineHeight: 1, fontWeight: 700, color: "var(--impact-medium)", whiteSpace: "nowrap" }}>{label}</span>
+    </div>
+  );
+}
+
+function EconDots({ dots, extra }: { dots: { impact: EconImpact }[]; extra: number }) {
+  return (
+    <div aria-hidden="true" className="absolute end-0.5 top-0.5 flex items-center gap-px" style={{ zIndex: 2 }}>
+      {dots.map((d, i) => (
+        <span key={i} className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: `var(--impact-${d.impact})`, flexShrink: 0 }} />
+      ))}
+      {extra > 0 && <span style={{ fontSize: "7px", lineHeight: 1, color: "var(--muted)", flexShrink: 0 }}>+{extra}</span>}
+    </div>
+  );
+}
+
+/** Appears on hover / focus-within, independent of whether the dots or the flame marker is shown. */
+function EconTooltip({ id, lines, sourceLabel }: { id: string; lines: string[]; sourceLabel?: string }) {
+  return (
+    <div
+      id={id}
+      role="tooltip"
+      className="pointer-events-none absolute bottom-full start-0 z-50 mb-1 w-max max-w-[200px] rounded-lg border border-border bg-surface p-2 leading-relaxed opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      style={{ fontSize: "10px" }}
+    >
+      {lines.map((line, i) => <div key={i}>{line}</div>)}
+      {sourceLabel && <div className="mt-1 text-[9px] text-muted">{sourceLabel}</div>}
+    </div>
   );
 }

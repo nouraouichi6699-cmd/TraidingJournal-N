@@ -1,5 +1,5 @@
 // Run: npx tsx src/lib/keyEvents.test.ts
-import { isKeyEvent, keyEventKind } from "./keyEvents";
+import { isKeyEvent, keyEventKind, keyEventDayLabel, nextKeyEvent } from "./keyEvents";
 
 let pass = 0, fail = 0;
 const is = (name: string, c: boolean, d = "") => {
@@ -60,6 +60,67 @@ is("empty title is not a key event", keyEventKind("") === null);
 // ---- isKeyEvent mirrors keyEventKind ----
 is("isKeyEvent true for NFP", isKeyEvent("Non-Farm Payrolls"));
 is("isKeyEvent false for GDP", !isKeyEvent("GDP q/q"));
+
+// ---- keyEventDayLabel: the calendar flame marker's short label ----
+is("no events -> null", keyEventDayLabel([]) === null);
+is("no key events among them -> null", keyEventDayLabel([{ time: "2026-01-05T12:00:00Z", title: "GDP q/q" }]) === null);
+is("one key event -> its kind, no count", keyEventDayLabel([{ time: "2026-01-05T12:30:00Z", title: "Non-Farm Payrolls" }]) === "NFP");
+is(
+  "two key events -> earliest's kind + the rest",
+  keyEventDayLabel([
+    { time: "2026-01-05T19:00:00Z", title: "FOMC Statement" },
+    { time: "2026-01-05T12:30:00Z", title: "Non-Farm Payrolls" },
+  ]) === "NFP +1",
+);
+is(
+  "a non-key event among key ones doesn't add to the count",
+  keyEventDayLabel([
+    { time: "2026-01-05T08:30:00Z", title: "GDP q/q" },
+    { time: "2026-01-05T12:30:00Z", title: "Non-Farm Payrolls" },
+  ]) === "NFP",
+);
+is(
+  "tie at the same time breaks by kind, alphabetically",
+  keyEventDayLabel([
+    { time: "2026-01-05T12:30:00Z", title: "PPI m/m" },
+    { time: "2026-01-05T12:30:00Z", title: "CPI m/m" },
+  ]) === "CPI +1",
+);
+
+// ---- nextKeyEvent: the calendar header's "Next key event" pick ----
+const now = Date.parse("2026-01-01T00:00:00Z");
+const day = 86_400_000;
+const nkEvents = [
+  { time: "2026-01-10T13:30:00Z", currency: "USD", title: "Non-Farm Payrolls" },
+  { time: "2026-01-05T08:30:00Z", currency: "USD", title: "GDP q/q" }, // not a key event
+  { time: "2026-01-20T13:30:00Z", currency: "USD", title: "CPI m/m" }, // beyond the 14-day window
+  { time: "2025-12-20T13:30:00Z", currency: "USD", title: "FOMC Statement" }, // in the past
+];
+is("picks the soonest key event in range", nextKeyEvent(nkEvents, now, ["USD"])?.kind === "NFP");
+is("none in range -> null", nextKeyEvent([nkEvents[2]], now, ["USD"]) === null);
+is("currency filter excludes it", nextKeyEvent([nkEvents[0]], now, ["EUR"]) === null);
+is(
+  "right at the 14-day edge still counts",
+  nextKeyEvent([{ time: new Date(now + 14 * day).toISOString(), currency: "USD", title: "Non-Farm Payrolls" }], now, ["USD"])?.kind === "NFP",
+);
+is(
+  "one minute past the 14-day edge does not",
+  nextKeyEvent([{ time: new Date(now + 14 * day + 60_000).toISOString(), currency: "USD", title: "Non-Farm Payrolls" }], now, ["USD"]) === null,
+);
+const tieTime = new Date(now + day).toISOString();
+is(
+  "ties at the same time break by title",
+  nextKeyEvent(
+    [
+      { time: tieTime, currency: "USD", title: "PPI m/m" },
+      { time: tieTime, currency: "USD", title: "CPI m/m" },
+    ],
+    now,
+    ["USD"],
+  )?.kind === "CPI",
+);
+is("an event exactly at nowMs still counts", nextKeyEvent([{ time: new Date(now).toISOString(), currency: "USD", title: "Non-Farm Payrolls" }], now, ["USD"]) != null);
+is("a past event (even by a millisecond) does not", nextKeyEvent([{ time: new Date(now - 1).toISOString(), currency: "USD", title: "Non-Farm Payrolls" }], now, ["USD"]) === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

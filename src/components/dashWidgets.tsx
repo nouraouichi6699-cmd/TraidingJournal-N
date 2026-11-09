@@ -5,11 +5,12 @@ import YearlyWidget from "./YearlyWidget";
 import StreakWidget from "./StreakWidget";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { useSettings } from "../useSettings";
-import { symL } from "../i18n";
+import { symL, stT } from "../i18n";
 import { supabase } from "../lib/supabase";
 import { filterEconEventsForDisplay, econEventsByDay, selectDots, mt5CoverageRange, mergeEconByDay, type StoredEconEvent } from "../lib/econEvents";
 import { econCacheKey, econMonthRange, mergeEconCacheRows } from "../lib/econCache";
-import { classifyZone } from "../lib/newsZones";
+import { keyEventWindowTradeCount } from "../lib/newsZones";
+import { keyEventDayLabel, nextKeyEvent } from "../lib/keyEvents";
 import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
 import { EconFilterChips } from "./EconFilterChips";
 import { computeActivity } from "../lib/activity";
@@ -23,7 +24,7 @@ type L = Record<Lang, string>;
 export const TR = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 export const GREEN = "var(--profit)", RED = "var(--loss)";
 
-export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number; cur: string | null; allClosed?: Trade[]; flows?: CashFlow[]; from?: string; userId?: string; onOpenDay?: (day: string) => void }
+export interface Ctx { trades: Trade[]; closed: Trade[]; m: Metrics; hide: boolean; lang: Lang; start: number; cur: string | null; allClosed?: Trade[]; flows?: CashFlow[]; from?: string; userId?: string; onOpenDay?: (day: string, hotspot?: boolean) => void }
 // cur: shared account currency (null = mixed). allClosed / flows / from: unfiltered history of the selected accounts, for balance-based %.
 export interface Def { id: string; icon: ReactNode; name: L; info: L; min: { w: number; h: number }; size: { w: number; h: number }; gauge?: boolean; render: (c: Ctx) => ReactNode }
 
@@ -284,22 +285,82 @@ function CalW({ c }: { c: Ctx }) {
     () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
     [econMt5Raw, econRaw, econMt5Range],
   );
-  const zoneSettings = useMemo(
-    () => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium, keyEventsOnly: settings.keyEventsOnly }),
-    [settings.newsWindowMin, settings.newsCountMedium, settings.keyEventsOnly],
-  );
-  const warnDays = useMemo(() => {
-    const set = new Set<string>();
+  // Closed trades grouped by day, for the flame markers below -- a danger day needs every trade of that
+  // day, not just whether one exists.
+  const closedByDay = useMemo(() => {
+    const m = new Map<string, Trade[]>();
     for (const t of c.closed) {
       const day = dayKey(t);
-      if (!day || set.has(day)) continue;
-      const events = allEconByDay.get(day)?.events ?? [];
-      if (!events.length) continue;
-      const zone = classifyZone(t.symbol, t.entryTime, t.exitTime, events, zoneSettings).zone;
-      if (zone === "atRelease" || zone === "held") set.add(day);
+      if (!day) continue;
+      const list = m.get(day);
+      if (list) list.push(t); else m.set(day, [t]);
     }
-    return set;
-  }, [c.closed, allEconByDay, zoneSettings]);
+    return m;
+  }, [c.closed]);
+
+  // Calendar flame markers: a key-event day (outline) matching the currency filter, upgraded to a danger
+  // day (filled flame + glow) when at least one trade that day sits inside that key event's window --
+  // always a real key event (NFP/CPI/PPI/FOMC), regardless of the keyEventsOnly display toggle.
+  const keyEventMarkers = useMemo(() => {
+    const m = new Map<string, { label: string; count: number }>();
+    for (const [day, { events }] of allEconByDay) {
+      const label = keyEventDayLabel(events.filter((e) => settings.econCurrencies.includes(e.currency)));
+      if (!label) continue;
+      const count = keyEventWindowTradeCount(closedByDay.get(day) ?? [], events, settings.newsWindowMin);
+      m.set(day, { label, count });
+    }
+    return m;
+  }, [allEconByDay, closedByDay, settings.econCurrencies, settings.newsWindowMin]);
+  const L = stT(c.lang);
+  const flameAria = (marker: { label: string; count: number } | undefined): string | undefined =>
+    !marker ? undefined : marker.count > 0 ? L("tradedDuringKey").replace("{k}", marker.label).replace("{n}", String(marker.count)) : L("keyEventDayLabel").replace("{k}", marker.label);
+
+  // "Next key event" header line: looks ahead from today, not from whichever month is displayed, so it
+  // needs its own small fetch bounded to the next 14 days rather than the grid's per-displayed-month one.
+  const [upcomingFf, setUpcomingFf] = useState<StoredEconEvent[]>([]);
+  const [upcomingMt5, setUpcomingMt5] = useState<StoredEconEvent[]>([]);
+  const [upcomingMt5Times, setUpcomingMt5Times] = useState<{ time: string }[]>([]);
+  useEffect(() => {
+    const start = new Date().toISOString();
+    const end = new Date(Date.now() + 14 * 86_400_000).toISOString();
+    let cancelled = false;
+    void Promise.all([
+      supabase.from("econ_events").select("id,time,currency,title,impact,previous,forecast,actual").gte("time", start).lte("time", end)
+        .then(({ data }) => data as StoredEconEvent[] | null, () => null),
+      supabase.from("econ_events_mt5").select("id,time,currency,title,impact,previous,forecast,actual").gte("time", start).lte("time", end)
+        .then(({ data }) => data as StoredEconEvent[] | null, () => null),
+      supabase.from("econ_events_mt5").select("time").gte("time", start).lte("time", end)
+        .then(({ data }) => data as { time: string }[] | null, () => null),
+    ]).then(([ff, mt5, mt5t]) => {
+      if (cancelled) return;
+      if (ff) setUpcomingFf(ff);
+      if (mt5) setUpcomingMt5(mt5);
+      if (mt5t) setUpcomingMt5Times(mt5t);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  const upcomingMt5Range = useMemo(() => mt5CoverageRange(upcomingMt5Times), [upcomingMt5Times]);
+  const upcomingByDay = useMemo(
+    () => mergeEconByDay(econEventsByDay(upcomingMt5), econEventsByDay(upcomingFf), upcomingMt5Range),
+    [upcomingMt5, upcomingFf, upcomingMt5Range],
+  );
+  const upcomingEvents = useMemo(() => [...upcomingByDay.values()].flatMap((v) => v.events), [upcomingByDay]);
+  const nextEvent = useMemo(
+    () => nextKeyEvent(upcomingEvents, Date.now(), settings.econCurrencies, 14),
+    [upcomingEvents, settings.econCurrencies],
+  );
+  // Bidi-isolate (U+2066/U+2069) the inserted data runs so they stay readable LTR fragments inside an
+  // RTL (Arabic) sentence, without forcing the whole translated line's direction.
+  const isolate = (s: string) => `⁦${s}⁩`;
+  const nextEventLine = (() => {
+    if (!nextEvent) return null;
+    const d = new Date(nextEvent.time);
+    const weekday = new Intl.DateTimeFormat(c.lang, { weekday: "short", timeZone: "UTC" }).format(d);
+    const time = new Intl.DateTimeFormat(c.lang === "ar" ? "ar" : c.lang, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(d);
+    const diffDays = Math.max(0, Math.round((d.getTime() - Date.now()) / 86_400_000));
+    const when = diffDays === 0 ? L("inToday") : diffDays === 1 ? L("inTomorrow") : L("inNDays").replace("{n}", String(diffDays));
+    return L("nextKeyEvent").replace("{k}", isolate(nextEvent.kind)).replace("{w}", isolate(`${weekday} ${time}`)).replace("{d}", isolate(when));
+  })();
 
   const [y, mo] = month.split("-").map(Number);
   const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
@@ -326,6 +387,12 @@ function CalW({ c }: { c: Ctx }) {
         </div>
         <div className="tnum text-xs text-muted">{TR("Monthly", "الشهر", "Mois")[c.lang]}: <b style={{ color: c.hide ? undefined : tone(mTotal) }}>{money(c, mTotal)}</b></div>
       </div>
+      {nextEventLine && (
+        <div className="mb-1.5 truncate text-[11px] text-muted">
+          <Flame size={11} className="-mt-0.5 me-1 inline" style={{ color: "var(--impact-medium)" }} />
+          {nextEventLine}
+        </div>
+      )}
       <EconFilterChips lang={c.lang} />
       <div className="grid min-h-0 flex-1 gap-1" style={{ gridTemplateColumns: "repeat(7,minmax(0,1fr)) minmax(0,1.15fr)", gridTemplateRows: `auto repeat(${weeks.length},minmax(0,1fr))` }}>
         {wd.map((w) => <div key={w} className="text-center text-[10px] uppercase text-muted">{w}</div>)}
@@ -335,6 +402,7 @@ function CalW({ c }: { c: Ctx }) {
           return [
             ...wk.map((k, i) => {
               const d = k ? map.get(k) : undefined;
+              const marker = k ? keyEventMarkers.get(k) : undefined;
               if (d && k) {
                 const dayEvs = econByDay.get(k)?.events ?? [];
                 const { dots, extra } = selectDots(dayEvs);
@@ -348,8 +416,28 @@ function CalW({ c }: { c: Ctx }) {
                     monthMax={mx}
                     econDots={dots.length ? dots : undefined}
                     econExtra={extra}
-                    zoneWarning={warnDays.has(k)}
-                    onSelect={c.onOpenDay ? () => c.onOpenDay!(k) : undefined}
+                    flameLabel={marker?.label ?? null}
+                    flameDanger={(marker?.count ?? 0) > 0}
+                    flameAriaLabel={flameAria(marker)}
+                    onSelect={c.onOpenDay ? () => c.onOpenDay!(k, (marker?.count ?? 0) > 0) : undefined}
+                  />
+                );
+              }
+              // A key-event day with no trade of its own still gets the outline flame marker (never the
+              // danger glow, since that needs an actual trade); every other empty day keeps the plain tile.
+              if (marker && k) {
+                const openEmptyDay = c.onOpenDay ? () => c.onOpenDay!(k) : undefined;
+                return (
+                  <CalendarDayCell
+                    key={`${wi}-${i}`}
+                    dayData={{ day: k, net: null }}
+                    hideValues={c.hide}
+                    variant="compact"
+                    lang={c.lang}
+                    flameLabel={marker.label}
+                    flameDanger={false}
+                    flameAriaLabel={flameAria(marker)}
+                    onSelect={openEmptyDay}
                   />
                 );
               }

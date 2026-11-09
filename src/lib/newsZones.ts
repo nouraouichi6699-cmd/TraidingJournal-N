@@ -88,6 +88,24 @@ export function classifyZone(
   return best ? { zone: best.zone, event: best.event } : { zone: "normal", event: null };
 }
 
+/**
+ * Count of trades sitting inside the window of an actual key event (NFP/CPI/PPI/FOMC) -- any zone
+ * other than normal, including held-through -- regardless of the keyEventsOnly display setting:
+ * the calendar's danger-day marker is always about real key events specifically, never whatever
+ * the user's current impact/key-event display filters happen to count.
+ */
+export function keyEventWindowTradeCount(
+  trades: { symbol: string; entryTime: string | null | undefined; exitTime: string | null | undefined }[],
+  events: ZoneNewsEvent[],
+  windowMin: number,
+): number {
+  const settings: ZoneSettings = { windowMin, countMedium: false, keyEventsOnly: true };
+  return trades.filter((t) => {
+    const zone = classifyZone(t.symbol, t.entryTime, t.exitTime, events, settings).zone;
+    return zone != null && zone !== "normal";
+  }).length;
+}
+
 export interface ZoneDayStat { zone: NewsZone; trades: number; winRate: number | null; net: number }
 
 /** Trade count, win rate and whole-unit net for each zone, in the fixed display order. */

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { dayList, dayStats, dayTrades, type DayStats } from "../lib/dayByDay";
+import { ChevronDown } from "lucide-react";
+import { dayList, dayStats, dayTrades, dayKey, type DayStats } from "../lib/dayByDay";
 import { fmt, fmtHold } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
@@ -10,8 +11,9 @@ import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
 import { supabase } from "../lib/supabase";
 import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEventsForDisplay, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
-import { classifyZone, isCountedEvent, zoneDayStats, type NewsZone, type ZoneSettings } from "../lib/newsZones";
-import { keyEventKind } from "../lib/keyEvents";
+import { classifyZone, isCountedEvent, keyEventWindowTradeCount, type NewsZone, type ZoneSettings } from "../lib/newsZones";
+import { keyEventKind, keyEventDayLabel } from "../lib/keyEvents";
+import { rulerZoneSpans, rulerBar } from "../lib/newsRuler";
 import { EconFilterChips } from "./EconFilterChips";
 import { tradeOutcomeOf } from "../lib/outcome";
 import { stT, makeT } from "../i18n";
@@ -21,7 +23,7 @@ type L = [string, string, string]; // en, ar, fr
 const i = (l: Lang) => (l === "en" ? 0 : l === "ar" ? 1 : 2);
 export const DAY_TAB: L = ["Day by Day", "يوماً بيوم", "Jour par jour"];
 const X = {
-  overview: ["Overview", "نظرة عامة", "Aperçu"] as L, notes: ["Notes", "ملاحظات", "Notes"] as L, trades: ["Trades", "الصفقات", "Trades"] as L,
+  overview: ["Overview", "نظرة عامة", "Aperçu"] as L, hotspot: ["Hot spot", "منطقة ساخنة", "Zone chaude"] as L, notes: ["Notes", "ملاحظات", "Notes"] as L, trades: ["Trades", "الصفقات", "Trades"] as L,
   history: ["Trade history", "سجل الصفقات", "Historique des trades"] as L,
   net: ["Net P&L", "صافي الربح", "P&L net"] as L, win: ["Winrate", "نسبة الربح", "Taux de gain"] as L, pf: ["Profit factor", "عامل الربح", "Profit factor"] as L,
   hold: ["Avg hold", "متوسط المدة", "Durée moy."] as L, n: ["Trades", "الصفقات", "Trades"] as L, exp: ["Expectancy", "التوقع", "Espérance"] as L,
@@ -35,13 +37,13 @@ const X = {
 };
 const asDate = (s: string | null) => { if (!s) return null; const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z"); return Number.isNaN(d.getTime()) ? null : d; };
 
-export default function DayByDayTab({ lang, trades, onImport, currency = null, focusDay }: { lang: Lang; trades: Trade[]; onImport?: () => void; currency?: string | null; focusDay?: string }) {
+export default function DayByDayTab({ lang, trades, onImport, currency = null, focusDay, focusTab }: { lang: Lang; trades: Trade[]; onImport?: () => void; currency?: string | null; focusDay?: string; focusTab?: "hotspot" }) {
   const k = i(lang), T = (x: L) => x[k];
   const { hidden } = usePrivacy();
   const settings = useSettings();
   const days = useMemo(() => dayList(trades), [trades]);
   const [sel, setSel] = useState<string | null>(focusDay ?? null);
-  const [tab, setTab] = useState<"overview" | "notes" | "trades">("overview");
+  const [tab, setTab] = useState<"overview" | "hotspot" | "notes" | "trades">(focusTab ?? "overview");
   const day = days.find((d) => d.day === sel)?.day ?? days[0]?.day ?? null; // falls back to the newest day when the filter hides the selection
   const rows = useMemo(() => (day ? dayTrades(trades, day) : []), [trades, day]);
   const st = useMemo(() => dayStats(rows), [rows]);
@@ -124,8 +126,6 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     () => rows.map((t) => ({ trade: t, ...classifyZone(t.symbol, t.entryTime, t.exitTime, dayEvents, zoneSettings) })),
     [rows, dayEvents, zoneSettings],
   );
-  const zStats = useMemo(() => zoneDayStats(tradeZones.map((z) => ({ trade: z.trade, zone: z.zone }))), [tradeZones]);
-
   // That day's traded symbols' currencies, for the "My symbols only" chip. Empty on days without trades, so the
   // chip has no effect then.
   const dayCurrencies = useMemo(() => dayTradedCurrencies(rows.map((t) => t.symbol)), [rows]);
@@ -135,16 +135,60 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     () => filterByMySymbols(filterEconEventsForDisplay(dayEvents, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly), settings.myNewsSymbolsOnly, dayCurrencies),
     [dayEvents, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly, settings.myNewsSymbolsOnly, dayCurrencies],
   );
-  type TimelineItem = { at: number } & ({ kind: "news"; event: StoredEconEvent } | { kind: "trade"; trade: Trade; zone: NewsZone | null });
-  const timeline = useMemo<TimelineItem[]>(() => {
-    const items: TimelineItem[] = [];
-    for (const e of timelineEvents) { const at = asDate(e.time)?.getTime(); if (at != null) items.push({ at, kind: "news", event: e }); }
-    for (const z of tradeZones) { const at = asDate(z.trade.entryTime)?.getTime(); if (at != null) items.push({ at, kind: "trade", trade: z.trade, zone: z.zone }); }
-    return items.sort((a, b) => a.at - b.at);
-  }, [timelineEvents, tradeZones]);
   const zoneLabel = (z: NewsZone): string => ({ before: L("zoneBefore"), atRelease: L("zoneAtRelease"), after: L("zoneAfter"), held: L("zoneHeld"), normal: L("zoneNormal") }[z]);
   const zoneColor = (z: NewsZone): string => (z === "held" || z === "atRelease" ? "var(--impact-high)" : z === "before" || z === "after" ? "var(--impact-medium)" : "var(--muted)");
   const impactLabel = (imp: "high" | "medium" | "low"): string => (imp === "high" ? tt("impHigh") : imp === "medium" ? tt("impMed") : tt("impLow"));
+
+  // ---- Hot spot tab: one card per counted event, that event's trades (ruler + list), and the rest under
+  // "Other news today" ----
+  const countedEvents = useMemo(
+    () => timelineEvents.filter((e) => isCountedEvent(e, zoneSettings)).sort((a, b) => a.time.localeCompare(b.time)),
+    [timelineEvents, zoneSettings],
+  );
+  const otherEvents = useMemo(() => timelineEvents.filter((e) => !isCountedEvent(e, zoneSettings)), [timelineEvents, zoneSettings]);
+  const eventTrades = useMemo(() => {
+    const m = new Map<string, typeof tradeZones>();
+    for (const tz of tradeZones) {
+      const ev = tz.event as StoredEconEvent | null;
+      if (!ev) continue;
+      const list = m.get(ev.id);
+      if (list) list.push(tz); else m.set(ev.id, [tz]);
+    }
+    return m;
+  }, [tradeZones]);
+  const insideTrades = useMemo(() => tradeZones.filter((z) => z.zone != null && z.zone !== "normal"), [tradeZones]);
+  const insideNet = useMemo(() => Math.round(insideTrades.reduce((s, z) => s + (z.trade.pnl ?? 0), 0)), [insideTrades]);
+  const normalNet = useMemo(() => Math.round(tradeZones.filter((z) => z.zone === "normal").reduce((s, z) => s + (z.trade.pnl ?? 0), 0)), [tradeZones]);
+  const hotspotRed = useMemo(() => tradeZones.some((z) => z.zone === "atRelease" || z.zone === "held"), [tradeZones]);
+  const [otherOpen, setOtherOpen] = useState(false);
+
+  // ---- calendar flame markers for the day-nav list: a key-event day (outline) matching the currency
+  // filter, upgraded to a danger day (filled flame + glow) when a trade that day sat inside that key
+  // event's window -- always a real key event, regardless of the keyEventsOnly display toggle ----
+  const tradesByDay = useMemo(() => {
+    const m = new Map<string, Trade[]>();
+    for (const t of trades) {
+      if (t.status !== "closed" || t.pnl == null) continue;
+      const d = dayKey(t);
+      if (!d) continue;
+      const list = m.get(d);
+      if (list) list.push(t); else m.set(d, [t]);
+    }
+    return m;
+  }, [trades]);
+  const dayMarkers = useMemo(() => {
+    const m = new Map<string, { label: string; count: number }>();
+    for (const d of days) {
+      const evs = allEventsByDay.get(d.day)?.events ?? [];
+      const label = keyEventDayLabel(evs.filter((e) => settings.econCurrencies.includes(e.currency)));
+      if (!label) continue;
+      const count = keyEventWindowTradeCount(tradesByDay.get(d.day) ?? [], evs, settings.newsWindowMin);
+      m.set(d.day, { label, count });
+    }
+    return m;
+  }, [days, allEventsByDay, tradesByDay, settings.econCurrencies, settings.newsWindowMin]);
+  const flameAria = (m?: { label: string; count: number }): string | undefined =>
+    !m ? undefined : m.count > 0 ? L("tradedDuringKey").replace("{k}", m.label).replace("{n}", String(m.count)) : L("keyEventDayLabel").replace("{k}", m.label);
 
   const money = (v: number | null, sign = true, cents = false) => (v == null ? "—" : hidden ? "••••" : fmtMoney(v, { sign, cents, currency })); // summaries whole, trade rows with cents
   const tone = (v: number | null) => (hidden || v == null || v === 0 ? undefined : v > 0 ? GREEN : RED);
@@ -160,6 +204,20 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     </div>
   );
 
+  // Bidi-isolate (U+2066/U+2069) data runs inserted into a translated sentence, so they stay readable LTR
+  // fragments inside an RTL (Arabic) sentence without forcing the whole line's direction.
+  const isolate = (s: string) => `⁦${s}⁩`;
+  const summaryLine = L("hotspotSummary")
+    .replace("{n}", isolate(String(countedEvents.length)))
+    .replace("{k}", isolate(String(insideTrades.length)))
+    .replace("{inside}", isolate(money(insideNet)))
+    .replace("{normal}", isolate(money(normalNet)));
+  const RULER_ZONE_BG: Record<"before" | "atRelease" | "after", string> = {
+    before: "color-mix(in srgb, var(--impact-medium) 32%, transparent)",
+    atRelease: "color-mix(in srgb, var(--impact-high) 32%, transparent)",
+    after: "color-mix(in srgb, #8b5cf6 32%, transparent)",
+  };
+
   const stats: [L, string, string | undefined][] = [
     [X.net, money(st.net), tone(st.net)], [X.win, st.winRate == null ? "—" : `${fmt(st.winRate)}%`, undefined], [X.pf, st.pf == null ? "—" : fmt(st.pf), undefined],
     [X.hold, st.avgHoldMin == null ? "—" : fmtHold(st.avgHoldMin), undefined], [X.n, String(st.trades), undefined], [X.exp, money(st.expectancy), tone(st.expectancy)],
@@ -174,7 +232,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
       ))}
     </div>
   );
-  const TABS = [["overview", X.overview], ["notes", X.notes], ["trades", X.trades]] as const;
+  const TABS = [["overview", X.overview], ["hotspot", X.hotspot], ["notes", X.notes], ["trades", X.trades]] as const;
   let lastMonth = "";
 
   return (
@@ -201,7 +259,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                   ref={on ? activeRef : null}
                   dayData={{ day: d.day, net: d.net }}
                   isSelected={on}
-                  onSelect={() => setSel(d.day)}
+                  onSelect={() => { setSel(d.day); setTab((dayMarkers.get(d.day)?.count ?? 0) > 0 ? "hotspot" : "overview"); }}
                   hideValues={hidden}
                   variant="full"
                   monthMax={monthMax}
@@ -209,6 +267,9 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                   econExtra={(() => { const evs = econByDay.get(d.day)?.events ?? []; return selectDots(evs).extra; })()}
                   econTooltipLines={(() => { const evs = econByDay.get(d.day)?.events ?? []; return evs.length ? evs.map((e) => econTooltipLine(e)) : undefined; })()}
                   econSourceLabel={(() => { const src = econByDay.get(d.day)?.source; return src === "mt5" ? L("econSourceMt5") : src === "ff" ? L("econSourceFf") : undefined; })()}
+                  flameLabel={dayMarkers.get(d.day)?.label ?? null}
+                  flameDanger={(dayMarkers.get(d.day)?.count ?? 0) > 0}
+                  flameAriaLabel={flameAria(dayMarkers.get(d.day))}
                 />
               </div>
             );
@@ -217,8 +278,18 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
         <div className="min-w-0 flex-1 space-y-4">
           <div role="tablist" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border p-1" style={cardBg}>
             {TABS.map(([id, l]) => (
-              <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className="shrink-0 whitespace-nowrap rounded-lg px-5 py-1.5 text-sm font-medium transition"
-                style={tab === id ? { background: "color-mix(in srgb, var(--primary) 14%, transparent)", color: "var(--primary)" } : { color: "var(--muted)" }}>{T(l)}</button>
+              <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className="shrink-0 whitespace-nowrap rounded-lg px-5 py-1.5 text-sm font-medium transition flex items-center gap-1.5"
+                style={tab === id ? { background: "color-mix(in srgb, var(--primary) 14%, transparent)", color: "var(--primary)" } : { color: "var(--muted)" }}>
+                {T(l)}
+                {id === "hotspot" && countedEvents.length > 0 && (
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none"
+                    style={{ color: hotspotRed ? "#fff" : "var(--muted)", background: hotspotRed ? "var(--impact-high)" : "var(--border)" }}
+                  >
+                    {countedEvents.length}
+                  </span>
+                )}
+              </button>
             ))}
           </div>
           {tab === "notes" ? (
@@ -227,42 +298,139 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
             <section className="overflow-hidden rounded-2xl border border-border" style={cardBg}>
               <div className="border-b border-border px-5 py-3 font-heading text-sm font-semibold">{tab === "trades" ? T(X.history) : day && dt.format(new Date(day + "T00:00:00Z"))}</div>
               <div className="p-4">{strip(st)}</div>
-              {tab === "overview" && (
-                <div className="space-y-5 p-4 pt-0">
+              {tab === "hotspot" && (
+                <div className="space-y-4 p-4 pt-0">
+                  <EconFilterChips
+                    lang={lang}
+                    extra={
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ myNewsSymbolsOnly: !settings.myNewsSymbolsOnly })}
+                        aria-pressed={settings.myNewsSymbolsOnly}
+                        className="rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition"
+                        style={{
+                          borderColor: settings.myNewsSymbolsOnly ? "var(--icon)" : "var(--border)",
+                          color: settings.myNewsSymbolsOnly ? "var(--icon)" : "var(--muted)",
+                          background: settings.myNewsSymbolsOnly ? "var(--primary-tint)" : "transparent",
+                        }}
+                      >
+                        {L("mySymbolsOnly")}
+                      </button>
+                    }
+                  />
+                  {countedEvents.length === 0 ? (
+                    <div className="rounded-xl border border-border p-6 text-center text-sm text-muted">{L("hotspotEmpty")}</div>
+                  ) : (
+                    <>
+                      <div className="rounded-xl border border-border p-3 text-sm font-medium" style={cardBg}>{summaryLine}</div>
+                      <ol className="flex flex-col gap-3" aria-label={T(X.hotspot)}>
+                        {countedEvents.map((e) => {
+                          const evTrades = eventTrades.get(e.id) ?? [];
+                          const key = keyEventKind(e.title);
+                          const d = asDate(e.time);
+                          const releaseMs = d?.getTime();
+                          const actualDiffers = !!e.actual && e.actual !== e.forecast;
+                          const hasValues = !!e.actual || !!e.forecast || !!e.previous;
+                          return (
+                            <li key={e.id} className="rounded-xl border border-border p-3" style={cardBg}>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="tnum w-14 shrink-0 text-xs text-muted" dir="ltr">{d ? tm.format(d) : "—"}</div>
+                                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: `var(--impact-${e.impact})`, background: `color-mix(in srgb, var(--impact-${e.impact}) 20%, transparent)` }}>{impactLabel(e.impact)}</span>
+                                {key && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: "#0a1a3f", background: "var(--c-gold)" }}>{key}</span>}
+                                <span className="text-xs font-semibold text-muted">{e.currency}</span>
+                                <span className="min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
+                              </div>
+                              {hasValues && (
+                                <div className="tnum ms-[68px] mt-1 font-mono text-[11px] text-muted" dir="ltr">
+                                  {tt("colActual")} <span className={actualDiffers ? "font-bold text-text" : undefined}>{e.actual || "—"}</span>
+                                  {" · "}{L("forecast")} {e.forecast || "—"}
+                                  {" · "}{tt("colPrev")} {e.previous || "—"}
+                                </div>
+                              )}
+                              {evTrades.length > 0 && releaseMs != null && (
+                                <div className="mt-3">
+                                  <div
+                                    className="relative h-3 w-full overflow-hidden rounded-full"
+                                    style={{ background: "color-mix(in srgb, var(--text) 6%, transparent)" }}
+                                    role="img"
+                                    aria-label={L("rulerLabel").replace("{w}", isolate(String(settings.newsWindowMin)))}
+                                  >
+                                    {rulerZoneSpans(settings.newsWindowMin).map((s) => (
+                                      <div key={s.zone} className="absolute inset-y-0" style={{ left: `${s.startPct}%`, width: `${Math.max(0, s.endPct - s.startPct)}%`, background: RULER_ZONE_BG[s.zone] }} />
+                                    ))}
+                                    <div className="absolute inset-y-0" style={{ left: "50%", width: "1px", background: "var(--text)" }} />
+                                  </div>
+                                  <div className="mt-1 flex flex-col gap-1">
+                                    {evTrades.map((tz) => {
+                                      const entryMs = asDate(tz.trade.entryTime)?.getTime();
+                                      if (entryMs == null) return null;
+                                      const exitMs = asDate(tz.trade.exitTime)?.getTime() ?? null;
+                                      const bar = rulerBar(entryMs, exitMs, releaseMs, settings.newsWindowMin);
+                                      const outcome = tradeOutcomeOf(tz.trade);
+                                      const barColor = outcome === "win" ? GREEN : outcome === "loss" ? RED : "var(--breakeven)";
+                                      return (
+                                        <div
+                                          key={tz.trade.key}
+                                          className="relative h-2 w-full rounded-full"
+                                          style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)" }}
+                                          role="img"
+                                          aria-label={`${tz.trade.symbol} ${tz.zone ? zoneLabel(tz.zone) : ""}: ${money(tz.trade.pnl, false, true)}`}
+                                        >
+                                          <div className="absolute inset-y-0 rounded-full" style={{ left: `${bar.startPct}%`, width: `${bar.endPct - bar.startPct}%`, background: barColor }} />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <ul className="mt-2 flex flex-col gap-1">
+                                    {evTrades.map((tz) => {
+                                      const outcome = tradeOutcomeOf(tz.trade);
+                                      const pnlColor = outcome === "win" ? GREEN : outcome === "loss" ? RED : "var(--breakeven)";
+                                      return (
+                                        <li key={tz.trade.key} className="flex flex-wrap items-center gap-2 text-xs">
+                                          <span className="font-semibold">{tz.trade.symbol}</span>
+                                          {tz.zone && (
+                                            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: zoneColor(tz.zone), background: `color-mix(in srgb, ${zoneColor(tz.zone)} 16%, transparent)` }}>
+                                              {zoneLabel(tz.zone)}
+                                            </span>
+                                          )}
+                                          <span className="tnum font-semibold" style={{ color: pnlColor }}>
+                                            <Private hint={`${tz.trade.symbol} P&L`}>{money(tz.trade.pnl, false, true)}</Private>
+                                          </span>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </>
+                  )}
                   <div>
-                    <h3 className="mb-2 font-heading text-sm font-semibold">{L("timeline")}</h3>
-                    <EconFilterChips
-                      lang={lang}
-                      extra={
-                        <button
-                          type="button"
-                          onClick={() => setSettings({ myNewsSymbolsOnly: !settings.myNewsSymbolsOnly })}
-                          aria-pressed={settings.myNewsSymbolsOnly}
-                          className="rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition"
-                          style={{
-                            borderColor: settings.myNewsSymbolsOnly ? "var(--icon)" : "var(--border)",
-                            color: settings.myNewsSymbolsOnly ? "var(--icon)" : "var(--muted)",
-                            background: settings.myNewsSymbolsOnly ? "var(--primary-tint)" : "transparent",
-                          }}
-                        >
-                          {L("mySymbolsOnly")}
-                        </button>
-                      }
-                    />
-                    {timeline.length === 0 ? (
-                      <div className="rounded-xl border border-border p-6 text-center text-sm text-muted">{L("timelineEmpty")}</div>
-                    ) : (
-                      <ol className="flex flex-col gap-2" aria-label={L("timeline")}>
-                        {timeline.map((item) => {
-                          if (item.kind === "news") {
-                            const e = item.event;
-                            const counted = isCountedEvent(e, zoneSettings);
+                    <button
+                      type="button"
+                      aria-expanded={otherOpen}
+                      onClick={() => setOtherOpen(!otherOpen)}
+                      className="flex w-full items-center gap-2 rounded-xl border border-border px-3 py-2 text-start text-sm font-semibold"
+                      style={cardBg}
+                    >
+                      <span className="flex-1">{L("otherNews").replace("{n}", isolate(String(otherEvents.length)))}</span>
+                      <ChevronDown size={16} className={`transition-transform ${otherOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {otherOpen && (
+                      otherEvents.length === 0 ? (
+                        <div className="mt-2 rounded-xl border border-border p-4 text-center text-xs text-muted">{L("otherNewsEmpty")}</div>
+                      ) : (
+                        <ol className="mt-2 flex flex-col gap-2">
+                          {otherEvents.map((e) => {
                             const key = keyEventKind(e.title);
                             const d = asDate(e.time);
                             const actualDiffers = !!e.actual && e.actual !== e.forecast;
                             const hasValues = !!e.actual || !!e.forecast || !!e.previous;
                             return (
-                              <li key={`n-${e.id}`} className="flex items-start gap-3 rounded-xl border border-border px-3 py-2" style={{ ...cardBg, opacity: counted ? 1 : 0.55 }}>
+                              <li key={e.id} className="flex items-start gap-3 rounded-xl border border-border px-3 py-2" style={{ ...cardBg, opacity: 0.6 }}>
                                 <div className="tnum w-14 shrink-0 text-xs text-muted" dir="ltr">{d ? tm.format(d) : "—"}</div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
@@ -270,7 +438,6 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                                     {key && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: "#0a1a3f", background: "var(--c-gold)" }}>{key}</span>}
                                     <span className="text-xs font-semibold text-muted">{e.currency}</span>
                                     <span className="truncate text-sm font-medium">{e.title}</span>
-                                    {!counted && <span className="text-[11px] italic text-muted">({L("notCounted")})</span>}
                                   </div>
                                   {hasValues && (
                                     <div className="tnum mt-1 font-mono text-[11px] text-muted" dir="ltr">
@@ -282,49 +449,10 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                                 </div>
                               </li>
                             );
-                          }
-                          const t = item.trade, long = t.side === "long";
-                          const outcome = tradeOutcomeOf(t);
-                          const pnlColor = outcome === "win" ? GREEN : outcome === "loss" ? RED : "var(--breakeven)";
-                          const d1 = asDate(t.entryTime), d2 = asDate(t.exitTime);
-                          return (
-                            <li key={`t-${t.key}`} className="flex items-start gap-3 rounded-xl border border-border px-3 py-2" style={cardBg}>
-                              <div className="tnum w-14 shrink-0 text-xs text-muted" dir="ltr">{d1 ? tm.format(d1) : "—"}</div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full px-3 py-0.5 text-xs font-bold" style={{ color: long ? "var(--primary)" : RED, background: `color-mix(in srgb, ${long ? "var(--primary)" : RED} 14%, transparent)` }}>{T(long ? X.buy : X.sell)}</span>
-                                  <span className="text-sm font-semibold">{t.symbol}</span>
-                                  <span className="tnum text-xs text-muted" dir="ltr">{fmt(t.qty)}</span>
-                                  <span className="tnum text-xs text-muted" dir="ltr">{d1 ? tm.format(d1) : "—"} → {d2 ? tm.format(d2) : "—"}</span>
-                                  <span className="tnum text-sm font-semibold" style={{ color: pnlColor }}>
-                                    <Private hint={`${t.symbol} P&L`}>{money(t.pnl, false, true)}</Private>
-                                  </span>
-                                </div>
-                                {item.zone == null ? (
-                                  <div className="mt-1 text-[11px] text-muted">{L("newsUnavailable")}</div>
-                                ) : (
-                                  <span className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ color: zoneColor(item.zone), background: `color-mix(in srgb, ${zoneColor(item.zone)} 16%, transparent)` }}>
-                                    {zoneLabel(item.zone)}
-                                  </span>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ol>
+                          })}
+                        </ol>
+                      )
                     )}
-                  </div>
-                  <div>
-                    <h3 className="mb-2 font-heading text-sm font-semibold">{L("zoneStats")}</h3>
-                    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border sm:grid-cols-3 xl:grid-cols-5" style={{ background: "var(--border)" }}>
-                      {zStats.map((z) => (
-                        <div key={z.zone} className="p-3" style={cardBg}>
-                          <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: zoneColor(z.zone) }}>{zoneLabel(z.zone)}</div>
-                          <div className="tnum mt-1 text-lg font-bold">{z.trades}</div>
-                          <div className="tnum text-[11px] text-muted" dir="ltr">{z.winRate == null ? "—" : `${fmt(z.winRate)}%`} · {money(z.net, true)}</div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
               )}

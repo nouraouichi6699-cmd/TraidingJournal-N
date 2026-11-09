@@ -26,7 +26,7 @@ import { ovT } from "../i18n";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
-interface Props { nav?: { tab: string; day?: string; acc?: string | null } | null; onNavDone?: () => void; t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; onImport?: () => void; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }
+interface Props { nav?: { tab: string; day?: string; acc?: string | null; sub?: string } | null; onNavDone?: () => void; t: (k: Key) => string; lang: Lang; accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; onImport?: () => void; flows?: CashFlow[]; onAddFlow?: (f: Omit<CashFlow, "id">) => void; onRemoveFlow?: (id: string) => void }
 type L = Record<Lang, string>;
 const X = (en: string, ar: string, fr: string): L => ({ en, ar, fr });
 
@@ -95,6 +95,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
   const fx = useConverted(acc === "all", accountsIn, tradesIn, flowsIn, balancesIn);
   const accounts = fx.accounts, trades = fx.trades, balances = fx.balances, flows = fx.flows;
   const [focusDay] = useState(nav?.day); // deep link from Charts ("Open this day")
+  const [focusTab] = useState(nav?.sub); // deep link from the calendar's danger-day marker -> Day by day's Hot spot tab
   useEffect(() => { if (nav) onNavDone?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
@@ -209,7 +210,7 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
       ) : tab === "whatif" ? (
         <WhatIfTab lang={lang} trades={list} history={trades} currency={currency} onOpen={setTab} />
       ) : tab === "daybyday" ? (
-        <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} focusDay={focusDay} />
+        <DayByDayTab lang={lang} trades={list} onImport={onImport} currency={currency} focusDay={focusDay} focusTab={focusTab === "hotspot" ? "hotspot" : undefined} />
       ) : tab === "returns" ? (
         <ReturnsTab lang={lang} rc={rc} accounts={acc === "all" ? accountsIn : accountsIn.filter((x) => x.id === acc)} flows={accFlowsOwn} onAddFlow={onAddFlow} onRemoveFlow={onRemoveFlow} currency={currency} />
       ) : !a ? (

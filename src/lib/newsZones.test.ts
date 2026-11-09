@@ -1,5 +1,5 @@
 // Run: npx tsx src/lib/newsZones.test.ts
-import { classifyZone, zoneDayStats, type ZoneNewsEvent, type ZoneSettings } from "./newsZones";
+import { classifyZone, zoneDayStats, keyEventWindowTradeCount, type ZoneNewsEvent, type ZoneSettings } from "./newsZones";
 import type { Trade } from "../types";
 
 let pass = 0, fail = 0;
@@ -73,6 +73,19 @@ ok("zoneDayStats: before has both trades, net and win rate", beforeStat.trades =
 ok("zoneDayStats: normal has the third trade", normalStat.trades === 1 && normalStat.net === 30 && normalStat.winRate === 100);
 ok("zoneDayStats: an empty zone is zero trades, null win rate, zero net", heldStat.trades === 0 && heldStat.winRate === null && heldStat.net === 0);
 ok("zoneDayStats: fixed display order", stats.map((s) => s.zone).join(",") === "before,atRelease,after,held,normal");
+
+// ---- keyEventWindowTradeCount: danger-day detection, always real key events, any zone ----
+const nfp = ev(T0, "USD", "high", "Non-Farm Payrolls");
+const notKey = ev(T0, "USD", "high", "Retail Sales m/m"); // high impact, but not a key event
+const held2 = { symbol: "EURUSD", entryTime: "2026-01-05T11:00:00Z", exitTime: "2026-01-05T12:30:00Z" }; // held through
+const before2 = { symbol: "EURUSD", entryTime: "2026-01-05T11:30:00Z", exitTime: "2026-01-05T11:40:00Z" }; // "before"
+const normal2 = { symbol: "EURUSD", entryTime: "2026-01-05T09:00:00Z", exitTime: "2026-01-05T09:10:00Z" }; // outside the window
+ok("counts a held-through trade against a key event", keyEventWindowTradeCount([held2], [nfp], 60) === 1);
+ok("counts a before-zone trade too (any zone, not just at-release/held)", keyEventWindowTradeCount([before2], [nfp], 60) === 1);
+ok("a trade outside the window doesn't count", keyEventWindowTradeCount([normal2], [nfp], 60) === 0);
+ok("a high-impact event that isn't a key event never counts, regardless of impact", keyEventWindowTradeCount([held2], [notKey], 60) === 0);
+ok("counts every matching trade in the list", keyEventWindowTradeCount([held2, before2, normal2], [nfp], 60) === 2);
+ok("no events -> zero", keyEventWindowTradeCount([held2], [], 60) === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

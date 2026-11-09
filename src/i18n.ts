@@ -1007,19 +1007,28 @@ const st: Record<string, [string, string, string]> = {
   econSourceFf: ["ForexFactory", "ForexFactory", "ForexFactory"],
   mt5NewsNote: ["Update MizanSync to also bring in your economic news history for this account.", "حدّث MizanSync لإدراج سجل الأخبار الاقتصادية لهذا الحساب أيضاً.", "Mettez à jour MizanSync pour inclure aussi l'historique des actualités économiques de ce compte."],
 
-  // ---- Day by day: news + trades timeline ----
-  timeline: ["Timeline", "الخط الزمني", "Chronologie"],
-  timelineEmpty: ["No news or trades for this day.", "لا أخبار ولا صفقات هذا اليوم.", "Aucune actualité ni trade ce jour-là."],
-  notCounted: ["not counted", "لا تُحتسب", "non comptée"],
+  // ---- Day by day: news + trades ----
   forecast: ["Forecast", "المتوقع", "Prévision"],
-  newsUnavailable: ["news matching not available for this symbol", "مطابقة الأخبار غير متوفرة لهذا الرمز", "correspondance des actualités indisponible pour ce symbole"],
   zoneBefore: ["Before news", "قبل الخبر", "Avant l'actualité"],
   zoneAtRelease: ["At release", "عند الصدور", "À la publication"],
   zoneAfter: ["After news", "بعد الخبر", "Après l'actualité"],
   zoneHeld: ["Held through news", "محتفظ بها خلال الخبر", "Maintenue pendant l'actualité"],
   zoneNormal: ["Normal time", "وقت عادي", "Temps normal"],
-  zoneStats: ["By news zone", "حسب منطقة الخبر", "Par zone d'actualité"],
-  zoneWarning: ["Trade at or through a news release", "صفقة عند أو خلال صدور خبر", "Trade à ou pendant la publication d'une actualité"],
   mySymbolsOnly: ["My symbols only", "رموزي فقط", "Mes symboles seulement"],
+
+  // ---- Day by day: Hot spot tab ----
+  hotspotSummary: ["{n} hot spots · {k} trades inside · net {inside} vs normal time {normal}", "{n} منطقة ساخنة · {k} صفقة داخلها · صافي {inside} مقابل {normal} في الوقت العادي", "{n} zones chaudes · {k} trades dedans · net {inside} contre {normal} en temps normal"],
+  hotspotEmpty: ["No hot spots today — calm day", "لا مناطق ساخنة اليوم — يوم هادئ", "Aucune zone chaude aujourd'hui — journée calme"],
+  otherNews: ["Other news today ({n})", "أخبار أخرى اليوم ({n})", "Autres actualités aujourd'hui ({n})"],
+  otherNewsEmpty: ["No other news today.", "لا أخبار أخرى اليوم.", "Aucune autre actualité aujourd'hui."],
+  rulerLabel: ["Release window, {w} min either side", "إطار الصدور، {w} دقيقة من كل جهة", "Fenêtre de publication, {w} min de chaque côté"],
+
+  // ---- Calendar day markers: key-event flame and danger-day glow ----
+  keyEventDayLabel: ["Key event: {k}", "حدث رئيسي: {k}", "Événement clé : {k}"],
+  tradedDuringKey: ["Traded during {k}: {n} trades", "تم التداول خلال {k}: {n} صفقة", "Trade effectué pendant {k} : {n} trades"],
+  nextKeyEvent: ["Next key event: {k} · {w} ({d})", "الحدث الرئيسي القادم: {k} · {w} ({d})", "Prochain événement clé : {k} · {w} ({d})"],
+  inToday: ["today", "اليوم", "aujourd'hui"],
+  inTomorrow: ["tomorrow", "غداً", "demain"],
+  inNDays: ["in {n} days", "بعد {n} يوم", "dans {n} jours"],
 };
 export const stT = (lang: Lang) => (k: string): string => st[k]?.[lang === "en" ? 0 : lang === "ar" ? 1 : 2] ?? k;

@@ -38,3 +38,48 @@ export function keyEventKind(title: string): KeyEventKind | null {
 export function isKeyEvent(title: string): boolean {
   return keyEventKind(title) !== null;
 }
+
+// ---------- calendar day markers: the flame icon (key-event day / danger day) ----------
+
+/**
+ * The short flame label for a day's key events ("NFP", or "NFP +1" when the day has several) --
+ * or null when none of the given events is a key event. The earliest key event (ties broken by
+ * title) names the label; any further key events that day just add to the count. Callers pass
+ * events already narrowed to the day and to whatever currency filter applies; impact never matters
+ * here, a key event counts whatever its impact.
+ */
+export function keyEventDayLabel(events: { time: string; title: string }[]): string | null {
+  const keyed = events
+    .map((e) => ({ time: e.time, kind: keyEventKind(e.title) }))
+    .filter((e): e is { time: string; kind: KeyEventKind } => e.kind != null)
+    .sort((a, b) => a.time.localeCompare(b.time) || a.kind.localeCompare(b.kind));
+  if (!keyed.length) return null;
+  const extra = keyed.length - 1;
+  return extra > 0 ? `${keyed[0].kind} +${extra}` : keyed[0].kind;
+}
+
+const parseIso = (s: string): number | null => {
+  const v = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z");
+  return Number.isNaN(v) ? null : v;
+};
+
+/**
+ * The soonest key event (NFP/CPI/PPI/FOMC) at or after `nowMs`, within `withinDays` days, among
+ * events whose currency passes the filter -- or null when there is none. Ties (identical
+ * timestamps) break by title then currency, so the pick is deterministic.
+ */
+export function nextKeyEvent<T extends { time: string; currency: string; title: string }>(
+  events: T[],
+  nowMs: number,
+  currencies: string[],
+  withinDays = 14,
+): (T & { kind: KeyEventKind }) | null {
+  const limit = nowMs + withinDays * 86_400_000;
+  const candidates = events
+    .filter((e) => currencies.includes(e.currency))
+    .map((e) => ({ e, kind: keyEventKind(e.title), t: parseIso(e.time) }))
+    .filter((x): x is { e: T; kind: KeyEventKind; t: number } => x.kind != null && x.t != null && x.t >= nowMs && x.t <= limit);
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.t - b.t || a.e.title.localeCompare(b.e.title) || a.e.currency.localeCompare(b.e.currency));
+  return { ...candidates[0].e, kind: candidates[0].kind };
+}
