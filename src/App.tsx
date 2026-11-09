@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
@@ -12,23 +12,11 @@ import Header from "./components/Header";
 import SizeCalc from "./components/SizeCalc";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
-import AccountsList from "./components/AccountsList";
-import ImportView from "./components/ImportView";
-import ChartsView from "./components/ChartsView";
 import DashboardView from "./components/DashboardView";
-import ReportsView from "./components/ReportsView";
-import AdvisorView from "./components/AdvisorView";
-import JournalView from "./components/JournalView";
-import ChallengeView from "./components/ChallengeView";
 import { Watermark } from "./components/Brand";
 import LoadingScreen from "./components/LoadingScreen";
 import Ambient from "./components/Ambient";
-const StrategiesView = lazy(() => import("./components/StrategiesView"));
 import { useJournal } from "./useJournal";
-import CalendarView from "./components/CalendarView";
-import NewsView from "./components/NewsView";
-import ProfileView from "./components/ProfileView";
-import SettingsView from "./components/SettingsView";
 import { useProfile } from "./useProfile";
 import { loadSettings, OPEN_SETTINGS, readSettings, setActiveTheme, useActiveTheme, useReduceMotion, useSettings as useSettingsHook, type SettingsStart } from "./useSettings";
 import { isBuiltIn, resolveTheme } from "./lib/customThemes";
@@ -39,6 +27,78 @@ import { publishBotRules } from "./lib/tradeRules";
 import { CHANGED } from "./lib/myStrategies";
 import { clearEconCacheForUser } from "./lib/econNewsCache";
 import type { Lang, Theme } from "./types";
+
+// Every view other than the Dashboard (kept in the main bundle so the first screen never waits on a chunk).
+// Each loader is also used directly for idle-time prefetching after sign-in.
+const loadAccounts = () => import("./components/AccountsList");
+const loadImport = () => import("./components/ImportView");
+const loadCharts = () => import("./components/ChartsView");
+const loadReports = () => import("./components/ReportsView");
+const loadAdvisor = () => import("./components/AdvisorView");
+const loadJournal = () => import("./components/JournalView");
+const loadChallenges = () => import("./components/ChallengeView");
+const loadStrategies = () => import("./components/StrategiesView");
+const loadCalendar = () => import("./components/CalendarView");
+const loadNews = () => import("./components/NewsView");
+const loadProfile = () => import("./components/ProfileView");
+const loadSettingsView = () => import("./components/SettingsView");
+
+const AccountsList = lazy(loadAccounts);
+const ImportView = lazy(loadImport);
+const ChartsView = lazy(loadCharts);
+const ReportsView = lazy(loadReports);
+const AdvisorView = lazy(loadAdvisor);
+const JournalView = lazy(loadJournal);
+const ChallengeView = lazy(loadChallenges);
+const StrategiesView = lazy(loadStrategies);
+const CalendarView = lazy(loadCalendar);
+const NewsView = lazy(loadNews);
+const ProfileView = lazy(loadProfile);
+const SettingsView = lazy(loadSettingsView);
+
+// The views switched to most often once signed in: prefetched in idle time so the first tab switch feels instant.
+const PREFETCH_AFTER_SIGNIN = [loadJournal, loadCharts, loadReports];
+
+function idlePrefetch(loaders: (() => Promise<unknown>)[]) {
+  const run = () => { loaders.forEach((load) => { void load().catch(() => {}); }); };
+  const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) ric(run, { timeout: 4000 });
+  else window.setTimeout(run, 2000);
+}
+
+/** A lazy view's chunk failed to load (typically a stale tab after a new deploy overwrote the old build's files). */
+class ChunkErrorBoundary extends Component<{ t: (k: Key) => string; children?: ReactNode }, { error: boolean }> {
+  constructor(props: { t: (k: Key) => string; children?: ReactNode }) {
+    super(props);
+    this.state = { error: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { error: true };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    const { t } = this.props;
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface p-10 text-center">
+        <p className="text-sm text-muted">{t("chunkUpdate")}</p>
+        <button type="button" onClick={() => location.reload()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary">
+          {t("chunkReload")}
+        </button>
+      </div>
+    );
+  }
+}
+
+/** Wraps a lazy view so a failed chunk load shows a reload prompt instead of a blank screen, and a pending one shows the loading skeleton. */
+function LazyView({ t, lang, children }: { t: (k: Key) => string; lang: Lang; children: ReactNode }) {
+  return (
+    <ChunkErrorBoundary t={t}>
+      <Suspense fallback={<div className="min-h-[60vh]"><LoadingScreen t={t} lang={lang} variant="compact" /></div>}>{children}</Suspense>
+    </ChunkErrorBoundary>
+  );
+}
 
 const read = <T extends string>(key: string, allowed: readonly T[], fallback: T, migrate: Record<string, T> = {}): T => {
   try {
@@ -149,6 +209,8 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
     return () => window.removeEventListener(OPEN_SETTINGS, on);
   }, []);
   const { profile, save: saveProfile } = useProfile();
+  // Once signed in and settled, warm the most-switched-to views in idle time so the first tab change feels instant.
+  useEffect(() => { idlePrefetch(PREFETCH_AFTER_SIGNIN); }, []);
 
   return (
     <div className="relative min-h-screen bg-bg text-text">
@@ -167,64 +229,72 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             >
               {view === "accounts" && (
-                <AccountsList
-                  t={t}
-                  accounts={accounts}
-                  trades={journal.trades}
-                  balances={journal.balances}
-                  flows={journal.flows}
-                  onRemove={(id) => {
-                    remove(id);
-                    journal.purgeAccount(id);
-                  }}
-                  onConnect={() => setConnecting(true)}
-                />
+                <LazyView t={t} lang={lang}>
+                  <AccountsList
+                    t={t}
+                    accounts={accounts}
+                    trades={journal.trades}
+                    balances={journal.balances}
+                    flows={journal.flows}
+                    onRemove={(id) => {
+                      remove(id);
+                      journal.purgeAccount(id);
+                    }}
+                    onConnect={() => setConnecting(true)}
+                  />
+                </LazyView>
               )}
               {view === "profile" && (
-                <ProfileView
-                  email={email}
-                  key={JSON.stringify(profile)}
-                  t={t}
-                  lang={lang}
-                  profile={profile}
-                  onSave={saveProfile}
-                  onDeleteAll={() => {
-                    void (async () => {
-                      await haltSync(); await settingsIdle(); // no background push may re-create rows
-                      // Hard delete, children before parents (foreign keys).
-                      for (const tbl of ["trades", "balance_points", "accounts", "user_settings"]) {
-                        const { error } = await supabase.from(tbl).delete().eq("user_id", userId);
-                        // delete() reports no error when RLS matches 0 rows, so count what is left.
-                        const left = error ? null : await supabase.from(tbl).select("*", { count: "exact", head: true }).eq("user_id", userId);
-                        if (error || left?.error || left?.count) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error?.message ?? left?.error?.message ?? `${left?.count} rows left`})`); return; }
-                      }
-                      await supabase.auth.signOut();
-                      try {
-                        Object.keys(localStorage).filter((k) => k.startsWith("mizan-") && k !== "mizan-lang" && k !== "mizan-theme").forEach((k) => localStorage.removeItem(k));
-                      } catch { }
-                      location.reload();
-                    })();
-                  }}
-                />
+                <LazyView t={t} lang={lang}>
+                  <ProfileView
+                    email={email}
+                    key={JSON.stringify(profile)}
+                    t={t}
+                    lang={lang}
+                    profile={profile}
+                    onSave={saveProfile}
+                    onDeleteAll={() => {
+                      void (async () => {
+                        await haltSync(); await settingsIdle(); // no background push may re-create rows
+                        // Hard delete, children before parents (foreign keys).
+                        for (const tbl of ["trades", "balance_points", "accounts", "user_settings"]) {
+                          const { error } = await supabase.from(tbl).delete().eq("user_id", userId);
+                          // delete() reports no error when RLS matches 0 rows, so count what is left.
+                          const left = error ? null : await supabase.from(tbl).select("*", { count: "exact", head: true }).eq("user_id", userId);
+                          if (error || left?.error || left?.count) { resumeSync(); window.alert(`${t("deleteFailed")} (${tbl}: ${error?.message ?? left?.error?.message ?? `${left?.count} rows left`})`); return; }
+                        }
+                        await supabase.auth.signOut();
+                        try {
+                          Object.keys(localStorage).filter((k) => k.startsWith("mizan-") && k !== "mizan-lang" && k !== "mizan-theme").forEach((k) => localStorage.removeItem(k));
+                        } catch { }
+                        location.reload();
+                      })();
+                    }}
+                  />
+                </LazyView>
               )}
               {view === "settings" && (
-                <SettingsView
-                  t={t} lang={lang} theme={theme} onLang={setLang} onTheme={handleTheme}
-                  accounts={accounts} trades={journal.trades} onImport={() => setView("import")}
-                  onProfile={() => setView("profile")} start={settingsAt}
-                />
+                <LazyView t={t} lang={lang}>
+                  <SettingsView
+                    t={t} lang={lang} theme={theme} onLang={setLang} onTheme={handleTheme}
+                    accounts={accounts} trades={journal.trades} onImport={() => setView("import")}
+                    onProfile={() => setView("profile")} start={settingsAt}
+                  />
+                </LazyView>
               )}
-              {view === "calendar" && <CalendarView t={t} lang={lang} interests={interests} />}
-              {view === "news" && <NewsView t={t} lang={lang} interests={interests} />}
-              {view === "charts" && <ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} />}
+              {view === "calendar" && <LazyView t={t} lang={lang}><CalendarView t={t} lang={lang} interests={interests} /></LazyView>}
+              {view === "news" && <LazyView t={t} lang={lang}><NewsView t={t} lang={lang} interests={interests} /></LazyView>}
+              {view === "charts" && <LazyView t={t} lang={lang}><ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} /></LazyView>}
               {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} userId={userId} onOpenDay={(day, hotspot) => { setReportsNav({ tab: "daybyday", day, sub: hotspot ? "hotspot" : undefined }); setView("reports"); }} />}
-              {view === "reports" && <ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} />}
-              {view === "advisor" && <AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} />}
-              {view === "strategies" && <Suspense fallback={<LoadingScreen t={t} lang={lang} variant="compact" />}><StrategiesView lang={lang} t={t} trades={journal.trades} accounts={accounts} onOpenJournal={() => setView("journal")} /></Suspense>}
-              {view === "challenges" && <ChallengeView lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenProfile={() => setView("profile")} />}
-              {view === "journal" && <JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} openKey={openTrade} onOpened={tradeOpened} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} />}
+              {view === "reports" && <LazyView t={t} lang={lang}><ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} /></LazyView>}
+              {view === "advisor" && <LazyView t={t} lang={lang}><AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} /></LazyView>}
+              {view === "strategies" && <LazyView t={t} lang={lang}><StrategiesView lang={lang} t={t} trades={journal.trades} accounts={accounts} onOpenJournal={() => setView("journal")} /></LazyView>}
+              {view === "challenges" && <LazyView t={t} lang={lang}><ChallengeView lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenProfile={() => setView("profile")} /></LazyView>}
+              {view === "journal" && <LazyView t={t} lang={lang}><JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} openKey={openTrade} onOpened={tradeOpened} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} /></LazyView>}
               {view === "import" && (
-                <ImportView t={t} lang={lang} userId={userId} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
+                <LazyView t={t} lang={lang}>
+                  <ImportView t={t} lang={lang} userId={userId} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
+                </LazyView>
               )}
             </motion.div>
           </AnimatePresence>

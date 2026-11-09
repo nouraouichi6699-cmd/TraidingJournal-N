@@ -397,6 +397,8 @@ const dict = {
   signOut: { en: "Sign out", ar: "تسجيل الخروج", fr: "Se déconnecter" },
   signedInAs: { en: "Signed in as", ar: "مسجّل الدخول باسم", fr: "Connecté en tant que" },
   loadingData: { en: "Loading your data…", ar: "جارٍ تحميل بياناتك…", fr: "Chargement de vos données…" },
+  chunkUpdate: { en: "A new version is available", ar: "تتوفر نسخة جديدة", fr: "Une nouvelle version est disponible" },
+  chunkReload: { en: "Reload", ar: "إعادة التحميل", fr: "Recharger" },
   newsSearch: { en: "Search news…", ar: "ابحث في الأخبار…", fr: "Rechercher des actualités…" },
   newsInterests: { en: "Interests", ar: "الاهتمامات", fr: "Centres d'intérêt" },
   catAll: { en: "All", ar: "الكل", fr: "Tout" },

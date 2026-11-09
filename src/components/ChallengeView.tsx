@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Building2, Check, Flag, Mountain, Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, UserRound, X } from "lucide-react";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
-import { challengeState, retryStart, TEMPLATES, type Challenge, type ChallengeState } from "../lib/challenge";
+import { challengeState, readChallenges, retryStart, TEMPLATES, type Challenge, type ChallengeState } from "../lib/challenge";
 import { balanceBefore } from "../lib/balance";
 import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney, ltrNumbers } from "../lib/money";
@@ -114,17 +114,13 @@ const T = {
 } satisfies Record<string, L3>;
 
 const KEY = "mizan-challenges";
-const read = (): Challenge[] => { try { const v = JSON.parse(localStorage.getItem(KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
-export const readChallenges = read;
 const write = (l: Challenge[]) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* storage blocked */ } };
 /** Challenges in local storage (synced with the account by settingsSync); re-read when the window regains focus. */
 function useChallenges() {
-  const [list, setList] = useState<Challenge[]>(read);
-  useEffect(() => { const f = () => window.setTimeout(() => setList(read()), 1500); window.addEventListener("focus", f); return () => window.removeEventListener("focus", f); }, []);
+  const [list, setList] = useState<Challenge[]>(readChallenges);
+  useEffect(() => { const f = () => window.setTimeout(() => setList(readChallenges()), 1500); window.addEventListener("focus", f); return () => window.removeEventListener("focus", f); }, []);
   return [list, (next: Challenge[]) => { setList(next); write(next); }] as const;
 }
-
-export { todayFor };
 
 function Card({ c, account, trades, lang, onEdit, onRemove, onRetry }: { c: Challenge; account: Account; trades: Trade[]; lang: Lang; onEdit: () => void; onRemove: () => void; onRetry: (start: string) => void }) {
   const L = (x: L3) => x[lang];

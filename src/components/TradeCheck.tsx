@@ -12,7 +12,7 @@ import { fmtMoney, ltrNumbers } from "../lib/money";
 import { offsetMs, parseModel, type TimeModel } from "../lib/path";
 import { readClock } from "../lib/pathData";
 import { ctxAt, entryBreaks, rulesAt } from "../lib/ownRules";
-import { readChallenges } from "./ChallengeView";
+import { readChallenges } from "../lib/challenge";
 import { ruleLine } from "./OwnRulesCard";
 import SymbolPicker from "./SymbolPicker";
 import type { Account, Lang, Trade } from "../types";

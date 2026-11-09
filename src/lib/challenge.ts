@@ -5,6 +5,13 @@
 import type { Trade } from "../types";
 import type { OwnRules } from "./ownRules";
 
+const CHALLENGES_KEY = "mizan-challenges";
+/** Challenges from local storage (synced with the account by settingsSync). Kept here, not in ChallengeView, so
+ * callers that only need the data (SizeCalc, TradeCheck) don't pull that whole view into their bundle. */
+export const readChallenges = (): Challenge[] => {
+  try { const v = JSON.parse(localStorage.getItem(CHALLENGES_KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+};
+
 export interface Challenge {
   id: string;
   accountId: string;

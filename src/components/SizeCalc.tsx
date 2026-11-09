@@ -6,9 +6,9 @@ import { readSettings } from "../useSettings";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
 import { currentBalance } from "../lib/balance";
-import { challengeState } from "../lib/challenge";
+import { challengeState, readChallenges } from "../lib/challenge";
 import { fmtMoney } from "../lib/money";
-import { readChallenges, todayFor } from "./ChallengeView";
+import { todayFor } from "./challengeUi";
 import { usePrivacy } from "../usePrivacy";
 
 type L3 = Record<Lang, string>;
