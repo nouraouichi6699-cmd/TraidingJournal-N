@@ -5,21 +5,32 @@
 
 export type KeyEventKind = "NFP" | "CPI" | "PPI" | "FOMC";
 
-const PATTERNS: [KeyEventKind, RegExp][] = [
-  // "Non-Farm Employment Change", "Nonfarm Payrolls", "Non-Farm Payrolls", "Non Farm Payrolls", ...
-  ["NFP", /non[\s-]?farm/i],
+interface Rule {
+  kind: KeyEventKind;
+  match: RegExp;
+  /** Matched but not this kind: a different release that happens to share a keyword. */
+  exclude?: RegExp;
+}
+
+const RULES: Rule[] = [
+  // Only the official payrolls report: "Non-Farm Employment Change", "Nonfarm Payrolls",
+  // "Non-Farm Payrolls", "Non Farm Payrolls", ... Not "Nonfarm Productivity" (a different release that
+  // happens to start with "nonfarm"), and not any ADP title ("ADP Non-Farm Employment Change" is ADP's
+  // own early estimate, a different release from the official one).
+  { kind: "NFP", match: /non[\s-]?farm\s*(payrolls?|employment\s*change)/i, exclude: /\badp\b|productivity/i },
   // "CPI m/m", "Core CPI y/y", "Consumer Price Index (CPI) y/y", ...
-  ["CPI", /\bcpi\b|consumer price index/i],
+  { kind: "CPI", match: /\bcpi\b|consumer price index/i },
   // "PPI m/m", "Core PPI y/y", "Producer Price Index (PPI) m/m", ...
-  ["PPI", /\bppi\b|producer price index/i],
-  // "FOMC Statement", "FOMC Meeting Minutes", "FOMC Press Conference", "FOMC Economic Projections",
-  // "Federal Funds Rate", "Fed Interest Rate Decision", ...
-  ["FOMC", /fomc|federal funds rate|fed interest rate decision/i],
+  { kind: "PPI", match: /\bppi\b|producer price index/i },
+  // Only the statement, rate decision, press conference, minutes and projections: "FOMC Statement",
+  // "FOMC Meeting Minutes", "FOMC Press Conference", "FOMC Economic Projections", "Federal Funds Rate",
+  // "Fed Interest Rate Decision", ... Not an individual member's speech ("FOMC Member ... Speaks/Speech").
+  { kind: "FOMC", match: /fomc|federal funds rate|fed interest rate decision/i, exclude: /member|speaks?|speech/i },
 ];
 
 /** Which key-event category a calendar event's title belongs to, or null when it isn't one. */
 export function keyEventKind(title: string): KeyEventKind | null {
-  for (const [kind, re] of PATTERNS) if (re.test(title)) return kind;
+  for (const r of RULES) if (r.match.test(title) && !(r.exclude?.test(title))) return r.kind;
   return null;
 }
 
