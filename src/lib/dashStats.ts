@@ -31,7 +31,7 @@ export function metrics(closed: Trade[]): Metrics {
   const p = (t: Trade) => t.pnl as number;
   const w = closed.filter((t) => tradeOutcomeOf(t) === "win"), l = closed.filter((t) => tradeOutcomeOf(t) === "loss");
   const gw = w.reduce((s, t) => s + p(t), 0), gl = Math.abs(l.reduce((s, t) => s + p(t), 0));
-  const net = gw - gl;
+  const net = closed.reduce((s, t) => s + p(t), 0); // sum of every closed trade's pnl, independent of win/loss/break-even split (matches Overview's tradeCore)
   const avgWin = w.length ? gw / w.length : 0, avgLoss = l.length ? gl / l.length : 0;
   const ratio = avgLoss ? avgWin / avgLoss : null;
   const pf = gl ? gw / gl : null;
