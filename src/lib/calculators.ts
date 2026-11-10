@@ -4,8 +4,11 @@
 import { contrastRatio, mixHex, relLuminance } from "./lighting";
 import { classifyOutcome } from "./outcome";
 import { lotsFor, needsRate, pipsToDistance, quoteToAccountRate, type SymbolSpec } from "./calcCore";
+import { monteCarlo, rng, type McResult } from "./chartAnalytics";
 import type { Challenge } from "./challenge";
 import type { Trade } from "../types";
+
+export type { McResult } from "./chartAnalytics";
 
 export {
   defaultPipSize, lotsFor, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, positionSize, quoteToAccountRate, rateKey, symbolSpec,
@@ -26,8 +29,8 @@ export const CALC_GROUPS: { key: GroupKey; color: string; items: CalcKey[] }[] =
   { key: "prop", color: "#f97316", items: ["prop", "comp"] },
 ];
 export const CALC_JOURNAL: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "atr", "dd", "ruin", "streak", "port", "exp", "kelly", "mc", "prop", "comp"]);
-export const CALC_READY: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "rr", "pl", "pip", "margin", "atr", "prop", "comp"]);
 export const CALC_KEYS: CalcKey[] = CALC_GROUPS.flatMap((g) => g.items);
+export const CALC_READY: ReadonlySet<CalcKey> = new Set<CalcKey>(CALC_KEYS);
 export const isCalcKey = (k: unknown): k is CalcKey => typeof k === "string" && (CALC_KEYS as string[]).includes(k);
 export const groupOf = (k: CalcKey) => CALC_GROUPS.find((g) => g.items.includes(k)) ?? CALC_GROUPS[0];
 
@@ -307,4 +310,149 @@ export function pnlByMonth(trades: Trade[]): { month: string; pnl: number }[] {
     m.set(at, (m.get(at) ?? 0) + t.pnl);
   }
   return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, pnl]) => ({ month, pnl }));
+}
+
+// ---------- Drawdown recovery ----------
+
+/** Gain needed (%) to recover from a drawdown of `loss` % of the balance: loss / (100 - loss) × 100. */
+export function drawdownRecovery(loss: number): number {
+  if (!Number.isFinite(loss) || loss <= 0 || loss >= 100) return NaN;
+  return (loss / (100 - loss)) * 100;
+}
+
+/** Current drawdown and maximum drawdown of a balance series, as % of the running peak. */
+export function accountDrawdown(pts: { v: number }[]): { current: number; max: number } {
+  if (pts.length < 2) return { current: NaN, max: NaN };
+  let peak = pts[0].v, maxDd = 0;
+  for (const p of pts) {
+    if (p.v > peak) peak = p.v;
+    if (peak > 0) maxDd = Math.max(maxDd, (peak - p.v) / peak * 100);
+  }
+  const last = pts[pts.length - 1].v;
+  const cur = peak > 0 ? Math.max(0, (peak - last) / peak * 100) : 0;
+  return { current: cur, max: maxDd };
+}
+
+// ---------- Risk of ruin ----------
+
+export interface RuinInput {
+  winRate: number; // %
+  rr: number; // average reward / risk
+  riskPct: number; // risk per trade %
+  ruinLevel: number; // % of balance lost = ruin (default 50)
+  nTrades: number; // horizon
+}
+
+/**
+ * Fraction of `paths` that touch the ruin floor (1 - ruinLevel / 100) in `nTrades`, with fixed-fractional compounding:
+ * win multiplies equity by (1 + rr × risk / 100), loss by (1 - risk / 100). Deterministic (seeded).
+ */
+export function riskOfRuin(i: RuinInput, paths = 10000, seed = 42): number {
+  const p = i.winRate / 100;
+  if (!Number.isFinite(p) || p < 0 || p > 1 || !Number.isFinite(i.rr) || i.rr <= 0 || !Number.isFinite(i.riskPct) || i.riskPct <= 0 || !Number.isFinite(i.ruinLevel) || i.ruinLevel <= 0 || i.ruinLevel >= 100 || !Number.isFinite(i.nTrades) || i.nTrades < 1) return NaN;
+  const r = rng(seed);
+  const floor = 1 - i.ruinLevel / 100;
+  const winM = 1 + i.rr * i.riskPct / 100;
+  const lossM = 1 - i.riskPct / 100;
+  let ruined = 0;
+  for (let path = 0; path < paths; path++) {
+    let eq = 1;
+    for (let k = 0; k < i.nTrades; k++) {
+      eq = r() < p ? eq * winM : eq * lossM;
+      if (eq <= floor) { ruined++; break; }
+    }
+  }
+  return (ruined / paths) * 100;
+}
+
+/**
+ * Highest risk % that keeps ruin under 1%, by binary search with 2,000 paths and a capped horizon of min(nTrades, 200).
+ * Returns null when even 0.05% risks ruin ≥ 1%, or the system has no edge. Result rounded to 0.01%.
+ */
+export function safeRiskForRuin(i: Omit<RuinInput, "riskPct">, seed = 42): number | null {
+  if (!Number.isFinite(i.winRate) || !Number.isFinite(i.rr) || !Number.isFinite(i.ruinLevel) || !Number.isFinite(i.nTrades)) return null;
+  const short = { ...i, nTrades: Math.min(i.nTrades, 200) };
+  const run = (r: number) => riskOfRuin({ ...short, riskPct: r }, 2000, seed);
+  if (run(0.05) >= 1) return null;
+  let lo = 0.05, hi = 25;
+  if (run(hi) < 1) return hi;
+  for (let n = 0; n < 20; n++) {
+    const mid = (lo + hi) / 2;
+    if (run(mid) < 1) lo = mid; else hi = mid;
+  }
+  return Math.round(lo * 100) / 100;
+}
+
+// ---------- Expectancy ----------
+
+/** Expected P&L per trade and per 100 trades, in money and in R, plus the break-even win rate. */
+export function expectancy(winRate: number, avgWin: number, avgLoss: number): { e: number; eR: number; beWinRate: number; per100: number } {
+  const p = winRate / 100;
+  const ok = Number.isFinite(p) && p >= 0 && p <= 1 && Number.isFinite(avgWin) && avgWin > 0 && Number.isFinite(avgLoss) && avgLoss > 0;
+  if (!ok) return { e: NaN, eR: NaN, beWinRate: NaN, per100: NaN };
+  const e = p * avgWin - (1 - p) * avgLoss;
+  const eR = p * (avgWin / avgLoss) - (1 - p);
+  const beWinRate = (avgLoss / (avgWin + avgLoss)) * 100;
+  return { e, eR, beWinRate, per100: e * 100 };
+}
+
+// ---------- Required win rate ----------
+
+/** Win rate % needed for an expectancy of `targetE` R per trade (default 0 = break-even): (E + 1) / (RR + 1). */
+export function requiredWinRate(rr: number, targetE = 0): number {
+  if (!Number.isFinite(rr) || rr <= 0) return NaN;
+  return ((targetE + 1) / (rr + 1)) * 100;
+}
+
+// ---------- Kelly ----------
+
+export interface KellyResult { f: number; half: number; quarter: number; ok: boolean }
+
+/** Full Kelly fraction (p − (1−p)/b) and its half and quarter, where b = payoff (average win / average loss).
+ *  `ok` is false when f* ≤ 0, meaning no edge. */
+export function kellyFull(winRate: number, payoff: number): KellyResult {
+  const p = winRate / 100;
+  if (!Number.isFinite(p) || p < 0 || p > 1 || !Number.isFinite(payoff) || payoff <= 0) return { f: NaN, half: NaN, quarter: NaN, ok: false };
+  const f = p - (1 - p) / payoff;
+  if (f <= 0) return { f: 0, half: 0, quarter: 0, ok: false };
+  return { f, half: f / 2, quarter: f / 4, ok: true };
+}
+
+// ---------- Monte Carlo (calculator) ----------
+
+/**
+ * A synthetic P&L sample of `n` trades built from win rate, average win and average loss using a seeded PRNG.
+ * Used by the Monte Carlo calculator's manual mode to build a pool for the bootstrap simulation.
+ */
+export function buildPnlSample(winRate: number, avgWin: number, avgLoss: number, n: number, seed = 1): number[] {
+  if (!Number.isFinite(winRate) || !Number.isFinite(avgWin) || avgWin <= 0 || !Number.isFinite(avgLoss) || avgLoss <= 0 || n < 2) return [];
+  const p = winRate / 100;
+  if (p < 0 || p > 1) return [];
+  const r = rng(seed);
+  return Array.from({ length: n }, () => r() < p ? avgWin : -avgLoss);
+}
+
+/**
+ * Monte Carlo bootstrap on the given P&L pool (closed-trade results for journal mode, or a synthetic sample).
+ * Settings match Charts > Monte Carlo: 1,000 paths, horizon = min(500, max(n, 20)), seed 42.
+ */
+export function runMonteCarlo(pnls: number[]): McResult | null {
+  const pool = pnls.filter(Number.isFinite);
+  if (pool.length < 2) return null;
+  return monteCarlo(pool, { paths: 1000, horizon: Math.min(500, Math.max(pool.length, 20)), seed: 42 });
+}
+
+// ---------- Losing streak table ----------
+
+/** Table row: probability of at least one losing streak of exactly `k` or more in `n` trades with win-loss probability `q`. */
+export function streakTableRow(n: number, q: number, k: number, risk: number): { k: number; pAtLeast: number; cost: number } {
+  const pAtLeast = 1 - longestRunAtMost(n, q, k - 1);
+  return { k, pAtLeast, cost: k * risk };
+}
+
+/** Table for k = 3..12 (or up to `maxK`). */
+export function streakTable(n: number, q: number, risk: number, maxK = 12): { k: number; pAtLeast: number; cost: number }[] {
+  const rows = [];
+  for (let k = 3; k <= maxK; k++) rows.push(streakTableRow(n, q, k, risk));
+  return rows;
 }

@@ -10,6 +10,10 @@ import { challengeState, readChallenges } from "./lib/challenge";
 import { parseNum, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type DistUnit } from "./lib/calcCore";
 import { todayFor } from "./components/challengeUi";
 
+/** Asking the app to open the Charts view (from calculator links). */
+export const OPEN_CHARTS = "mizan-open-charts";
+export const openCharts = () => { if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(OPEN_CHARTS)); };
+
 /** Asking the app to open the Calculators page, on one calculator (its key) or on the list (no key). */
 export const OPEN_CALCULATOR = "mizan-open-calculator";
 export interface CalcNav { key?: string | null }

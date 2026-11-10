@@ -18,7 +18,7 @@ console.log("-- catalogue");
 eq("16 calculators", CALC_KEYS.length, 16);
 eq("4 groups of 6, 4, 4, 2", CALC_GROUPS.map((g) => g.items.length), [6, 4, 4, 2]);
 eq("group colours", CALC_GROUPS.map((g) => g.color), ["#22c55e", "#ef4444", "#d946ef", "#f97316"]);
-eq("8 built in this phase", [...CALC_READY].sort(), ["atr", "comp", "margin", "pip", "pl", "prop", "rr", "size"]);
+eq("all 16 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
 eq("journal-filled", [...CALC_JOURNAL].sort(), ["atr", "comp", "dd", "exp", "kelly", "mc", "port", "prop", "ruin", "size", "streak"]);
 eq("isCalcKey", [isCalcKey("prop"), isCalcKey("nope"), isCalcKey(3)], [true, false, false]);
 
@@ -386,6 +386,112 @@ near("USDJPY on USD +100 pips at 151: 662.25", profitLossPips(100, 0.01, 1, 1000
 nan("USDJPY on USD without the current price: NaN", profitLossPips(100, 0.01, 1, 100000, quoteToAccountRate(UJ, "USD", NaN, NaN)).money);
 nan("no pip size: NaN", profitLossPips(30, pipSizeFor(NAS), 1, 1, 1).money);
 eq("0 pips: 0", profitLossPips(0, 0.0001, 1, 100000, 1).money, 0);
+
+// ---- phase 2: Risk planning and System analysis ----
+import {
+  drawdownRecovery, accountDrawdown,
+  riskOfRuin, safeRiskForRuin,
+  expectancy, requiredWinRate, kellyFull,
+  buildPnlSample, runMonteCarlo,
+  streakTableRow, streakTable,
+} from "./calculators";
+
+console.log("-- CALC_READY covers all 16");
+ok("CALC_READY.size === CALC_KEYS.length", CALC_READY.size === CALC_KEYS.length);
+ok("all keys ready", CALC_KEYS.every((k) => CALC_READY.has(k)));
+
+console.log("-- drawdownRecovery");
+near("20% → 25%", drawdownRecovery(20), 25);
+near("50% → 100%", drawdownRecovery(50), 100);
+near("10% → 11.11%", drawdownRecovery(10), 11.11);
+nan("0% → NaN", drawdownRecovery(0));
+nan("100% → NaN", drawdownRecovery(100));
+nan("negative → NaN", drawdownRecovery(-5));
+
+console.log("-- accountDrawdown");
+const pts = [{ v: 100 }, { v: 110 }, { v: 90 }, { v: 95 }, { v: 80 }];
+const { current: curDd, max: maxDd } = accountDrawdown(pts);
+near("max drawdown: 110 → 80 = 27.27%", maxDd, 27.27, 0.1);
+near("current drawdown: 110 → 80 = 27.27%", curDd, 27.27, 0.1);
+const { current: curDd2 } = accountDrawdown([{ v: 100 }, { v: 120 }, { v: 130 }]);
+near("at all-time high: current = 0", curDd2, 0);
+eq("empty series: NaN current", isNaN(accountDrawdown([]).current), true);
+
+console.log("-- riskOfRuin");
+const ruinAll = riskOfRuin({ winRate: 0, rr: 2, riskPct: 2, ruinLevel: 50, nTrades: 500 });
+near("0% win rate → 100% ruin", ruinAll, 100, 1);
+const ruinNone = riskOfRuin({ winRate: 100, rr: 2, riskPct: 1, ruinLevel: 50, nTrades: 500 });
+near("100% win rate → 0% ruin", ruinNone, 0, 1);
+const ruin50 = riskOfRuin({ winRate: 55, rr: 1.5, riskPct: 1, ruinLevel: 50, nTrades: 500 });
+ok("edge + small risk → low ruin (<10%)", ruin50 < 10);
+const ruinHigh = riskOfRuin({ winRate: 40, rr: 1.1, riskPct: 10, ruinLevel: 50, nTrades: 300 });
+ok("no edge + big risk → high ruin (>50%)", ruinHigh > 50);
+
+console.log("-- safeRiskForRuin");
+const safe = safeRiskForRuin({ winRate: 55, rr: 1.5, ruinLevel: 50, nTrades: 500 });
+ok("good edge: safe risk exists", safe != null && safe > 0);
+const noEdge = safeRiskForRuin({ winRate: 0, rr: 1, ruinLevel: 0.5, nTrades: 200 });
+ok("pathological system (0% wins, ruinLevel=0.5%): null", noEdge == null);
+
+console.log("-- expectancy");
+const exp1 = expectancy(54, 182, 121);
+near("54%/182/121: e per trade ~42.62", exp1.e, 42.62, 0.1);
+near("54%/182/121: beWinRate = 121/(182+121)*100", exp1.beWinRate, (121 / 303) * 100, 0.1);
+near("eR > 0 with edge", exp1.eR, 54 / 100 * (182 / 121) - 46 / 100, 0.01);
+near("per100 = e × 100", exp1.per100, exp1.e * 100, 0.01);
+const expBe = expectancy(50, 100, 100);
+near("50%/100/100: e = 0 (break-even)", expBe.e, 0, 0.001);
+const expNaN = expectancy(50, -10, 100);
+nan("negative avgWin → NaN", expNaN.e);
+
+console.log("-- requiredWinRate");
+near("RR=2 → 33.33%", requiredWinRate(2), 33.33, 0.01);
+near("RR=1 → 50%", requiredWinRate(1), 50);
+near("RR=3 → 25%", requiredWinRate(3), 25);
+nan("RR=0 → NaN", requiredWinRate(0));
+
+console.log("-- kellyFull");
+const k1 = kellyFull(54, 1.504);
+ok("54%/1.504: edge > 0, ok=true", k1.ok);
+near("full Kelly ≈ 0.182", k1.f, 0.54 - 0.46 / 1.504, 0.001);
+near("half Kelly = f/2", k1.half, k1.f / 2, 1e-9);
+near("quarter Kelly = f/4", k1.quarter, k1.f / 4, 1e-9);
+const kNo = kellyFull(40, 1);
+ok("40%/1: no edge, ok=false", !kNo.ok);
+eq("no edge: f=0", kNo.f, 0);
+
+console.log("-- buildPnlSample");
+const sample = buildPnlSample(60, 100, 50, 200, 7);
+eq("sample length 200", sample.length, 200);
+ok("all wins or losses", sample.every((x) => x === 100 || x === -50));
+const wins = sample.filter((x) => x > 0).length;
+ok("win rate near 60% (±10%)", wins >= 100 && wins <= 140);
+eq("empty for n<2", buildPnlSample(60, 100, 50, 1).length, 0);
+
+console.log("-- runMonteCarlo");
+const mcPnls = buildPnlSample(55, 150, 100, 100, 1);
+const mc = runMonteCarlo(mcPnls);
+ok("mc result not null for valid pool", mc != null);
+if (mc) {
+  ok("paths = 1000", mc.paths === 1000);
+  ok("horizon >= 20", mc.horizon >= 20);
+  ok("probProfit 0..100", mc.probProfit >= 0 && mc.probProfit <= 100);
+  ok("p5/p50/p95 arrays present", mc.p5.length > 0 && mc.p50.length > 0 && mc.p95.length > 0);
+}
+eq("too few pnls: null", runMonteCarlo([1]), null);
+
+console.log("-- streakTable");
+const st = streakTable(100, 0.4, 2);
+ok("table has rows", st.length > 0);
+ok("rows from k=3", st[0].k === 3);
+ok("probabilities descend with k", st[0].pAtLeast >= st[1].pAtLeast);
+near("cost = k * risk", st[0].cost, st[0].k * 2, 1e-9);
+ok("5-in-a-row in 100 at 40% loss rate: >30% chance", streakTableRow(100, 0.4, 5, 2).pAtLeast > 0.3);
+
+console.log("-- likelyLongestRun");
+ok("n=100 q=0.4: likelyK >= 4", likelyLongestRun(100, 0.4) >= 4);
+eq("q=0: likelyK = 0", likelyLongestRun(100, 0), 0);
+eq("q=1: likelyK = n", likelyLongestRun(100, 1), 100);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

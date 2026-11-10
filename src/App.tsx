@@ -23,7 +23,7 @@ import { isBuiltIn, resolveTheme } from "./lib/customThemes";
 import { setPrivacy } from "./usePrivacy";
 import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
-import { OPEN_CALCULATOR, type CalcNav } from "./useCalculators";
+import { OPEN_CALCULATOR, OPEN_CHARTS, type CalcNav } from "./useCalculators";
 import { publishBotRules } from "./lib/tradeRules";
 import { CHANGED } from "./lib/myStrategies";
 import { clearEconCacheForUser } from "./lib/econNewsCache";
@@ -220,6 +220,11 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
     };
     window.addEventListener(OPEN_CALCULATOR, on);
     return () => window.removeEventListener(OPEN_CALCULATOR, on);
+  }, []);
+  useEffect(() => {
+    const on = () => setView("charts");
+    window.addEventListener(OPEN_CHARTS, on);
+    return () => window.removeEventListener(OPEN_CHARTS, on);
   }, []);
   const { profile, save: saveProfile } = useProfile();
   // Once signed in and settled, warm the most-switched-to views in idle time so the first tab change feels instant.

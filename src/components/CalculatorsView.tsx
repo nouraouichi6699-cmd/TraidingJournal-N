@@ -19,6 +19,7 @@ import { CALC_TEXT, GROUP_TEXT, T } from "./calculators/text";
 import { Seg, useL, type Ctx } from "./calculators/ui";
 import { AtrBody, MarginBody, PipBody, PlBody, RrBody, SizeBody } from "./calculators/TradeSetup";
 import { CompBody, PropBody } from "./calculators/PropCalcs";
+import { DdBody, ExpBody, KellyBody, McBody, PortBody, RuinBody, StreakBody, WrBody } from "./calculators/RiskSystem";
 
 const GOLD = "#e6b84a";
 const GROUP_ICON: Record<GroupKey, LucideIcon> = { setup: Crosshair, risk: Shield, system: Brain, prop: Trophy };
@@ -219,6 +220,14 @@ function Detail({ k, lang, mode, onMode, onBack, unit, onUnit, ctxBase, toneOf, 
           : k === "atr" ? <AtrBody key={bodyKey} ctx={ctx} />
           : k === "prop" ? <PropBody key={bodyKey} ctx={ctx} glassBg={glassBg} />
           : k === "comp" ? <CompBody key={bodyKey} ctx={ctx} />
+          : k === "dd" ? <DdBody key={bodyKey} ctx={ctx} />
+          : k === "ruin" ? <RuinBody key={bodyKey} ctx={ctx} />
+          : k === "streak" ? <StreakBody key={bodyKey} ctx={ctx} />
+          : k === "port" ? <PortBody key={bodyKey} ctx={ctx} />
+          : k === "exp" ? <ExpBody key={bodyKey} ctx={ctx} />
+          : k === "wr" ? <WrBody ctx={ctx} />
+          : k === "kelly" ? <KellyBody key={bodyKey} ctx={ctx} />
+          : k === "mc" ? <McBody key={bodyKey} ctx={ctx} />
           : null}
       </div>
     </>
