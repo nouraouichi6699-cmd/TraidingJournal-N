@@ -3,7 +3,7 @@
 // with openCalculator(key).
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  ArrowLeft, ArrowLeftRight, BarChart3, Boxes, Brain, ChevronRight, Crosshair, Delete, Divide, Flag, Layers, LayoutGrid, LineChart, Moon, NotebookPen, Percent, Receipt, RefreshCw,
+  ArrowLeft, ArrowLeftRight, BarChart3, Boxes, Brain, ChevronRight, Coins, Crosshair, Delete, Divide, Flag, Layers, LayoutGrid, LineChart, Moon, NotebookPen, Percent, PieChart, Receipt, RefreshCw,
   Ruler, Scale, Search, Shield, ShieldHalf, Shuffle, Sigma, TrendingDown, TrendingUp, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
 import "./calculators/calculators.css";
@@ -29,7 +29,7 @@ const ICON: Record<CalcKey, LucideIcon> = {
   dd: RefreshCw, ruin: TriangleAlert, streak: TrendingDown, port: ShieldHalf,
   exp: Sigma, wr: Percent, kelly: Divide, mc: Shuffle,
   prop: Flag, comp: LineChart,
-  std: Delete, fx: ArrowLeftRight, pct: Percent, units: Boxes, cost: Receipt, swap: Moon,
+  std: Delete, fx: Coins, pct: PieChart, units: Boxes, cost: Receipt, swap: Moon,
 };
 
 // ---------- what the page remembers on this device ----------
