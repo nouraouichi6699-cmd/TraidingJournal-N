@@ -3,6 +3,8 @@ import {
   longestRunAtMost, longestRunDist, lotsFor, marginFor, matchesQuery, moneyFor, needsRate, parseNum, pipValue, pnlByMonth, positionSize,
   profitLoss, pushRecentCalc, quoteToAccountRate, rateKey, readableTone, riskReward, symbolSpec, tradeEdge,
   defaultPipSize, needsPrice, pipSizeFor, pipsToDistance, profitLossPips, riskRewardPips,
+  convertFx, effectiveFx, fxStatus, mergeFx, parseCoingeckoBtc, parseErApiUsd, parseFrankfurterUsd, percentCalc, STD_START, stdKeyFromEvent, stdPress,
+  type FxStore, type StdKey, type StdState,
 } from "./calculators";
 import { contrastRatio } from "./lighting";
 import type { Challenge } from "./challenge";
@@ -15,10 +17,10 @@ const near = (name: string, got: number, exp: number, tol = 0.01) => ok(name, Nu
 const nan = (name: string, got: number) => ok(name, Number.isNaN(got), `got ${got}, expected NaN`);
 
 console.log("-- catalogue");
-eq("16 calculators", CALC_KEYS.length, 16);
-eq("4 groups of 6, 4, 4, 2", CALC_GROUPS.map((g) => g.items.length), [6, 4, 4, 2]);
-eq("group colours", CALC_GROUPS.map((g) => g.color), ["#22c55e", "#ef4444", "#d946ef", "#f97316"]);
-eq("all 16 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
+eq("19 calculators", CALC_KEYS.length, 19);
+eq("5 groups of 6, 4, 4, 2, 3", CALC_GROUPS.map((g) => g.items.length), [6, 4, 4, 2, 3]);
+eq("group colours", CALC_GROUPS.map((g) => g.color), ["#22c55e", "#ef4444", "#d946ef", "#f97316", "#94a3b8"]);
+eq("all 19 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
 eq("journal-filled", [...CALC_JOURNAL].sort(), ["atr", "comp", "dd", "exp", "kelly", "mc", "port", "prop", "ruin", "size", "streak"]);
 eq("isCalcKey", [isCalcKey("prop"), isCalcKey("nope"), isCalcKey(3)], [true, false, false]);
 
@@ -492,6 +494,70 @@ console.log("-- likelyLongestRun");
 ok("n=100 q=0.4: likelyK >= 4", likelyLongestRun(100, 0.4) >= 4);
 eq("q=0: likelyK = 0", likelyLongestRun(100, 0), 0);
 eq("q=1: likelyK = n", likelyLongestRun(100, 1), 100);
+
+console.log("-- standard calculator");
+const keys = (seq: string[], from: StdState = STD_START) => seq.reduce((st, k) => stdPress(st, k as StdKey), from);
+eq("2 + 3 x 4 = 20 (left to right)", keys(["2", "+", "3", "*", "4", "="]).entry, "20");
+eq("an operator after an operator shows the running result", keys(["2", "+", "3", "*"]).entry, "5");
+eq("10 - 4 / 2 = 3", keys(["1", "0", "-", "4", "/", "2", "="]).entry, "3");
+eq("0.1 + 0.2 = 0.3 (10 significant digits)", keys(["0", ".", "1", "+", "0", ".", "2", "="]).entry, "0.3");
+eq("1 / 3 rounds to 10 significant digits", keys(["1", "/", "3", "="]).entry, "0.3333333333");
+const dz = keys(["5", "/", "0", "="]);
+ok("division by zero: Error", dz.error && dz.entry === "Error");
+ok("Error ignores keys until C", keys(["7", "+"], dz).error);
+eq("C clears the error", keys(["C"], dz), STD_START);
+ok("division by zero in a chain: Error", keys(["8", "/", "0", "+"]).error);
+eq("backspace", keys(["1", "2", "3", "back"]).entry, "12");
+eq("backspace on the last digit gives 0", keys(["7", "back"]).entry, "0");
+eq("sign", keys(["5", "neg"]).entry, "-5");
+eq("sign twice", keys(["5", "neg", "neg"]).entry, "5");
+eq("decimal point once", keys(["1", ".", "5", ".", "2"]).entry, "1.52");
+eq("leading decimal point", keys([".", "5"]).entry, "0.5");
+eq("200 + 10 % = 220", keys(["2", "0", "0", "+", "1", "0", "%", "="]).entry, "220");
+eq("50 % alone = 0.5", keys(["5", "0", "%"]).entry, "0.5");
+eq("a new digit after = starts over", keys(["2", "+", "3", "=", "4"]).entry, "4");
+eq("keyboard map", [stdKeyFromEvent("7"), stdKeyFromEvent("Enter"), stdKeyFromEvent("Backspace"), stdKeyFromEvent("Escape"), stdKeyFromEvent("*"), stdKeyFromEvent("x"), stdKeyFromEvent("a")], ["7", "=", "back", "C", "*", "*", null]);
+
+console.log("-- percentage");
+near("15% of 200 = 30", percentCalc("of", 15, 200).value as number, 30);
+near("50 is 25% of 200", percentCalc("is", 50, 200).value as number, 25);
+near("100 to 150 = +50%", percentCalc("change", 100, 150).value as number, 50);
+near("150 to 100 = -33.33%", percentCalc("change", 150, 100).value as number, -33.33);
+eq("change to the same value is 0", percentCalc("change", 80, 80).value, 0);
+eq("X is what % of 0: no value, zero", percentCalc("is", 5, 0), { value: null, reason: "zero" });
+eq("change from 0: no value, zero", percentCalc("change", 0, 5), { value: null, reason: "zero" });
+eq("X% of 0 is fine", percentCalc("of", 15, 0).value, 0);
+eq("an empty input: missing", percentCalc("of", NaN, 5), { value: null, reason: "missing" });
+
+console.log("-- currency converter");
+const store = (live: Record<string, number>, manual: Record<string, number> = {}, at = 1000): FxStore =>
+  ({ at, live: Object.fromEntries(Object.entries(live).map(([c, rate]) => [c, { rate, src: "test" }])), manual });
+const fx1 = effectiveFx(store({ TND: 1 / 0.32 }));
+near("1000 TND at 0.32 USD = 320 USD", convertFx(1000, "TND", "USD", fx1), 320);
+near("USD to TND goes back", convertFx(320, "USD", "TND", fx1), 1000);
+const fx2 = effectiveFx(store({ TND: 3, EUR: 0.9 }));
+near("cross rate through USD: 90 EUR = 100 USD = 300 TND", convertFx(90, "EUR", "TND", fx2), 300);
+eq("same currency keeps the amount", convertFx(5, "TND", "TND", fx2), 5);
+nan("a currency with no rate: NaN, never a number", convertFx(5, "TND", "GBP", fx2));
+nan("no store at all: NaN", convertFx(5, "TND", "USD", effectiveFx(null)));
+nan("empty amount: NaN", convertFx(NaN, "USD", "EUR", fx2));
+eq("status: just fetched", fxStatus(store({ TND: 3 }), true), "live");
+eq("status: offline with a cache is Saved rates", fxStatus(store({ TND: 3 }), false), "saved");
+eq("status: nothing", fxStatus(null, false), "none");
+const typed = store({ TND: 3, EUR: 0.9 }, { TND: 3.2 });
+eq("a typed rate wins and is marked manual", [effectiveFx(typed).TND.rate, effectiveFx(typed).TND.manual], [3.2, true]);
+const refreshed = mergeFx(typed, { TND: { rate: 3.05, src: "open.er-api.com" }, EUR: { rate: 0.91, src: "Frankfurter (ECB)" } }, 2000);
+eq("a refresh keeps the manual rate", [effectiveFx(refreshed).TND.rate, effectiveFx(refreshed).TND.manual], [3.2, true]);
+eq("a refresh updates the live ones and the time", [effectiveFx(refreshed).EUR.rate, refreshed.at], [0.91, 2000]);
+const reset = { ...refreshed, manual: {} };
+eq("Reset to live shows the fetched rate", [effectiveFx(reset).TND.rate, effectiveFx(reset).TND.manual], [3.05, false]);
+eq("a partial refresh keeps the saved rate of what it missed", effectiveFx(mergeFx(typed, { EUR: { rate: 0.92, src: "x" } }, 3000)).TND.rate, 3.2);
+eq("source is kept per rate", effectiveFx(refreshed).EUR.src, "Frankfurter (ECB)");
+eq("a bad manual rate is ignored", effectiveFx(store({ TND: 3 }, { TND: -1 })).TND.rate, 3);
+eq("Frankfurter parser drops junk", parseFrankfurterUsd({ rates: { EUR: 0.9, GBP: "x", JPY: 0 } }), { EUR: 0.9 });
+eq("open.er-api parser needs success", [parseErApiUsd({ result: "success", rates: { TND: 3 } }), parseErApiUsd({ result: "error", rates: { TND: 3 } })], [{ TND: 3 }, {}]);
+near("CoinGecko: BTC per USD", parseCoingeckoBtc({ bitcoin: { usd: 50000 } }) as number, 0.00002, 1e-12);
+eq("CoinGecko junk", parseCoingeckoBtc({}), null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

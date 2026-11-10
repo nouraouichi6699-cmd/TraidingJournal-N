@@ -17,16 +17,17 @@ export {
 
 // ---------- the catalogue ----------
 
-export type CalcKey = "size" | "rr" | "pl" | "pip" | "margin" | "atr" | "dd" | "ruin" | "streak" | "port" | "exp" | "wr" | "kelly" | "mc" | "prop" | "comp";
-export type GroupKey = "setup" | "risk" | "system" | "prop";
+export type CalcKey = "size" | "rr" | "pl" | "pip" | "margin" | "atr" | "dd" | "ruin" | "streak" | "port" | "exp" | "wr" | "kelly" | "mc" | "prop" | "comp" | "std" | "fx" | "pct";
+export type GroupKey = "setup" | "risk" | "system" | "prop" | "general";
 
-/** The four groups in page order, with their colour and calculators. `journal`: fills itself from the journal;
+/** The five groups in page order, with their colour and calculators. `journal`: fills itself from the journal;
  *  `ready`: built (the others say "coming soon"). */
 export const CALC_GROUPS: { key: GroupKey; color: string; items: CalcKey[] }[] = [
   { key: "setup", color: "#22c55e", items: ["size", "rr", "pl", "pip", "margin", "atr"] },
   { key: "risk", color: "#ef4444", items: ["dd", "ruin", "streak", "port"] },
   { key: "system", color: "#d946ef", items: ["exp", "wr", "kelly", "mc"] },
   { key: "prop", color: "#f97316", items: ["prop", "comp"] },
+  { key: "general", color: "#94a3b8", items: ["std", "fx", "pct"] },
 ];
 export const CALC_JOURNAL: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "atr", "dd", "ruin", "streak", "port", "exp", "kelly", "mc", "prop", "comp"]);
 export const CALC_KEYS: CalcKey[] = CALC_GROUPS.flatMap((g) => g.items);
@@ -440,6 +441,161 @@ export function runMonteCarlo(pnls: number[]): McResult | null {
   const pool = pnls.filter(Number.isFinite);
   if (pool.length < 2) return null;
   return monteCarlo(pool, { paths: 1000, horizon: Math.min(500, Math.max(pool.length, 20)), seed: 42 });
+}
+
+// ---------- Standard calculator ----------
+
+export type StdOp = "+" | "-" | "*" | "/";
+export type StdKey = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "." | StdOp | "%" | "neg" | "C" | "back" | "=";
+/** `entry` is what the display shows, `acc` the number waiting for `op`, `fresh` that the next digit starts a new entry. */
+export interface StdState { entry: string; acc: number | null; op: StdOp | null; fresh: boolean; error: boolean }
+export const STD_START: StdState = { entry: "0", acc: null, op: null, fresh: false, error: false };
+const STD_MAX_DIGITS = 15;
+
+/** Rounds to 10 significant digits, which also clears float noise (0.1 + 0.2 shows 0.3). */
+export const roundSig = (n: number, digits = 10): number => (Number.isFinite(n) ? Number(n.toPrecision(digits)) : n);
+const stdFmt = (n: number): string => String(roundSig(n));
+
+function stdApply(a: number, op: StdOp, b: number): number {
+  switch (op) {
+    case "+": return a + b;
+    case "-": return a - b;
+    case "*": return a * b;
+    case "/": return b === 0 ? NaN : a / b;
+  }
+}
+
+/** One key press of a basic calculator: operations are done left to right as they are typed (2 + 3 x 4 = 20). */
+export function stdPress(s: StdState, key: StdKey): StdState {
+  if (key === "C") return STD_START;
+  if (s.error) return s;
+  const cur = Number(s.entry);
+  const fail = (): StdState => ({ ...STD_START, entry: "Error", error: true });
+  switch (key) {
+    case "+": case "-": case "*": case "/": {
+      if (s.op && !s.fresh && s.acc != null) {
+        const r = stdApply(s.acc, s.op, cur);
+        if (!Number.isFinite(r)) return fail();
+        return { entry: stdFmt(r), acc: roundSig(r), op: key, fresh: true, error: false };
+      }
+      return { ...s, acc: s.op && s.acc != null ? s.acc : cur, op: key, fresh: true };
+    }
+    case "=": {
+      if (!s.op || s.acc == null) return { ...s, fresh: true };
+      const r = stdApply(s.acc, s.op, cur);
+      if (!Number.isFinite(r)) return fail();
+      return { entry: stdFmt(r), acc: null, op: null, fresh: true, error: false };
+    }
+    case "%": {
+      const v = s.op && s.acc != null ? (s.acc * cur) / 100 : cur / 100;
+      return { ...s, entry: stdFmt(v), fresh: false };
+    }
+    case "neg": return s.entry === "0" ? s : { ...s, entry: s.entry.startsWith("-") ? s.entry.slice(1) : `-${s.entry}` };
+    case "back": {
+      if (s.fresh) return s;
+      const e = s.entry.slice(0, -1);
+      return { ...s, entry: e === "" || e === "-" ? "0" : e };
+    }
+    case ".": {
+      if (s.fresh) return { ...s, entry: "0.", fresh: false };
+      return s.entry.includes(".") ? s : { ...s, entry: `${s.entry}.` };
+    }
+    default: {
+      if (s.fresh) return { ...s, entry: key, fresh: false };
+      if (s.entry.replace(/[-.]/g, "").length >= STD_MAX_DIGITS) return s;
+      return { ...s, entry: s.entry === "0" ? key : s.entry === "-0" ? `-${key}` : s.entry + key };
+    }
+  }
+}
+
+/** The calculator key a keyboard key stands for, or null. */
+export function stdKeyFromEvent(k: string): StdKey | null {
+  if (/^[0-9]$/.test(k)) return k as StdKey;
+  switch (k) {
+    case ".": case ",": return ".";
+    case "+": case "-": case "/": case "%": return k;
+    case "*": case "x": case "X": return "*";
+    case "Enter": case "=": return "=";
+    case "Backspace": return "back";
+    case "Escape": return "C";
+    default: return null;
+  }
+}
+
+// ---------- Currency converter ----------
+
+/** The converter's currencies, in the order they are listed. */
+export const FX_CURRENCIES = ["TND", "USD", "EUR", "GBP", "JPY", "CAD", "CHF", "AED", "SAR", "TRY", "BTC"] as const;
+export type FxCode = (typeof FX_CURRENCIES)[number];
+/** Fiat codes Frankfurter (ECB) does not publish; they come from open.er-api.com. */
+export const FX_FROM_ERAPI: FxCode[] = ["TND", "AED", "SAR"];
+
+/** What was fetched: units of each currency per 1 USD, and where each came from. */
+export interface FxStore {
+  at: number;
+  live: Record<string, { rate: number; src: string }>;
+  /** Hand-typed rates (units per 1 USD): kept across refreshes until reset. */
+  manual: Record<string, number>;
+}
+export interface FxEffective { rate: number; src: string; manual: boolean }
+
+const goodRate = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
+
+/** Frankfurter's response to `base=USD` as units per USD. */
+export function parseFrankfurterUsd(j: unknown): Record<string, number> {
+  const r = (j as { rates?: Record<string, unknown> } | null)?.rates ?? {};
+  const out: Record<string, number> = {};
+  for (const [c, v] of Object.entries(r)) if (goodRate(v)) out[c] = v;
+  return out;
+}
+/** open.er-api.com's response for USD, as units per USD. */
+export const parseErApiUsd = (j: unknown): Record<string, number> => {
+  const o = j as { result?: string; rates?: Record<string, unknown> } | null;
+  return o?.result === "success" ? parseFrankfurterUsd(o) : {};
+};
+/** CoinGecko's bitcoin price in USD as BTC per USD. */
+export function parseCoingeckoBtc(j: unknown): number | null {
+  const p = (j as { bitcoin?: { usd?: unknown } } | null)?.bitcoin?.usd;
+  return goodRate(p) ? 1 / p : null;
+}
+
+/** A fresh fetch folded into what was saved: new live values win, a currency the fetch missed keeps its saved one, manual rates stay. */
+export function mergeFx(prev: FxStore | null, live: Record<string, { rate: number; src: string }>, at: number): FxStore {
+  return { at, live: { ...(prev?.live ?? {}), ...live }, manual: { ...(prev?.manual ?? {}) } };
+}
+
+/** The rates in use: USD is 1, a typed rate beats a fetched one. A currency with no rate is left out. */
+export function effectiveFx(store: FxStore | null): Record<string, FxEffective> {
+  const out: Record<string, FxEffective> = { USD: { rate: 1, src: "base", manual: false } };
+  if (!store) return out;
+  for (const c of FX_CURRENCIES) {
+    if (c === "USD") continue;
+    const m = store.manual[c], l = store.live[c];
+    if (goodRate(m)) out[c] = { rate: m, src: "manual", manual: true };
+    else if (l && goodRate(l.rate)) out[c] = { rate: l.rate, src: l.src, manual: false };
+  }
+  return out;
+}
+
+/** `amount` of `from` in `to`, through USD (rates are units per USD). NaN when a rate is missing. */
+export function convertFx(amount: number, from: string, to: string, rates: Record<string, { rate: number }>): number {
+  const a = rates[from]?.rate, b = rates[to]?.rate;
+  if (!Number.isFinite(amount) || !goodRate(a) || !goodRate(b)) return NaN;
+  return (amount / a) * b;
+}
+
+/** "live" right after a successful fetch, "saved" when the cached rates are used instead, "none" when there are none. */
+export const fxStatus = (store: FxStore | null, fetched: boolean): "live" | "saved" | "none" => (!store ? "none" : fetched ? "live" : "saved");
+
+// ---------- Percentage ----------
+
+export type PctMode = "of" | "is" | "change";
+/** The three percentage questions. `value` is null with a reason when it cannot be worked out (never Infinity or NaN). */
+export function percentCalc(mode: PctMode, x: number, y: number): { value: number | null; reason: "missing" | "zero" | null } {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { value: null, reason: "missing" };
+  if (mode === "of") return { value: (y * x) / 100, reason: null };
+  if (mode === "is") return y === 0 ? { value: null, reason: "zero" } : { value: (x / y) * 100, reason: null };
+  return x === 0 ? { value: null, reason: "zero" } : { value: ((y - x) / x) * 100, reason: null };
 }
 
 // ---------- Losing streak table ----------

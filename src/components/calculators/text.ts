@@ -11,6 +11,7 @@ export const GROUP_TEXT: Record<GroupKey, { name: L3; sub: L3 }> = {
   risk: { name: l("Risk planning", "إدارة المخاطر", "Gestion du risque"), sub: l("Account level", "على مستوى الحساب", "Au niveau du compte") },
   system: { name: l("System analysis", "تحليل النظام", "Analyse du système"), sub: l("Does your system have an edge?", "هل لنظامك أفضلية؟", "Votre système a-t-il un avantage ?") },
   prop: { name: l("Prop challenges", "تحديات التمويل", "Challenges prop"), sub: l("Only in Mizan", "خاص بميزان", "Uniquement dans Mizan") },
+  general: { name: l("General", "عام", "Général"), sub: l("Daily utilities", "أدوات يومية", "Outils quotidiens") },
 };
 
 export const CALC_TEXT: Record<CalcKey, { name: L3; desc: L3 }> = {
@@ -30,12 +31,15 @@ export const CALC_TEXT: Record<CalcKey, { name: L3; desc: L3 }> = {
   mc: { name: l("Monte Carlo", "مونت كارلو", "Monte-Carlo"), desc: l("Thousands of possible futures", "آلاف المسارات الممكنة", "Des milliers d'avenirs possibles") },
   prop: { name: l("Challenge plan", "خطة التحدي", "Plan du challenge"), desc: l("Safe risk and trades to target", "المخاطرة الآمنة وعدد الصفقات للهدف", "Risque sûr et trades jusqu'à l'objectif") },
   comp: { name: l("Compound growth", "النمو المركب", "Croissance composée"), desc: l("Your balance after months at a steady rate", "رصيدك بعد أشهر بنسبة ثابتة", "Votre solde après des mois à taux constant") },
+  std: { name: l("Calculator", "آلة حاسبة", "Calculatrice standard"), desc: l("Everyday arithmetic with a keypad", "الحساب اليومي بلوحة أرقام", "Le calcul de tous les jours, au clavier") },
+  fx: { name: l("Currency converter", "محوّل العملات", "Convertisseur de devises"), desc: l("TND, USD, EUR and 8 more", "دينار تونسي ودولار ويورو و8 أخرى", "TND, USD, EUR et 8 autres") },
+  pct: { name: l("Percentage", "النسبة المئوية", "Pourcentage"), desc: l("Share, part and change in percent", "الحصة والجزء والتغيّر بالنسبة المئوية", "Part, proportion et variation en pourcentage") },
 };
 
 export const T = {
   // hub
   title: l("Calculators", "الحاسبات", "Calculatrices"),
-  subtitle: l("16 calculators in 4 groups", "16 حاسبة في 4 مجموعات", "16 calculatrices en 4 groupes"),
+  subtitle: l("19 calculators in 5 groups", "19 حاسبة في 5 مجموعات", "19 calculatrices en 5 groupes"),
   search: l("Search a calculator", "ابحث عن حاسبة", "Rechercher une calculatrice"),
   empty: l("No calculator with this name", "لا توجد حاسبة بهذا الاسم", "Aucune calculatrice de ce nom"),
   recent: l("Recently used", "المستخدمة مؤخراً", "Utilisées récemment"),
@@ -253,4 +257,43 @@ export const T = {
   showAll: l("Show all {n}", "عرض الكل ({n})", "Tout afficher ({n})"),
   showLess: l("Show less", "عرض أقل", "Afficher moins"),
   curve: l("Balance over the periods", "الرصيد عبر الفترات", "Solde au fil des périodes"),
+  secValues: l("Values", "القيم", "Valeurs"),
+  // standard calculator
+  stdClear: l("Clear", "مسح", "Effacer"),
+  stdBack: l("Delete last digit", "حذف آخر رقم", "Supprimer le dernier chiffre"),
+  stdNeg: l("Change sign", "تغيير الإشارة", "Changer le signe"),
+  stdError: l("Error", "خطأ", "Erreur"),
+  stdKeys: l("Keypad", "لوحة الأرقام", "Pavé numérique"),
+  // currency converter
+  fxFrom: l("From", "من", "De"),
+  fxTo: l("To", "إلى", "Vers"),
+  fxSwap: l("Swap currencies", "تبديل العملتين", "Inverser les devises"),
+  fxMostUsed: l("Most used", "الأكثر استخداماً", "Les plus utilisées"),
+  fxUpdated: l("Updated {when}", "حُدّثت {when}", "Mis à jour {when}"),
+  fxSaved: l("Saved rates · {when}", "أسعار محفوظة · {when}", "Taux enregistrés · {when}"),
+  fxLoading: l("Loading rates…", "جارٍ تحميل الأسعار…", "Chargement des taux…"),
+  fxNone: l("No rates yet: connect once, or type them under Edit rates.", "لا توجد أسعار بعد: اتصل مرة واحدة، أو اكتبها في تعديل الأسعار.", "Aucun taux pour l'instant : connectez-vous une fois, ou saisissez-les dans Modifier les taux."),
+  fxRefresh: l("Refresh", "تحديث", "Actualiser"),
+  fxEdit: l("Edit rates", "تعديل الأسعار", "Modifier les taux"),
+  fxEditHint: l("Units of each currency for 1 USD. A rate you type stays until you reset it.", "وحدات كل عملة مقابل 1 دولار. السعر الذي تكتبه يبقى حتى تعيده.", "Unités de chaque devise pour 1 USD. Un taux saisi reste jusqu'à sa réinitialisation."),
+  fxManual: l("Manual", "يدوي", "Manuel"),
+  fxReset: l("Reset to live", "العودة إلى الحي", "Revenir au taux réel"),
+  fxSources: l("Sources: ECB via Frankfurter, open.er-api.com (TND, AED, SAR), CoinGecko (BTC).", "المصادر: البنك المركزي الأوروبي عبر Frankfurter، وopen.er-api.com (TND وAED وSAR)، وCoinGecko (BTC).", "Sources : BCE via Frankfurter, open.er-api.com (TND, AED, SAR), CoinGecko (BTC)."),
+  fxRate: l("Rate", "السعر", "Taux"),
+  // percentage
+  pctOf: l("X% of Y", "X% من Y", "X % de Y"),
+  pctIs: l("X is what % of Y", "X تساوي كم % من Y", "X représente quel % de Y"),
+  pctChange: l("% change from X to Y", "% التغيّر من X إلى Y", "% de variation de X à Y"),
+  pctMode: l("Question", "السؤال", "Question"),
+  pctXOf: l("Percent (X)", "النسبة (X)", "Pourcentage (X)"),
+  pctYOf: l("Of (Y)", "من (Y)", "De (Y)"),
+  pctXIs: l("Part (X)", "الجزء (X)", "Partie (X)"),
+  pctYIs: l("Whole (Y)", "الكل (Y)", "Total (Y)"),
+  pctXChange: l("From (X)", "من (X)", "De (X)"),
+  pctYChange: l("To (Y)", "إلى (Y)", "À (Y)"),
+  pctSayOf: l("{x} of {y} is {r}.", "{x} من {y} تساوي {r}.", "{x} de {y} font {r}."),
+  pctSayIs: l("{x} is {r} of {y}.", "{x} تساوي {r} من {y}.", "{x} représente {r} de {y}."),
+  pctSayChange: l("From {x} to {y} is a change of {r}.", "من {x} إلى {y} تغيّر بمقدار {r}.", "De {x} à {y}, la variation est de {r}."),
+  pctZeroIs: l("Y is 0: a share of zero cannot be worked out.", "Y تساوي 0: لا يمكن حساب نسبة من الصفر.", "Y vaut 0 : on ne peut pas calculer une part de zéro."),
+  pctZeroChange: l("X is 0: a change from zero cannot be worked out.", "X تساوي 0: لا يمكن حساب التغيّر من الصفر.", "X vaut 0 : on ne peut pas calculer une variation depuis zéro."),
 } satisfies Record<string, L3>;

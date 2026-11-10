@@ -1,10 +1,9 @@
-// The Calculators page: a hub of 16 calculators in 4 groups (search, recently used, one glass card per group) and a
-// detail screen per calculator (inputs | result). Trade setup and Prop challenges are built; Risk planning and System
-// analysis are listed and say "coming soon". Opened from the sidebar, the header's size calculator, or anywhere with
-// openCalculator(key).
+// The Calculators page: a hub of 19 calculators in 5 groups (search, recently used, one glass card per group) and a
+// detail screen per calculator (inputs | result). Opened from the sidebar, the header's size calculator, or anywhere
+// with openCalculator(key).
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  ArrowLeft, ArrowLeftRight, BarChart3, Brain, ChevronRight, Crosshair, Divide, Flag, Layers, LineChart, NotebookPen, Percent, RefreshCw,
+  ArrowLeft, ArrowLeftRight, BarChart3, Brain, ChevronRight, Crosshair, Delete, Divide, Flag, Layers, LayoutGrid, LineChart, NotebookPen, Percent, RefreshCw,
   Ruler, Scale, Search, Shield, ShieldHalf, Shuffle, Sigma, TrendingDown, TrendingUp, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
 import "./calculators/calculators.css";
@@ -20,15 +19,17 @@ import { CALC_TEXT, GROUP_TEXT, T } from "./calculators/text";
 import { Seg, useL, type Ctx } from "./calculators/ui";
 import { AtrBody, MarginBody, PipBody, PlBody, RrBody, SizeBody } from "./calculators/TradeSetup";
 import { CompBody, PropBody } from "./calculators/PropCalcs";
+import { FxBody, PctBody, StdBody } from "./calculators/General";
 import { DdBody, ExpBody, KellyBody, McBody, PortBody, RuinBody, StreakBody, WrBody } from "./calculators/RiskSystem";
 
 const GOLD = "#e6b84a";
-const GROUP_ICON: Record<GroupKey, LucideIcon> = { setup: Crosshair, risk: Shield, system: Brain, prop: Trophy };
+const GROUP_ICON: Record<GroupKey, LucideIcon> = { setup: Crosshair, risk: Shield, system: Brain, prop: Trophy, general: LayoutGrid };
 const ICON: Record<CalcKey, LucideIcon> = {
   size: Scale, rr: ArrowLeftRight, pl: TrendingUp, pip: Ruler, margin: Layers, atr: BarChart3,
   dd: RefreshCw, ruin: TriangleAlert, streak: TrendingDown, port: ShieldHalf,
   exp: Sigma, wr: Percent, kelly: Divide, mc: Shuffle,
   prop: Flag, comp: LineChart,
+  std: Delete, fx: ArrowLeftRight, pct: Percent,
 };
 
 // ---------- what the page remembers on this device ----------
@@ -229,6 +230,9 @@ function Detail({ k, lang, mode, onMode, onBack, unit, onUnit, ctxBase, toneOf, 
           : k === "wr" ? <WrBody ctx={ctx} />
           : k === "kelly" ? <KellyBody key={bodyKey} ctx={ctx} />
           : k === "mc" ? <McBody key={bodyKey} ctx={ctx} />
+          : k === "std" ? <StdBody ctx={ctx} />
+          : k === "fx" ? <FxBody ctx={ctx} />
+          : k === "pct" ? <PctBody ctx={ctx} />
           : null}
       </div>
     </>
