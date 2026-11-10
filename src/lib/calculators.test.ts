@@ -4,6 +4,7 @@ import {
   profitLoss, pushRecentCalc, quoteToAccountRate, rateKey, readableTone, riskReward, symbolSpec, tradeEdge,
   defaultPipSize, needsPrice, pipSizeFor, pipsToDistance, profitLossPips, riskRewardPips,
   convertFx, effectiveFx, fxStatus, mergeFx, parseCoingeckoBtc, parseErApiUsd, parseFrankfurterUsd, percentCalc, STD_START, stdKeyFromEvent, stdPress,
+  avgCommissionPerLot, convertUnits, swapCost, tradeCost,
   type FxStore, type StdKey, type StdState,
 } from "./calculators";
 import { contrastRatio } from "./lighting";
@@ -17,11 +18,11 @@ const near = (name: string, got: number, exp: number, tol = 0.01) => ok(name, Nu
 const nan = (name: string, got: number) => ok(name, Number.isNaN(got), `got ${got}, expected NaN`);
 
 console.log("-- catalogue");
-eq("19 calculators", CALC_KEYS.length, 19);
-eq("5 groups of 6, 4, 4, 2, 3", CALC_GROUPS.map((g) => g.items.length), [6, 4, 4, 2, 3]);
+eq("22 calculators", CALC_KEYS.length, 22);
+eq("5 groups of 9, 4, 4, 2, 3", CALC_GROUPS.map((g) => g.items.length), [9, 4, 4, 2, 3]);
 eq("group colours", CALC_GROUPS.map((g) => g.color), ["#22c55e", "#ef4444", "#d946ef", "#f97316", "#94a3b8"]);
-eq("all 19 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
-eq("journal-filled", [...CALC_JOURNAL].sort(), ["atr", "comp", "dd", "exp", "kelly", "mc", "port", "prop", "ruin", "size", "streak"]);
+eq("all 22 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
+eq("journal-filled", [...CALC_JOURNAL].sort(), ["atr", "comp", "cost", "dd", "exp", "kelly", "mc", "port", "prop", "ruin", "size", "streak"]);
 eq("isCalcKey", [isCalcKey("prop"), isCalcKey("nope"), isCalcKey(3)], [true, false, false]);
 
 console.log("-- search and recent");
@@ -558,6 +559,71 @@ eq("Frankfurter parser drops junk", parseFrankfurterUsd({ rates: { EUR: 0.9, GBP
 eq("open.er-api parser needs success", [parseErApiUsd({ result: "success", rates: { TND: 3 } }), parseErApiUsd({ result: "error", rates: { TND: 3 } })], [{ TND: 3 }, {}]);
 near("CoinGecko: BTC per USD", parseCoingeckoBtc({ bitcoin: { usd: 50000 } }) as number, 0.00002, 1e-12);
 eq("CoinGecko junk", parseCoingeckoBtc({}), null);
+
+console.log("-- unit conversion");
+{
+  const eur = symbolSpec("EURUSD").contract as number, xau = symbolSpec("XAUUSD").contract as number;
+  eq("EURUSD: 1 lot = 100,000 units", convertUnits("lot", 1, eur).units, 100000);
+  eq("EURUSD: 0.35 lot = 35,000 units", convertUnits("lot", 0.35, eur).units, 35000);
+  near("EURUSD round trip lot -> units -> lot", convertUnits("units", convertUnits("lot", 0.37, eur).units, eur).lots, 0.37, 1e-12);
+  eq("XAUUSD: 1 lot = 100 oz", convertUnits("lot", 1, xau).oz, 100);
+  eq("XAUUSD: 250 oz = 2.5 lots", convertUnits("oz", 250, xau).lots, 2.5);
+  near("XAUUSD round trip oz -> lot -> oz", convertUnits("oz", convertUnits("lot", 0.07, xau).oz, xau).lots, 0.07, 1e-12);
+  eq("XAGUSD: 1 lot = 5,000 oz", convertUnits("lot", 1, symbolSpec("XAGUSD").contract as number).oz, 5000);
+  nan("zero value: NaN", convertUnits("lot", 0, eur).lots);
+  nan("negative value: NaN", convertUnits("units", -5, eur).units);
+  nan("empty value: NaN", convertUnits("lot", NaN, eur).lots);
+  eq("unknown symbol has no contract size (the page asks for it)", symbolSpec("US30").contract, null);
+  nan("unknown symbol, contract not typed yet: NaN", convertUnits("lot", 1, NaN).units);
+  eq("unknown symbol, contract typed: 1 lot = 10 units", convertUnits("lot", 1, 10).units, 10);
+}
+
+console.log("-- trade cost");
+{
+  // EURUSD, 1 lot, 1.2 pip spread, 7 $ commission per lot round-turn, USD account
+  const sp = symbolSpec("EURUSD"), rate = quoteToAccountRate(sp, "USD", NaN, NaN);
+  const pv = 0.0001 * 100000 * 1; // pip value for 1 lot = 10 $
+  const spread = 1 * pv * 1.2;    // 12 $
+  const commission = 1 * 7;       // 7 $
+  const total = spread + commission; // 19 $
+  const c = tradeCost({ lots: 1, spreadPips: 1.2, pip: sp.pip as number, contract: sp.contract as number, rate, commissionPerLot: 7 });
+  near("pip value of 1 lot", c.pipValuePerLot, pv);
+  near("spread cost 12 $", c.spread, spread);
+  near("commission 7 $", c.commission, commission);
+  near("total 19 $", c.total, total);
+  near("breakeven 19 / 10 = 1.9 pips", c.breakevenPips, total / pv);
+  const half = tradeCost({ lots: 0.5, spreadPips: 1.2, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: 7 });
+  near("0.5 lot halves the money", half.total, 9.5);
+  near("0.5 lot: same breakeven pips", half.breakevenPips, 1.9);
+  near("no commission: breakeven is the spread", tradeCost({ lots: 2, spreadPips: 0.8, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: 0 }).breakevenPips, 0.8);
+  nan("zero lots: NaN", tradeCost({ lots: 0, spreadPips: 1, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: 7 }).total);
+  nan("negative lots: NaN", tradeCost({ lots: -1, spreadPips: 1, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: 7 }).total);
+  nan("negative spread: NaN", tradeCost({ lots: 1, spreadPips: -1, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: 7 }).total);
+  nan("negative commission: NaN", tradeCost({ lots: 1, spreadPips: 1, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: -7 }).total);
+  nan("missing pip size: NaN", tradeCost({ lots: 1, spreadPips: 1, pip: NaN, contract: 100000, rate: 1, commissionPerLot: 7 }).breakevenPips);
+  near("zero spread and commission: costs nothing", tradeCost({ lots: 1, spreadPips: 0, pip: 0.0001, contract: 100000, rate: 1, commissionPerLot: 0 }).total, 0);
+  const tr = (accountId: string, qty: number, commission: number, status: "open" | "closed" = "closed"): Trade => ({ key: String(Math.random()), accountId, no: 1, symbol: "EURUSD", side: "long", qty, entryTime: null, entryPrice: 1, exitTime: null, exitPrice: 1, pnl: 0, returnPct: null, commission, status });
+  near("average commission per lot: (7 + 3.5 + 7) / 2.5", avgCommissionPerLot([tr("a", 1, -7), tr("a", 0.5, -3.5), tr("a", 1, 7), tr("b", 9, 99), tr("a", 5, 50, "open")], "a") as number, 7);
+  eq("no closed trade with lots: null", avgCommissionPerLot([tr("a", 0, 5)], "a"), null);
+}
+
+console.log("-- swap");
+{
+  // 1 lot short at -6.5 $ per lot per night, 3 nights holding one Wednesday: 3 + 2 = 5 nights-equivalent
+  const s = swapCost(1, -6.5, 3, true);
+  eq("5 nights-equivalent", s.nightsEq, 5);
+  near("per night -6.5", s.perNight, -6.5);
+  near("total -6.5 x 5 = -32.5", s.total, -32.5);
+  near("without the triple: -19.5", swapCost(1, -6.5, 3, false).total, -19.5);
+  near("a credit is positive: 2 lots at +1.25 for 2 nights", swapCost(2, 1.25, 2, false).total, 5);
+  near("lots scale it", swapCost(0.5, -6.5, 3, true).total, -16.25);
+  near("triple adds 2 once: 10 nights = 12", swapCost(1, -1, 10, true).total, -12);
+  near("0 nights: nothing, even with the triple ticked", swapCost(1, -6.5, 0, true).total, 0);
+  nan("zero lots: NaN", swapCost(0, -6.5, 3, true).total);
+  nan("negative lots: NaN", swapCost(-1, -6.5, 3, true).total);
+  nan("negative nights: NaN", swapCost(1, -6.5, -1, false).total);
+  nan("missing swap: NaN", swapCost(1, NaN, 3, false).total);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

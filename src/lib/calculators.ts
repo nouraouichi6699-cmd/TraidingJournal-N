@@ -17,19 +17,19 @@ export {
 
 // ---------- the catalogue ----------
 
-export type CalcKey = "size" | "rr" | "pl" | "pip" | "margin" | "atr" | "dd" | "ruin" | "streak" | "port" | "exp" | "wr" | "kelly" | "mc" | "prop" | "comp" | "std" | "fx" | "pct";
+export type CalcKey = "size" | "rr" | "pl" | "pip" | "margin" | "atr" | "dd" | "ruin" | "streak" | "port" | "exp" | "wr" | "kelly" | "mc" | "prop" | "comp" | "std" | "fx" | "pct" | "units" | "cost" | "swap";
 export type GroupKey = "setup" | "risk" | "system" | "prop" | "general";
 
 /** The five groups in page order, with their colour and calculators. `journal`: fills itself from the journal;
  *  `ready`: built (the others say "coming soon"). */
 export const CALC_GROUPS: { key: GroupKey; color: string; items: CalcKey[] }[] = [
-  { key: "setup", color: "#22c55e", items: ["size", "rr", "pl", "pip", "margin", "atr"] },
+  { key: "setup", color: "#22c55e", items: ["size", "rr", "pl", "pip", "margin", "atr", "units", "cost", "swap"] },
   { key: "risk", color: "#ef4444", items: ["dd", "ruin", "streak", "port"] },
   { key: "system", color: "#d946ef", items: ["exp", "wr", "kelly", "mc"] },
   { key: "prop", color: "#f97316", items: ["prop", "comp"] },
   { key: "general", color: "#94a3b8", items: ["std", "fx", "pct"] },
 ];
-export const CALC_JOURNAL: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "atr", "dd", "ruin", "streak", "port", "exp", "kelly", "mc", "prop", "comp"]);
+export const CALC_JOURNAL: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "atr", "dd", "ruin", "streak", "port", "exp", "kelly", "mc", "prop", "comp", "cost"]);
 export const CALC_KEYS: CalcKey[] = CALC_GROUPS.flatMap((g) => g.items);
 export const CALC_READY: ReadonlySet<CalcKey> = new Set<CalcKey>(CALC_KEYS);
 export const isCalcKey = (k: unknown): k is CalcKey => typeof k === "string" && (CALC_KEYS as string[]).includes(k);
@@ -121,6 +121,68 @@ export function profitLossPips(pips: number, pip: number, lots: number, contract
 export function pipValue(step: number, contract: number, rate: number, lots: number) {
   const perLot = step * contract * rate;
   return { perLot, total: perLot * lots };
+}
+
+// ---------- Unit conversion ----------
+
+export type UnitKind = "lot" | "units" | "oz";
+/**
+ * Lots, units and ounces / contract units of one position, from whichever one was typed. 1 lot = `contract` units
+ * (forex 100,000 of the base currency, gold 100 oz, silver 5,000 oz), so "units" and "oz / contract" are the same
+ * quantity: ounces for a metal, base-currency units for a pair. NaN for anything not positive.
+ */
+export function convertUnits(kind: UnitKind, value: number, contract: number) {
+  const ok = Number.isFinite(value) && value > 0 && Number.isFinite(contract) && contract > 0;
+  if (!ok) return { lots: NaN, units: NaN, oz: NaN };
+  const lots = kind === "lot" ? value : value / contract;
+  const units = lots * contract;
+  return { lots, units, oz: units };
+}
+
+// ---------- Trade cost ----------
+
+/**
+ * What opening and closing a trade costs before it moves: the spread (lots x pip value x spread in pips) plus the
+ * round-turn commission (lots x rate per lot), in the account currency, and that total as pips of price move
+ * (total / the position's pip value). `pip` is the pip size, `rate` the quote-to-account rate. NaN when an input is
+ * missing, lots or pip value is not positive, or the spread or commission is negative.
+ */
+export function tradeCost(i: { lots: number; spreadPips: number; pip: number; contract: number; rate: number; commissionPerLot: number }) {
+  const pv = pipValue(i.pip, i.contract, i.rate, 1).perLot; // one pip, one lot
+  const ok = [i.lots, i.spreadPips, i.commissionPerLot].every(Number.isFinite) && i.lots > 0 && i.spreadPips >= 0 && i.commissionPerLot >= 0 && Number.isFinite(pv) && pv > 0;
+  if (!ok) return { pipValuePerLot: pv, spread: NaN, commission: NaN, total: NaN, breakevenPips: NaN };
+  const spread = i.lots * pv * i.spreadPips, commission = i.lots * i.commissionPerLot, total = spread + commission;
+  return { pipValuePerLot: pv, spread, commission, total, breakevenPips: total / (i.lots * pv) };
+}
+
+/** The account's average round-turn commission per lot over its closed trades (null when none has lots). A trade's
+ *  commission is its whole round-turn charge; the sign it is stored with does not matter. */
+export function avgCommissionPerLot(trades: Trade[], accountId: string | undefined): number | null {
+  let comm = 0, lots = 0;
+  for (const t of trades) {
+    if (t.accountId !== accountId || t.status !== "closed" || !(t.qty > 0)) continue;
+    const c = t.commissionOwn ?? t.commission;
+    if (!Number.isFinite(c)) continue;
+    comm += Math.abs(c);
+    lots += t.qty;
+  }
+  return lots > 0 ? comm / lots : null;
+}
+
+// ---------- Swap ----------
+
+/**
+ * The swap over a holding period: lots x swap per lot per night x the nights. Negative is a cost, positive a credit.
+ * Assumption: the triple-swap day (Wednesday for FX) charges two extra nights once, when at least one night is held.
+ * Brokers differ (some triple on Friday, metals on another day); this takes the standard FX convention.
+ * NaN for lots not positive, a negative night count, or a missing swap.
+ */
+export function swapCost(lots: number, swapPerLot: number, nights: number, triple: boolean) {
+  const ok = Number.isFinite(lots) && lots > 0 && Number.isFinite(swapPerLot) && Number.isFinite(nights) && nights >= 0;
+  if (!ok) return { perNight: NaN, nightsEq: NaN, total: NaN };
+  const nightsEq = nights >= 1 && triple ? nights + 2 : nights;
+  const perNight = lots * swapPerLot;
+  return { perNight, nightsEq, total: perNight * nightsEq };
 }
 
 // ---------- Margin ----------

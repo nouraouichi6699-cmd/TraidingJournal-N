@@ -1,13 +1,13 @@
 // Trade setup: position size, risk/reward, profit and loss, pip value, margin and ATR size. Each body reads its
 // inputs, calls the maths in lib/calculators and lays out the two cards; nothing is worked out here.
 import { useMemo, useState, type ReactNode } from "react";
-import { usePipSizes, useSizeCalc } from "../../useCalculators";
+import { useContracts, usePipSizes, useSizeCalc } from "../../useCalculators";
 import { readSettings } from "../../useSettings";
 import { currentBalance } from "../../lib/balance";
 import { pipSize } from "../../lib/pips";
 import {
-  atrSize, defaultPipSize, marginFor, moneyFor, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, pipValue, profitLoss, profitLossPips,
-  quoteToAccountRate, rateKey, riskReward, riskRewardPips, symbolSpec, type SymbolSpec,
+  atrSize, avgCommissionPerLot, convertUnits, defaultPipSize, marginFor, moneyFor, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, pipValue, profitLoss, profitLossPips,
+  quoteToAccountRate, rateKey, riskReward, riskRewardPips, swapCost, symbolSpec, tradeCost, type SymbolSpec, type UnitKind,
 } from "../../lib/calculators";
 import { T, type L3 } from "./text";
 import {
@@ -526,6 +526,186 @@ export function AtrBody({ ctx }: { ctx: Ctx }) {
         >
           <Hint>{L(T.stepNote)}</Hint>
         </ResultCard>
+      }
+    />
+  );
+}
+
+// ---------- Unit conversion ----------
+
+export function UnitsBody({ ctx }: { ctx: Ctx }) {
+  const L = useL(ctx.lang);
+  const { acc } = useAccount(ctx);
+  const mine = useMemo(() => accountSymbols(ctx.trades, acc?.id), [ctx.trades, acc]);
+  const [sym, setSym] = useState(() => mine[0] ?? ""), [kind, setKind] = useState<UnitKind>("lot"), [val, setVal] = useState("1");
+  const [contracts, setContract] = useContracts();
+  const sp = symbolSpec(sym), symKey = sym.toUpperCase();
+  // a known symbol's own contract size, else the one typed for it (shared with Position size)
+  const contract = sp.contract ?? parseNum(contracts[symKey] ?? "");
+  const res = convertUnits(kind, parseNum(val), contract);
+
+  const missing: L3[] = [];
+  if (!sym.trim()) missing.push(T.symbol);
+  if (sym.trim() && sp.contract == null && !pos(contract)) missing.push(T.contract);
+  if (!pos(parseNum(val))) missing.push(T.unitsAmount);
+  const fmt = (v: number) => fmtN(v, 4);
+
+  return (
+    <Layout
+      inputs={
+        <InputsCard>
+          <Section label={L(T.secConvert)}>
+            <SymbolField lang={ctx.lang} value={sym} onChange={setSym} mine={mine} />
+            {sp.contract == null && sym.trim() !== "" && <NumField lang={ctx.lang} label={L(T.contract)} value={contracts[symKey] ?? ""} onChange={(v) => setContract(sym, v)} hint={L(T.contractHint)} />}
+            <div className="flex flex-col gap-1 text-xs font-medium text-muted">
+              <span>{L(T.unitsIn)}</span>
+              <Seg label={L(T.unitsIn)} value={kind} onChange={setKind} options={[{ v: "lot", label: L(T.unitLot) }, { v: "units", label: L(T.unitUnits) }, { v: "oz", label: L(T.unitOz) }]} />
+            </div>
+            <NumField lang={ctx.lang} label={L(T.unitsAmount)} value={val} onChange={setVal} />
+          </Section>
+        </InputsCard>
+      }
+      result={
+        <ResultCard
+          lang={ctx.lang} color={ctx.color} tone={ctx.tone} missing={missing.length ? fillIn(ctx.lang, missing) : undefined}
+          big={fmt(res.lots)} unit={L(T.lotsUnit)}
+          sentence={say(L(T.unitsSay), { lots: fmt(res.lots), sym: sym.toUpperCase(), units: fmt(res.units) })}
+          rows={
+            <>
+              <Row label={L(T.unitLot)} value={fmt(res.lots)} />
+              <Row label={L(T.unitUnits)} value={fmt(res.units)} />
+              <Row label={L(T.unitOz)} value={fmt(res.oz)} />
+              <Row label={L(T.unitsOneLot)} value={fmt(contract)} />
+            </>
+          }
+        />
+      }
+    />
+  );
+}
+
+// ---------- Trade cost ----------
+
+export function CostBody({ ctx }: { ctx: Ctx }) {
+  const L = useL(ctx.lang);
+  const { acc, cur } = useAccount(ctx);
+  const mine = useMemo(() => accountSymbols(ctx.trades, acc?.id), [ctx.trades, acc]);
+  const [sym, setSym] = useState(() => mine[0] ?? ""), [lots, setLots] = useState("1"), [spreadT, setSpreadT] = useState("");
+  const [priceT, setPriceT] = useState(""), [contractT, setContractT] = useState(""), [rateT, setRateT] = useState("");
+  const [pipSizes, setPipSize] = usePipSizes();
+  // journal mode: the account's average round-turn commission per lot until it is typed over
+  const avg = useMemo(() => (ctx.journal ? avgCommissionPerLot(ctx.trades, acc?.id) : null), [ctx.journal, ctx.trades, acc]);
+  const comm = useJField(asField(avg), acc?.id ?? "");
+  const sp = symbolSpec(sym), contract = sp.contract ?? parseNum(contractT), pip = pipSizeFor(sp, pipSizes[sym.toUpperCase()]);
+  const n = parseNum(lots), spread = parseNum(spreadT), commission = parseNum(comm.value);
+  const res = tradeCost({ lots: n, spreadPips: spread, pip, contract, rate: quoteToAccountRate(sp, cur, parseNum(priceT), parseNum(rateT)), commissionPerLot: commission });
+  const money = moneyFmt(cur, ctx.hidden && comm.fromJournal);
+
+  const missing: L3[] = [];
+  if (!sym.trim()) missing.push(T.symbol);
+  if (!pos(n)) missing.push(T.lots);
+  if (!(spread >= 0)) missing.push(T.spreadPips);
+  if (!(commission >= 0)) missing.push(T.commissionLot);
+  if (sym.trim() && sp.pip == null && !pos(pip)) missing.push(T.pipSize);
+  if (needsPrice(sp, cur) && !pos(parseNum(priceT))) missing.push(T.price);
+  if (sym.trim() && sp.contract == null && !pos(contract)) missing.push(T.contract);
+  if (needsRate(sp, cur) && !pos(parseNum(rateT))) missing.push(T.rate);
+
+  return (
+    <Layout
+      inputs={
+        <InputsCard>
+          <Section label={L(T.secTrade)}>
+            <AccountField ctx={ctx} />
+            <Pair>
+              <SymbolField lang={ctx.lang} value={sym} onChange={setSym} mine={mine} />
+              <NumField lang={ctx.lang} label={L(T.lots)} value={lots} onChange={setLots} />
+            </Pair>
+            <PipPrice ctx={ctx} sp={sp} cur={cur} sym={sym} pip={pipFieldOf(pipSizes, sym, sp)} setPip={(v) => setPipSize(sym, v)} price={priceT} setPrice={setPriceT} />
+            <ContractRate ctx={ctx} sp={sp} cur={cur} sym={sym} contract={contractT} setContract={setContractT} rate={rateT} setRate={setRateT} />
+          </Section>
+          <Section label={L(T.secCost)}>
+            <NumField lang={ctx.lang} label={L(T.spreadPips)} value={spreadT} onChange={setSpreadT} hint={L(T.spreadHint)} />
+            <JNumField lang={ctx.lang} label={L(T.commissionLot)} f={comm} hidden={ctx.hidden} money hint={comm.fromJournal ? L(T.commissionJ) : undefined} />
+          </Section>
+        </InputsCard>
+      }
+      result={
+        <ResultCard
+          lang={ctx.lang} color={ctx.color} tone={ctx.tone} missing={missing.length ? fillIn(ctx.lang, missing) : !Number.isFinite(res.total) ? "-" : undefined}
+          big={money(res.total)}
+          sentence={say(L(T.costSay), { cost: money(res.total), pips: fmtN(res.breakevenPips, 2) })}
+          rows={
+            <>
+              <Row label={L(T.costSpread)} value={money(res.spread)} />
+              <Row label={L(T.costCommission)} value={money(res.commission)} />
+              <Row label={L(T.costBePips)} value={`${fmtN(res.breakevenPips, 2)} ${L(T.pips)}`} />
+              <Row label={L(T.perLot)} value={money(res.pipValuePerLot)} />
+            </>
+          }
+        />
+      }
+    />
+  );
+}
+
+// ---------- Swap ----------
+
+export function SwapBody({ ctx }: { ctx: Ctx }) {
+  const L = useL(ctx.lang);
+  const { cur } = useAccount(ctx);
+  const [lots, setLots] = useState("1"), [side, setSide] = useState<"buy" | "sell">("buy");
+  const [longT, setLongT] = useState(""), [shortT, setShortT] = useState(""), [nightsT, setNightsT] = useState("1"), [triple, setTriple] = useState(false);
+  const n = parseNum(lots), nights = parseNum(nightsT), swap = parseNum(side === "buy" ? longT : shortT);
+  const res = swapCost(n, swap, nights, triple);
+  const money = moneyFmt(cur, false);
+
+  const missing: L3[] = [];
+  if (!pos(n)) missing.push(T.lots);
+  if (!Number.isFinite(swap)) missing.push(side === "buy" ? T.swapLong : T.swapShort);
+  if (!(nights >= 0)) missing.push(T.nights);
+  const tone = res.total < 0 ? "var(--loss)" : res.total > 0 ? "var(--profit)" : undefined;
+  const tpl = res.total < 0 ? T.swapCostSay : res.total > 0 ? T.swapCreditSay : T.swapZeroSay;
+
+  return (
+    <Layout
+      inputs={
+        <InputsCard>
+          <Section label={L(T.secSwap)}>
+            <AccountField ctx={ctx} />
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1 text-xs font-medium text-muted">
+                <span>{L(T.side)}</span>
+                <Seg label={L(T.side)} value={side} onChange={setSide} options={[{ v: "buy", label: L(T.buy) }, { v: "sell", label: L(T.sell) }]} />
+              </div>
+              <div className="min-w-[8rem] flex-1"><NumField lang={ctx.lang} label={L(T.lots)} value={lots} onChange={setLots} /></div>
+            </div>
+            <Pair>
+              <NumField lang={ctx.lang} label={L(T.swapLong)} value={longT} onChange={setLongT} signed />
+              <NumField lang={ctx.lang} label={L(T.swapShort)} value={shortT} onChange={setShortT} signed />
+            </Pair>
+            <Hint>{L(T.swapNote)}</Hint>
+            <NumField lang={ctx.lang} label={L(T.nights)} value={nightsT} onChange={setNightsT} />
+            <label className="flex items-start gap-2 text-xs font-medium text-muted">
+              <input type="checkbox" className="mt-0.5 accent-[var(--icon)]" checked={triple} onChange={(e) => setTriple(e.target.checked)} />
+              <span>{L(T.triple)}<span className="block text-[11px] font-normal leading-4">{L(T.tripleHint)}</span></span>
+            </label>
+          </Section>
+        </InputsCard>
+      }
+      result={
+        <ResultCard
+          lang={ctx.lang} color={ctx.color} tone={ctx.tone} missing={missing.length ? fillIn(ctx.lang, missing) : undefined}
+          big={money(res.total, { sign: true })} bigColor={tone}
+          pill={res.total !== 0 ? <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${res.total > 0 ? "calc-status-ok" : "calc-status-bad"}`}>{res.total > 0 ? L(T.swapCredit) : L(T.swapCost)}</span> : undefined}
+          sentence={say(L(tpl), { n: fmtN(res.nightsEq, 0), money: money(Math.abs(res.total)) })}
+          rows={
+            <>
+              <Row label={L(T.swapPerNight)} value={money(res.perNight, { sign: true })} color={res.perNight < 0 ? "var(--loss)" : res.perNight > 0 ? "var(--profit)" : undefined} />
+              <Row label={L(T.swapNights)} value={fmtN(res.nightsEq, 0)} />
+            </>
+          }
+        />
       }
     />
   );

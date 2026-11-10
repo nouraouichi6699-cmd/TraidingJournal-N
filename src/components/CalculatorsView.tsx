@@ -1,9 +1,9 @@
-// The Calculators page: a hub of 19 calculators in 5 groups (search, recently used, one glass card per group) and a
+// The Calculators page: a hub of 22 calculators in 5 groups (search, recently used, one glass card per group) and a
 // detail screen per calculator (inputs | result). Opened from the sidebar, the header's size calculator, or anywhere
 // with openCalculator(key).
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  ArrowLeft, ArrowLeftRight, BarChart3, Brain, ChevronRight, Crosshair, Delete, Divide, Flag, Layers, LayoutGrid, LineChart, NotebookPen, Percent, RefreshCw,
+  ArrowLeft, ArrowLeftRight, BarChart3, Boxes, Brain, ChevronRight, Crosshair, Delete, Divide, Flag, Layers, LayoutGrid, LineChart, Moon, NotebookPen, Percent, Receipt, RefreshCw,
   Ruler, Scale, Search, Shield, ShieldHalf, Shuffle, Sigma, TrendingDown, TrendingUp, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
 import "./calculators/calculators.css";
@@ -17,7 +17,7 @@ import { mixHex, THEME_INK } from "../lib/lighting";
 import { CALC_GROUPS, CALC_JOURNAL, CALC_READY, DEFAULT_RECENT, groupOf, isCalcKey, matchesQuery, pushRecentCalc, readableTone, type CalcKey, type DistUnit, type GroupKey } from "../lib/calculators";
 import { CALC_TEXT, GROUP_TEXT, T } from "./calculators/text";
 import { Seg, useL, type Ctx } from "./calculators/ui";
-import { AtrBody, MarginBody, PipBody, PlBody, RrBody, SizeBody } from "./calculators/TradeSetup";
+import { AtrBody, CostBody, MarginBody, PipBody, PlBody, RrBody, SizeBody, SwapBody, UnitsBody } from "./calculators/TradeSetup";
 import { CompBody, PropBody } from "./calculators/PropCalcs";
 import { FxBody, PctBody, StdBody } from "./calculators/General";
 import { DdBody, ExpBody, KellyBody, McBody, PortBody, RuinBody, StreakBody, WrBody } from "./calculators/RiskSystem";
@@ -29,7 +29,7 @@ const ICON: Record<CalcKey, LucideIcon> = {
   dd: RefreshCw, ruin: TriangleAlert, streak: TrendingDown, port: ShieldHalf,
   exp: Sigma, wr: Percent, kelly: Divide, mc: Shuffle,
   prop: Flag, comp: LineChart,
-  std: Delete, fx: ArrowLeftRight, pct: Percent,
+  std: Delete, fx: ArrowLeftRight, pct: Percent, units: Boxes, cost: Receipt, swap: Moon,
 };
 
 // ---------- what the page remembers on this device ----------
@@ -233,6 +233,9 @@ function Detail({ k, lang, mode, onMode, onBack, unit, onUnit, ctxBase, toneOf, 
           : k === "std" ? <StdBody ctx={ctx} />
           : k === "fx" ? <FxBody ctx={ctx} />
           : k === "pct" ? <PctBody ctx={ctx} />
+          : k === "units" ? <UnitsBody ctx={ctx} />
+          : k === "cost" ? <CostBody key={bodyKey} ctx={ctx} />
+          : k === "swap" ? <SwapBody ctx={ctx} />
           : null}
       </div>
     </>

@@ -60,6 +60,24 @@ export function usePipSizes(): [Record<string, string>, (sym: string, v: string)
   return [map, set];
 }
 
+/**
+ * The contract sizes typed per symbol (those the app does not know), the same map Position size saves, so a size typed
+ * in either place is found in the other. A write touches only this map.
+ */
+export function useContracts(): [Record<string, string>, (sym: string, v: string) => void] {
+  const [map, setMap] = useState<Record<string, string>>(() => load().contracts ?? {});
+  const tell = useCopy(() => setMap(load().contracts ?? {}));
+  const set = (sym: string, v: string) => {
+    let raw: Record<string, unknown> = {};
+    try { const p = JSON.parse(localStorage.getItem(KEY) ?? "{}"); if (p && typeof p === "object") raw = p; } catch { /* unreadable: start over */ }
+    const contracts = { ...(raw.contracts && typeof raw.contracts === "object" ? (raw.contracts as Record<string, string>) : map), [sym.toUpperCase()]: v };
+    try { localStorage.setItem(KEY, JSON.stringify({ ...raw, contracts })); } catch { /* storage blocked */ }
+    setMap(contracts);
+    tell();
+  };
+  return [map, set];
+}
+
 export interface SizeData { accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; flows: CashFlow[] }
 export interface SizeOpts {
   /** A balance to use instead of the account's (typed, or edited on the page). Left out: the account's current balance. */
