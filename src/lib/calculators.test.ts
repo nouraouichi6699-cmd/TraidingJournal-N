@@ -2,6 +2,7 @@ import {
   atrSize, avgReturn, CALC_GROUPS, CALC_JOURNAL, CALC_KEYS, CALC_READY, challengePlan, challengeRulesPct, compound, isCalcKey, likelyLongestRun,
   longestRunAtMost, longestRunDist, lotsFor, marginFor, matchesQuery, moneyFor, needsRate, parseNum, pipValue, pnlByMonth, positionSize,
   profitLoss, pushRecentCalc, quoteToAccountRate, rateKey, readableTone, riskReward, symbolSpec, tradeEdge,
+  defaultPipSize, needsPrice, pipSizeFor, pipsToDistance, profitLossPips, riskRewardPips,
 } from "./calculators";
 import { contrastRatio } from "./lighting";
 import type { Challenge } from "./challenge";
@@ -301,6 +302,90 @@ eq("red on white already 3:1: unchanged", readableTone("#ef4444", "#ffffff"), "#
 for (const c of CALC_GROUPS.map((g) => g.color)) for (const bg of ["#ffffff", "#fbfcfd", navyGlass, "#0d0d0d"]) ok(`${c} on ${bg} reads at 3:1`, contrastRatio(readableTone(c, bg), bg) >= 3);
 const dk = readableTone("#1e293b", "#0d0d0d");
 ok("too dark on black: lightened", contrastRatio(dk, "#0d0d0d") >= 3, dk);
+
+console.log("-- pips mode: pip size and pips to distance");
+const XAG = symbolSpec("XAGUSD");
+eq("pip size EURUSD from the spec", pipSizeFor(EU), 0.0001);
+eq("pip size USDJPY (JPY pair)", pipSizeFor(UJ), 0.01);
+eq("pip size XAUUSD default 0.1", pipSizeFor(XAU), 0.1);
+eq("pip size XAGUSD default 0.01", pipSizeFor(XAG), 0.01);
+eq("defaults: forex, gold, silver, others none", [defaultPipSize(EU), defaultPipSize(UJ), defaultPipSize(XAU), defaultPipSize(XAG), defaultPipSize(NAS)], [0.0001, 0.01, 0.1, 0.01, null]);
+nan("pip size NAS100: none until typed", pipSizeFor(NAS));
+eq("custom pip size NAS100 typed 1", pipSizeFor(NAS, "1"), 1);
+eq("custom gold pip size 0.01 (comma typed)", pipSizeFor(XAU, "0,01"), 0.01);
+eq("forex keeps its spec's pip size", pipSizeFor(EU, "0.01"), 0.0001);
+nan("typed field emptied: no pip size", pipSizeFor(XAU, ""));
+near("EURUSD 20 pips = 0.0020", pipsToDistance(20, pipSizeFor(EU)), 0.002, 1e-12);
+near("USDJPY 20 pips = 0.20", pipsToDistance(20, pipSizeFor(UJ)), 0.2, 1e-12);
+near("XAUUSD 30 pips at the default 0.1 = 3.0", pipsToDistance(30, pipSizeFor(XAU)), 3, 1e-12);
+near("custom pip size: NAS100 50 pips at 1 = 50", pipsToDistance(50, pipSizeFor(NAS, "1")), 50, 1e-12);
+near("custom gold pip size 0.01: 30 pips = 0.30", pipsToDistance(30, pipSizeFor(XAU, "0.01")), 0.3, 1e-12);
+near("negative pips: negative distance", pipsToDistance(-15, 0.0001), -0.0015, 1e-12);
+nan("no pip size: NaN", pipsToDistance(20, NaN));
+nan("zero pip size: NaN", pipsToDistance(20, 0));
+nan("no pips typed: NaN", pipsToDistance(NaN, 0.0001));
+
+console.log("-- pips mode: position size");
+const inPips = (spec: ReturnType<typeof symbolSpec>, contract: number, pips: number, pip: number, extra: Partial<Parameters<typeof positionSize>[0]> = {}) =>
+  positionSize({ ...base, spec, contract, entry: NaN, stop: NaN, dist: pipsToDistance(pips, pip), pip, ...extra });
+const byPrice = positionSize({ ...base, spec: EU, contract: 100000, entry: 1.1, stop: 1.098 });
+let byPips = inPips(EU, 100000, 20, pipSizeFor(EU));
+near("EURUSD 20 pips = entry 1.1000 / stop 1.0980: same distance", byPips.dist, byPrice.dist, 1e-12);
+near("... and the same lots in both modes", byPips.lots, byPrice.lots);
+near("10,000 USD, 1%, EURUSD, 20 pips: 0.50 lot", byPips.lots, 0.5);
+near("... risk at this size 100", byPips.real, 100);
+near("... stop shown as 20 pips", byPips.pips as number, 20);
+byPips = inPips(XAU, 100, 30, pipSizeFor(XAU));
+near("10,000 USD, 1%, XAUUSD (100 oz, pip 0.1), 30 pips: 0.33 lot", byPips.lots, 0.33);
+near("... gold stop shown as 30 pips", byPips.pips as number, 30);
+const goldPrice = positionSize({ ...base, spec: XAU, contract: 100, entry: 2000, stop: 1997 });
+near("gold 30 pips = entry 2000 / stop 1997: same lots", byPips.lots, goldPrice.lots);
+eq("gold in price mode still has no pips", goldPrice.pips, null);
+near("custom pip size: NAS100 contract 1, pip 1, 50 pips: 2.00 lots", inPips(NAS, 1, 50, pipSizeFor(NAS, "1")).lots, 2);
+ok("NAS100 with no pip size: no result", !inPips(NAS, 1, 50, pipSizeFor(NAS)).ok);
+ok("0 pips: no result, distance 0", !inPips(EU, 100000, 0, 0.0001).ok && inPips(EU, 100000, 0, 0.0001).dist === 0);
+near("a stop typed negative counts as its distance", inPips(EU, 100000, -20, 0.0001).lots, 0.5);
+near("EURUSD on EUR (account = base): pips mode with the price = price mode", inPips(EU, 100000, 50, 0.0001, { cur: "EUR", price: 1.1 }).lots, 0.22);
+
+console.log("-- pips mode: the current price only when the conversion needs it");
+eq("needsPrice: USDJPY on USD, EURUSD on EUR", [needsPrice(UJ, "USD"), needsPrice(EU, "EUR")], [true, true]);
+eq("needsPrice: EURUSD on USD, EURJPY on USD (a rate), gold on USD, unknown", [needsPrice(EU, "USD"), needsPrice(EJ, "USD"), needsPrice(XAU, "USD"), needsPrice(NAS, "USD")], [false, false, false, false]);
+let uj = inPips(UJ, 100000, 20, pipSizeFor(UJ));
+ok("USDJPY on USD in pips mode requires the current price", uj.needPrice);
+ok("... without it: no result", !uj.ok && Number.isNaN(uj.lots));
+uj = inPips(UJ, 100000, 20, pipSizeFor(UJ), { price: 150 });
+near("... with 150: 20 pips = 0.75 lot", uj.lots, 0.75);
+near("... same as entry 150 / stop 149.80", uj.lots, positionSize({ ...base, spec: UJ, contract: 100000, entry: 150, stop: 149.8 }).lots);
+ok("price mode never asks for it (the entry serves)", !positionSize({ ...base, spec: UJ, contract: 100000, entry: 150, stop: 149.8 }).needPrice);
+ok("EURUSD on USD in pips mode: no price needed", !inPips(EU, 100000, 20, 0.0001).needPrice);
+ok("GBPJPY on EUR in pips mode: a rate, no price", (() => { const r = inPips(GJ, 100000, 100, 0.01, { cur: "EUR", rate: 0.0062 }); return !r.needPrice && r.needRate && Math.abs(r.lots - 0.16) <= 0.01; })());
+
+console.log("-- pips mode: risk / reward");
+let rp = riskRewardPips(20, 50);
+near("stop 20, target 50: R:R 2.5", rp.rr, 2.5);
+near("break-even win rate 28.57%", rp.beWinRate, 28.57);
+eq("no direction", rp.side, null);
+eq("risk and reward in pips", [rp.risk, rp.reward], [20, 50]);
+near("same R:R as entry 1.1000 / stop 1.0980 / target 1.1050", rp.rr, riskReward(1.1, 1.098, 1.105).rr);
+near("money at risk from pips (0.20 lot EURUSD): 40", moneyFor(pipsToDistance(rp.risk, 0.0001), 100000, 0.2, 1), 40);
+rp = riskRewardPips(-20, 50);
+near("signs ignored (distances): 2.5", rp.rr, 2.5);
+eq("stop 0 pips", riskRewardPips(0, 50).error, "stopAtEntry");
+eq("target 0 pips", riskRewardPips(20, 0).error, "targetAtEntry");
+eq("missing", riskRewardPips(NaN, 50).error, "missing");
+ok("error: not ok", !riskRewardPips(0, 50).ok);
+
+console.log("-- pips mode: profit and loss");
+let pp = profitLossPips(50, 0.0001, 1, 100000, 1);
+near("1 lot EURUSD +50 pips: +500 (as entry 1.0850 / exit 1.0900)", pp.money, profitLoss("buy", 1, 1.085, 1.09, 100000, 1).money);
+pp = profitLossPips(-20, 0.0001, 1, 100000, 1);
+near("negative pips = a loss: -200", pp.money, -200);
+near("move against is negative", pp.move, -0.002, 1e-12);
+near("gold 0.5 lot, 30 pips at 0.1: +150", profitLossPips(30, pipSizeFor(XAU), 0.5, 100, 1).money, 150);
+near("USDJPY on USD +100 pips at 151: 662.25", profitLossPips(100, 0.01, 1, 100000, quoteToAccountRate(UJ, "USD", 151, NaN)).money, 662.25);
+nan("USDJPY on USD without the current price: NaN", profitLossPips(100, 0.01, 1, 100000, quoteToAccountRate(UJ, "USD", NaN, NaN)).money);
+nan("no pip size: NaN", profitLossPips(30, pipSizeFor(NAS), 1, 1, 1).money);
+eq("0 pips: 0", profitLossPips(0, 0.0001, 1, 100000, 1).money, 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

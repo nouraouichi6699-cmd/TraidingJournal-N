@@ -3,11 +3,14 @@
 // (0.5 means 0.5%). Anything missing or impossible comes back as NaN / null with a reason, never as a number to show.
 import { contrastRatio, mixHex, relLuminance } from "./lighting";
 import { classifyOutcome } from "./outcome";
-import { lotsFor, needsRate, quoteToAccountRate, type SymbolSpec } from "./calcCore";
+import { lotsFor, needsRate, pipsToDistance, quoteToAccountRate, type SymbolSpec } from "./calcCore";
 import type { Challenge } from "./challenge";
 import type { Trade } from "../types";
 
-export { lotsFor, needsRate, parseNum, positionSize, quoteToAccountRate, rateKey, symbolSpec, type SizeInput, type SymbolSpec } from "./calcCore";
+export {
+  defaultPipSize, lotsFor, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, positionSize, quoteToAccountRate, rateKey, symbolSpec,
+  type DistUnit, type SizeInput, type SymbolSpec,
+} from "./calcCore";
 
 // ---------- the catalogue ----------
 
@@ -66,16 +69,29 @@ export function readableTone(color: string, bg: string, min = 3): string {
 export type RrError = "missing" | "stopAtEntry" | "targetAtEntry" | "sameSide";
 export interface RrResult { ok: boolean; error: RrError | null; side: "buy" | "sell" | null; risk: number; reward: number; rr: number; beWinRate: number }
 
+const rrBad = (error: RrError, side: RrResult["side"] = null): RrResult => ({ ok: false, error, side, risk: NaN, reward: NaN, rr: NaN, beWinRate: NaN });
+const rrOk = (side: RrResult["side"], risk: number, reward: number): RrResult => {
+  const rr = reward / risk;
+  return { ok: true, error: null, side, risk, reward, rr, beWinRate: (1 / (1 + rr)) * 100 };
+};
+
 /** Reward-to-risk from an entry, a stop and a target. A stop below the entry is a buy (the target must be above it). */
 export function riskReward(entry: number, stop: number, target: number): RrResult {
-  const bad = (error: RrError, side: RrResult["side"] = null): RrResult => ({ ok: false, error, side, risk: NaN, reward: NaN, rr: NaN, beWinRate: NaN });
-  if (![entry, stop, target].every(Number.isFinite)) return bad("missing");
-  if (stop === entry) return bad("stopAtEntry");
+  if (![entry, stop, target].every(Number.isFinite)) return rrBad("missing");
+  if (stop === entry) return rrBad("stopAtEntry");
   const side = stop < entry ? "buy" : "sell";
-  if (target === entry) return bad("targetAtEntry", side);
-  if ((side === "buy" && target < entry) || (side === "sell" && target > entry)) return bad("sameSide", side);
-  const risk = Math.abs(entry - stop), reward = Math.abs(target - entry), rr = reward / risk;
-  return { ok: true, error: null, side, risk, reward, rr, beWinRate: (1 / (1 + rr)) * 100 };
+  if (target === entry) return rrBad("targetAtEntry", side);
+  if ((side === "buy" && target < entry) || (side === "sell" && target > entry)) return rrBad("sameSide", side);
+  return rrOk(side, Math.abs(entry - stop), Math.abs(target - entry));
+}
+
+/** Reward-to-risk from a stop and a target typed in pips (distances from the entry, so no direction): target / stop.
+ *  `risk` and `reward` come back in pips. */
+export function riskRewardPips(stopPips: number, targetPips: number): RrResult {
+  if (![stopPips, targetPips].every(Number.isFinite)) return rrBad("missing");
+  if (stopPips === 0) return rrBad("stopAtEntry");
+  if (targetPips === 0) return rrBad("targetAtEntry");
+  return rrOk(null, Math.abs(stopPips), Math.abs(targetPips));
 }
 
 /** Money for a price distance on some lots: distance x contract x lots x quote-to-account rate. */
@@ -86,6 +102,12 @@ export const moneyFor = (dist: number, contract: number, lots: number, rate: num
 /** The result of a trade from its entry to its exit, in the account currency. `move` is the price move in the trade's favour. */
 export function profitLoss(side: "buy" | "sell", lots: number, entry: number, exit: number, contract: number, rate: number) {
   const move = side === "buy" ? exit - entry : entry - exit;
+  return { move, money: move * contract * lots * rate };
+}
+
+/** The same from a result typed in pips (negative: a loss). `move` is that result as a price distance. */
+export function profitLossPips(pips: number, pip: number, lots: number, contract: number, rate: number) {
+  const move = pipsToDistance(pips, pip);
   return { move, money: move * contract * lots * rate };
 }
 

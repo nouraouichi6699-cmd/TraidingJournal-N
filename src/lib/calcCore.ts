@@ -19,9 +19,32 @@ export function symbolSpec(sym: string): SymbolSpec {
 /** A typed decimal, with a comma or a dot; NaN when empty or not a number. */
 export const parseNum = (s: string): number => { const v = Number(s.replace(",", ".").trim()); return s.trim() && Number.isFinite(v) ? v : NaN; };
 
+/** How a stop, a target or a result is typed: in pips (the default) or as prices. */
+export type DistUnit = "pips" | "price";
+
+/** The pip size a symbol starts with: forex from its spec, gold 0.1, silver 0.01; null for anything else. */
+export const defaultPipSize = (sp: SymbolSpec): number | null => sp.pip ?? (sp.base === "XAU" ? 0.1 : sp.base === "XAG" ? 0.01 : null);
+
+/**
+ * The pip size to count in: forex always its spec's (0.0001, JPY pairs 0.01); any other symbol the size typed for it
+ * (`typed`, undefined while nothing was typed), else its default. NaN when there is none.
+ */
+export function pipSizeFor(sp: SymbolSpec, typed?: string): number {
+  if (sp.pip) return sp.pip;
+  if (typed !== undefined) return parseNum(typed);
+  return defaultPipSize(sp) ?? NaN;
+}
+
+/** A number of pips as a price distance (negative pips give a negative distance); NaN without a positive pip size. */
+export const pipsToDistance = (pips: number, pip: number): number => (Number.isFinite(pips) && Number.isFinite(pip) && pip > 0 ? pips * pip : NaN);
+
 /** True when the quote currency has to be converted with a rate the trader types: it is neither the account's
  *  currency nor the base of a pair whose base is the account's currency. */
 export const needsRate = (sp: SymbolSpec, cur: string): boolean => !!sp.quote && sp.quote !== cur && sp.base !== cur;
+
+/** True when the quote-to-account rate is worked out from the symbol's price: the account currency is the pair's base
+ *  (USDJPY on a USD account). With prices typed the entry serves; in pips the trader gives the current price. */
+export const needsPrice = (sp: SymbolSpec, cur: string): boolean => !!sp.quote && sp.quote !== cur && sp.base === cur;
 
 /** The key a typed quote-to-account rate is remembered under ("JPYEUR": 1 JPY in EUR). */
 export const rateKey = (sp: SymbolSpec, cur: string): string => `${sp.quote}${cur}`;
@@ -52,16 +75,25 @@ export interface SizeInput {
   stop: number;
   cur: string; // account currency
   rate: number; // the typed quote-to-account rate (used only when needsRate)
+  /** Stop in pips: the stop's price distance (pips x pip size), used instead of entry and stop. */
+  dist?: number;
+  /** Stop in pips: the current price, to convert when the account currency is the pair's base (the entry otherwise). */
+  price?: number;
+  /** Stop in pips: the pip size the distance is counted in (else the spec's, forex only). */
+  pip?: number;
 }
 
-/** Lots for a risk between an entry and a stop, as the size calculator has always worked it out. */
+/** Lots for a risk between an entry and a stop, as the size calculator has always worked it out, or for a stop typed
+ *  in pips (`dist`, with `price` for the conversion). */
 export function positionSize(i: SizeInput) {
-  const dist = Math.abs(i.entry - i.stop);
+  const inPips = i.dist !== undefined;
+  const dist = inPips ? Math.abs(i.dist as number) : Math.abs(i.entry - i.stop);
   const needRate = needsRate(i.spec, i.cur);
-  const rate = quoteToAccountRate(i.spec, i.cur, i.entry, i.rate);
+  const rate = quoteToAccountRate(i.spec, i.cur, inPips ? (i.price as number) : i.entry, i.rate);
   const riskMoney = i.mode === "pct" ? (i.balance * i.pct) / 100 : i.amt;
   const perLot = dist * i.contract * rate;
   const ok = Number.isFinite(perLot) && perLot > 0 && Number.isFinite(riskMoney) && riskMoney > 0;
   const lots = ok ? lotsFor(riskMoney, perLot) : NaN;
-  return { dist, needRate, rate, riskMoney, perLot, ok, lots, real: ok ? lots * perLot : NaN, pips: i.spec.pip && dist > 0 ? dist / i.spec.pip : null };
+  const pip = i.pip ?? i.spec.pip;
+  return { dist, needRate, needPrice: inPips && needsPrice(i.spec, i.cur), rate, riskMoney, perLot, ok, lots, real: ok ? lots * perLot : NaN, pips: pip && dist > 0 ? dist / pip : null };
 }

@@ -124,6 +124,9 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 .calc-chip { border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); }
+/* The small switch at the end of a section's line ("Pips | Price"). */
+.calc-seg.calc-seg-sm { padding: 2px; }
+.calc-seg.calc-seg-sm > button { padding: 2px 10px; font-size: 11px; }
 .calc-seg > button:hover, .calc-chip:hover { color: var(--text); }
 .calc-seg > button[aria-pressed="true"], .calc-chip[aria-pressed="true"] {
   background: var(--icon);

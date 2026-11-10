@@ -7,6 +7,7 @@ import type { CashFlow } from "../../lib/cashflow";
 import { numberLocale } from "../../lib/numberFormat";
 import { fmtMoney } from "../../lib/money";
 import { SYMBOLS } from "../../lib/symbols";
+import type { DistUnit } from "../../lib/calcCore";
 import { T, type L3 } from "./text";
 
 /** What every calculator body is given by the page. */
@@ -29,6 +30,9 @@ export interface Ctx {
   /** The currency typed when there is no account at all. */
   cur: string;
   setCur: (c: string) => void;
+  /** This calculator's remembered "Pips | Price" choice (Risk/Reward, Profit and loss; Position size keeps its own). */
+  unit: DistUnit;
+  setUnit: (u: DistUnit) => void;
 }
 
 export const useL = (lang: Lang) => (x: L3) => x[lang];
@@ -81,10 +85,11 @@ export function InputsCard({ children }: { children: ReactNode }) {
   return <div className="calc-glass flex flex-col gap-5 rounded-2xl p-4 sm:p-5">{children}</div>;
 }
 
-export function Section({ label, children }: { label: ReactNode; children: ReactNode }) {
+/** A gold-labelled group of inputs; `aside` (a small control) sits at the end of the label's line. */
+export function Section({ label, aside, children }: { label: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="calc-sec">{label}</div>
+      {aside ? <div className="flex items-center gap-2"><div className="calc-sec min-w-0 flex-1">{label}</div>{aside}</div> : <div className="calc-sec">{label}</div>}
       {children}
     </div>
   );
@@ -106,10 +111,12 @@ interface NumFieldProps {
   masked?: boolean;
   /** Offered once a journal value has been typed over. */
   onReset?: () => void;
+  /** Takes a minus sign: a full keyboard on phones, whose decimal pads have none. */
+  signed?: boolean;
 }
 
 /** A decimal field: a comma or a dot, numbers left to right. */
-export function NumField({ lang, label, value, onChange, hint, suffix, placeholder, journal, masked, onReset }: NumFieldProps) {
+export function NumField({ lang, label, value, onChange, hint, suffix, placeholder, journal, masked, onReset, signed }: NumFieldProps) {
   const id = useId();
   return (
     <div className={lblCls}>
@@ -124,7 +131,7 @@ export function NumField({ lang, label, value, onChange, hint, suffix, placehold
       </div>
       <div className="relative" dir="ltr">
         <input
-          id={id} className={`field tnum ${journal ? "calc-field-j" : ""} ${suffix ? "!pr-11" : ""}`} inputMode="decimal" autoComplete="off"
+          id={id} className={`field tnum ${journal ? "calc-field-j" : ""} ${suffix ? "!pr-11" : ""}`} inputMode={signed ? "text" : "decimal"} autoComplete="off"
           value={masked ? "••••" : value} readOnly={masked} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         />
         {suffix && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">{suffix}</span>}
@@ -139,12 +146,17 @@ export function JNumField({ f, hidden, money, ...p }: Omit<NumFieldProps, "value
   return <NumField {...p} value={f.value} onChange={f.set} journal={f.fromJournal} masked={!!money && !!hidden && f.fromJournal} onReset={f.edited ? f.reset : undefined} />;
 }
 
-export function Seg<V extends string>({ value, options, onChange, label }: { value: V; options: { v: V; label: ReactNode }[]; onChange: (v: V) => void; label: string }) {
+export function Seg<V extends string>({ value, options, onChange, label, small }: { value: V; options: { v: V; label: ReactNode }[]; onChange: (v: V) => void; label: string; small?: boolean }) {
   return (
-    <div className="calc-seg" role="group" aria-label={label}>
+    <div className={small ? "calc-seg calc-seg-sm" : "calc-seg"} role="group" aria-label={label}>
       {options.map((o) => <button key={o.v} type="button" aria-pressed={value === o.v} onClick={() => onChange(o.v)}>{o.label}</button>)}
     </div>
   );
+}
+
+/** The small "Pips | Price" switch: how a stop, a target or a result is typed. */
+export function UnitSeg({ lang, value, onChange }: { lang: Lang; value: DistUnit; onChange: (u: DistUnit) => void }) {
+  return <Seg small label={T.unitIn[lang]} value={value} onChange={onChange} options={[{ v: "pips", label: T.unitPips[lang] }, { v: "price", label: T.unitPrice[lang] }]} />;
 }
 
 /** The account to read from, or a currency to type when there is no account yet. */

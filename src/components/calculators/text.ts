@@ -95,6 +95,18 @@ export const T = {
   atrHint: l("In price units, as your chart's ATR shows it.", "بوحدات السعر، كما يظهرها مؤشر ATR على الرسم.", "En unités de prix, comme l'ATR de votre graphique l'affiche."),
   mult: l("Multiplier", "المضاعف", "Multiplicateur"),
   rrHint: l("A stop below the entry is a buy.", "وقف تحت سعر الدخول يعني شراء.", "Un stop sous l'entrée signifie un achat."),
+  // pips or price
+  unitIn: l("Enter distances in", "أدخل المسافات بـ", "Saisir les distances en"),
+  unitPips: l("Pips", "نقاط", "Pips"),
+  unitPrice: l("Price", "سعر", "Prix"),
+  stopPips: l("Stop loss (pips)", "وقف الخسارة (نقاط)", "Stop loss (pips)"),
+  stopPipsShort: l("Stop (pips)", "الوقف (نقاط)", "Stop (pips)"),
+  targetPips: l("Target (pips)", "الهدف (نقاط)", "Objectif (pips)"),
+  resultPips: l("Result in pips", "النتيجة بالنقاط", "Résultat en pips"),
+  resultPipsHint: l("Negative for a loss.", "بالسالب للخسارة.", "Négatif pour une perte."),
+  pipHint: l("In MT5 one pip is usually 10 points. Check your broker's specification.", "في MT5 تساوي النقطة عادةً 10 نقاط سعر. تحقق من مواصفات وسيطك.", "Dans MT5, un pip vaut généralement 10 points. Vérifiez la spécification de votre courtier."),
+  stopZero: l("The stop must be more than 0 pips.", "يجب أن يكون الوقف أكثر من 0 نقطة.", "Le stop doit dépasser 0 pip."),
+  targetZero: l("The target must be more than 0 pips.", "يجب أن يكون الهدف أكثر من 0 نقطة.", "L'objectif doit dépasser 0 pip."),
   // challenge plan fields
   challenge: l("Challenge", "التحدي", "Challenge"),
   noChallenge: l("No active challenge on this account: type the rules.", "لا يوجد تحدٍّ نشط على هذا الحساب: اكتب القواعد.", "Aucun challenge actif sur ce compte : saisissez les règles."),
@@ -142,6 +154,7 @@ export const T = {
   plWin: l("The price moved {move} in your favour: you make {money}.", "تحرّك السعر {move} لصالحك: تربح {money}.", "Le prix a bougé de {move} en votre faveur : vous gagnez {money}."),
   plLoss: l("The price moved {move} against you: you lose {money}.", "تحرّك السعر {move} ضدك: تخسر {money}.", "Le prix a bougé de {move} contre vous : vous perdez {money}."),
   plFlat: l("No move between entry and exit: nothing made or lost.", "لا حركة بين الدخول والخروج: لا ربح ولا خسارة.", "Aucun mouvement entre l'entrée et la sortie : ni gain ni perte."),
+  plFlatPips: l("A result of 0 pips: nothing made or lost.", "نتيجة 0 نقطة: لا ربح ولا خسارة.", "Un résultat de 0 pip : ni gain ni perte."),
   move: l("Move", "الحركة", "Mouvement"),
   // pip
   pipSay: l("Each pip on {lots} lots is worth {money}.", "كل نقطة على {lots} لوت تساوي {money}.", "Chaque pip sur {lots} lots vaut {money}."),

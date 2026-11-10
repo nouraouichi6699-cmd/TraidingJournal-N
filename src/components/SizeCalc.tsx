@@ -1,5 +1,5 @@
-// Position size calculator (header panel): the lots that risk a share of the balance (or an amount) between an entry and
-// a stop. Prop-challenge accounts also show the safe risk per trade (a third of the room left before a rule breaks, as in
+// Position size calculator (header panel): the lots that risk a share of the balance (or an amount) over a stop typed in
+// pips (the default) or between an entry and a stop price. Prop-challenge accounts also show the safe risk per trade (a third of the room left before a rule breaks, as in
 // the Telegram morning plan) and warn when the trade would risk more.
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
@@ -18,6 +18,14 @@ const T = {
   symbol: { en: "Symbol", ar: "الرمز", fr: "Symbole" },
   entry: { en: "Entry", ar: "سعر الدخول", fr: "Entrée" },
   stop: { en: "Stop loss", ar: "وقف الخسارة", fr: "Stop loss" },
+  stopIn: { en: "Stop in", ar: "أدخل الوقف بـ", fr: "Stop en" },
+  unitPips: { en: "Pips", ar: "نقاط", fr: "Pips" },
+  unitPrice: { en: "Price", ar: "سعر", fr: "Prix" },
+  stopPips: { en: "Stop loss (pips)", ar: "وقف الخسارة (نقاط)", fr: "Stop loss (pips)" },
+  pipSize: { en: "Pip size", ar: "حجم النقطة", fr: "Taille du pip" },
+  pipHint: { en: "In MT5 one pip is usually 10 points. Check your broker's specification.", ar: "في MT5 تساوي النقطة عادةً 10 نقاط سعر. تحقق من مواصفات وسيطك.", fr: "Dans MT5, un pip vaut généralement 10 points. Vérifiez la spécification de votre courtier." },
+  price: { en: "Current price", ar: "السعر الحالي", fr: "Prix actuel" },
+  priceHint: { en: "Needed to convert to {cur}.", ar: "لازم للتحويل إلى {cur}.", fr: "Nécessaire pour convertir en {cur}." },
   contract: { en: "Contract size (1 lot)", ar: "حجم العقد (لوت واحد)", fr: "Taille du contrat (1 lot)" },
   contractHint: { en: "In MT5: right-click the symbol › Specification.", ar: "في MT5: انقر بالزر الأيمن على الرمز ثم المواصفات.", fr: "Dans MT5 : clic droit sur le symbole › Spécification." },
   lots: { en: "lots", ar: "لوت", fr: "lots" },
@@ -28,6 +36,8 @@ const T = {
   over: { en: "Above the safe risk: three losses like this would break a challenge rule.", ar: "أعلى من المخاطرة الآمنة: ثلاث خسائر مثلها تكسر قاعدة في التحدي.", fr: "Au-dessus du risque sûr : trois pertes comme celle-ci enfreindraient une règle du challenge." },
   tiny: { en: "This risk is below the smallest size (0.01 lot).", ar: "هذه المخاطرة أقل من أصغر حجم (0.01 لوت).", fr: "Ce risque est sous la plus petite taille (0,01 lot)." },
   fill: { en: "Enter the entry and the stop loss.", ar: "أدخل سعر الدخول ووقف الخسارة.", fr: "Saisissez l'entrée et le stop loss." },
+  fillPips: { en: "Enter the stop loss in pips.", ar: "أدخل وقف الخسارة بالنقاط.", fr: "Saisissez le stop loss en pips." },
+  fillPip: { en: "Enter the pip size.", ar: "أدخل حجم النقطة.", fr: "Saisissez la taille du pip." },
   step: { en: "Rounded down to 0.01 lot. Check your broker's minimum and step.", ar: "مقرّب للأسفل إلى 0.01 لوت. تحقق من حد الوسيط وخطوته.", fr: "Arrondi à 0,01 lot inférieur. Vérifiez le minimum et le pas de votre courtier." },
   none: { en: "Add an account first.", ar: "أضف حساباً أولاً.", fr: "Ajoutez d'abord un compte." },
 } satisfies Record<string, L3>;
@@ -37,12 +47,14 @@ interface Props { lang: Lang; accounts: Account[]; trades: Trade[]; balances: Re
 export default function SizeCalc({ lang, accounts, trades, balances, flows }: Props) {
   const L = (x: L3) => x[lang];
   const { hidden } = usePrivacy();
-  const { s, save, acc, symbols, sym, cur, entry, setEntry, stop, setStop, r } = useSizeCalc({ accounts, trades, balances, flows });
+  const { s, save, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r } = useSizeCalc({ accounts, trades, balances, flows });
   const money = (v: number, cents = true) => (hidden ? "••••" : fmtMoney(v, { cents, currency: cur }));
 
   const lbl = "flex flex-col gap-1 text-xs font-medium text-muted";
   if (!acc || !r) return <div className="p-4 text-sm">{L(T.none)}</div>;
-  const pipsTxt = r.sp.pip && r.dist > 0 ? `${(r.dist / r.sp.pip).toFixed(1)} ${L(T.pips)}` : r.dist > 0 ? String(+r.dist.toFixed(5)) : "-";
+  const pip = inPips ? r.pip : r.sp.pip;
+  const pipsTxt = pip && r.dist > 0 ? `${(r.dist / pip).toFixed(1)} ${L(T.pips)}` : r.dist > 0 ? String(+r.dist.toFixed(5)) : "-";
+  const fillTxt = !inPips ? L(T.fill) : Number.isFinite(r.sPips) && r.sPips !== 0 && !(r.pip > 0) ? L(T.fillPip) : L(T.fillPips);
   return (
     <div className="flex flex-col gap-3 p-4 text-sm">
       <div className="flex items-center justify-between gap-2">
@@ -69,10 +81,35 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
         <input className="field" dir="ltr" list="sizecalc-syms" value={sym} onChange={(e) => save({ sym: e.target.value.toUpperCase() })} />
         <datalist id="sizecalc-syms">{symbols.map((x) => <option key={x} value={x} />)}</datalist>
       </label>
-      <div className="grid grid-cols-2 gap-2">
-        <label className={lbl}>{L(T.entry)}<input className="field" inputMode="decimal" dir="ltr" value={entry} onChange={(e) => setEntry(e.target.value)} /></label>
-        <label className={lbl}>{L(T.stop)}<input className="field" inputMode="decimal" dir="ltr" value={stop} onChange={(e) => setStop(e.target.value)} /></label>
+      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
+        <span>{L(T.stopIn)}</span>
+        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.stopIn)}>
+          {(["pips", "price"] as const).map((u) => {
+            const on = (u === "pips") === inPips;
+            return <button key={u} type="button" aria-pressed={on} onClick={() => save({ unit: u })} className={`px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{u === "pips" ? L(T.unitPips) : L(T.unitPrice)}</button>;
+          })}
+        </div>
       </div>
+      {inPips ? (
+        <label className={lbl}>{L(T.stopPips)}<input className="field" inputMode="decimal" dir="ltr" value={stopPips} onChange={(e) => setStopPips(e.target.value)} /></label>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <label className={lbl}>{L(T.entry)}<input className="field" inputMode="decimal" dir="ltr" value={entry} onChange={(e) => setEntry(e.target.value)} /></label>
+          <label className={lbl}>{L(T.stop)}<input className="field" inputMode="decimal" dir="ltr" value={stop} onChange={(e) => setStop(e.target.value)} /></label>
+        </div>
+      )}
+      {inPips && r.sp.pip == null && sym.trim() !== "" && (
+        <label className={lbl}>{L(T.pipSize)}
+          <input className="field" inputMode="decimal" dir="ltr" value={pipField} onChange={(e) => setPipField(e.target.value)} />
+          <span className="text-[11px]">{L(T.pipHint)}</span>
+        </label>
+      )}
+      {r.needPrice && (
+        <label className={lbl}>{L(T.price)}
+          <input className="field" inputMode="decimal" dir="ltr" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <span className="text-[11px]">{L(T.priceHint).replace("{cur}", cur)}</span>
+        </label>
+      )}
       {r.sp.contract == null && (
         <label className={lbl}>{L(T.contract)}
           <input className="field" inputMode="decimal" dir="ltr" value={s.contracts[sym.toUpperCase()] ?? ""} onChange={(e) => save({ contracts: { ...s.contracts, [sym.toUpperCase()]: e.target.value } })} />
@@ -85,7 +122,7 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
         </label>
       )}
       <div className="rounded-xl border border-[var(--border)] p-3">
-        {!(r.dist > 0) ? <span className="text-muted">{L(T.fill)}</span> : !r.ok ? <span className="text-muted">-</span> : r.lots < 0.01 ? <span className="text-loss">{L(T.tiny)}</span> : (
+        {!(r.dist > 0) ? <span className="text-muted">{fillTxt}</span> : !r.ok ? <span className="text-muted">-</span> : r.lots < 0.01 ? <span className="text-loss">{L(T.tiny)}</span> : (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline gap-2"><b className="text-3xl tabular-nums" dir="ltr">{r.lots.toFixed(2)}</b><span className="text-muted">{L(T.lots)}</span></div>
             <div className="flex justify-between gap-2 text-xs"><span className="text-muted">{L(T.real)}</span><bdi dir="ltr">{money(r.real)}</bdi></div>

@@ -14,7 +14,7 @@ import type { Account, BalancePoint, Lang, Theme, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
 import { usePrivacy } from "../usePrivacy";
 import { mixHex, THEME_INK } from "../lib/lighting";
-import { CALC_GROUPS, CALC_JOURNAL, CALC_READY, DEFAULT_RECENT, groupOf, isCalcKey, matchesQuery, pushRecentCalc, readableTone, type CalcKey, type GroupKey } from "../lib/calculators";
+import { CALC_GROUPS, CALC_JOURNAL, CALC_READY, DEFAULT_RECENT, groupOf, isCalcKey, matchesQuery, pushRecentCalc, readableTone, type CalcKey, type DistUnit, type GroupKey } from "../lib/calculators";
 import { CALC_TEXT, GROUP_TEXT, T } from "./calculators/text";
 import { Seg, useL, type Ctx } from "./calculators/ui";
 import { AtrBody, MarginBody, PipBody, PlBody, RrBody, SizeBody } from "./calculators/TradeSetup";
@@ -31,12 +31,15 @@ const ICON: Record<CalcKey, LucideIcon> = {
 
 // ---------- what the page remembers on this device ----------
 
-const RECENT_KEY = "mizan-calc-recent", SRC_KEY = "mizan-calc-src", SIZE_KEY = "mizan-size-calc";
+// The "Pips | Price" choice of Risk/Reward and Profit and loss is kept per calculator under UNIT_KEY (Position size
+// keeps its own inside SIZE_KEY, shared with the header's dropdown). Anything but "price" reads as pips, the default.
+const RECENT_KEY = "mizan-calc-recent", SRC_KEY = "mizan-calc-src", UNIT_KEY = "mizan-calc-unit", SIZE_KEY = "mizan-size-calc";
 type Src = "journal" | "manual";
 const readJson = (k: string): unknown => { try { return JSON.parse(localStorage.getItem(k) ?? "null"); } catch { return null; } };
 const writeJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked */ } };
 const readRecent = (): CalcKey[] => { const v = readJson(RECENT_KEY); return Array.isArray(v) && v.some(isCalcKey) ? v.filter(isCalcKey).slice(0, 3) : DEFAULT_RECENT; };
 const readSrc = (): Partial<Record<CalcKey, Src>> => { const v = readJson(SRC_KEY); return v && typeof v === "object" ? (v as Partial<Record<CalcKey, Src>>) : {}; };
+const readUnits = (): Partial<Record<CalcKey, DistUnit>> => { const v = readJson(UNIT_KEY); return v && typeof v === "object" ? (v as Partial<Record<CalcKey, DistUnit>>) : {}; };
 const readSizeAcc = (): string => { const v = readJson(SIZE_KEY) as { acc?: unknown } | null; return typeof v?.acc === "string" ? v.acc : ""; };
 
 interface Props {
@@ -58,6 +61,7 @@ export default function CalculatorsView({ lang, theme, accounts, trades, balance
   const [q, setQ] = useState("");
   const [recent, setRecent] = useState<CalcKey[]>(readRecent);
   const [src, setSrc] = useState(readSrc);
+  const [units, setUnits] = useState(readUnits);
   const [accId, setAccId] = useState(readSizeAcc);
   const [cur, setCur] = useState("USD");
 
@@ -82,6 +86,7 @@ export default function CalculatorsView({ lang, theme, accounts, trades, balance
       {open
         ? <Detail key={open} k={open} lang={lang} mode={CALC_JOURNAL.has(open) && src[open] !== "manual" ? "journal" : "manual"}
             onMode={(m) => setSrc((o) => { const n = { ...o, [open]: m }; writeJson(SRC_KEY, n); return n; })} onBack={() => go(null)}
+            unit={units[open] === "price" ? "price" : "pips"} onUnit={(u) => setUnits((o) => { const n = { ...o, [open]: u }; writeJson(UNIT_KEY, n); return n; })}
             ctxBase={{ lang, accounts, trades, balances, flows, hidden, accId, setAccId, cur, setCur }} toneOf={toneOf} glassBg={glassBg} />
         : <Hub lang={lang} q={q} setQ={setQ} recent={recent} onOpen={go} toneOf={toneOf} />}
     </div>
@@ -172,16 +177,18 @@ interface DetailProps {
   mode: Src;
   onMode: (m: Src) => void;
   onBack: () => void;
-  ctxBase: Omit<Ctx, "journal" | "color" | "tone">;
+  unit: DistUnit;
+  onUnit: (u: DistUnit) => void;
+  ctxBase: Omit<Ctx, "journal" | "color" | "tone" | "unit" | "setUnit">;
   toneOf: (c: string) => string;
   glassBg: string;
 }
 
-function Detail({ k, lang, mode, onMode, onBack, ctxBase, toneOf, glassBg }: DetailProps) {
+function Detail({ k, lang, mode, onMode, onBack, unit, onUnit, ctxBase, toneOf, glassBg }: DetailProps) {
   const L = useL(lang);
   const g = groupOf(k);
   const ready = CALC_READY.has(k), journalable = CALC_JOURNAL.has(k);
-  const ctx: Ctx = { ...ctxBase, journal: journalable && mode === "journal", color: g.color, tone: toneOf(g.color) };
+  const ctx: Ctx = { ...ctxBase, journal: journalable && mode === "journal", color: g.color, tone: toneOf(g.color), unit, setUnit: onUnit };
   // fresh fields when the source changes; a journal field follows the account by itself until it is typed over
   const bodyKey = mode;
   return (
