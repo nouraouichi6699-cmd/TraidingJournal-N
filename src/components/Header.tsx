@@ -9,6 +9,7 @@ import { useDashEdit } from "../useDashEdit";
 import type { Interests } from "../useInterests";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { useActiveTheme, useSettings } from "../useSettings";
+import { openCalculator } from "../useCalculators";
 import type { Lang, Theme } from "../types";
 
 interface Props {
@@ -32,6 +33,7 @@ interface Props {
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
 const calcLabel: Record<Lang, string> = { en: "Position size", ar: "حجم الصفقة", fr: "Taille de position" };
+const allCalcs: Record<Lang, string> = { en: "All calculators", ar: "كل الحاسبات", fr: "Toutes les calculatrices" };
 
 export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
   const privacy = usePrivacy();
@@ -92,7 +94,17 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
 
           {calc && (
             <Dropdown label={calcLabel[lang]} panelClass="w-[min(92vw,360px)]" trigger={<Calculator {...ic} />}>
-              {() => calc}
+              {(close) => (
+                <>
+                  {calc}
+                  <div className="flex justify-end border-t border-border px-4 pb-1.5 pt-2">
+                    <button type="button" onClick={() => { openCalculator(); close(); }} className="inline-flex items-center gap-1 text-xs font-semibold text-icon hover:underline">
+                      {allCalcs[lang]}
+                      <ChevronDown size={14} className="-rotate-90 rtl:rotate-90" aria-hidden />
+                    </button>
+                  </div>
+                </>
+              )}
             </Dropdown>
           )}
 

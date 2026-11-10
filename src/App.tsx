@@ -23,6 +23,7 @@ import { isBuiltIn, resolveTheme } from "./lib/customThemes";
 import { setPrivacy } from "./usePrivacy";
 import { useAccounts } from "./useAccounts";
 import { makeT, type Key } from "./i18n";
+import { OPEN_CALCULATOR, type CalcNav } from "./useCalculators";
 import { publishBotRules } from "./lib/tradeRules";
 import { CHANGED } from "./lib/myStrategies";
 import { clearEconCacheForUser } from "./lib/econNewsCache";
@@ -42,6 +43,7 @@ const loadCalendar = () => import("./components/CalendarView");
 const loadNews = () => import("./components/NewsView");
 const loadProfile = () => import("./components/ProfileView");
 const loadSettingsView = () => import("./components/SettingsView");
+const loadCalculators = () => import("./components/CalculatorsView");
 
 const AccountsList = lazy(loadAccounts);
 const ImportView = lazy(loadImport);
@@ -55,6 +57,7 @@ const CalendarView = lazy(loadCalendar);
 const NewsView = lazy(loadNews);
 const ProfileView = lazy(loadProfile);
 const SettingsView = lazy(loadSettingsView);
+const CalculatorsView = lazy(loadCalculators);
 
 // The views switched to most often once signed in: prefetched in idle time so the first tab switch feels instant.
 const PREFETCH_AFTER_SIGNIN = [loadJournal, loadCharts, loadReports];
@@ -208,6 +211,16 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
     window.addEventListener(OPEN_SETTINGS, on);
     return () => window.removeEventListener(OPEN_SETTINGS, on);
   }, []);
+  // Which calculator a link asked for (null: the list), consumed when the Calculators page mounts or is already open.
+  const [calcNav, setCalcNav] = useState<{ key: string | null } | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      setCalcNav({ key: (e as CustomEvent<CalcNav>).detail?.key ?? null });
+      setView("calculators");
+    };
+    window.addEventListener(OPEN_CALCULATOR, on);
+    return () => window.removeEventListener(OPEN_CALCULATOR, on);
+  }, []);
   const { profile, save: saveProfile } = useProfile();
   // Once signed in and settled, warm the most-switched-to views in idle time so the first tab change feels instant.
   useEffect(() => { idlePrefetch(PREFETCH_AFTER_SIGNIN); }, []);
@@ -219,7 +232,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
       <div className="relative z-10">
       <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={handleTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
       <div className="flex">
-        <Sidebar t={t} lang={lang} view={view} onView={setView} />
+        <Sidebar t={t} lang={lang} view={view} onView={(v) => { if (v === "calculators") setCalcNav({ key: null }); setView(v); }} />
         <main className="min-w-0 flex-1 p-4">
           <AnimatePresence mode="wait">
             <motion.div
@@ -284,6 +297,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
               )}
               {view === "calendar" && <LazyView t={t} lang={lang}><CalendarView t={t} lang={lang} interests={interests} /></LazyView>}
               {view === "news" && <LazyView t={t} lang={lang}><NewsView t={t} lang={lang} interests={interests} /></LazyView>}
+              {view === "calculators" && <LazyView t={t} lang={lang}><CalculatorsView t={t} lang={lang} theme={theme} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} nav={calcNav} onNavDone={() => setCalcNav(null)} /></LazyView>}
               {view === "charts" && <LazyView t={t} lang={lang}><ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} /></LazyView>}
               {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} userId={userId} onOpenDay={(day, hotspot) => { setReportsNav({ tab: "daybyday", day, sub: hotspot ? "hotspot" : undefined }); setView("reports"); }} />}
               {view === "reports" && <LazyView t={t} lang={lang}><ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} /></LazyView>}

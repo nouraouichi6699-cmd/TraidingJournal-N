@@ -1,0 +1,170 @@
+/* ---------- Calculators page ----------
+   Loaded with the page's own chunk. Dark themes get a frosted white glass over the page; Ivory (data-theme="light")
+   gets a white translucent glass with the theme's dark text. Group colours come in as --g (the raw colour, for
+   borders, tints and glows) and --gt (the same colour made readable as text on this glass). */
+
+.calc-page { position: relative; isolation: isolate; }
+
+/* Three soft lights behind the cards, inside the page only: orange top-end, green bottom-start, fuchsia centre. */
+.calc-glow {
+  --calc-end: 100%;
+  --calc-start: 0%;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42rem 28rem at var(--calc-end) 0%, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0) 70%),
+    radial-gradient(40rem 28rem at var(--calc-start) 100%, rgba(34, 197, 94, 0.17), rgba(34, 197, 94, 0) 70%),
+    radial-gradient(36rem 26rem at 50% 50%, rgba(217, 70, 239, 0.14), rgba(217, 70, 239, 0) 70%);
+}
+[dir="rtl"] .calc-glow { --calc-end: 0%; --calc-start: 100%; }
+[data-theme="light"] .calc-glow { display: none; }
+
+.calc-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 34px -14px rgba(0, 0, 0, 0.6);
+}
+[data-theme="light"] .calc-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+  border-color: rgba(10, 26, 63, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 12px 30px -16px rgba(10, 26, 63, 0.28);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .calc-glass { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* A group card: the 2px line along the top and the big faint icon in the top start corner. */
+.calc-topline {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--g), transparent);
+  pointer-events: none;
+}
+.calc-watermark {
+  position: absolute;
+  top: -18px;
+  inset-inline-start: -18px;
+  color: var(--g);
+  opacity: 0.06;
+  pointer-events: none;
+}
+[data-theme="light"] .calc-watermark { opacity: 0.08; }
+.calc-badge {
+  color: var(--gt);
+  background: color-mix(in srgb, var(--g) 12%, transparent);
+}
+
+/* A calculator row: a button that slides 3px toward its chevron on hover, the chevron turning gold. */
+.calc-row {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  padding: 8px 10px;
+  text-align: start;
+  transition: background-color 0.18s ease;
+}
+.calc-row-in {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: transform 0.18s ease;
+}
+.calc-chev { color: var(--muted); transition: color 0.18s ease; }
+.calc-row:hover, .calc-row:focus-visible { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.calc-row:hover .calc-row-in, .calc-row:focus-visible .calc-row-in { transform: translateX(3px); }
+[dir="rtl"] .calc-row:hover .calc-row-in, [dir="rtl"] .calc-row:focus-visible .calc-row-in { transform: translateX(-3px); }
+.calc-row:hover .calc-chev, .calc-row:focus-visible .calc-chev { color: var(--icon); }
+
+.calc-pill { transition: border-color 0.18s ease, transform 0.18s ease; }
+.calc-pill:hover { border-color: color-mix(in srgb, var(--icon) 50%, transparent); }
+
+/* Inputs: section labels in gold with a line fading out, and the journal's own values in a gold frame. */
+.calc-sec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--icon);
+}
+.calc-sec::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--icon) 45%, transparent), transparent);
+}
+[dir="rtl"] .calc-sec::after { background: linear-gradient(270deg, color-mix(in srgb, var(--icon) 45%, transparent), transparent); }
+.field.calc-field-j {
+  border-color: color-mix(in srgb, var(--icon) 70%, transparent);
+  background: color-mix(in srgb, var(--icon) 8%, var(--bg));
+}
+
+/* Segmented controls and chips: the chosen one in gold. */
+.calc-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+.calc-seg > button, .calc-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.calc-chip { border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); }
+.calc-seg > button:hover, .calc-chip:hover { color: var(--text); }
+.calc-seg > button[aria-pressed="true"], .calc-chip[aria-pressed="true"] {
+  background: var(--icon);
+  border-color: transparent;
+  color: #1a1200;
+  box-shadow: 0 2px 10px -3px color-mix(in srgb, var(--icon) 70%, transparent);
+}
+[data-theme="light"] .calc-seg > button[aria-pressed="true"], [data-theme="light"] .calc-chip[aria-pressed="true"] { color: #ffffff; }
+
+/* The result: a frame and a soft glow in the group's colour, a big number with a light halo, and hairline rows. */
+.calc-result {
+  border-color: color-mix(in srgb, var(--g) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 46px -4px color-mix(in srgb, var(--g) 13%, transparent),
+    0 14px 34px -14px rgba(0, 0, 0, 0.6);
+}
+[data-theme="light"] .calc-result {
+  border-color: color-mix(in srgb, var(--g) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 0 46px -4px color-mix(in srgb, var(--g) 13%, transparent),
+    0 12px 30px -16px rgba(10, 26, 63, 0.28);
+}
+.calc-big {
+  font-size: 36px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--gt);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--g) 35%, transparent);
+}
+.calc-rows > * + * { border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+
+.calc-status-ok { color: var(--profit); background: color-mix(in srgb, var(--profit) 13%, transparent); }
+.calc-status-bad { color: var(--loss); background: color-mix(in srgb, var(--loss) 13%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .calc-row-in, .calc-row, .calc-chev, .calc-pill { transition: none; }
+  .calc-row:hover .calc-row-in, .calc-row:focus-visible .calc-row-in,
+  [dir="rtl"] .calc-row:hover .calc-row-in, [dir="rtl"] .calc-row:focus-visible .calc-row-in { transform: none; }
+}
+:root[data-reduce-motion="1"] .calc-row-in,
+:root[data-reduce-motion="1"] .calc-row:hover .calc-row-in,
+:root[data-reduce-motion="1"] .calc-row:focus-visible .calc-row-in { transition: none; transform: none; }

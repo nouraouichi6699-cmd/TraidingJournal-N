@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag } from "lucide-react";
+import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag, Calculator } from "lucide-react";
 import { CandleIcon } from "./Mascot";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -8,7 +8,7 @@ import type { Lang } from "../types";
 const groups = [
   {
     id: "g1", label: { en: "Overview", ar: "نظرة عامة", fr: "Aperçu" }, items: [
-      { id: "dashboard", icon: LayoutDashboard }, { id: "journal", icon: PenLine }, { id: "charts", icon: LineChart }, { id: "reports", icon: ClipboardList },
+      { id: "dashboard", icon: LayoutDashboard }, { id: "journal", icon: PenLine }, { id: "charts", icon: LineChart }, { id: "calculators", icon: Calculator }, { id: "reports", icon: ClipboardList },
     ]
   },
   {

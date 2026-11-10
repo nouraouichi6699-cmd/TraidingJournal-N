@@ -20,6 +20,7 @@ const dict = {
   journal: { en: "Journal", ar: "اليوميات", fr: "Journal" },
   accounts: { en: "Accounts", ar: "الحسابات", fr: "Comptes" },
   charts: { en: "Charts", ar: "الرسوم", fr: "Graphiques" },
+  calculators: { en: "Calculators", ar: "الحاسبات", fr: "Calculatrices" },
   reports: { en: "Reports", ar: "التقارير", fr: "Rapports" },
   connect: { en: "Connect an account", ar: "ربط حساب", fr: "Connecter un compte" },
   feedback: { en: "Share feedback", ar: "شارك رأيك", fr: "Donner un avis" },
