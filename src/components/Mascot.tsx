@@ -1,6 +1,6 @@
 // The advisor's mascot: a trading candlestick with a face (body = the candle, top wick = a tuft, bottom wick = its leg),
 // always moving. Four moods; the drawing is here, the motion in index.css (.cs-*).
-import { useId, type CSSProperties } from "react";
+import { useId, forwardRef, type CSSProperties } from "react";
 
 export type Mood = "happy" | "sad" | "angry" | "jealous";
 export const MOODS: Mood[] = ["happy", "sad", "angry", "jealous"];
@@ -139,3 +139,19 @@ export function CandleIcon({ size = 24, strokeWidth = 2, className = "" }: { siz
     </svg>
   );
 }
+
+/** Math function icon: an f with an x, in lucide style (24x24, outline, currentColor).
+ *  Adapted from Tabler Icons math-function (MIT).
+ *  Same props pattern as menu icons, never mirrored in RTL. */
+export const MathFunctionIcon = forwardRef<SVGSVGElement, { size?: number; strokeWidth?: number; className?: string }>(
+  function MathFunctionIcon({ size = 24, strokeWidth = 2, className = "" }, ref) {
+    return (
+      <svg ref={ref} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+        <path d="M3 19a2 2 0 0 0 2 2c2 0 2 -4 3 -9s1 -9 3 -9a2 2 0 0 1 2 2" />
+        <path d="M5 12h6" />
+        <path d="M15 12l6 6" />
+        <path d="M15 18l6 -6" />
+      </svg>
+    );
+  }
+);

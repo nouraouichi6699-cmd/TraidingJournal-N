@@ -4,11 +4,12 @@
 // openCalculator(key).
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  ArrowLeft, ArrowLeftRight, BarChart3, Brain, Calculator, ChevronRight, Crosshair, Divide, Flag, Layers, LineChart, NotebookPen, Percent, RefreshCw,
+  ArrowLeft, ArrowLeftRight, BarChart3, Brain, ChevronRight, Crosshair, Divide, Flag, Layers, LineChart, NotebookPen, Percent, RefreshCw,
   Ruler, Scale, Search, Shield, ShieldHalf, Shuffle, Sigma, TrendingDown, TrendingUp, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
 import "./calculators/calculators.css";
 import GlassIcon from "./GlassIcon";
+import { MathFunctionIcon } from "./Mascot";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Theme, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
@@ -102,7 +103,7 @@ function Hub({ lang, q, setQ, recent, onOpen, toneOf }: { lang: Lang; q: string;
   return (
     <>
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <GlassIcon icon={Calculator} size={44} color={GOLD} />
+        <GlassIcon icon={MathFunctionIcon as any} size={44} color={GOLD} />
         <div className="min-w-0 flex-1">
           <h1 className="font-heading text-xl font-semibold">{L(T.title)}</h1>
           <p className="text-sm text-muted">{L(T.subtitle)}</p>
