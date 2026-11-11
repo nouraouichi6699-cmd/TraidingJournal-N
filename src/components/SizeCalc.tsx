@@ -1,6 +1,7 @@
 // Position size calculator (header panel): the lots that risk a share of the balance (or an amount) over a stop typed in
 // pips (the default) or between an entry and a stop price. Prop-challenge accounts also show the safe risk per trade (a third of the room left before a rule breaks, as in
 // the Telegram morning plan) and warn when the trade would risk more.
+import { useState } from "react";
 import { Gauge } from "lucide-react";
 import { BALANCE_PRESETS, balancePresetOf } from "../lib/calcCore";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
@@ -52,6 +53,10 @@ const T = {
   presetMedium: { en: "Medium risk", ar: "مخاطرة متوسطة", fr: "Risque moyen" },
   presetHigh: { en: "High risk", ar: "مخاطرة عالية", fr: "Risque élevé" },
   balRule: { en: "Fixed lots per chunk of balance, whatever the stop.", ar: "لوت ثابت لكل جزء من الرصيد، مهما كان الوقف.", fr: "Lots fixes par tranche de solde, quel que soit le stop." },
+  riskPctField: { en: "Risk per trade (%)", ar: "المخاطرة لكل صفقة (%)", fr: "Risque par trade (%)" },
+  risking: { en: "Risking", ar: "مخاطرة بمبلغ", fr: "Risque de" },
+  ofBalance: { en: "of your balance", ar: "من رصيدك", fr: "de votre solde" },
+  advanced: { en: "Advanced", ar: "إعدادات متقدمة", fr: "Options avancées" },
   none: { en: "Add an account first.", ar: "أضف حساباً أولاً.", fr: "Ajoutez d'abord un compte." },
 } satisfies Record<string, L3>;
 
@@ -61,6 +66,8 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
   const L = (x: L3) => x[lang];
   const { hidden } = usePrivacy();
   const { s, save, setCapSrc, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r } = useSizeCalc({ accounts, trades, balances, flows });
+  // Advanced starts open only when the saved setup is not the simple default (%, capital from the account, stop in pips)
+  const [advOpen, setAdvOpen] = useState(() => s.mode !== "pct" || s.capSrc !== "acc" || s.unit === "price");
   const money = (v: number, cents = true) => (hidden ? "••••" : fmtMoney(v, { cents, currency: cur }));
 
   const lbl = "flex flex-col gap-1 text-xs font-medium text-muted";
@@ -69,6 +76,7 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
   const pip = inPips ? r.pip : r.sp.pip;
   const pipsTxt = pip && r.dist > 0 ? `${(r.dist / pip).toFixed(1)} ${L(T.pips)}` : r.dist > 0 ? String(+r.dist.toFixed(5)) : "-";
   const fillTxt = !inPips ? L(T.fill) : Number.isFinite(r.sPips) && r.sPips !== 0 && !(r.pip > 0) ? L(T.fillPip) : L(T.fillPips);
+  const riskPctOfBal = Number.isFinite(r.riskMoney) && r.bal > 0 ? (r.riskMoney / r.bal) * 100 : NaN;
   return (
     <div className="flex flex-col gap-3 p-4 text-sm">
       <div className="flex items-center justify-between gap-2">
@@ -80,65 +88,22 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </label>
-      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
-        <span>{L(T.capital)}</span>
-        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.capital)}>
-          {(["acc", "manual"] as const).map((c) => {
-            const on = s.capSrc === c;
-            return <button key={c} type="button" aria-pressed={on} onClick={() => setCapSrc(c)} className={`px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{c === "acc" ? L(T.capAcc) : L(T.capManual)}</button>;
-          })}
+      {/* the risk value of the saved mode: a plain % by default; the switch between modes lives under Advanced */}
+      {bal ? (
+        <div className="grid grid-cols-2 gap-2">
+          <label className={lbl}>{L(T.unitAmt)}<input className="field" inputMode="decimal" dir="ltr" value={s.unitAmt} onChange={(e) => save({ unitAmt: e.target.value })} /></label>
+          <label className={lbl}>{L(T.lotsPerUnit)}<input className="field" inputMode="decimal" dir="ltr" value={s.lotsPerUnit} onChange={(e) => save({ lotsPerUnit: e.target.value })} /></label>
         </div>
-      </div>
-      {s.capSrc === "manual" && <label className={lbl}>{L(T.capital)}<input className="field" inputMode="decimal" dir="ltr" value={s.capManual} onChange={(e) => save({ capManual: e.target.value })} /></label>}
-      <div className={lbl}>{L(T.risk)}
-        <div className="flex gap-2">
-          {bal ? (
-            <div className="flex flex-1 items-center rounded-lg border border-[var(--border)] px-2 text-[11px]">{L(T.balRule)}</div>
-          ) : (
-            <input className="field flex-1" inputMode="decimal" dir="ltr" value={s.mode === "pct" ? s.pct : s.amt} onChange={(e) => save(s.mode === "pct" ? { pct: e.target.value } : { amt: e.target.value })} />
-          )}
-          <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-            {(["pct", "amt", "balance"] as const).map((m) => (
-              <button key={m} type="button" aria-pressed={s.mode === m} onClick={() => save({ mode: m })} className={`px-3 text-xs font-semibold ${s.mode === m ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{m === "pct" ? "%" : m === "amt" ? (cur === "USD" ? "$" : cur) : L(T.modeBal)}</button>
-            ))}
-          </div>
-        </div>
-        {!bal && <span className="text-[11px]">{s.mode === "pct" ? L(T.pct) : L(T.amt)}{s.mode === "pct" && Number.isFinite(r.riskMoney) && <> · <bdi dir="ltr">{money(r.riskMoney)}</bdi></>}</span>}
-      </div>
-      {bal && (
-        <>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px]"><Gauge size={13} aria-hidden />{L(T.riskLevel)}</span>
-            {BALANCE_PRESETS.map((x) => {
-              const on = balancePresetOf(s.unitAmt, s.lotsPerUnit) === x.key;
-              return <button key={x.key} type="button" aria-pressed={on} onClick={() => save({ unitAmt: x.unitAmt, lotsPerUnit: x.lotsPerUnit })} className={`rounded-full border border-[var(--border)] px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{L(x.key === "low" ? T.presetLow : x.key === "medium" ? T.presetMedium : T.presetHigh)}</button>;
-            })}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className={lbl}>{L(T.unitAmt)}<input className="field" inputMode="decimal" dir="ltr" value={s.unitAmt} onChange={(e) => save({ unitAmt: e.target.value })} /></label>
-            <label className={lbl}>{L(T.lotsPerUnit)}<input className="field" inputMode="decimal" dir="ltr" value={s.lotsPerUnit} onChange={(e) => save({ lotsPerUnit: e.target.value })} /></label>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] p-3">
-            {!r.ok ? <span className="text-muted">-</span> : (
-              <div className="flex items-baseline gap-2"><b className="text-3xl tabular-nums" dir="ltr">{r.lots.toFixed(2)}</b><span className="text-muted">{L(T.lots)}</span></div>
-            )}
-          </div>
-          <p className="text-[11px] text-muted">{L(T.step)}</p>
-        </>
+      ) : (
+        <label className={lbl}>{s.mode === "pct" ? L(T.riskPctField) : `${L(T.risk)} · ${L(T.amt)}`}
+          <input className="field" inputMode="decimal" dir="ltr" value={s.mode === "pct" ? s.pct : s.amt} onChange={(e) => save(s.mode === "pct" ? { pct: e.target.value } : { amt: e.target.value })} />
+        </label>
       )}
+      {bal && <p className="text-[11px] text-muted">{L(T.balRule)}</p>}
       {!bal && <><label className={lbl}>{L(T.symbol)}
         <input className="field" dir="ltr" list="sizecalc-syms" value={sym} onChange={(e) => save({ sym: e.target.value.toUpperCase() })} />
         <datalist id="sizecalc-syms">{symbols.map((x) => <option key={x} value={x} />)}</datalist>
       </label>
-      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
-        <span>{L(T.stopIn)}</span>
-        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.stopIn)}>
-          {(["pips", "price"] as const).map((u) => {
-            const on = (u === "pips") === inPips;
-            return <button key={u} type="button" aria-pressed={on} onClick={() => save({ unit: u })} className={`px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{u === "pips" ? L(T.unitPips) : L(T.unitPrice)}</button>;
-          })}
-        </div>
-      </div>
       {inPips ? (
         <label className={lbl}>{L(T.stopPips)}<input className="field" inputMode="decimal" dir="ltr" value={stopPips} onChange={(e) => setStopPips(e.target.value)} /></label>
       ) : (
@@ -169,23 +134,69 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
         <label className={lbl}><bdi dir="ltr">1 {r.sp.quote} = ? {cur}</bdi>
           <input className="field" inputMode="decimal" dir="ltr" value={s.rates[`${r.sp.quote}${cur}`] ?? ""} onChange={(e) => save({ rates: { ...s.rates, [`${r.sp.quote}${cur}`]: e.target.value } })} />
         </label>
-      )}
+      )}</>}
       <div className="rounded-xl border border-[var(--border)] p-3">
-        {!(r.dist > 0) ? <span className="text-muted">{fillTxt}</span> : !r.ok ? <span className="text-muted">-</span> : r.lots < 0.01 ? <span className="text-loss">{L(T.tiny)}</span> : (
+        {bal ? (!r.ok ? <span className="text-muted">-</span> : (
+          <div className="flex items-baseline gap-2"><b className="text-3xl tabular-nums" dir="ltr">{r.lots.toFixed(2)}</b><span className="text-muted">{L(T.lots)}</span></div>
+        )) : !(r.dist > 0) ? <span className="text-muted">{fillTxt}</span> : !r.ok ? <span className="text-muted">-</span> : r.lots < 0.01 ? <span className="text-loss">{L(T.tiny)}</span> : (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline gap-2"><b className="text-3xl tabular-nums" dir="ltr">{r.lots.toFixed(2)}</b><span className="text-muted">{L(T.lots)}</span></div>
+            <p className="text-xs">{L(T.risking)} <bdi dir="ltr">{money(r.riskMoney)}</bdi>{Number.isFinite(riskPctOfBal) && <> (<bdi dir="ltr">{riskPctOfBal.toFixed(2)}%</bdi> {L(T.ofBalance)})</>}</p>
             <div className="flex justify-between gap-2 text-xs"><span className="text-muted">{L(T.real)}</span><bdi dir="ltr">{money(r.real)}</bdi></div>
             <div className="flex justify-between gap-2 text-xs"><span className="text-muted">{L(T.dist)}</span><bdi dir="ltr">{pipsTxt}</bdi></div>
           </div>
         )}
-        {r.safe && (
+        {!bal && r.safe && (
           <div className="mt-2 border-t border-[var(--border)] pt-2 text-xs">
             <div className="flex justify-between gap-2"><span className="text-muted">{L(T.safe).replace("{n}", r.safe.name)}</span><bdi dir="ltr">{money(r.safe.v)}</bdi></div>
             {r.ok && r.lots >= 0.01 && r.real > r.safe.v + 0.005 && <p className="mt-1.5 font-medium text-loss">{L(T.over)}</p>}
           </div>
         )}
       </div>
-      <p className="text-[11px] text-muted">{L(T.step)}</p></>}
+      <p className="text-[11px] text-muted">{L(T.step)}</p>
+
+      <details className="rounded-xl border border-[var(--border)] px-3 py-2" open={advOpen} onToggle={(e) => setAdvOpen(e.currentTarget.open)}>
+        <summary className="cursor-pointer select-none text-xs font-semibold text-muted">{L(T.advanced)}</summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <div className={lbl}>{L(T.risk)}
+            <div className="flex self-start overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.risk)}>
+              {(["pct", "amt", "balance"] as const).map((m) => (
+                <button key={m} type="button" aria-pressed={s.mode === m} onClick={() => save({ mode: m })} className={`px-3 py-1 text-xs font-semibold ${s.mode === m ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{m === "pct" ? "%" : m === "amt" ? (cur === "USD" ? "$" : cur) : L(T.modeBal)}</button>
+              ))}
+            </div>
+          </div>
+          {bal && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-[11px]"><Gauge size={13} aria-hidden />{L(T.riskLevel)}</span>
+              {BALANCE_PRESETS.map((x) => {
+                const on = balancePresetOf(s.unitAmt, s.lotsPerUnit) === x.key;
+                return <button key={x.key} type="button" aria-pressed={on} onClick={() => save({ unitAmt: x.unitAmt, lotsPerUnit: x.lotsPerUnit })} className={`rounded-full border border-[var(--border)] px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{L(x.key === "low" ? T.presetLow : x.key === "medium" ? T.presetMedium : T.presetHigh)}</button>;
+              })}
+            </div>
+          )}
+          {!bal && (
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
+              <span>{L(T.stopIn)}</span>
+              <div className="flex overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.stopIn)}>
+                {(["pips", "price"] as const).map((u) => {
+                  const on = (u === "pips") === inPips;
+                  return <button key={u} type="button" aria-pressed={on} onClick={() => save({ unit: u })} className={`px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{u === "pips" ? L(T.unitPips) : L(T.unitPrice)}</button>;
+                })}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
+            <span>{L(T.capital)}</span>
+            <div className="flex overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.capital)}>
+              {(["acc", "manual"] as const).map((c) => {
+                const on = s.capSrc === c;
+                return <button key={c} type="button" aria-pressed={on} onClick={() => setCapSrc(c)} className={`px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{c === "acc" ? L(T.capAcc) : L(T.capManual)}</button>;
+              })}
+            </div>
+          </div>
+          {s.capSrc === "manual" && <label className={lbl}>{L(T.capital)}<input className="field" inputMode="decimal" dir="ltr" value={s.capManual} onChange={(e) => save({ capManual: e.target.value })} /></label>}
+        </div>
+      </details>
     </div>
   );
 }
