@@ -1,6 +1,6 @@
 import {
   atrSize, avgReturn, CALC_GROUPS, CALC_JOURNAL, CALC_KEYS, CALC_READY, challengePlan, challengeRulesPct, compound, isCalcKey, likelyLongestRun,
-  longestRunAtMost, longestRunDist, lotsFor, marginFor, matchesQuery, moneyFor, needsRate, parseNum, pipValue, pnlByMonth, positionSize,
+  longestRunAtMost, longestRunDist, lotsFor, lotsFromBalanceRule, marginFor, matchesQuery, moneyFor, needsRate, parseNum, pipValue, pnlByMonth, positionSize,
   profitLoss, pushRecentCalc, quoteToAccountRate, rateKey, readableTone, riskReward, symbolSpec, tradeEdge,
   defaultPipSize, needsPrice, pipSizeFor, pipsToDistance, profitLossPips, riskRewardPips,
   convertFx, effectiveFx, fxStatus, mergeFx, parseCoingeckoBtc, parseErApiUsd, parseFrankfurterUsd, percentCalc, STD_START, stdKeyFromEvent, stdPress,
@@ -101,6 +101,24 @@ ps = positionSize({ ...base, mode: "amt", amt: 50, spec: EU, contract: 100000, e
 near("risk as an amount: 50$ over 50 pips = 0.10 lot", ps.lots, 0.1);
 ps = positionSize({ ...base, mode: "amt", amt: 1, spec: EU, contract: 100000, entry: 1.1, stop: 1.095 });
 ok("risk below 0.01 lot: rounds to 0", ps.ok && ps.lots < 0.01);
+
+console.log("-- lots / balance rule");
+near("TraderWaves example: 100 / 1000 x 0.01 rounds down to 0.00", lotsFromBalanceRule(100, 1000, 0.01), 0, 1e-9);
+near("15000 / 1000 x 0.01 = 0.15 lot", lotsFromBalanceRule(15000, 1000, 0.01), 0.15, 1e-9);
+near("rounds down, never up: 2999 / 1000 x 0.01 = 0.02", lotsFromBalanceRule(2999, 1000, 0.01), 0.02, 1e-9);
+near("unit 500, 0.05 lot per unit, balance 2000 = 0.20", lotsFromBalanceRule(2000, 500, 0.05), 0.2, 1e-9);
+nan("zero unit", lotsFromBalanceRule(15000, 0, 0.01));
+nan("negative unit", lotsFromBalanceRule(15000, -1000, 0.01));
+nan("balance not finite", lotsFromBalanceRule(NaN, 1000, 0.01));
+nan("lots per unit not finite", lotsFromBalanceRule(15000, 1000, Infinity));
+{
+  // the saved state: one object, so switching mode only changes `mode` and each mode keeps its own fields
+  const st = { mode: "pct", pct: "1", amt: "50", unitAmt: "2000", lotsPerUnit: "0.05" };
+  const back = (m: string) => ({ ...st, mode: m });
+  eq("switching mode keeps every mode's own fields", [back("balance"), back("amt"), back("pct")].map((x) => [x.pct, x.amt, x.unitAmt, x.lotsPerUnit]), Array(3).fill(["1", "50", "2000", "0.05"]));
+  const old = { ...{ mode: "amt", pct: "2", amt: "30", unitAmt: "1000", lotsPerUnit: "0.01" }, ...JSON.parse('{"mode":"amt","amt":"75"}') };
+  eq("old saved state without the new fields keeps the defaults", [old.amt, old.unitAmt, old.lotsPerUnit], ["75", "1000", "0.01"]);
+}
 
 console.log("-- risk / reward");
 let rr = riskReward(1.1, 1.095, 1.1125);

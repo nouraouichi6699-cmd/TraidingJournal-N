@@ -64,6 +64,13 @@ export function lotsFor(riskMoney: number, perLot: number): number {
   return ok ? Math.floor(riskMoney / perLot / 0.01 + 1e-9) * 0.01 : NaN;
 }
 
+/** The "lots / balance" rule: `lotsPerUnit` lots for every `unitAmt` of balance, rounded down to 0.01 lot; NaN when the
+ *  unit is not positive or any input is not finite. No stop distance is involved. */
+export function lotsFromBalanceRule(balance: number, unitAmt: number, lotsPerUnit: number): number {
+  if (![balance, unitAmt, lotsPerUnit].every(Number.isFinite) || unitAmt <= 0) return NaN;
+  return Math.floor((balance / unitAmt) * lotsPerUnit / 0.01 + 1e-9) * 0.01;
+}
+
 export interface SizeInput {
   balance: number;
   mode: "pct" | "amt";

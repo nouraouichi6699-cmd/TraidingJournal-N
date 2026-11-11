@@ -64,9 +64,14 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
   const fromJournal = ctx.journal && own == null;
   const symKey = h.sym.toUpperCase();
 
+  const bal = s.mode === "balance";
   const missing: L3[] = [];
-  if (s.mode === "pct" && !pos(r.bal)) missing.push(T.balance);
-  if (!pos(parseNum(s.mode === "pct" ? s.pct : s.amt))) missing.push(T.risk);
+  if ((s.mode === "pct" || bal) && !pos(r.bal)) missing.push(T.balance);
+  if (bal) {
+    if (!pos(parseNum(s.unitAmt))) missing.push(T.unitAmt);
+    if (!pos(parseNum(s.lotsPerUnit))) missing.push(T.lotsPerUnit);
+  } else if (!pos(parseNum(s.mode === "pct" ? s.pct : s.amt))) missing.push(T.risk);
+  if (bal) { /* lots come from the balance alone: no symbol, stop, contract or rate */ } else {
   if (!h.sym.trim()) missing.push(T.symbol);
   if (h.inPips) {
     if (!Number.isFinite(r.sPips)) missing.push(T.stopPips);
@@ -78,7 +83,8 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
   }
   if (h.sym.trim() && r.sp.contract == null && !pos(r.contract)) missing.push(T.contract);
   if (r.needRate && !pos(parseNum(s.rates[rateKey(r.sp, cur)] ?? ""))) missing.push(T.rate);
-  const over = !!r.safe && r.ok && r.lots >= 0.01 && r.real > r.safe.v + 0.005;
+  }
+  const over = !bal && !!r.safe && r.ok && r.lots >= 0.01 && r.real > r.safe.v + 0.005;
   const dist = distTxt(r.dist, h.inPips ? r.pip : r.sp.pip, L);
 
   return (
@@ -96,15 +102,23 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
             <div className="flex flex-col gap-1 text-xs font-medium text-muted">
               <span>{L(T.risk)}</span>
               <div className="flex items-center gap-2">
-                <div className="flex-1" dir="ltr">
-                  <input className="field tnum" inputMode="decimal" aria-label={L(T.risk)} value={s.mode === "pct" ? s.pct : s.amt} onChange={(e) => save(s.mode === "pct" ? { pct: e.target.value } : { amt: e.target.value })} />
-                </div>
-                <Seg label={L(T.risk)} value={s.mode} onChange={(m) => save({ mode: m })} options={[{ v: "pct", label: "%" }, { v: "amt", label: cur === "USD" ? "$" : cur }]} />
+                {bal ? <div className="flex-1 text-[11px] font-normal">{L(T.balRule)}</div> : (
+                  <div className="flex-1" dir="ltr">
+                    <input className="field tnum" inputMode="decimal" aria-label={L(T.risk)} value={s.mode === "pct" ? s.pct : s.amt} onChange={(e) => save(s.mode === "pct" ? { pct: e.target.value } : { amt: e.target.value })} />
+                  </div>
+                )}
+                <Seg label={L(T.risk)} value={s.mode} onChange={(m) => save({ mode: m })} options={[{ v: "pct", label: "%" }, { v: "amt", label: cur === "USD" ? "$" : cur }, { v: "balance", label: L(T.modeBal) }]} />
               </div>
-              <span className="text-[11px] font-normal">{s.mode === "pct" ? L(T.pctOfBal) : L(T.amount)}{s.mode === "pct" && Number.isFinite(r.riskMoney) && <> · <bdi dir="ltr">{money(r.riskMoney)}</bdi></>}</span>
+              {!bal && <span className="text-[11px] font-normal">{s.mode === "pct" ? L(T.pctOfBal) : L(T.amount)}{s.mode === "pct" && Number.isFinite(r.riskMoney) && <> · <bdi dir="ltr">{money(r.riskMoney)}</bdi></>}</span>}
             </div>
+            {bal && (
+              <Pair>
+                <NumField lang={ctx.lang} label={L(T.unitAmt)} value={s.unitAmt} onChange={(v) => save({ unitAmt: v })} />
+                <NumField lang={ctx.lang} label={L(T.lotsPerUnit)} value={s.lotsPerUnit} onChange={(v) => save({ lotsPerUnit: v })} />
+              </Pair>
+            )}
           </Section>
-          <Section label={L(T.secTrade)} aside={<UnitSeg lang={ctx.lang} value={h.inPips ? "pips" : "price"} onChange={(u) => save({ unit: u })} />}>
+          {!bal && <Section label={L(T.secTrade)} aside={<UnitSeg lang={ctx.lang} value={h.inPips ? "pips" : "price"} onChange={(u) => save({ unit: u })} />}>
             <SymbolField lang={ctx.lang} value={h.sym} onChange={(v) => save({ sym: v })} mine={h.symbols} />
             {h.inPips ? (
               <>
@@ -122,22 +136,22 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
               contract={s.contracts[symKey] ?? ""} setContract={(v) => save({ contracts: { ...s.contracts, [symKey]: v } })}
               rate={s.rates[rateKey(r.sp, cur)] ?? ""} setRate={(v) => save({ rates: { ...s.rates, [rateKey(r.sp, cur)]: v } })}
             />
-          </Section>
+          </Section>}
         </InputsCard>
       }
       result={
         <ResultCard
           lang={ctx.lang} color={ctx.color} tone={ctx.tone}
-          missing={missing.length ? fillIn(ctx.lang, missing) : r.dist === 0 ? L(h.inPips ? T.stopZero : T.stopAtEntry) : !r.ok ? "-" : r.lots < 0.01 ? <span className="text-loss">{L(T.tiny)}</span> : undefined}
+          missing={missing.length ? fillIn(ctx.lang, missing) : bal ? (r.ok ? undefined : "-") : r.dist === 0 ? L(h.inPips ? T.stopZero : T.stopAtEntry) : !r.ok ? "-" : r.lots < 0.01 ? <span className="text-loss">{L(T.tiny)}</span> : undefined}
           big={fmtLots(r.lots)} unit={L(T.lotsUnit)}
-          pill={r.safe ? <SafePill lang={ctx.lang} safe={!over} /> : undefined}
-          sentence={say(L(T.sizeSay), { risk: money(r.real), dist })}
+          pill={r.safe && !bal ? <SafePill lang={ctx.lang} safe={!over} /> : undefined}
+          sentence={bal ? undefined : say(L(T.sizeSay), { risk: money(r.real), dist })}
           rows={
             <>
-              <Row label={L(T.real)} value={money(r.real)} />
-              <Row label={L(T.dist)} value={dist} />
+              {!bal && <Row label={L(T.real)} value={money(r.real)} />}
+              {!bal && <Row label={L(T.dist)} value={dist} />}
               {pos(r.bal) && <Row label={L(T.balance)} value={money(r.bal, { cents: false })} />}
-              {r.safe && <Row label={fill(L(T.safeRow), { n: r.safe.name })} value={money(r.safe.v)} />}
+              {r.safe && !bal && <Row label={fill(L(T.safeRow), { n: r.safe.name })} value={money(r.safe.v)} />}
             </>
           }
         >

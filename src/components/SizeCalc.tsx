@@ -39,6 +39,10 @@ const T = {
   fillPips: { en: "Enter the stop loss in pips.", ar: "أدخل وقف الخسارة بالنقاط.", fr: "Saisissez le stop loss en pips." },
   fillPip: { en: "Enter the pip size.", ar: "أدخل حجم النقطة.", fr: "Saisissez la taille du pip." },
   step: { en: "Rounded down to 0.01 lot. Check your broker's minimum and step.", ar: "مقرّب للأسفل إلى 0.01 لوت. تحقق من حد الوسيط وخطوته.", fr: "Arrondi à 0,01 lot inférieur. Vérifiez le minimum et le pas de votre courtier." },
+  modeBal: { en: "Lots/bal.", ar: "لوت/رصيد", fr: "Lots/solde" },
+  unitAmt: { en: "Balance unit", ar: "وحدة الرصيد", fr: "Unité de solde" },
+  lotsPerUnit: { en: "Lots per unit", ar: "لوت لكل وحدة", fr: "Lots par unité" },
+  balRule: { en: "Fixed lots per chunk of balance, whatever the stop.", ar: "لوت ثابت لكل جزء من الرصيد، مهما كان الوقف.", fr: "Lots fixes par tranche de solde, quel que soit le stop." },
   none: { en: "Add an account first.", ar: "أضف حساباً أولاً.", fr: "Ajoutez d'abord un compte." },
 } satisfies Record<string, L3>;
 
@@ -52,6 +56,7 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
 
   const lbl = "flex flex-col gap-1 text-xs font-medium text-muted";
   if (!acc || !r) return <div className="p-4 text-sm">{L(T.none)}</div>;
+  const bal = s.mode === "balance";
   const pip = inPips ? r.pip : r.sp.pip;
   const pipsTxt = pip && r.dist > 0 ? `${(r.dist / pip).toFixed(1)} ${L(T.pips)}` : r.dist > 0 ? String(+r.dist.toFixed(5)) : "-";
   const fillTxt = !inPips ? L(T.fill) : Number.isFinite(r.sPips) && r.sPips !== 0 && !(r.pip > 0) ? L(T.fillPip) : L(T.fillPips);
@@ -68,16 +73,34 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
       </label>
       <div className={lbl}>{L(T.risk)}
         <div className="flex gap-2">
-          <input className="field flex-1" inputMode="decimal" dir="ltr" value={s.mode === "pct" ? s.pct : s.amt} onChange={(e) => save(s.mode === "pct" ? { pct: e.target.value } : { amt: e.target.value })} />
+          {bal ? (
+            <div className="flex flex-1 items-center rounded-lg border border-[var(--border)] px-2 text-[11px]">{L(T.balRule)}</div>
+          ) : (
+            <input className="field flex-1" inputMode="decimal" dir="ltr" value={s.mode === "pct" ? s.pct : s.amt} onChange={(e) => save(s.mode === "pct" ? { pct: e.target.value } : { amt: e.target.value })} />
+          )}
           <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
-            {(["pct", "amt"] as const).map((m) => (
-              <button key={m} type="button" aria-pressed={s.mode === m} onClick={() => save({ mode: m })} className={`px-3 text-xs font-semibold ${s.mode === m ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{m === "pct" ? "%" : cur === "USD" ? "$" : cur}</button>
+            {(["pct", "amt", "balance"] as const).map((m) => (
+              <button key={m} type="button" aria-pressed={s.mode === m} onClick={() => save({ mode: m })} className={`px-3 text-xs font-semibold ${s.mode === m ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{m === "pct" ? "%" : m === "amt" ? (cur === "USD" ? "$" : cur) : L(T.modeBal)}</button>
             ))}
           </div>
         </div>
-        <span className="text-[11px]">{s.mode === "pct" ? L(T.pct) : L(T.amt)}{s.mode === "pct" && Number.isFinite(r.riskMoney) && <> · <bdi dir="ltr">{money(r.riskMoney)}</bdi></>}</span>
+        {!bal && <span className="text-[11px]">{s.mode === "pct" ? L(T.pct) : L(T.amt)}{s.mode === "pct" && Number.isFinite(r.riskMoney) && <> · <bdi dir="ltr">{money(r.riskMoney)}</bdi></>}</span>}
       </div>
-      <label className={lbl}>{L(T.symbol)}
+      {bal && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <label className={lbl}>{L(T.unitAmt)}<input className="field" inputMode="decimal" dir="ltr" value={s.unitAmt} onChange={(e) => save({ unitAmt: e.target.value })} /></label>
+            <label className={lbl}>{L(T.lotsPerUnit)}<input className="field" inputMode="decimal" dir="ltr" value={s.lotsPerUnit} onChange={(e) => save({ lotsPerUnit: e.target.value })} /></label>
+          </div>
+          <div className="rounded-xl border border-[var(--border)] p-3">
+            {!r.ok ? <span className="text-muted">-</span> : (
+              <div className="flex items-baseline gap-2"><b className="text-3xl tabular-nums" dir="ltr">{r.lots.toFixed(2)}</b><span className="text-muted">{L(T.lots)}</span></div>
+            )}
+          </div>
+          <p className="text-[11px] text-muted">{L(T.step)}</p>
+        </>
+      )}
+      {!bal && <><label className={lbl}>{L(T.symbol)}
         <input className="field" dir="ltr" list="sizecalc-syms" value={sym} onChange={(e) => save({ sym: e.target.value.toUpperCase() })} />
         <datalist id="sizecalc-syms">{symbols.map((x) => <option key={x} value={x} />)}</datalist>
       </label>
@@ -136,7 +159,7 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
           </div>
         )}
       </div>
-      <p className="text-[11px] text-muted">{L(T.step)}</p>
+      <p className="text-[11px] text-muted">{L(T.step)}</p></>}
     </div>
   );
 }

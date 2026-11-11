@@ -11,7 +11,7 @@ import type { Trade } from "../types";
 export type { McResult } from "./chartAnalytics";
 
 export {
-  defaultPipSize, lotsFor, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, positionSize, quoteToAccountRate, rateKey, symbolSpec,
+  defaultPipSize, lotsFor, lotsFromBalanceRule, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, positionSize, quoteToAccountRate, rateKey, symbolSpec,
   type DistUnit, type SizeInput, type SymbolSpec,
 } from "./calcCore";
 

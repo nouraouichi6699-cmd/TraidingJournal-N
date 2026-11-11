@@ -7,7 +7,7 @@ import type { Account, BalancePoint, Trade } from "./types";
 import type { CashFlow } from "./lib/cashflow";
 import { currentBalance } from "./lib/balance";
 import { challengeState, readChallenges } from "./lib/challenge";
-import { parseNum, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type DistUnit } from "./lib/calcCore";
+import { lotsFromBalanceRule, parseNum, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type DistUnit } from "./lib/calcCore";
 import { todayFor } from "./components/challengeUi";
 
 /** Asking the app to open the Charts view (from calculator links). */
@@ -24,10 +24,10 @@ export const openCalculator = (key?: string | null) => {
 const KEY = "mizan-size-calc";
 /** `unit`: the stop typed in pips (the default) or as entry and stop prices. `pipSizes`: the pip size typed per symbol
  *  (anything but forex), shared with the other calculators that count in pips. */
-export type SizeSaved = { acc: string; mode: "pct" | "amt"; pct: string; amt: string; sym: string; contracts: Record<string, string>; rates: Record<string, string>; unit: DistUnit; pipSizes: Record<string, string> };
+export type SizeSaved = { acc: string; mode: "pct" | "amt" | "balance"; pct: string; amt: string; unitAmt: string; lotsPerUnit: string; sym: string; contracts: Record<string, string>; rates: Record<string, string>; unit: DistUnit; pipSizes: Record<string, string> };
 // The default risk comes from Settings, which itself defaults to the "1" this used to hardcode. Anything already
 // saved here wins, so a calculator in use is never reset by the setting.
-const fresh = (pct: string): SizeSaved => ({ acc: "", mode: "pct", pct, amt: "", sym: "", contracts: {}, rates: {}, unit: "pips", pipSizes: {} });
+const fresh = (pct: string): SizeSaved => ({ acc: "", mode: "pct", pct, amt: "", unitAmt: "1000", lotsPerUnit: "0.01", sym: "", contracts: {}, rates: {}, unit: "pips", pipSizes: {} });
 const load = (): SizeSaved => { const pct = readSettings().riskPct || "1"; try { return { ...fresh(pct), ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; } catch { return fresh(pct); } };
 // Every mounted copy: when one saves, the others read the stored values again.
 const copies = new Set<() => void>();
@@ -121,12 +121,18 @@ export function useSizeCalc({ accounts, trades, balances, flows }: SizeData, opt
     // in pips: the stop's distance from the pip size (forex's own, else the one typed for this symbol)
     const pip = pipSizeFor(sp, s.pipSizes?.[sym.toUpperCase()]), sPips = parseNum(stopPips), px = parseNum(price);
     const byPips = inPips ? { dist: pipsToDistance(sPips, pip), price: px, pip } : {};
-    const res = positionSize({ balance: bal, mode: s.mode, pct: parseNum(s.pct), amt: parseNum(s.amt), spec: sp, contract, entry: e, stop: st, cur, rate: parseNum(s.rates[`${sp.quote}${cur}`] ?? ""), ...byPips });
+    const res = positionSize({ balance: bal, mode: s.mode === "balance" ? "amt" : s.mode, pct: parseNum(s.pct), amt: parseNum(s.amt), spec: sp, contract, entry: e, stop: st, cur, rate: parseNum(s.rates[`${sp.quote}${cur}`] ?? ""), ...byPips });
     // prop challenges on this account that are still running: a third of the room left before a rule breaks
     const today = todayFor(acc);
     const safe = !journal || !acc ? null : readChallenges().filter((c) => c.accountId === acc.id).map((c) => ({ c, st: challengeState(c, trades, today) }))
       .filter((x) => x.st.status === "active" && x.st.risk).map((x) => ({ name: x.c.name, v: (x.st.risk as { amount: number }).amount / 3 }))
       .sort((a, b) => a.v - b.v)[0] ?? null;
+    if (s.mode === "balance") {
+      // lots from the balance alone; the risk at that size is a side note when a stop happens to be filled
+      const lots = lotsFromBalanceRule(bal, parseNum(s.unitAmt), parseNum(s.lotsPerUnit));
+      const side = Number.isFinite(lots) && res.perLot > 0 ? lots * res.perLot : NaN;
+      return { bal, sp, contract, ...res, ok: Number.isFinite(lots), lots, real: side, safe: null, e, st, pip, sPips, px };
+    }
     return { bal, sp, contract, ...res, safe, e, st, pip, sPips, px };
   }, [acc, trades, balances, flows, sym, s, entry, stop, stopPips, price, inPips, cur, journal, opts.balance]);
 
