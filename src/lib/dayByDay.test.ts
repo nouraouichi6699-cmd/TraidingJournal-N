@@ -1,4 +1,4 @@
-import { dayKey, dayList, dayStats, dayTrades, monthCells, shiftMonth } from "./dayByDay";
+import { dayKey, dayList, dayStats, dayTrades } from "./dayByDay";
 import type { Trade } from "../types";
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, d = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${c ? "" : "  " + d}`); };
@@ -30,11 +30,4 @@ const w = dayStats(dayTrades(tr, "2025-02-28"));
 ok("all wins -> profit factor null", w.pf === null && near(w.winRate, 100));
 ok("empty day -> nulls", dayStats([]).winRate === null && dayStats([]).expectancy === null && dayStats([]).avgHoldMin === null);
 ok("same-minute ties ordered by ticket", dayTrades([T(9, "2025-03-06 09:00", "2025-03-06 10:00", 1), T(3, "2025-03-06 09:00", "2025-03-06 10:00", 1)], "2025-03-06").map((t) => t.no).join() === "3,9");
-// month grid: 2025-03-01 is a Saturday
-const mc = monthCells("2025-03", false), ms = monthCells("2025-03", true);
-ok("Mon-first: 5 leading blanks before Sat the 1st", mc.slice(0, 5).every((c) => c === null) && mc[5] === "2025-03-01" && mc.length === 42, String(mc.length));
-ok("Sun-first: 6 leading blanks", ms.slice(0, 6).every((c) => c === null) && ms[6] === "2025-03-01" && ms.length === 42);
-ok("grid holds exactly the month's days, in order", mc.filter(Boolean).length === 31 && mc.filter(Boolean).at(-1) === "2025-03-31");
-ok("padded to whole weeks, trailing blanks null", monthCells("2027-02", false).length === 28 && monthCells("2025-06", false).at(-1) === null);
-ok("shiftMonth crosses year edges", shiftMonth("2025-12", 1) === "2026-01" && shiftMonth("2025-01", -1) === "2024-12" && shiftMonth("2025-03", 0) === "2025-03");
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

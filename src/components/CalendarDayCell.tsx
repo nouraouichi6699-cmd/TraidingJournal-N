@@ -212,8 +212,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         aria-pressed={isSelected}
         aria-label={`${dayData.day} · $${hideValues ? "•••" : Math.round(net)}${dayBadgeLabel ? ` · ${dayBadgeLabel}` : ""}`}
         aria-describedby={hasTooltip ? tooltipId : undefined}
-        disabled={!onSelect}
-        className="group relative min-w-0 rounded-[8px] border transition enabled:hover:border-[var(--primary)] disabled:cursor-default flex flex-col items-start justify-between w-full h-[58px] sm:h-20 md:h-24 p-1 md:p-1.5 overflow-visible"
+        className="group relative shrink-0 rounded-[8px] border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5 overflow-visible"
         style={{
           containerType: "size",
           background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
