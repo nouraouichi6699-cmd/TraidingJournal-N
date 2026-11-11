@@ -3,7 +3,7 @@
 // the Telegram morning plan) and warn when the trade would risk more.
 import { useState } from "react";
 import { Gauge } from "lucide-react";
-import { BALANCE_PRESETS, balancePresetOf } from "../lib/calcCore";
+import { BALANCE_PRESETS, balancePresetOf, parseNum } from "../lib/calcCore";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney } from "../lib/money";
@@ -56,6 +56,7 @@ const T = {
   riskPctField: { en: "Risk per trade (%)", ar: "المخاطرة لكل صفقة (%)", fr: "Risque par trade (%)" },
   risking: { en: "Risking", ar: "مخاطرة بمبلغ", fr: "Risque de" },
   ofBalance: { en: "of your balance", ar: "من رصيدك", fr: "de votre solde" },
+  setupNeeded: { en: "Symbol setup needed: see Advanced below.", ar: "مطلوب إعداد الرمز: انظر الإعدادات المتقدمة أدناه.", fr: "Réglage du symbole requis : voir Options avancées ci-dessous." },
   advanced: { en: "Advanced", ar: "إعدادات متقدمة", fr: "Options avancées" },
   none: { en: "Add an account first.", ar: "أضف حساباً أولاً.", fr: "Ajoutez d'abord un compte." },
 } satisfies Record<string, L3>;
@@ -66,8 +67,11 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
   const L = (x: L3) => x[lang];
   const { hidden } = usePrivacy();
   const { s, save, setCapSrc, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r } = useSizeCalc({ accounts, trades, balances, flows });
+  // symbol setup (pip size, contract size, quote rate) that is needed and still empty: it lives under Advanced
+  const setupMissing = !!r && s.mode !== "balance" && sym.trim() !== "" && (
+    (inPips && r.sp.pip == null && !(r.pip > 0)) || (r.sp.contract == null && !(r.contract > 0)) || (r.needRate && !(parseNum(s.rates[`${r.sp.quote}${cur}`] ?? "") > 0)));
   // Advanced starts open only when the saved setup is not the simple default (%, capital from the account, stop in pips)
-  const [advOpen, setAdvOpen] = useState(() => s.mode !== "pct" || s.capSrc !== "acc" || s.unit === "price");
+  const [advOpen, setAdvOpen] = useState(() => s.mode !== "pct" || s.capSrc !== "acc" || s.unit === "price" || setupMissing);
   const money = (v: number, cents = true) => (hidden ? "••••" : fmtMoney(v, { cents, currency: cur }));
 
   const lbl = "flex flex-col gap-1 text-xs font-medium text-muted";
@@ -112,29 +116,13 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
           <label className={lbl}>{L(T.stop)}<input className="field" inputMode="decimal" dir="ltr" value={stop} onChange={(e) => setStop(e.target.value)} /></label>
         </div>
       )}
-      {inPips && r.sp.pip == null && sym.trim() !== "" && (
-        <label className={lbl}>{L(T.pipSize)}
-          <input className="field" inputMode="decimal" dir="ltr" value={pipField} onChange={(e) => setPipField(e.target.value)} />
-          <span className="text-[11px]">{L(T.pipHint)}</span>
-        </label>
-      )}
       {r.needPrice && (
         <label className={lbl}>{L(T.price)}
           <input className="field" inputMode="decimal" dir="ltr" value={price} onChange={(e) => setPrice(e.target.value)} />
           <span className="text-[11px]">{L(T.priceHint).replace("{cur}", cur)}</span>
         </label>
       )}
-      {r.sp.contract == null && (
-        <label className={lbl}>{L(T.contract)}
-          <input className="field" inputMode="decimal" dir="ltr" value={s.contracts[sym.toUpperCase()] ?? ""} onChange={(e) => save({ contracts: { ...s.contracts, [sym.toUpperCase()]: e.target.value } })} />
-          <span className="text-[11px]">{L(T.contractHint)}</span>
-        </label>
-      )}
-      {r.needRate && (
-        <label className={lbl}><bdi dir="ltr">1 {r.sp.quote} = ? {cur}</bdi>
-          <input className="field" inputMode="decimal" dir="ltr" value={s.rates[`${r.sp.quote}${cur}`] ?? ""} onChange={(e) => save({ rates: { ...s.rates, [`${r.sp.quote}${cur}`]: e.target.value } })} />
-        </label>
-      )}</>}
+      </>}
       <div className="rounded-xl border border-[var(--border)] p-3">
         {bal ? (!r.ok ? <span className="text-muted">-</span> : (
           <div className="flex items-baseline gap-2"><b className="text-3xl tabular-nums" dir="ltr">{r.lots.toFixed(2)}</b><span className="text-muted">{L(T.lots)}</span></div>
@@ -153,7 +141,7 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
           </div>
         )}
       </div>
-      <p className="text-[11px] text-muted">{L(T.step)}</p>
+      {!advOpen && setupMissing && <p className="text-xs font-medium text-loss">{L(T.setupNeeded)}</p>}
 
       <details className="rounded-xl border border-[var(--border)] px-3 py-2" open={advOpen} onToggle={(e) => setAdvOpen(e.currentTarget.open)}>
         <summary className="cursor-pointer select-none text-xs font-semibold text-muted">{L(T.advanced)}</summary>
@@ -195,6 +183,25 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
             </div>
           </div>
           {s.capSrc === "manual" && <label className={lbl}>{L(T.capital)}<input className="field" inputMode="decimal" dir="ltr" value={s.capManual} onChange={(e) => save({ capManual: e.target.value })} /></label>}
+          {!bal && (<>
+          {inPips && r.sp.pip == null && sym.trim() !== "" && (
+          <label className={lbl}>{L(T.pipSize)}
+          <input className="field" inputMode="decimal" dir="ltr" value={pipField} onChange={(e) => setPipField(e.target.value)} />
+          <span className="text-[11px]">{L(T.pipHint)}</span>
+          </label>
+          )}
+          {r.sp.contract == null && sym.trim() !== "" && (
+          <label className={lbl}>{L(T.contract)}
+          <input className="field" inputMode="decimal" dir="ltr" value={s.contracts[sym.toUpperCase()] ?? ""} onChange={(e) => save({ contracts: { ...s.contracts, [sym.toUpperCase()]: e.target.value } })} />
+          <span className="text-[11px]">{L(T.contractHint)}</span>
+          </label>
+          )}
+          {r.needRate && (
+          <label className={lbl}><bdi dir="ltr">1 {r.sp.quote} = ? {cur}</bdi>
+          <input className="field" inputMode="decimal" dir="ltr" value={s.rates[`${r.sp.quote}${cur}`] ?? ""} onChange={(e) => save({ rates: { ...s.rates, [`${r.sp.quote}${cur}`]: e.target.value } })} />
+          </label>
+          )}          </>)}
+          <p className="text-[11px] text-muted">{L(T.step)}</p>
         </div>
       </details>
     </div>

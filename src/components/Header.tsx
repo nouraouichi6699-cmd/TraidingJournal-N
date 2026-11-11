@@ -103,17 +103,14 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
               {(close) => (
                 <>
                   {calc}
-                  <div className="flex items-center justify-between gap-2 border-t border-border px-4 pb-1 pt-2">
-                    <span className="text-xs font-medium text-muted">{generalTools[lang]}</span>
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-between gap-2 border-t border-border px-4 pb-1.5 pt-2">
+                    <div className="flex items-center gap-1" role="group" aria-label={generalTools[lang]}>
                       {generalItems.map(({ key, icon: Icon, label }) => (
                         <button key={key} type="button" aria-label={label[lang]} title={label[lang]} onClick={() => { close(); openCalculator(key); }} className="icon-btn">
                           <Icon size={16} strokeWidth={1.9} className="text-icon" aria-hidden />
                         </button>
                       ))}
                     </div>
-                  </div>
-                  <div className="flex justify-end border-t border-border px-4 pb-1.5 pt-2">
                     <button type="button" onClick={() => { openCalculator(); close(); }} className="inline-flex items-center gap-1 text-xs font-semibold text-icon hover:underline">
                       {allCalcs[lang]}
                       <ChevronDown size={14} className="-rotate-90 rtl:rotate-90" aria-hidden />
