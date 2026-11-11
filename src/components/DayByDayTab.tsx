@@ -33,7 +33,6 @@ const X = {
   et: ["Entry time", "وقت الدخول", "Heure d'entrée"] as L, xt: ["Exit time", "وقت الخروج", "Heure de sortie"] as L, vol: ["Volume", "الحجم", "Volume"] as L, pnl: ["Net profit", "صافي الربح", "Profit net"] as L,
   buy: ["Buy", "شراء", "Achat"] as L, sell: ["Sell", "بيع", "Vente"] as L,
   split: ["wins · losses · breakeven", "رابحة · خاسرة · تعادل", "gains · pertes · neutres"] as L,
-  soon: ["Notes are coming soon.", "الملاحظات قريباً.", "Les notes arrivent bientôt."] as L,
   empty: ["No closed trades yet.", "لا توجد صفقات مغلقة بعد.", "Aucun trade clôturé."] as L,
   days: ["Trading days", "أيام التداول", "Jours de trading"] as L, import: ["Import trades", "استيراد الصفقات", "Importer"] as L,
   dayCard: ["Mood & note", "المزاج والملاحظة", "Humeur et note"] as L,
@@ -286,7 +285,6 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
           })}
         </nav>
         <div className="min-w-0 flex-1 space-y-4">
-          {day && <DayNoteCard key={day} day={day} title={dt.format(new Date(day + "T00:00:00Z"))} entry={dayNotes[day]} lang={lang} />}
           <div role="tablist" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border p-1" style={cardBg}>
             {TABS.map(([id, l]) => (
               <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className="shrink-0 whitespace-nowrap rounded-lg px-5 py-1.5 text-sm font-medium transition flex items-center gap-1.5"
@@ -304,7 +302,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
             ))}
           </div>
           {tab === "notes" ? (
-            <div className="rounded-2xl border border-border p-10 text-center text-muted" style={cardBg}>{T(X.soon)}</div>
+            day && <DayNoteCard key={day} day={day} title={dt.format(new Date(day + "T00:00:00Z"))} entry={dayNotes[day]} lang={lang} />
           ) : (
             <section className="overflow-hidden rounded-2xl border border-border" style={cardBg}>
               <div className="border-b border-border px-5 py-3 font-heading text-sm font-semibold">{tab === "trades" ? T(X.history) : day && dt.format(new Date(day + "T00:00:00Z"))}</div>
