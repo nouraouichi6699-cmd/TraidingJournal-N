@@ -7,6 +7,7 @@ import {
   avgCommissionPerLot, convertUnits, swapCost, tradeCost,
   type FxStore, type StdKey, type StdState,
 } from "./calculators";
+import { BALANCE_PRESETS, balancePresetOf } from "./calcCore";
 import { calcExample, EX, type Fv } from "./calcExamples";
 import { HOW } from "../components/calculators/text";
 import { contrastRatio } from "./lighting";
@@ -643,6 +644,21 @@ console.log("-- swap");
   nan("negative lots: NaN", swapCost(-1, -6.5, 3, true).total);
   nan("negative nights: NaN", swapCost(1, -6.5, -1, false).total);
   nan("missing swap: NaN", swapCost(1, NaN, 3, false).total);
+}
+
+console.log("-- Lots / balance presets");
+{
+  const want = { low: ["10000", "1", 1], medium: ["5000", "1", 2], high: ["3000", "1", 3.33] } as const;
+  eq("three presets, low to high", BALANCE_PRESETS.map((x) => x.key), ["low", "medium", "high"]);
+  for (const x of BALANCE_PRESETS) {
+    const w = want[x.key];
+    eq(`${x.key}: fields ${w[0]} / ${w[1]}`, [x.unitAmt, x.lotsPerUnit], [w[0], w[1]]);
+    near(`${x.key}: 10,000 balance = ${w[2]} lots`, lotsFromBalanceRule(10000, parseNum(x.unitAmt), parseNum(x.lotsPerUnit)), w[2], 1e-9);
+    eq(`${x.key}: the chip is selected by its values`, balancePresetOf(x.unitAmt, x.lotsPerUnit), x.key);
+  }
+  eq("editing a field deselects the chip", balancePresetOf("5000", "1.5"), null);
+  eq("a decimal comma still matches", balancePresetOf("10000", "1,0"), "low");
+  eq("the default 1000 / 0.01 matches none", balancePresetOf("1000", "0.01"), null);
 }
 
 console.log("-- How to use examples");

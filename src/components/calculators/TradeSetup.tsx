@@ -1,7 +1,9 @@
 // Trade setup: position size, risk/reward, profit and loss, pip value, margin and ATR size. Each body reads its
 // inputs, calls the maths in lib/calculators and lays out the two cards; nothing is worked out here.
 import { useMemo, useState, type ReactNode } from "react";
+import { Gauge } from "lucide-react";
 import { useContracts, usePipSizes, useSizeCalc } from "../../useCalculators";
+import { BALANCE_PRESETS, balancePresetOf } from "../../lib/calcCore";
 import { readSettings } from "../../useSettings";
 import { currentBalance } from "../../lib/balance";
 import { pipSize } from "../../lib/pips";
@@ -111,6 +113,13 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
               </div>
               {!bal && <span className="text-[11px] font-normal">{s.mode === "pct" ? L(T.pctOfBal) : L(T.amount)}{s.mode === "pct" && Number.isFinite(r.riskMoney) && <> · <bdi dir="ltr">{money(r.riskMoney)}</bdi></>}</span>}
             </div>
+            {bal && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted"><Gauge size={14} className="text-icon" aria-hidden />{L(T.riskLevel)}</span>
+                <Seg small label={L(T.riskLevel)} value={balancePresetOf(s.unitAmt, s.lotsPerUnit) ?? ""} onChange={(k) => { const x = BALANCE_PRESETS.find((q) => q.key === k); if (x) save({ unitAmt: x.unitAmt, lotsPerUnit: x.lotsPerUnit }); }}
+                  options={BALANCE_PRESETS.map((x) => ({ v: x.key as string, label: L(x.key === "low" ? T.presetLow : x.key === "medium" ? T.presetMedium : T.presetHigh) }))} />
+              </div>
+            )}
             {bal && (
               <Pair>
                 <NumField lang={ctx.lang} label={L(T.unitAmt)} value={s.unitAmt} onChange={(v) => save({ unitAmt: v })} />

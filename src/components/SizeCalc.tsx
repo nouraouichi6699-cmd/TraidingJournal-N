@@ -1,6 +1,8 @@
 // Position size calculator (header panel): the lots that risk a share of the balance (or an amount) over a stop typed in
 // pips (the default) or between an entry and a stop price. Prop-challenge accounts also show the safe risk per trade (a third of the room left before a rule breaks, as in
 // the Telegram morning plan) and warn when the trade would risk more.
+import { Gauge } from "lucide-react";
+import { BALANCE_PRESETS, balancePresetOf } from "../lib/calcCore";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 import type { CashFlow } from "../lib/cashflow";
 import { fmtMoney } from "../lib/money";
@@ -42,6 +44,10 @@ const T = {
   modeBal: { en: "Lots/bal.", ar: "لوت/رصيد", fr: "Lots/solde" },
   unitAmt: { en: "Balance unit", ar: "وحدة الرصيد", fr: "Unité de solde" },
   lotsPerUnit: { en: "Lots per unit", ar: "لوت لكل وحدة", fr: "Lots par unité" },
+  riskLevel: { en: "Risk level", ar: "مستوى المخاطرة", fr: "Niveau de risque" },
+  presetLow: { en: "Low risk", ar: "مخاطرة منخفضة", fr: "Risque faible" },
+  presetMedium: { en: "Medium risk", ar: "مخاطرة متوسطة", fr: "Risque moyen" },
+  presetHigh: { en: "High risk", ar: "مخاطرة عالية", fr: "Risque élevé" },
   balRule: { en: "Fixed lots per chunk of balance, whatever the stop.", ar: "لوت ثابت لكل جزء من الرصيد، مهما كان الوقف.", fr: "Lots fixes par tranche de solde, quel que soit le stop." },
   none: { en: "Add an account first.", ar: "أضف حساباً أولاً.", fr: "Ajoutez d'abord un compte." },
 } satisfies Record<string, L3>;
@@ -88,6 +94,13 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
       </div>
       {bal && (
         <>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-[11px]"><Gauge size={13} aria-hidden />{L(T.riskLevel)}</span>
+            {BALANCE_PRESETS.map((x) => {
+              const on = balancePresetOf(s.unitAmt, s.lotsPerUnit) === x.key;
+              return <button key={x.key} type="button" aria-pressed={on} onClick={() => save({ unitAmt: x.unitAmt, lotsPerUnit: x.lotsPerUnit })} className={`rounded-full border border-[var(--border)] px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{L(x.key === "low" ? T.presetLow : x.key === "medium" ? T.presetMedium : T.presetHigh)}</button>;
+            })}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <label className={lbl}>{L(T.unitAmt)}<input className="field" inputMode="decimal" dir="ltr" value={s.unitAmt} onChange={(e) => save({ unitAmt: e.target.value })} /></label>
             <label className={lbl}>{L(T.lotsPerUnit)}<input className="field" inputMode="decimal" dir="ltr" value={s.lotsPerUnit} onChange={(e) => save({ lotsPerUnit: e.target.value })} /></label>

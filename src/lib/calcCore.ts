@@ -71,6 +71,19 @@ export function lotsFromBalanceRule(balance: number, unitAmt: number, lotsPerUni
   return Math.floor((balance / unitAmt) * lotsPerUnit / 0.01 + 1e-9) * 0.01;
 }
 
+/** Quick risk levels for the "lots / balance" rule: `lotsPerUnit` lots for every `unitAmt` of balance (a smaller unit is a bigger size). */
+export const BALANCE_PRESETS = [
+  { key: "low", unitAmt: "10000", lotsPerUnit: "1" },
+  { key: "medium", unitAmt: "5000", lotsPerUnit: "1" },
+  { key: "high", unitAmt: "3000", lotsPerUnit: "1" },
+] as const;
+export type BalancePresetKey = (typeof BALANCE_PRESETS)[number]["key"];
+/** The preset the two typed fields equal (by value, so typing anything else selects none), or null. */
+export function balancePresetOf(unitAmt: string, lotsPerUnit: string): BalancePresetKey | null {
+  const u = parseNum(unitAmt), p = parseNum(lotsPerUnit);
+  return BALANCE_PRESETS.find((x) => parseNum(x.unitAmt) === u && parseNum(x.lotsPerUnit) === p)?.key ?? null;
+}
+
 export interface SizeInput {
   balance: number;
   mode: "pct" | "amt";
