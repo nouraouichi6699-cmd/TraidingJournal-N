@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { dayList, dayStats, dayTrades, dayKey, monthCells, monthSummary, shiftMonth, weekTotals, type DayStats } from "../lib/dayByDay";
+import { dayList, dayStats, dayTrades, dayKey, monthCells, shiftMonth, type DayStats } from "../lib/dayByDay";
 import { dayBadge, dayBadgeLabel, moodName, MAX_DAY_NOTE, MOODS, type DayEntry } from "../lib/dayNotes";
 import { setDayEntry, useDayNotes } from "../useDayNotes";
 import { fmt, fmtHold } from "../lib/stats";
@@ -41,12 +41,6 @@ const X = {
   moodLabel: ["Mood", "المزاج", "Humeur"] as L,
   dayNotePh: ["How was the day? What went well or badly?", "كيف كان يومك؟ ما الذي سار جيداً أو سيئاً؟", "Comment s'est passée la journée ? Ce qui a marché ou non ?"] as L,
   dayNoteAria: ["Note for this day", "ملاحظة لهذا اليوم", "Note pour ce jour"] as L,
-  monthPnl: ["Month P&L", "ربح الشهر", "P&L du mois"] as L,
-  greenDays: ["Green days", "أيام رابحة", "Jours verts"] as L, redDays: ["Red days", "أيام خاسرة", "Jours rouges"] as L,
-  week: ["Week", "الأسبوع", "Semaine"] as L,
-  legend: ["Legend", "دليل الألوان", "Légende"] as L,
-  profitable: ["Profitable", "رابح", "Gagnant"] as L, lossy: ["Loss", "خاسر", "Perdant"] as L, noTrades: ["No trades", "بلا صفقات", "Sans trade"] as L,
-  noDayTrades: ["No trades on this day.", "لا توجد صفقات في هذا اليوم.", "Aucun trade ce jour-là."] as L,
 };
 const asDate = (s: string | null) => { if (!s) return null; const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z"); return Number.isNaN(d.getTime()) ? null : d; };
 
@@ -57,10 +51,7 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const days = useMemo(() => dayList(trades), [trades]);
   const [sel, setSel] = useState<string | null>(focusDay ?? null);
   const [tab, setTab] = useState<"overview" | "hotspot" | "notes" | "trades">(focusTab ?? "overview");
-  // Any calendar day inside the trades' months is selectable (a no-trade day too, so it can still carry a mood/note).
-  // Falls back to the newest trading day when nothing is selected or the selection is outside those months (e.g. after a filter change).
-  const inRange = !!sel && days.length > 0 && sel.slice(0, 7) >= days[days.length - 1].day.slice(0, 7) && sel.slice(0, 7) <= days[0].day.slice(0, 7);
-  const day = inRange ? sel : days[0]?.day ?? null;
+  const day = days.find((d) => d.day === sel)?.day ?? days[0]?.day ?? null; // falls back to the newest day when the filter hides the selection
   const rows = useMemo(() => (day ? dayTrades(trades, day) : []), [trades, day]);
   const st = useMemo(() => dayStats(rows), [rows]);
   // The month the grid shows: the selected day's month until the user pages away from it.
@@ -263,84 +254,52 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const weekdayNames = Array.from({ length: 7 }, (_, n) => new Intl.DateTimeFormat(lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, (sunFirst ? 0 : 1) + n))));
   const minMonth = days[days.length - 1].day.slice(0, 7), maxMonth = days[0].day.slice(0, 7);
   const monthTitle = monthFmt.format(new Date(month + "-01T00:00:00Z"));
-  const ms = monthSummary(trades, days, month), weeks = weekTotals(cells, days);
-  const monthStats: [L, string, string | undefined][] = [
-    [X.monthPnl, ms.tradingDays ? money(ms.net) : "—", ms.tradingDays ? tone(ms.net) : undefined],
-    [X.win, ms.winRate == null ? "—" : `${fmt(ms.winRate)}%`, undefined],
-    [X.days, String(ms.tradingDays), undefined],
-    [X.greenDays, String(ms.greenDays), ms.greenDays ? GREEN : undefined],
-    [X.redDays, String(ms.redDays), ms.redDays ? RED : undefined],
-  ];
 
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-xl font-bold text-primary">{T(DAY_TAB)}</h2>
       <div className="flex flex-col gap-4">
         <section aria-label={T(X.days)} className="rounded-2xl border border-border p-3 md:p-4" style={cardBg}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex items-center gap-2">
-              <button type="button" aria-label={T(X.prevMonth)} disabled={month <= minMonth} onClick={() => setMonthSel(shiftMonth(month, -1))} className="icon-btn !h-8 !w-8 disabled:opacity-40">
-                <ChevronLeft size={16} className="text-icon rtl:rotate-180" />
-              </button>
-              <span className="min-w-[140px] text-center font-heading text-sm font-semibold capitalize" aria-live="polite">{monthTitle}</span>
-              <button type="button" aria-label={T(X.nextMonth)} disabled={month >= maxMonth} onClick={() => setMonthSel(shiftMonth(month, 1))} className="icon-btn !h-8 !w-8 disabled:opacity-40">
-                <ChevronRight size={16} className="text-icon rtl:rotate-180" />
-              </button>
-            </div>
-            <dl className="flex flex-wrap items-center gap-x-5 gap-y-1">
-              {monthStats.map(([l, v, c]) => (
-                <div key={l[0]} className="flex items-baseline gap-1.5">
-                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">{T(l)}</dt>
-                  <dd className="tnum text-sm font-bold" style={{ color: c }}><span dir="ltr">{v}</span></dd>
-                </div>
-              ))}
-            </dl>
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <button type="button" aria-label={T(X.prevMonth)} disabled={month <= minMonth} onClick={() => setMonthSel(shiftMonth(month, -1))} className="icon-btn !h-8 !w-8 disabled:opacity-40">
+              <ChevronLeft size={16} className="text-icon rtl:rotate-180" />
+            </button>
+            <span className="min-w-[140px] text-center font-heading text-sm font-semibold capitalize" aria-live="polite">{monthTitle}</span>
+            <button type="button" aria-label={T(X.nextMonth)} disabled={month >= maxMonth} onClick={() => setMonthSel(shiftMonth(month, 1))} className="icon-btn !h-8 !w-8 disabled:opacity-40">
+              <ChevronRight size={16} className="text-icon rtl:rotate-180" />
+            </button>
           </div>
-          <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_minmax(52px,1.1fr)] gap-1 md:gap-1.5">
+          <div className="grid grid-cols-7 gap-1 md:gap-1.5">
             {weekdayNames.map((w) => <div key={w} className="truncate text-center text-[10px] font-semibold uppercase text-muted">{w}</div>)}
-            <div className="truncate text-center text-[10px] font-semibold uppercase text-muted">{T(X.week)}</div>
-            {Array.from({ length: cells.length / 7 }, (_, r) => (
-              <Fragment key={r}>
-                {cells.slice(r * 7, r * 7 + 7).map((dayStr, n) => {
-                  if (!dayStr) return <div key={`pad${r}-${n}`} aria-hidden="true" />;
-                  const d = tradingDays.get(dayStr);
-                  const evs = econByDay.get(dayStr)?.events ?? [];
-                  const { dots, extra } = selectDots(evs);
-                  const src = econByDay.get(dayStr)?.source;
-                  const marker = dayMarkers.get(dayStr);
-                  const entry = dayNotes[dayStr];
-                  return (
-                    <CalendarDayCell
-                      key={dayStr}
-                      dayData={{ day: dayStr, net: d ? d.net : null }}
-                      isSelected={dayStr === day}
-                      onSelect={() => { setSel(dayStr); setTab((marker?.count ?? 0) > 0 ? "hotspot" : "overview"); }}
-                      hideValues={hidden}
-                      variant="full"
-                      monthMax={monthMax}
-                      econDots={dots.length ? dots : undefined}
-                      econExtra={extra}
-                      econTooltipLines={evs.length ? evs.map((e) => econTooltipLine(e)) : undefined}
-                      econSourceLabel={src === "mt5" ? L("econSourceMt5") : src === "ff" ? L("econSourceFf") : undefined}
-                      flameLabel={marker?.label ?? null}
-                      flameDanger={(marker?.count ?? 0) > 0}
-                      flameAriaLabel={flameAria(marker)}
-                      dayBadge={dayBadge(entry)}
-                      dayBadgeLabel={dayBadgeLabel(entry, lang)}
-                    />
-                  );
-                })}
-                <WeekCell total={weeks[r]} label={T(X.week)} money={money} hidden={hidden} daysLabel={dayCountLabel(weeks[r].days, k)} />
-              </Fragment>
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-muted" role="list" aria-label={T(X.legend)}>
-            {([["var(--profit)", X.profitable], ["var(--loss)", X.lossy], ["var(--muted)", X.noTrades]] as const).map(([c, l]) => (
-              <span key={l[0]} role="listitem" className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="inline-block h-3 w-3 rounded-[4px] border" style={{ background: `color-mix(in srgb, ${c} 18%, transparent)`, borderColor: c === "var(--muted)" ? "var(--border)" : `color-mix(in srgb, ${c} 50%, transparent)` }} />
-                {T(l)}
-              </span>
-            ))}
+            {cells.map((dayStr, n) => {
+              if (!dayStr) return <div key={`pad${n}`} aria-hidden="true" />;
+              const d = tradingDays.get(dayStr);
+              const evs = econByDay.get(dayStr)?.events ?? [];
+              const { dots, extra } = selectDots(evs);
+              const src = econByDay.get(dayStr)?.source;
+              const marker = dayMarkers.get(dayStr);
+              const entry = dayNotes[dayStr];
+              return (
+                <CalendarDayCell
+                  key={dayStr}
+                  dayData={{ day: dayStr, net: d ? d.net : null }}
+                  isSelected={dayStr === day}
+                  onSelect={d ? () => { setSel(dayStr); setTab((marker?.count ?? 0) > 0 ? "hotspot" : "overview"); } : undefined}
+                  hideValues={hidden}
+                  variant="full"
+                  monthMax={monthMax}
+                  econDots={dots.length ? dots : undefined}
+                  econExtra={extra}
+                  econTooltipLines={evs.length ? evs.map((e) => econTooltipLine(e)) : undefined}
+                  econSourceLabel={src === "mt5" ? L("econSourceMt5") : src === "ff" ? L("econSourceFf") : undefined}
+                  flameLabel={marker?.label ?? null}
+                  flameDanger={(marker?.count ?? 0) > 0}
+                  flameAriaLabel={flameAria(marker)}
+                  dayBadge={dayBadge(entry)}
+                  dayBadgeLabel={dayBadgeLabel(entry, lang)}
+                />
+              );
+            })}
           </div>
         </section>
         {day && <DayNoteCard key={day} day={day} title={dt.format(new Date(day + "T00:00:00Z"))} entry={dayNotes[day]} lang={lang} />}
@@ -549,37 +508,12 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
                       })}
                     </tbody>
                   </table>
-                  {!rows.length && <div className="p-6 text-center text-sm text-muted" dir={lang === "ar" ? "rtl" : "ltr"}>{T(X.noDayTrades)}</div>}
                 </div>
               )}
             </section>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-/** "3 days" in each language (Arabic: 1 = يوم, 2 = يومان, 3+ = أيام). */
-function dayCountLabel(n: number, k: number): string {
-  if (k === 1) return n === 1 ? "يوم" : n === 2 ? "يومان" : `${n} أيام`;
-  return k === 2 ? `${n} ${n === 1 ? "jour" : "jours"}` : `${n} ${n === 1 ? "day" : "days"}`;
-}
-
-/** The 8th grid column: that calendar row's net P&L and trading-day count (an em dash for a week without trades),
- *  tinted with the same profit/loss/muted tokens as the day cells. */
-function WeekCell({ total, label, daysLabel, money, hidden }: { total: { net: number; days: number }; label: string; daysLabel: string; money: (v: number | null) => string; hidden: boolean }) {
-  const has = total.days > 0;
-  const c = !has || hidden || total.net === 0 ? "var(--muted)" : total.net > 0 ? "var(--profit)" : "var(--loss)";
-  return (
-    <div
-      role="group"
-      aria-label={has ? `${label}: ${money(total.net)} · ${daysLabel}` : `${label}: —`}
-      className="flex h-[58px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border px-1 text-center sm:h-20 md:h-24"
-      style={{ background: `color-mix(in srgb, ${c} ${has ? 8 : 4}%, transparent)`, borderColor: has && !hidden && total.net !== 0 ? `color-mix(in srgb, ${c} 40%, transparent)` : "var(--border)" }}
-    >
-      <span className="tnum max-w-full truncate text-[11px] font-bold leading-tight sm:text-xs md:text-sm" style={{ color: c }} dir="ltr">{has ? money(total.net) : "—"}</span>
-      {has && <span className="max-w-full truncate text-[9px] leading-tight text-muted sm:text-[10px]">{daysLabel}</span>}
     </div>
   );
 }
