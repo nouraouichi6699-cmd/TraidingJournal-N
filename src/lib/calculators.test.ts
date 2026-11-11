@@ -9,7 +9,7 @@ import {
   sizeStatePatch, SIZE_STATE_KEY, updateRiskPreset, validRiskRule, writeRiskPresets, writeSizeState, type CustomRiskPreset, type RiskRule,
   type FxStore, type StdKey, type StdState,
 } from "./calculators";
-import { BALANCE_PRESETS, balancePresetOf } from "./calcCore";
+import { BALANCE_PRESETS, balancePresetOf, capitalFor, capSrcOf, capSwitchPatch } from "./calcCore";
 import { calcExample, EX, type Fv } from "./calcExamples";
 import { HOW } from "../components/calculators/text";
 import { contrastRatio } from "./lighting";
@@ -759,6 +759,43 @@ console.log("-- Risk management");
   near("Position size's lots from the saved state = this calculator's", lotsFromBalanceRule(bal, parseNum(back.unitAmt), parseNum(back.lotsPerUnit)), riskRuleResult({ method: "balance", unitAmt: 5000, lotsPerUnit: 1 }, bal).lots, 1e-12);
   ok("a rule's validity", validRiskRule({ method: "pct", pct: 100 }) && !validRiskRule({ method: "amt", amt: NaN }));
   near("the example: Fixed 1% on 10,000 = 100", (calcExample("riskmgmt").out.risk as { v: number }).v, 100, 1e-9);
+}
+
+console.log("-- Manual capital (Position size)");
+{
+  const live = 12500, typed = "4000", spec = symbolSpec("EURUSD");
+  const size = (mode: "pct" | "amt", cap: number) => positionSize({ balance: cap, mode, pct: 1, amt: 80, spec, contract: 100000, entry: 0, stop: 0, cur: "USD", rate: 1, dist: 20 * 0.0001, price: 1.1, pip: 0.0001 });
+  eq("default source reads as the account", [capSrcOf(undefined), capSrcOf("acc"), capSrcOf("junk"), capSrcOf("manual")], ["acc", "acc", "acc", "manual"]);
+  near("from account: the live balance", capitalFor("acc", typed, live), live, 1e-9);
+  near("manual: the typed capital", capitalFor("manual", typed, live), 4000, 1e-9);
+  nan("manual with nothing typed is missing, not the live balance", capitalFor("manual", "", live));
+  near("a decimal comma still reads", capitalFor("manual", "4000,5", live), 4000.5, 1e-9);
+  // % mode: the capital changes the result
+  const pAcc = size("pct", capitalFor("acc", typed, live)), pMan = size("pct", capitalFor("manual", typed, live));
+  near("% mode, account: 1% of 12,500 = 125 risk", pAcc.riskMoney, 125, 1e-9);
+  near("% mode, manual: 1% of 4,000 = 40 risk", pMan.riskMoney, 40, 1e-9);
+  ok("% mode: manual lots differ from the account's", pMan.lots !== pAcc.lots, `${pMan.lots} vs ${pAcc.lots}`);
+  // Lots / balance mode
+  const lAcc = lotsFromBalanceRule(capitalFor("acc", typed, live), 10000, 1), lMan = lotsFromBalanceRule(capitalFor("manual", typed, live), 10000, 1);
+  near("lots/balance, account: 12,500 per 10,000 = 1.25 lots", lAcc, 1.25, 1e-9);
+  near("lots/balance, manual: 4,000 per 10,000 = 0.40 lots", lMan, 0.4, 1e-9);
+  ok("lots/balance: manual differs from the account's", lMan !== lAcc);
+  // "$" mode never used the balance for its own lots
+  const aAcc = size("amt", capitalFor("acc", typed, live)), aMan = size("amt", capitalFor("manual", typed, live)), aNone = size("amt", NaN);
+  eq("$ mode: same risk and lots on either source", [aAcc.riskMoney, aAcc.lots], [aMan.riskMoney, aMan.lots]);
+  eq("$ mode: lots do not need a capital at all", aNone.lots, aAcc.lots);
+  // switching the source and the account
+  eq("first switch to manual pre-fills the live balance", capSwitchPatch("manual", "", 12500.456), { capSrc: "manual", capManual: "12500.46" });
+  eq("a typed value is never overwritten by switching", capSwitchPatch("manual", "4000", 12500), { capSrc: "manual", capManual: "4000" });
+  eq("switching back to the account keeps what was typed", capSwitchPatch("acc", "4000", 12500), { capSrc: "acc", capManual: "4000" });
+  eq("no live balance: nothing to pre-fill", capSwitchPatch("manual", "", NaN), { capSrc: "manual", capManual: "" });
+  // changing the account while Manual: the saved state keeps the typed capital, and the capital stays the typed one
+  const st = (() => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); } }; })();
+  writeSizeState(st, { acc: "A", ...capSwitchPatch("manual", "4000", 12500) });
+  writeSizeState(st, { acc: "B", sym: "" }); // what the account select saves
+  const saved = JSON.parse(st.getItem(SIZE_STATE_KEY) ?? "{}") as { acc: string; capSrc: string; capManual: string };
+  eq("after switching accounts: the typed capital and Manual stay", [saved.acc, saved.capSrc, saved.capManual], ["B", "manual", "4000"]);
+  near("... and still feed the maths instead of account B's balance (7,000)", capitalFor(capSrcOf(saved.capSrc), saved.capManual, 7000), 4000, 1e-9);
 }
 
 console.log("-- How to use examples");

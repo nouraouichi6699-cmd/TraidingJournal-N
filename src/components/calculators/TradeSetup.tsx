@@ -60,7 +60,8 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
   const [own, setOwn] = useState<string | null>(null);
   const balance = ctx.journal ? (own == null ? undefined : parseNum(own)) : parseNum(own ?? "");
   const h = useSizeCalc(ctx, { balance, journal: ctx.journal, cur: ctx.cur });
-  const { s, save, r, cur } = h;
+  const { s, save, setCapSrc, r, cur } = h;
+  const capManual = s.capSrc === "manual" && ctx.journal;
   if (!r) return <p className="text-sm text-muted">{L(T.noAccount)}</p>;
   const money = moneyFmt(cur, ctx.hidden && ctx.journal);
   const fromJournal = ctx.journal && own == null;
@@ -95,10 +96,15 @@ export function SizeBody({ ctx }: { ctx: Ctx }) {
         <InputsCard>
           <Section label={L(T.secAccount)}>
             <AccountField ctx={ctx} value={h.acc?.id} onChange={(id) => { save({ acc: id, sym: "" }); ctx.setAccId(id); if (ctx.journal) setOwn(null); }} />
-            <NumField
-              lang={ctx.lang} label={L(T.balance)} value={own ?? (ctx.journal ? asField(r.bal) ?? "" : "")} onChange={setOwn}
-              journal={fromJournal} masked={fromJournal && ctx.hidden} onReset={ctx.journal && own != null ? () => setOwn(null) : undefined}
-            />
+            {ctx.journal && <Seg small label={L(T.capital)} value={s.capSrc} onChange={setCapSrc} options={[{ v: "acc", label: L(T.capAcc) }, { v: "manual", label: L(T.capManual) }]} />}
+            {capManual ? (
+              <NumField lang={ctx.lang} label={L(T.capital)} value={s.capManual} onChange={(v) => save({ capManual: v })} />
+            ) : (
+              <NumField
+                lang={ctx.lang} label={L(T.balance)} value={own ?? (ctx.journal ? asField(r.bal) ?? "" : "")} onChange={setOwn}
+                journal={fromJournal} masked={fromJournal && ctx.hidden} onReset={ctx.journal && own != null ? () => setOwn(null) : undefined}
+              />
+            )}
           </Section>
           <Section label={L(T.secRisk)}>
             <div className="flex flex-col gap-1 text-xs font-medium text-muted">

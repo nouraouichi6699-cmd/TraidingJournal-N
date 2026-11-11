@@ -14,6 +14,9 @@ const T = {
   title: { en: "Position size", ar: "حجم الصفقة", fr: "Taille de position" },
   account: { en: "Account", ar: "الحساب", fr: "Compte" },
   balance: { en: "Balance", ar: "الرصيد", fr: "Solde" },
+  capital: { en: "Capital", ar: "رأس المال", fr: "Capital" },
+  capAcc: { en: "From account", ar: "من الحساب", fr: "Depuis le compte" },
+  capManual: { en: "Manual", ar: "يدوي", fr: "Manuel" },
   risk: { en: "Risk", ar: "المخاطرة", fr: "Risque" },
   pct: { en: "% of balance", ar: "% من الرصيد", fr: "% du solde" },
   amt: { en: "Amount", ar: "مبلغ", fr: "Montant" },
@@ -57,7 +60,7 @@ interface Props { lang: Lang; accounts: Account[]; trades: Trade[]; balances: Re
 export default function SizeCalc({ lang, accounts, trades, balances, flows }: Props) {
   const L = (x: L3) => x[lang];
   const { hidden } = usePrivacy();
-  const { s, save, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r } = useSizeCalc({ accounts, trades, balances, flows });
+  const { s, save, setCapSrc, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r } = useSizeCalc({ accounts, trades, balances, flows });
   const money = (v: number, cents = true) => (hidden ? "••••" : fmtMoney(v, { cents, currency: cur }));
 
   const lbl = "flex flex-col gap-1 text-xs font-medium text-muted";
@@ -77,6 +80,16 @@ export default function SizeCalc({ lang, accounts, trades, balances, flows }: Pr
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </label>
+      <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
+        <span>{L(T.capital)}</span>
+        <div className="flex overflow-hidden rounded-lg border border-[var(--border)]" role="group" aria-label={L(T.capital)}>
+          {(["acc", "manual"] as const).map((c) => {
+            const on = s.capSrc === c;
+            return <button key={c} type="button" aria-pressed={on} onClick={() => setCapSrc(c)} className={`px-2.5 py-0.5 text-[11px] font-semibold ${on ? "bg-primary text-[var(--on-primary,#111)]" : ""}`}>{c === "acc" ? L(T.capAcc) : L(T.capManual)}</button>;
+          })}
+        </div>
+      </div>
+      {s.capSrc === "manual" && <label className={lbl}>{L(T.capital)}<input className="field" inputMode="decimal" dir="ltr" value={s.capManual} onChange={(e) => save({ capManual: e.target.value })} /></label>}
       <div className={lbl}>{L(T.risk)}
         <div className="flex gap-2">
           {bal ? (

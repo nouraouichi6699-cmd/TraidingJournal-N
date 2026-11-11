@@ -90,6 +90,19 @@ export const SIZE_STATE_KEY = "mizan-size-calc";
 /** The money risked: a % of the balance or a typed amount. The one place Position size and Risk management work it out. */
 export const riskMoneyFor = (mode: "pct" | "amt", balance: number, pct: number, amt: number): number => (mode === "pct" ? (balance * pct) / 100 : amt);
 
+/** Where Position size takes its capital from: the account's live balance, or a value typed by hand. */
+export type CapSrc = "acc" | "manual";
+/** Anything but "manual" reads as the account (the default). */
+export const capSrcOf = (v: unknown): CapSrc => (v === "manual" ? "manual" : "acc");
+/** The capital the "%" and "lots / balance" maths use: the typed one (NaN while it is empty or not a number) or the live balance. */
+export const capitalFor = (src: CapSrc, manual: string, live: number): number => (src === "manual" ? parseNum(manual) : live);
+/** What to save when the source is switched: the typed capital is pre-filled with the live balance only the first time
+ *  (while empty); afterwards what was typed is kept. */
+export function capSwitchPatch(src: CapSrc, manual: string, live: number): { capSrc: CapSrc; capManual: string } {
+  const prefill = src === "manual" && manual.trim() === "" && Number.isFinite(live) ? String(Math.round(live * 100) / 100) : manual;
+  return { capSrc: src, capManual: prefill };
+}
+
 export interface SizeInput {
   balance: number;
   mode: "pct" | "amt";

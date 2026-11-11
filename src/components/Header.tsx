@@ -1,4 +1,4 @@
-import { Calculator, Eye, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
+import { Calculator, Coins, Delete, Eye, Percent, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import Brand from "./Brand";
 import Dropdown from "./Dropdown";
@@ -33,6 +33,12 @@ interface Props {
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
 
 const calcLabel: Record<Lang, string> = { en: "Position size", ar: "حجم الصفقة", fr: "Taille de position" };
+const generalTools: Record<Lang, string> = { en: "General tools", ar: "أدوات عامة", fr: "Outils généraux" };
+const generalItems: { key: string; icon: typeof Delete; label: Record<Lang, string> }[] = [
+  { key: "std", icon: Delete, label: { en: "Calculator", ar: "آلة حاسبة", fr: "Calculatrice" } },
+  { key: "fx", icon: Coins, label: { en: "Currency converter", ar: "محوّل العملات", fr: "Convertisseur de devises" } },
+  { key: "pct", icon: Percent, label: { en: "Percentage", ar: "النسبة المئوية", fr: "Pourcentage" } },
+];
 const allCalcs: Record<Lang, string> = { en: "All calculators", ar: "كل الحاسبات", fr: "Toutes les calculatrices" };
 
 export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
@@ -97,6 +103,16 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
               {(close) => (
                 <>
                   {calc}
+                  <div className="flex items-center justify-between gap-2 border-t border-border px-4 pb-1 pt-2">
+                    <span className="text-xs font-medium text-muted">{generalTools[lang]}</span>
+                    <div className="flex items-center gap-1">
+                      {generalItems.map(({ key, icon: Icon, label }) => (
+                        <button key={key} type="button" aria-label={label[lang]} title={label[lang]} onClick={() => { close(); openCalculator(key); }} className="icon-btn">
+                          <Icon size={16} strokeWidth={1.9} className="text-icon" aria-hidden />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="flex justify-end border-t border-border px-4 pb-1.5 pt-2">
                     <button type="button" onClick={() => { openCalculator(); close(); }} className="inline-flex items-center gap-1 text-xs font-semibold text-icon hover:underline">
                       {allCalcs[lang]}

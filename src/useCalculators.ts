@@ -7,7 +7,7 @@ import type { Account, BalancePoint, Trade } from "./types";
 import type { CashFlow } from "./lib/cashflow";
 import { currentBalance } from "./lib/balance";
 import { challengeState, readChallenges } from "./lib/challenge";
-import { lotsFromBalanceRule, parseNum, SIZE_STATE_KEY, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type DistUnit } from "./lib/calcCore";
+import { capitalFor, capSrcOf, capSwitchPatch, lotsFromBalanceRule, parseNum, SIZE_STATE_KEY, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type CapSrc, type DistUnit } from "./lib/calcCore";
 import { todayFor } from "./components/challengeUi";
 
 /** Asking the app to open the Charts view (from calculator links). */
@@ -24,11 +24,14 @@ export const openCalculator = (key?: string | null) => {
 const KEY = SIZE_STATE_KEY;
 /** `unit`: the stop typed in pips (the default) or as entry and stop prices. `pipSizes`: the pip size typed per symbol
  *  (anything but forex), shared with the other calculators that count in pips. */
-export type SizeSaved = { acc: string; mode: "pct" | "amt" | "balance"; pct: string; amt: string; unitAmt: string; lotsPerUnit: string; sym: string; contracts: Record<string, string>; rates: Record<string, string>; unit: DistUnit; pipSizes: Record<string, string> };
+export type SizeSaved = { acc: string; mode: "pct" | "amt" | "balance"; pct: string; amt: string; unitAmt: string; lotsPerUnit: string; capSrc: CapSrc; capManual: string; sym: string; contracts: Record<string, string>; rates: Record<string, string>; unit: DistUnit; pipSizes: Record<string, string> };
 // The default risk comes from Settings, which itself defaults to the "1" this used to hardcode. Anything already
 // saved here wins, so a calculator in use is never reset by the setting.
-const fresh = (pct: string): SizeSaved => ({ acc: "", mode: "pct", pct, amt: "", unitAmt: "1000", lotsPerUnit: "0.01", sym: "", contracts: {}, rates: {}, unit: "pips", pipSizes: {} });
-const load = (): SizeSaved => { const pct = readSettings().riskPct || "1"; try { return { ...fresh(pct), ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; } catch { return fresh(pct); } };
+const fresh = (pct: string): SizeSaved => ({ acc: "", mode: "pct", pct, amt: "", unitAmt: "1000", lotsPerUnit: "0.01", capSrc: "acc", capManual: "", sym: "", contracts: {}, rates: {}, unit: "pips", pipSizes: {} });
+const load = (): SizeSaved => {
+  const pct = readSettings().riskPct || "1";
+  try { const o = { ...fresh(pct), ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; return { ...o, capSrc: capSrcOf(o.capSrc), capManual: typeof o.capManual === "string" ? o.capManual : "" }; } catch { return fresh(pct); }
+};
 // Every mounted copy: when one saves, the others read the stored values again.
 const copies = new Set<() => void>();
 const useCopy = (reload: () => void) => {
@@ -80,7 +83,7 @@ export function useContracts(): [Record<string, string>, (sym: string, v: string
 
 export interface SizeData { accounts: Account[]; trades: Trade[]; balances: Record<string, BalancePoint[]>; flows: CashFlow[] }
 export interface SizeOpts {
-  /** A balance to use instead of the account's (typed, or edited on the page). Left out: the account's current balance. */
+  /** A balance to use instead of the capital the saved "Capital" source gives (typed, or edited on the page). Left out: that capital. */
   balance?: number;
   /** Off: no prop-challenge safe risk (the page's manual mode). */
   journal?: boolean;
@@ -112,9 +115,12 @@ export function useSizeCalc({ accounts, trades, balances, flows }: SizeData, opt
   const journal = opts.journal !== false;
   const inPips = s.unit !== "price";
 
+  // the account's own balance, whatever the capital source is
+  const live = useMemo(() => (acc ? currentBalance(acc, trades, balances[acc.id] ?? [], flows) : NaN), [acc, trades, balances, flows]);
   const r = useMemo(() => {
     if (!acc && opts.balance === undefined) return null;
-    const bal = opts.balance !== undefined ? opts.balance : acc ? currentBalance(acc, trades, balances[acc.id] ?? [], flows) : NaN;
+    // a typed Capital wins over the page's journal-mode balance edit; in the page's manual mode the typed balance is the capital
+    const bal = s.capSrc === "manual" && journal ? capitalFor("manual", s.capManual, live) : opts.balance !== undefined ? opts.balance : capitalFor(s.capSrc, s.capManual, live);
     const sp = symbolSpec(sym);
     const contract = sp.contract ?? parseNum(s.contracts[sym.toUpperCase()] ?? "");
     const e = parseNum(entry), st = parseNum(stop);
@@ -134,12 +140,15 @@ export function useSizeCalc({ accounts, trades, balances, flows }: SizeData, opt
       return { bal, sp, contract, ...res, ok: Number.isFinite(lots), lots, real: side, safe: null, e, st, pip, sPips, px };
     }
     return { bal, sp, contract, ...res, safe, e, st, pip, sPips, px };
-  }, [acc, trades, balances, flows, sym, s, entry, stop, stopPips, price, inPips, cur, journal, opts.balance]);
+  }, [acc, live, trades, balances, flows, sym, s, entry, stop, stopPips, price, inPips, cur, journal, opts.balance]);
 
   /** The pip size field for this symbol: what was typed for it, else its default (gold 0.1, silver 0.01, others empty). */
   const symKey = sym.toUpperCase();
   const pipField = s.pipSizes?.[symKey] ?? (r && Number.isFinite(r.pip) ? String(r.pip) : "");
   const setPipField = (v: string) => save({ pipSizes: { ...(s.pipSizes ?? {}), [symKey]: v } });
 
-  return { s, save, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r };
+  /** Switches the capital source; the first time it goes manual the typed capital starts at the account's balance. */
+  const setCapSrc = (src: CapSrc) => save(capSwitchPatch(src, s.capManual, live));
+
+  return { s, save, live, setCapSrc, acc, symbols, sym, cur, inPips, entry, setEntry, stop, setStop, stopPips, setStopPips, price, setPrice, pipField, setPipField, r };
 }
