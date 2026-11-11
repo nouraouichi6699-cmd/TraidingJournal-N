@@ -1,4 +1,4 @@
-import { dayKey, dayList, dayStats, dayTrades, monthCells, shiftMonth } from "./dayByDay";
+import { dayKey, dayList, dayStats, dayTrades, monthCells, monthSummary, shiftMonth, weekTotals } from "./dayByDay";
 import type { Trade } from "../types";
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, d = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${c ? "" : "  " + d}`); };
@@ -37,4 +37,18 @@ ok("Sun-first: 6 leading blanks", ms.slice(0, 6).every((c) => c === null) && ms[
 ok("grid holds exactly the month's days, in order", mc.filter(Boolean).length === 31 && mc.filter(Boolean).at(-1) === "2025-03-31");
 ok("padded to whole weeks, trailing blanks null", monthCells("2027-02", false).length === 28 && monthCells("2025-06", false).at(-1) === null);
 ok("shiftMonth crosses year edges", shiftMonth("2025-12", 1) === "2026-01" && shiftMonth("2025-01", -1) === "2024-12" && shiftMonth("2025-03", 0) === "2025-03");
+// month summary + week totals (Mar 2025: 4th +60, 5th -25.5; Feb 28 is outside the month)
+const ms3 = monthSummary(tr, L, "2025-03");
+ok("monthSummary net / days / green / red", near(ms3.net, 34.5) && ms3.tradingDays === 2 && ms3.greenDays === 1 && ms3.redDays === 1, JSON.stringify(ms3));
+ok("monthSummary win rate over the month's trades (1 win of 4)", near(ms3.winRate, 25), String(ms3.winRate));
+const ms2 = monthSummary(tr, L, "2025-02");
+ok("monthSummary excludes other months", near(ms2.net, 10) && ms2.tradingDays === 1 && ms2.greenDays === 1 && ms2.redDays === 0);
+const none = monthSummary(tr, L, "2025-04");
+ok("monthSummary empty month -> zeros, null win rate", none.net === 0 && none.winRate === null && none.tradingDays === 0 && none.greenDays === 0);
+// Mon-first March 2025: row 0 = pad + Mar 1-2, row 1 = Mar 3-9 (4th, 5th traded), the rest empty
+const wk = weekTotals(mc, L);
+ok("weekTotals: one total per row", wk.length === 6, String(wk.length));
+ok("weekTotals: pad cells and no-trade days add nothing", wk[0].days === 0 && wk[0].net === 0, JSON.stringify(wk[0]));
+ok("weekTotals: net + trading-day count", near(wk[1].net, 34.5) && wk[1].days === 2, JSON.stringify(wk[1]));
+ok("weekTotals: empty weeks have 0 days", wk.slice(2).every((w) => w.days === 0 && w.net === 0));
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

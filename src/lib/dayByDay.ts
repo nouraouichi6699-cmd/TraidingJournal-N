@@ -45,3 +45,26 @@ export const shiftMonth = (month: string, n: number): string => {
   const [y, mo] = month.split("-").map(Number);
   return new Date(Date.UTC(y, mo - 1 + n, 1)).toISOString().slice(0, 7);
 };
+
+export interface MonthSummary { net: number; winRate: number | null; tradingDays: number; greenDays: number; redDays: number }
+/** Headline numbers for one month (YYYY-MM): net P&L and trade win rate over its closed trades (via dayStats, so it
+ *  matches the per-day strip), plus how many trading days closed green / red. `days` is the dayList of the same trades. */
+export function monthSummary(trades: Trade[], days: DayRow[], month: string): MonthSummary {
+  const inMonth = days.filter((d) => d.day.startsWith(month));
+  const st = dayStats(trades.filter((t) => closedOnly(t) && dayKey(t).startsWith(month)));
+  return { net: st.net, winRate: st.winRate, tradingDays: inMonth.length, greenDays: inMonth.filter((d) => d.net > 0).length, redDays: inMonth.filter((d) => d.net < 0).length };
+}
+
+export interface WeekTotal { net: number; days: number }
+/** One total per 7-cell row of `monthCells`: net P&L and trading-day count of that row's in-month days. Padding
+ *  (null) cells and days without trades contribute nothing, so a row with no trades has days === 0. */
+export function weekTotals(cells: (string | null)[], days: DayRow[]): WeekTotal[] {
+  const byDay = new Map(days.map((d) => [d.day, d.net]));
+  const out: WeekTotal[] = [];
+  for (let r = 0; r < cells.length; r += 7) {
+    let net = 0, n = 0;
+    for (const c of cells.slice(r, r + 7)) { const v = c ? byDay.get(c) : undefined; if (v != null) { net += v; n++; } }
+    out.push({ net: cents(net), days: n });
+  }
+  return out;
+}
