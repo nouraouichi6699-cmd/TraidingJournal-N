@@ -7,7 +7,7 @@ import type { Account, BalancePoint, Trade } from "./types";
 import type { CashFlow } from "./lib/cashflow";
 import { currentBalance } from "./lib/balance";
 import { challengeState, readChallenges } from "./lib/challenge";
-import { lotsFromBalanceRule, parseNum, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type DistUnit } from "./lib/calcCore";
+import { lotsFromBalanceRule, parseNum, SIZE_STATE_KEY, pipSizeFor, pipsToDistance, positionSize, symbolSpec, type DistUnit } from "./lib/calcCore";
 import { todayFor } from "./components/challengeUi";
 
 /** Asking the app to open the Charts view (from calculator links). */
@@ -21,7 +21,7 @@ export const openCalculator = (key?: string | null) => {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<CalcNav>(OPEN_CALCULATOR, { detail: { key: key ?? null } }));
 };
 
-const KEY = "mizan-size-calc";
+const KEY = SIZE_STATE_KEY;
 /** `unit`: the stop typed in pips (the default) or as entry and stop prices. `pipSizes`: the pip size typed per symbol
  *  (anything but forex), shared with the other calculators that count in pips. */
 export type SizeSaved = { acc: string; mode: "pct" | "amt" | "balance"; pct: string; amt: string; unitAmt: string; lotsPerUnit: string; sym: string; contracts: Record<string, string>; rates: Record<string, string>; unit: DistUnit; pipSizes: Record<string, string> };

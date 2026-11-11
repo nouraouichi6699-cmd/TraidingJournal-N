@@ -3,7 +3,7 @@
 // calculators.test.ts compares the two. Pure: no React, no text; the words live in components/calculators/text.ts.
 import {
   atrSize, buildPnlSample, challengePlan, compound, convertFx, convertUnits, drawdownRecovery, expectancy, kellyFull, likelyLongestRun, marginFor, moneyFor,
-  percentCalc, pipValue, positionSize, profitLoss, requiredWinRate, riskOfRuin, riskReward, runMonteCarlo, stdPress, STD_START, swapCost, symbolSpec, tradeCost,
+  percentCalc, pipValue, positionSize, profitLoss, requiredWinRate, riskOfRuin, riskRuleResult, riskReward, runMonteCarlo, stdPress, STD_START, swapCost, symbolSpec, tradeCost,
   type CalcKey, type StdKey,
 } from "./calculators";
 
@@ -46,6 +46,7 @@ export const EX = {
   std: { keys: ["1", "2", ".", "5", "*", "4", "="] as StdKey[] },
   fx: { amount: 100, from: "USD", to: "EUR", eurPerUsd: 0.92 },
   pct: { from: 10000, to: 11200 },
+  riskmgmt: { balance: 10000, pct: 1 },
 };
 
 const EURUSD = symbolSpec("EURUSD");
@@ -138,6 +139,10 @@ export function calcExample(k: CalcKey): CalcExample {
     case "fx": {
       const e = EX.fx, r = convertFx(e.amount, e.from, e.to, { USD: { rate: 1 }, EUR: { rate: e.eurPerUsd } });
       return { inputs: [n(e.amount, 0), e.from, e.to, n(e.eurPerUsd)], out: { amount: n(e.amount, 0), rate: n(e.eurPerUsd), r: n(r) } };
+    }
+    case "riskmgmt": {
+      const e = EX.riskmgmt, r = riskRuleResult({ method: "pct", pct: e.pct }, e.balance);
+      return { inputs: [money(e.balance, 0), pct(e.pct, 0)], out: { balance: money(e.balance, 0), pct: pct(e.pct, 0), risk: money(r.riskMoney) } };
     }
     case "pct": {
       const e = EX.pct, r = percentCalc("change", e.from, e.to);

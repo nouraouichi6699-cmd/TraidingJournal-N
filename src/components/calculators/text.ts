@@ -36,13 +36,14 @@ export const CALC_TEXT: Record<CalcKey, { name: L3; desc: L3 }> = {
   units: { name: l("Unit conversion", "تحويل الوحدات", "Conversion d'unités"), desc: l("Lots, units and ounces of a position", "اللوتات والوحدات والأونصات لمركز", "Lots, unités et onces d'une position") },
   cost: { name: l("Trade cost", "تكلفة الصفقة", "Coût du trade"), desc: l("Spread and commission, in money and pips", "السبريد والعمولة بالمال وبالنقاط", "Spread et commission, en argent et en pips") },
   swap: { name: l("Swap", "السواب", "Swap"), desc: l("What holding overnight costs or pays", "ما تكلفه أو تدفعه الصفقة المبيتة", "Ce que coûte ou rapporte une position gardée la nuit") },
+  riskmgmt: { name: l("Risk management", "إدارة المخاطر", "Gestion du risque"), desc: l("Sizing methods in one place, ready for Position size", "طرق تحديد الحجم في مكان واحد، جاهزة لحجم الصفقة", "Les méthodes de taille au même endroit, prêtes pour Taille de position") },
   pct: { name: l("Percentage", "النسبة المئوية", "Pourcentage"), desc: l("Share, part and change in percent", "الحصة والجزء والتغيّر بالنسبة المئوية", "Part, proportion et variation en pourcentage") },
 };
 
 export const T = {
   // hub
   title: l("Calculators", "الحاسبات", "Calculatrices"),
-  subtitle: l("22 calculators in 5 groups", "22 حاسبة في 5 مجموعات", "22 calculatrices en 5 groupes"),
+  subtitle: l("23 calculators in 5 groups", "23 حاسبة في 5 مجموعات", "23 calculatrices en 5 groupes"),
   search: l("Search a calculator", "ابحث عن حاسبة", "Rechercher une calculatrice"),
   empty: l("No calculator with this name", "لا توجد حاسبة بهذا الاسم", "Aucune calculatrice de ce nom"),
   recent: l("Recently used", "المستخدمة مؤخراً", "Utilisées récemment"),
@@ -344,6 +345,56 @@ export const T = {
   swapCredit: l("Credit", "رصيد دائن", "Crédit"),
 } satisfies Record<string, L3>;
 
+// ---------- Risk management ----------
+
+/** The built-in methods: a name and a one-line description each (the key is RISK_BUILTINS' in lib/calculators.ts). */
+export const RM_BUILT: Record<string, { name: L3; desc: L3 }> = {
+  fixed1: { name: l("Fixed 1% risk", "مخاطرة ثابتة 1%", "Risque fixe de 1 %"), desc: l("Risk 1% of the balance on every trade.", "خاطر بـ 1% من الرصيد في كل صفقة.", "Risquez 1 % du solde à chaque trade.") },
+  fixed2: { name: l("Fixed 2% risk", "مخاطرة ثابتة 2%", "Risque fixe de 2 %"), desc: l("Risk 2% of the balance on every trade.", "خاطر بـ 2% من الرصيد في كل صفقة.", "Risquez 2 % du solde à chaque trade.") },
+  lotbal: { name: l("Fixed lot per balance", "لوت ثابت لكل رصيد", "Lot fixe par solde"), desc: l("A set number of lots for every chunk of balance, whatever the stop.", "عدد ثابت من اللوتات لكل جزء من الرصيد، مهما كان الوقف.", "Un nombre fixe de lots par tranche de solde, quel que soit le stop.") },
+  antimart: { name: l("Anti-martingale (reduce after losses)", "مضاد مارتينغال (التقليل بعد الخسائر)", "Anti-martingale (réduire après des pertes)"), desc: l("Halve the risk after a run of losses, restore it after one win.", "اقسم المخاطرة على اثنين بعد سلسلة خسائر، واستعدها بعد ربح واحد.", "Divisez le risque par deux après une série de pertes, rétablissez-le après un gain.") },
+  kelly: { name: l("Kelly", "كيلي", "Kelly"), desc: l("The risk that grows the account fastest for your edge.", "المخاطرة التي تنمّي الحساب أسرع لأفضليتك.", "Le risque qui fait croître le compte le plus vite pour votre avantage.") },
+  atr: { name: l("ATR size", "الحجم بالـ ATR", "Taille ATR"), desc: l("A stop that follows volatility, and the lots that fit it.", "وقف يتبع التذبذب، واللوتات المناسبة له.", "Un stop qui suit la volatilité, et les lots qui vont avec.") },
+  port: { name: l("Portfolio risk", "مخاطرة المحفظة", "Risque du portefeuille"), desc: l("The total risk of all your open trades together.", "مجموع مخاطرة كل صفقاتك المفتوحة معاً.", "Le risque total de tous vos trades ouverts ensemble.") },
+  martingale: { name: l("Martingale (doubling after a loss)", "مارتينغال (المضاعفة بعد الخسارة)", "Martingale (doubler après une perte)"), desc: l("Not offered: doubling the stake after each loss grows the risk exponentially, so a long enough losing run wipes the account. Statistically it leads to ruin.", "غير متاحة: مضاعفة الحجم بعد كل خسارة تنمّي المخاطرة أُسّياً، فسلسلة خسائر طويلة كفيلة بمحو الحساب. إحصائياً تؤدي إلى الإفلاس.", "Non proposée : doubler la mise après chaque perte fait croître le risque de façon exponentielle, donc une série de pertes assez longue anéantit le compte. Statistiquement, elle mène à la ruine.") },
+};
+
+export const RM = {
+  secMethods: l("Method", "الطريقة", "Méthode"),
+  secYours: l("Your presets", "إعداداتك", "Vos préréglages"),
+  secSettings: l("Settings", "الإعدادات", "Réglages"),
+  open: l("Open {name}", "افتح {name}", "Ouvrir {name}"),
+  addOwn: l("+ Add your own", "+ أضف إعدادك", "+ Ajouter le vôtre"),
+  noneYet: l("None yet. Add the way you size your trades.", "لا شيء بعد. أضف طريقتك في تحديد حجم صفقاتك.", "Aucun pour l'instant. Ajoutez votre façon de dimensionner."),
+  formName: l("Name", "الاسم", "Nom"),
+  formMethod: l("Method", "الطريقة", "Méthode"),
+  mPct: l("Fixed %", "نسبة ثابتة", "% fixe"),
+  mAmt: l("Fixed money", "مبلغ ثابت", "Montant fixe"),
+  mBal: l("Lot per balance", "لوت لكل رصيد", "Lot par solde"),
+  save: l("Save", "حفظ", "Enregistrer"),
+  cancel: l("Cancel", "إلغاء", "Annuler"),
+  edit: l("Edit", "تعديل", "Modifier"),
+  del: l("Delete", "حذف", "Supprimer"),
+  errName: l("Give it a name.", "أعطه اسماً.", "Donnez-lui un nom."),
+  errValues: l("Check the values: a risk of 0 to 100%, an amount or a unit above 0.", "تحقق من القيم: مخاطرة بين 0 و100%، ومبلغ أو وحدة أكبر من 0.", "Vérifiez les valeurs : un risque de 0 à 100 %, un montant ou une unité au-dessus de 0."),
+  errCap: l("You can keep up to {n} presets. Delete one to add another.", "يمكنك الاحتفاظ بـ {n} إعداداً كحد أقصى. احذف أحدها لإضافة آخر.", "Vous pouvez garder {n} préréglages au maximum. Supprimez-en un pour en ajouter."),
+  baseRisk: l("Base risk", "المخاطرة الأساسية", "Risque de base"),
+  haveAfter: l("Halve after N losses in a row", "قسّم على اثنين بعد N خسائر متتالية", "Diviser par deux après N pertes d'affilée"),
+  restoreNote: l("One win restores the base risk.", "ربح واحد يعيد المخاطرة الأساسية.", "Un gain rétablit le risque de base."),
+  curStreak: l("Current losing streak", "سلسلة الخسائر الحالية", "Série de pertes en cours"),
+  riskAmount: l("Risk amount", "مبلغ المخاطرة", "Montant risqué"),
+  riskPctRow: l("Risk per trade", "المخاطرة لكل صفقة", "Risque par trade"),
+  rule: l("Rule", "القاعدة", "Règle"),
+  custom: l("Custom", "مخصص", "Personnalisé"),
+  pctSay: l("On {balance}, risking {pct} means {risk} on each trade.", "على {balance}، المخاطرة بـ {pct} تعني {risk} في كل صفقة.", "Sur {balance}, risquer {pct} revient à {risk} par trade."),
+  amtSay: l("Risking a fixed {risk} is {pct} of {balance}.", "المخاطرة بمبلغ ثابت {risk} تساوي {pct} من {balance}.", "Risquer {risk} fixes représente {pct} de {balance}."),
+  balSay: l("{lotsPerUnit} lot for every {unit} of balance gives {lots} lots on {balance}.", "{lotsPerUnit} لوت لكل {unit} من الرصيد يعطي {lots} لوت على {balance}.", "{lotsPerUnit} lot par tranche de {unit} donne {lots} lots sur {balance}."),
+  antiSay: l("After {streak} losses in a row the risk is halved {halvings} time(s): {pct} instead of {base}, which is {risk} on {balance}.", "بعد {streak} خسائر متتالية تُقسم المخاطرة {halvings} مرة: {pct} بدل {base}، أي {risk} على {balance}.", "Après {streak} pertes d'affilée, le risque est divisé par deux {halvings} fois : {pct} au lieu de {base}, soit {risk} sur {balance}."),
+  needStop: l("Lots depend on the stop distance: Position size works them out.", "اللوتات تعتمد على بعد الوقف: حجم الصفقة يحسبها.", "Les lots dépendent de la distance du stop : Taille de position les calcule."),
+  useIn: l("Use in Position size", "استعمله في حجم الصفقة", "Utiliser dans Taille de position"),
+  pickOne: l("Pick a method that is worked out here.", "اختر طريقة تُحسب هنا.", "Choisissez une méthode calculée ici."),
+} satisfies Record<string, L3>;
+
 // ---------- "How to use" panel ----------
 // One entry per calculator: when to use it, the labels of its example inputs (same order as calcExample's `inputs`, in
 // src/lib/calcExamples.ts), and the worked result. {keys} are the numbers calcExample computes with the real functions.
@@ -464,6 +515,11 @@ export const HOW: Record<CalcKey, { blurb: L3; labels: L3[]; result: L3 }> = {
     blurb: l("Convert an amount between currencies, for example to compare a prop fee or a payout in the currency you think in.", "حوّل مبلغاً بين العملات، مثلاً لمقارنة رسوم أو أرباح بالعملة التي تفكر بها.", "Convertissez un montant entre devises, par exemple pour comparer des frais ou un retrait dans la devise dans laquelle vous raisonnez."),
     labels: [l("Amount", "المبلغ", "Montant"), FROM, TO, l("Rate (example, per 1 USD)", "السعر (مثال، لكل 1 دولار)", "Taux (exemple, pour 1 USD)")],
     result: l("With 1 USD = {rate} EUR (an example rate, yours are live): {amount} USD × {rate} = {r} EUR.", "بسعر 1 دولار = {rate} يورو (سعر للمثال، أسعارك حية): {amount} دولار × {rate} = {r} يورو.", "Avec 1 USD = {rate} EUR (taux d'exemple, les vôtres sont en direct) : {amount} USD × {rate} = {r} EUR."),
+  },
+  riskmgmt: {
+    blurb: l("Pick a well-known sizing method, see what it gives on your balance, then send it to Position size so it opens already set to that method.", "اختر طريقة معروفة لتحديد الحجم، وانظر ما تعطيه على رصيدك، ثم أرسلها إلى حجم الصفقة لتُفتح وقد ضُبطت عليها.", "Choisissez une méthode de taille connue, voyez ce qu'elle donne sur votre solde, puis envoyez-la à Taille de position pour qu'elle s'ouvre déjà réglée dessus."),
+    labels: [BAL, l("Preset: fixed risk", "النمط: مخاطرة ثابتة", "Préréglage : risque fixe")],
+    result: l("Fixed 1% risk: {balance} × {pct} = {risk} risked on each trade.", "مخاطرة ثابتة 1%: {balance} × {pct} = {risk} مخاطرة في كل صفقة.", "Risque fixe de 1 % : {balance} × {pct} = {risk} risqués à chaque trade."),
   },
   pct: {
     blurb: l("Work out a share, a part or a change in percent, for instance how much your balance moved.", "احسب حصة أو جزءاً أو تغيّراً بالنسبة المئوية، مثل مقدار تغيّر رصيدك.", "Calculez une part, une proportion ou une variation en pourcentage, par exemple de combien votre solde a bougé."),

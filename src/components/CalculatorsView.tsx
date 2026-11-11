@@ -1,9 +1,9 @@
-// The Calculators page: a hub of 22 calculators in 5 groups (search, recently used, one glass card per group) and a
+// The Calculators page: a hub of 23 calculators in 5 groups (search, recently used, one glass card per group) and a
 // detail screen per calculator (inputs | result). Opened from the sidebar, the header's size calculator, or anywhere
 // with openCalculator(key).
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  ArrowLeft, ArrowLeftRight, BarChart3, Boxes, Brain, ChevronRight, Coins, Crosshair, Delete, Divide, Flag, Layers, LayoutGrid, LineChart, Moon, NotebookPen, Percent, PieChart, Receipt, RefreshCw,
+  ArrowLeft, ArrowLeftRight, BarChart3, Boxes, Brain, ChevronRight, Coins, Crosshair, Delete, Divide, Flag, Gauge, Layers, LayoutGrid, LineChart, Moon, NotebookPen, Percent, PieChart, Receipt, RefreshCw,
   Ruler, Scale, Search, Shield, ShieldHalf, Shuffle, Sigma, TrendingDown, TrendingUp, TriangleAlert, Trophy, type LucideIcon,
 } from "lucide-react";
 import "./calculators/calculators.css";
@@ -20,6 +20,7 @@ import { Seg, useL, type Ctx } from "./calculators/ui";
 import { AtrBody, CostBody, MarginBody, PipBody, PlBody, RrBody, SizeBody, SwapBody, UnitsBody } from "./calculators/TradeSetup";
 import { CompBody, PropBody } from "./calculators/PropCalcs";
 import { HowTo } from "./calculators/HowTo";
+import { RiskMgmtBody } from "./calculators/RiskMgmt";
 import { FxBody, PctBody, StdBody } from "./calculators/General";
 import { DdBody, ExpBody, KellyBody, McBody, PortBody, RuinBody, StreakBody, WrBody } from "./calculators/RiskSystem";
 
@@ -27,7 +28,7 @@ const GOLD = "#e6b84a";
 const GROUP_ICON: Record<GroupKey, LucideIcon> = { setup: Crosshair, risk: Shield, system: Brain, prop: Trophy, general: LayoutGrid };
 const ICON: Record<CalcKey, LucideIcon> = {
   size: Scale, rr: ArrowLeftRight, pl: TrendingUp, pip: Ruler, margin: Layers, atr: BarChart3,
-  dd: RefreshCw, ruin: TriangleAlert, streak: TrendingDown, port: ShieldHalf,
+  dd: RefreshCw, ruin: TriangleAlert, streak: TrendingDown, port: ShieldHalf, riskmgmt: Gauge,
   exp: Sigma, wr: Percent, kelly: Divide, mc: Shuffle,
   prop: Flag, comp: LineChart,
   std: Delete, fx: Coins, pct: PieChart, units: Boxes, cost: Receipt, swap: Moon,
@@ -227,6 +228,7 @@ function Detail({ k, lang, mode, onMode, onBack, unit, onUnit, ctxBase, toneOf, 
           : k === "ruin" ? <RuinBody key={bodyKey} ctx={ctx} />
           : k === "streak" ? <StreakBody key={bodyKey} ctx={ctx} />
           : k === "port" ? <PortBody key={bodyKey} ctx={ctx} />
+          : k === "riskmgmt" ? <RiskMgmtBody key={bodyKey} ctx={ctx} />
           : k === "exp" ? <ExpBody key={bodyKey} ctx={ctx} />
           : k === "wr" ? <WrBody ctx={ctx} />
           : k === "kelly" ? <KellyBody key={bodyKey} ctx={ctx} />

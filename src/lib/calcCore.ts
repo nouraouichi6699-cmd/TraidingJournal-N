@@ -84,6 +84,12 @@ export function balancePresetOf(unitAmt: string, lotsPerUnit: string): BalancePr
   return BALANCE_PRESETS.find((x) => parseNum(x.unitAmt) === u && parseNum(x.lotsPerUnit) === p)?.key ?? null;
 }
 
+/** The localStorage key of the position size calculator's saved state (shared by the header, the page and Risk management). */
+export const SIZE_STATE_KEY = "mizan-size-calc";
+
+/** The money risked: a % of the balance or a typed amount. The one place Position size and Risk management work it out. */
+export const riskMoneyFor = (mode: "pct" | "amt", balance: number, pct: number, amt: number): number => (mode === "pct" ? (balance * pct) / 100 : amt);
+
 export interface SizeInput {
   balance: number;
   mode: "pct" | "amt";
@@ -110,7 +116,7 @@ export function positionSize(i: SizeInput) {
   const dist = inPips ? Math.abs(i.dist as number) : Math.abs(i.entry - i.stop);
   const needRate = needsRate(i.spec, i.cur);
   const rate = quoteToAccountRate(i.spec, i.cur, inPips ? (i.price as number) : i.entry, i.rate);
-  const riskMoney = i.mode === "pct" ? (i.balance * i.pct) / 100 : i.amt;
+  const riskMoney = riskMoneyFor(i.mode, i.balance, i.pct, i.amt);
   const perLot = dist * i.contract * rate;
   const ok = Number.isFinite(perLot) && perLot > 0 && Number.isFinite(riskMoney) && riskMoney > 0;
   const lots = ok ? lotsFor(riskMoney, perLot) : NaN;

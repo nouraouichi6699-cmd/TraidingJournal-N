@@ -5,6 +5,8 @@ import {
   defaultPipSize, needsPrice, pipSizeFor, pipsToDistance, profitLossPips, riskRewardPips,
   convertFx, effectiveFx, fxStatus, mergeFx, parseCoingeckoBtc, parseErApiUsd, parseFrankfurterUsd, percentCalc, STD_START, stdKeyFromEvent, stdPress,
   avgCommissionPerLot, convertUnits, swapCost, tradeCost,
+  addRiskPreset, antiMartingaleRisk, currentLossStreak, deleteRiskPreset, parseRiskPresets, readRiskPresets, riskRuleResult, RISK_BUILTINS, RISK_PRESET_CAP, RISK_PRESETS_KEY,
+  sizeStatePatch, SIZE_STATE_KEY, updateRiskPreset, validRiskRule, writeRiskPresets, writeSizeState, type CustomRiskPreset, type RiskRule,
   type FxStore, type StdKey, type StdState,
 } from "./calculators";
 import { BALANCE_PRESETS, balancePresetOf } from "./calcCore";
@@ -21,11 +23,11 @@ const near = (name: string, got: number, exp: number, tol = 0.01) => ok(name, Nu
 const nan = (name: string, got: number) => ok(name, Number.isNaN(got), `got ${got}, expected NaN`);
 
 console.log("-- catalogue");
-eq("22 calculators", CALC_KEYS.length, 22);
-eq("5 groups of 9, 4, 4, 2, 3", CALC_GROUPS.map((g) => g.items.length), [9, 4, 4, 2, 3]);
+eq("23 calculators", CALC_KEYS.length, 23);
+eq("5 groups of 9, 5, 4, 2, 3", CALC_GROUPS.map((g) => g.items.length), [9, 5, 4, 2, 3]);
 eq("group colours", CALC_GROUPS.map((g) => g.color), ["#22c55e", "#ef4444", "#d946ef", "#f97316", "#94a3b8"]);
-eq("all 22 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
-eq("journal-filled", [...CALC_JOURNAL].sort(), ["atr", "comp", "cost", "dd", "exp", "kelly", "mc", "port", "prop", "ruin", "size", "streak"]);
+eq("all 23 calculators ready", [...CALC_READY].sort(), [...CALC_KEYS].sort());
+eq("journal-filled", [...CALC_JOURNAL].sort(), ["atr", "comp", "cost", "dd", "exp", "kelly", "mc", "port", "prop", "riskmgmt", "ruin", "size", "streak"]);
 eq("isCalcKey", [isCalcKey("prop"), isCalcKey("nope"), isCalcKey(3)], [true, false, false]);
 
 console.log("-- search and recent");
@@ -659,6 +661,104 @@ console.log("-- Lots / balance presets");
   eq("editing a field deselects the chip", balancePresetOf("5000", "1.5"), null);
   eq("a decimal comma still matches", balancePresetOf("10000", "1,0"), "low");
   eq("the default 1000 / 0.01 matches none", balancePresetOf("1000", "0.01"), null);
+}
+
+console.log("-- Risk management");
+{
+  // anti-martingale: base / 2^floor(streak / haveAfter)
+  near("2% base, 2 losses, halve every 2 = 1%", antiMartingaleRisk(2, 2, 2), 1, 1e-12);
+  near("2% base, 4 losses, halve every 2 = 0.5%", antiMartingaleRisk(2, 4, 2), 0.5, 1e-12);
+  near("no losses: the base", antiMartingaleRisk(2, 0, 2), 2, 1e-12);
+  near("1 loss (below the threshold): the base", antiMartingaleRisk(2, 1, 2), 2, 1e-12);
+  near("3 losses: still one halving", antiMartingaleRisk(2, 3, 2), 1, 1e-12);
+  near("halve after every loss: 3 losses = base / 8", antiMartingaleRisk(4, 3, 1), 0.5, 1e-12);
+  nan("a base of 0", antiMartingaleRisk(0, 2, 2));
+  nan("a negative streak", antiMartingaleRisk(2, -1, 2));
+  nan("halving after 0 losses", antiMartingaleRisk(2, 2, 0));
+  nan("a missing number", antiMartingaleRisk(NaN, 2, 2));
+
+  // the account's current losing streak, from the end of its closed trades
+  const at = (pnl: number | null, day: number, status: "open" | "closed" = "closed"): Trade => ({ ...tr(pnl, status), exitTime: `2025-02-${String(day).padStart(2, "0")}T10:00` });
+  eq("streak: 3 losses after a win", currentLossStreak([at(50, 1), at(-10, 2), at(-10, 3), at(-10, 4)]), 3);
+  eq("streak: a win last = 0", currentLossStreak([at(-10, 1), at(-10, 2), at(50, 3)]), 0);
+  eq("streak: input order does not matter", currentLossStreak([at(-10, 4), at(50, 1), at(-10, 3), at(-10, 2)]), 3);
+  eq("streak: open trades and missing results are ignored", currentLossStreak([at(50, 1), at(-10, 2), at(-99, 3, "open"), at(null, 4)]), 1);
+  eq("streak: a break-even neither adds nor ends it", currentLossStreak([at(50, 1), at(-10, 2), at(0, 3), at(-10, 4)], 1), 2);
+  eq("streak: no trades", currentLossStreak([]), 0);
+
+  // rules: the same maths as Position size
+  const bal = 10000;
+  const r1 = riskRuleResult({ method: "pct", pct: 1 }, bal);
+  near("Fixed 1% on 10,000 = 100 risk", r1.riskMoney, 100, 1e-9);
+  near("Fixed 1%: riskPct 1", r1.riskPct, 1, 1e-9);
+  near("Fixed 2% on 10,000 = 200", riskRuleResult({ method: "pct", pct: 2 }, bal).riskMoney, 200, 1e-9);
+  near("same as positionSize's risk (pct)", r1.riskMoney, positionSize({ balance: bal, mode: "pct", pct: 1, amt: 0, spec: symbolSpec("EURUSD"), contract: 100000, entry: 1.1, stop: 1.09, cur: "USD", rate: 1 }).riskMoney, 1e-9);
+  const ra = riskRuleResult({ method: "amt", amt: 50 }, bal);
+  near("fixed money: 50 is 0.5%", ra.riskPct, 0.5, 1e-9);
+  near("same as positionSize's risk (amt)", ra.riskMoney, positionSize({ balance: bal, mode: "amt", pct: 0, amt: 50, spec: symbolSpec("EURUSD"), contract: 100000, entry: 1.1, stop: 1.09, cur: "USD", rate: 1 }).riskMoney, 1e-9);
+  near("lot per balance 10000/1 on 25,000 = 2.5 lots", riskRuleResult({ method: "balance", unitAmt: 10000, lotsPerUnit: 1 }, 25000).lots, lotsFromBalanceRule(25000, 10000, 1), 1e-12);
+  near("... = 2.50", riskRuleResult({ method: "balance", unitAmt: 10000, lotsPerUnit: 1 }, 25000).lots, 2.5, 1e-9);
+  ok("a bad balance or bad values are not ok", !riskRuleResult({ method: "pct", pct: 1 }, 0).ok && !riskRuleResult({ method: "pct", pct: 0 }, bal).ok && !riskRuleResult({ method: "pct", pct: 101 }, bal).ok && !riskRuleResult({ method: "balance", unitAmt: 0, lotsPerUnit: 1 }, bal).ok);
+  eq("the catalogue: 4 worked out here, 3 links, 1 warning", [RISK_BUILTINS.filter((b) => b.kind === "calc").length, RISK_BUILTINS.filter((b) => b.kind === "link").map((b) => b.link), RISK_BUILTINS.filter((b) => b.kind === "warn").map((b) => b.key)], [4, ["kelly", "atr", "port"], ["martingale"]]);
+
+  // custom presets: add, compute, delete, through a storage like localStorage
+  const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, raw: m }; };
+  const st = mem();
+  eq("nothing saved reads as none", readRiskPresets(st), []);
+  let list: CustomRiskPreset[] = [];
+  const a1 = addRiskPreset(list, "  My 1.5%  ", { method: "pct", pct: 1.5 }, "id1");
+  eq("add: no error, the id comes back", [a1.error, a1.id], [null, "id1"]);
+  list = a1.list;
+  list = addRiskPreset(list, "Fifty flat", { method: "amt", amt: 50 }, "id2").list;
+  list = addRiskPreset(list, "Per 5k", { method: "balance", unitAmt: 5000, lotsPerUnit: 0.5 }, "id3").list;
+  eq("the name is trimmed, 3 saved", list.map((p) => p.name), ["My 1.5%", "Fifty flat", "Per 5k"]);
+  ok("saved under mizan-calc-risk-presets", writeRiskPresets(st, list) && st.raw.has(RISK_PRESETS_KEY) && RISK_PRESETS_KEY === "mizan-calc-risk-presets");
+  eq("round-trip through storage", readRiskPresets(st), list);
+  near("a custom % computes like its method", riskRuleResult(readRiskPresets(st)[0].rule, bal).riskMoney, 150, 1e-9);
+  near("a custom amount computes like its method", riskRuleResult(readRiskPresets(st)[1].rule, bal).riskMoney, 50, 1e-9);
+  near("a custom lot/balance computes like lotsFromBalanceRule", riskRuleResult(readRiskPresets(st)[2].rule, bal).lots, lotsFromBalanceRule(bal, 5000, 0.5), 1e-12);
+  const up = updateRiskPreset(list, "id2", "Sixty flat", { method: "amt", amt: 60 });
+  eq("edit replaces in place, same position", [up.error, up.list.map((p) => p.name), (up.list[1].rule as { amt: number }).amt], [null, ["My 1.5%", "Sixty flat", "Per 5k"], 60]);
+  eq("edit with bad values is refused, list unchanged", updateRiskPreset(list, "id2", "x", { method: "amt", amt: -1 }).list, list);
+  list = deleteRiskPreset(list, "id2");
+  writeRiskPresets(st, list);
+  eq("delete removes only that one, and it stays removed", readRiskPresets(st).map((p) => p.id), ["id1", "id3"]);
+  eq("deleting an unknown id changes nothing", deleteRiskPreset(list, "nope"), list);
+  eq("an empty name is refused", addRiskPreset(list, "   ", { method: "pct", pct: 1 }).error, "name");
+  eq("a bad value is refused", addRiskPreset(list, "x", { method: "pct", pct: 0 }).error, "values");
+  eq("garbage in storage reads as none", readRiskPresets({ getItem: () => "{not json" }), []);
+  eq("malformed entries are dropped on read", parseRiskPresets([{ id: "a", name: "ok", rule: { method: "pct", pct: 2 } }, { id: "b", name: "", rule: { method: "pct", pct: 2 } }, { id: "c", name: "bad", rule: { method: "pct", pct: -2 } }, { id: "a", name: "dup", rule: { method: "pct", pct: 3 } }, 7, null]).map((p) => p.id), ["a"]);
+
+  // the cap: 20, never dropping the oldest
+  let full: CustomRiskPreset[] = [];
+  for (let i = 0; i < RISK_PRESET_CAP; i++) full = addRiskPreset(full, `P${i}`, { method: "pct", pct: 1 }, `i${i}`).list;
+  eq("20 presets fit", full.length, 20);
+  const over = addRiskPreset(full, "one too many", { method: "pct", pct: 1 }, "x");
+  eq("the 21st is refused with the cap error", [over.error, over.id], ["cap", null]);
+  eq("the list is untouched: the oldest is still there", [over.list.length, over.list[0].id, over.list[19].id], [20, "i0", "i19"]);
+  eq("after a delete there is room again", addRiskPreset(deleteRiskPreset(full, "i5"), "again", { method: "pct", pct: 1 }, "y").error, null);
+  eq("a stored list over the cap is cut to 20 on read", parseRiskPresets([...full, { id: "z", name: "z", rule: { method: "pct", pct: 1 } }]).length, 20);
+
+  // "Use in Position size": the shape Position size reads from mizan-size-calc
+  eq("the shared key", SIZE_STATE_KEY, "mizan-size-calc");
+  const sized = (rule: RiskRule, acc: string | undefined, before?: object) => {
+    const s = mem();
+    if (before) s.setItem(SIZE_STATE_KEY, JSON.stringify(before));
+    const wrote = writeSizeState(s, sizeStatePatch(rule, acc));
+    return { wrote, saved: JSON.parse(s.getItem(SIZE_STATE_KEY) ?? "null") };
+  };
+  eq("pct: mode, pct and the account", sized({ method: "pct", pct: 1.5 }, "acc1").saved, { acc: "acc1", mode: "pct", pct: "1.5" });
+  eq("amt: mode and amt", sized({ method: "amt", amt: 250 }, "acc1").saved, { acc: "acc1", mode: "amt", amt: "250" });
+  eq("balance: mode, unitAmt and lotsPerUnit", sized({ method: "balance", unitAmt: 10000, lotsPerUnit: 1 }, "acc1").saved, { acc: "acc1", mode: "balance", unitAmt: "10000", lotsPerUnit: "1" });
+  eq("no account: the saved one is left alone", sized({ method: "pct", pct: 1 }, undefined, { acc: "keep", sym: "XAUUSD", pct: "3" }).saved, { acc: "keep", sym: "XAUUSD", pct: "1", mode: "pct" });
+  eq("other saved fields (symbol, pip sizes) stay", sized({ method: "amt", amt: 40 }, "a", { sym: "EURUSD", pipSizes: { XAUUSD: "0.1" }, unit: "price" }).saved, { sym: "EURUSD", pipSizes: { XAUUSD: "0.1" }, unit: "price", acc: "a", mode: "amt", amt: "40" });
+  eq("unreadable saved state is started over", (() => { const s = mem(); s.setItem(SIZE_STATE_KEY, "{oops"); writeSizeState(s, sizeStatePatch({ method: "pct", pct: 2 }, "a")); return JSON.parse(s.getItem(SIZE_STATE_KEY) ?? "null"); })(), { acc: "a", mode: "pct", pct: "2" });
+  ok("a storage that refuses reports false", !writeSizeState({ getItem: () => null, setItem: () => { throw new Error("blocked"); } }, { mode: "pct" }));
+  // what Position size then computes from that state equals what Risk management showed
+  const back = sized({ method: "balance", unitAmt: 5000, lotsPerUnit: 1 }, "a").saved;
+  near("Position size's lots from the saved state = this calculator's", lotsFromBalanceRule(bal, parseNum(back.unitAmt), parseNum(back.lotsPerUnit)), riskRuleResult({ method: "balance", unitAmt: 5000, lotsPerUnit: 1 }, bal).lots, 1e-12);
+  ok("a rule's validity", validRiskRule({ method: "pct", pct: 100 }) && !validRiskRule({ method: "amt", amt: NaN }));
+  near("the example: Fixed 1% on 10,000 = 100", (calcExample("riskmgmt").out.risk as { v: number }).v, 100, 1e-9);
 }
 
 console.log("-- How to use examples");

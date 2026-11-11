@@ -3,7 +3,7 @@
 // (0.5 means 0.5%). Anything missing or impossible comes back as NaN / null with a reason, never as a number to show.
 import { contrastRatio, mixHex, relLuminance } from "./lighting";
 import { classifyOutcome } from "./outcome";
-import { lotsFor, needsRate, pipsToDistance, quoteToAccountRate, type SymbolSpec } from "./calcCore";
+import { lotsFor, lotsFromBalanceRule, needsRate, pipsToDistance, quoteToAccountRate, riskMoneyFor, SIZE_STATE_KEY, type SymbolSpec } from "./calcCore";
 import { monteCarlo, rng, type McResult } from "./chartAnalytics";
 import type { Challenge } from "./challenge";
 import type { Trade } from "../types";
@@ -11,25 +11,25 @@ import type { Trade } from "../types";
 export type { McResult } from "./chartAnalytics";
 
 export {
-  defaultPipSize, lotsFor, lotsFromBalanceRule, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, positionSize, quoteToAccountRate, rateKey, symbolSpec,
+  defaultPipSize, lotsFor, lotsFromBalanceRule, needsPrice, needsRate, parseNum, pipSizeFor, pipsToDistance, positionSize, quoteToAccountRate, rateKey, riskMoneyFor, SIZE_STATE_KEY, symbolSpec,
   type DistUnit, type SizeInput, type SymbolSpec,
 } from "./calcCore";
 
 // ---------- the catalogue ----------
 
-export type CalcKey = "size" | "rr" | "pl" | "pip" | "margin" | "atr" | "dd" | "ruin" | "streak" | "port" | "exp" | "wr" | "kelly" | "mc" | "prop" | "comp" | "std" | "fx" | "pct" | "units" | "cost" | "swap";
+export type CalcKey = "size" | "rr" | "pl" | "pip" | "margin" | "atr" | "dd" | "ruin" | "streak" | "port" | "exp" | "wr" | "kelly" | "mc" | "prop" | "comp" | "std" | "fx" | "pct" | "units" | "cost" | "swap" | "riskmgmt";
 export type GroupKey = "setup" | "risk" | "system" | "prop" | "general";
 
 /** The five groups in page order, with their colour and calculators. `journal`: fills itself from the journal;
  *  `ready`: built (the others say "coming soon"). */
 export const CALC_GROUPS: { key: GroupKey; color: string; items: CalcKey[] }[] = [
   { key: "setup", color: "#22c55e", items: ["size", "rr", "pl", "pip", "margin", "atr", "units", "cost", "swap"] },
-  { key: "risk", color: "#ef4444", items: ["dd", "ruin", "streak", "port"] },
+  { key: "risk", color: "#ef4444", items: ["dd", "ruin", "streak", "port", "riskmgmt"] },
   { key: "system", color: "#d946ef", items: ["exp", "wr", "kelly", "mc"] },
   { key: "prop", color: "#f97316", items: ["prop", "comp"] },
   { key: "general", color: "#94a3b8", items: ["std", "fx", "pct"] },
 ];
-export const CALC_JOURNAL: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "atr", "dd", "ruin", "streak", "port", "exp", "kelly", "mc", "prop", "comp", "cost"]);
+export const CALC_JOURNAL: ReadonlySet<CalcKey> = new Set<CalcKey>(["size", "atr", "dd", "ruin", "streak", "port", "exp", "kelly", "mc", "prop", "comp", "cost", "riskmgmt"]);
 export const CALC_KEYS: CalcKey[] = CALC_GROUPS.flatMap((g) => g.items);
 export const CALC_READY: ReadonlySet<CalcKey> = new Set<CalcKey>(CALC_KEYS);
 export const isCalcKey = (k: unknown): k is CalcKey => typeof k === "string" && (CALC_KEYS as string[]).includes(k);
@@ -673,4 +673,133 @@ export function streakTable(n: number, q: number, risk: number, maxK = 12): { k:
   const rows = [];
   for (let k = 3; k <= maxK; k++) rows.push(streakTableRow(n, q, k, risk));
   return rows;
+}
+
+// ---------- Risk management ----------
+
+/** The risk % after a losing run: `baseRiskPct` halved once for every `haveAfter` losses in a row (a single win restores
+ *  the base, so only the current streak counts). NaN for a base not positive, a negative streak or fewer than 1 loss per halving. */
+export function antiMartingaleRisk(baseRiskPct: number, currentLossStreak: number, haveAfter: number): number {
+  if (!Number.isFinite(baseRiskPct) || baseRiskPct <= 0 || !Number.isFinite(currentLossStreak) || currentLossStreak < 0 || !Number.isFinite(haveAfter) || haveAfter < 1) return NaN;
+  return baseRiskPct / 2 ** Math.floor(currentLossStreak / Math.floor(haveAfter));
+}
+
+/** The account's current losing streak: the losses in a row at the end of its closed trades, newest first. A win ends the
+ *  streak; a break-even (inside `breakEven`) neither extends nor ends it. Classified as Reports does (own result first). */
+export function currentLossStreak(trades: Trade[], breakEven = 0): number {
+  const pnl = (t: Trade) => (t.pnlOwn !== undefined && t.pnlOwn != null ? t.pnlOwn : t.pnl) as number;
+  const closed = trades.filter((t) => t.status === "closed" && t.pnl != null && Number.isFinite(pnl(t)))
+    .sort((a, b) => (b.exitTime || b.entryTime || "").localeCompare(a.exitTime || a.entryTime || ""));
+  let n = 0;
+  for (const t of closed) {
+    const o = classifyOutcome(pnl(t), { breakEven, decimals: 2 });
+    if (o === "win") break;
+    if (o === "loss") n++;
+  }
+  return n;
+}
+
+/** How a risk is set: a % of the balance, a fixed amount, or lots per chunk of balance (the three Position size modes). */
+export type RiskMethod = "pct" | "amt" | "balance";
+export type RiskRule = { method: "pct"; pct: number } | { method: "amt"; amt: number } | { method: "balance"; unitAmt: number; lotsPerUnit: number };
+
+const goodPos = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+/** True when the rule's values make sense: a % in (0, 100], an amount, or a unit and lots per unit, above 0. */
+export const validRiskRule = (r: RiskRule): boolean =>
+  r.method === "pct" ? goodPos(r.pct) && r.pct <= 100 : r.method === "amt" ? goodPos(r.amt) : goodPos(r.unitAmt) && goodPos(r.lotsPerUnit);
+
+/** What a rule gives on a balance: the money risked and its % (pct, amt), or the lots (balance), the same way Position
+ *  size works them out. `ok` is false for a bad rule or a balance that is not positive. */
+export function riskRuleResult(rule: RiskRule, balance: number) {
+  const bad = { ok: false, riskMoney: NaN, riskPct: NaN, lots: NaN };
+  if (!validRiskRule(rule) || !Number.isFinite(balance) || balance <= 0) return bad;
+  if (rule.method === "balance") {
+    const lots = lotsFromBalanceRule(balance, rule.unitAmt, rule.lotsPerUnit);
+    return Number.isFinite(lots) ? { ok: true, riskMoney: NaN, riskPct: NaN, lots } : bad;
+  }
+  const riskMoney = riskMoneyFor(rule.method, balance, rule.method === "pct" ? rule.pct : NaN, rule.method === "amt" ? rule.amt : NaN);
+  return Number.isFinite(riskMoney) && riskMoney > 0 ? { ok: true, riskMoney, riskPct: (riskMoney / balance) * 100, lots: NaN } : bad;
+}
+
+/** The built-in methods in list order. `calc`: worked out here; `link`: opens that calculator; `warn`: explained, never offered. */
+export const RISK_BUILTINS: { key: "fixed1" | "fixed2" | "lotbal" | "antimart" | "kelly" | "atr" | "port" | "martingale"; kind: "calc" | "link" | "warn"; link?: CalcKey }[] = [
+  { key: "fixed1", kind: "calc" }, { key: "fixed2", kind: "calc" }, { key: "lotbal", kind: "calc" }, { key: "antimart", kind: "calc" },
+  { key: "kelly", kind: "link", link: "kelly" }, { key: "atr", kind: "link", link: "atr" }, { key: "port", kind: "link", link: "port" },
+  { key: "martingale", kind: "warn" },
+];
+
+/** What "Use in Position size" saves into the size calculator's state: its mode and that mode's values, as strings, and the
+ *  account when there is one. Position size reads the same shape, so it opens already set to this method. */
+export function sizeStatePatch(rule: RiskRule, acc?: string): Record<string, string> {
+  const txt = (v: number) => String(Math.round(v * 1e6) / 1e6);
+  const base: Record<string, string> = acc ? { acc } : {};
+  if (rule.method === "pct") return { ...base, mode: "pct", pct: txt(rule.pct) };
+  if (rule.method === "amt") return { ...base, mode: "amt", amt: txt(rule.amt) };
+  return { ...base, mode: "balance", unitAmt: txt(rule.unitAmt), lotsPerUnit: txt(rule.lotsPerUnit) };
+}
+
+type Store = Pick<Storage, "getItem" | "setItem">;
+/** Merges `patch` into the size calculator's saved state (whatever else it holds stays). False when storage refuses. */
+export function writeSizeState(store: Store, patch: Record<string, string>): boolean {
+  let raw: Record<string, unknown> = {};
+  try { const p = JSON.parse(store.getItem(SIZE_STATE_KEY) ?? "{}"); if (p && typeof p === "object" && !Array.isArray(p)) raw = p; } catch { /* unreadable: start over */ }
+  try { store.setItem(SIZE_STATE_KEY, JSON.stringify({ ...raw, ...patch })); return true; } catch { return false; }
+}
+
+// ---------- user-defined risk presets ----------
+
+export const RISK_PRESETS_KEY = "mizan-calc-risk-presets";
+/** At most this many custom presets; past it adding is refused (nothing is ever dropped). */
+export const RISK_PRESET_CAP = 20;
+export interface CustomRiskPreset { id: string; name: string; rule: RiskRule }
+export type RiskPresetError = "name" | "values" | "cap";
+
+const cleanName = (n: unknown): string => (typeof n === "string" ? n.trim().slice(0, 40) : "");
+const newPresetId = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const ruleOf = (r: unknown): RiskRule | null => {
+  const o = r as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const rule: RiskRule | null = o.method === "pct" ? { method: "pct", pct: Number(o.pct) } : o.method === "amt" ? { method: "amt", amt: Number(o.amt) }
+    : o.method === "balance" ? { method: "balance", unitAmt: Number(o.unitAmt), lotsPerUnit: Number(o.lotsPerUnit) } : null;
+  return rule && validRiskRule(rule) ? rule : null;
+};
+
+/** The saved presets, cleaned: anything malformed is dropped, ids kept unique, at most RISK_PRESET_CAP. */
+export function parseRiskPresets(raw: unknown): CustomRiskPreset[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>(), out: CustomRiskPreset[] = [];
+  for (const x of raw) {
+    const o = x as { id?: unknown; name?: unknown; rule?: unknown } | null;
+    const name = cleanName(o?.name), rule = ruleOf(o?.rule);
+    if (!o || typeof o.id !== "string" || !o.id || seen.has(o.id) || !name || !rule) continue;
+    seen.add(o.id);
+    out.push({ id: o.id, name, rule });
+    if (out.length >= RISK_PRESET_CAP) break;
+  }
+  return out;
+}
+
+export type PresetEdit = { list: CustomRiskPreset[]; error: null; id: string } | { list: CustomRiskPreset[]; error: RiskPresetError; id: null };
+/** Adds a preset: refused (the list unchanged) with a reason when the list is full, the name is empty or the values make no sense. */
+export function addRiskPreset(list: CustomRiskPreset[], name: string, rule: RiskRule, id: string = newPresetId()): PresetEdit {
+  const n = cleanName(name);
+  if (list.length >= RISK_PRESET_CAP) return { list, error: "cap", id: null };
+  if (!n) return { list, error: "name", id: null };
+  if (!validRiskRule(rule)) return { list, error: "values", id: null };
+  return { list: [...list, { id, name: n, rule }], error: null, id };
+}
+/** Replaces one preset's name and rule, in place; refused like addRiskPreset when they are not valid. */
+export function updateRiskPreset(list: CustomRiskPreset[], id: string, name: string, rule: RiskRule): PresetEdit {
+  const n = cleanName(name);
+  if (!n) return { list, error: "name", id: null };
+  if (!validRiskRule(rule)) return { list, error: "values", id: null };
+  return { list: list.map((p) => (p.id === id ? { id, name: n, rule } : p)), error: null, id };
+}
+export const deleteRiskPreset = (list: CustomRiskPreset[], id: string): CustomRiskPreset[] => list.filter((p) => p.id !== id);
+
+export function readRiskPresets(store: Pick<Storage, "getItem">): CustomRiskPreset[] {
+  try { return parseRiskPresets(JSON.parse(store.getItem(RISK_PRESETS_KEY) ?? "null")); } catch { return []; }
+}
+export function writeRiskPresets(store: Pick<Storage, "setItem">, list: CustomRiskPreset[]): boolean {
+  try { store.setItem(RISK_PRESETS_KEY, JSON.stringify(list)); return true; } catch { return false; }
 }
