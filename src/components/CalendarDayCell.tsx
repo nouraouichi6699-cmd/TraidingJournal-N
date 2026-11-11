@@ -1,8 +1,9 @@
 import { forwardRef, useId } from "react";
-import { Flame } from "lucide-react";
+import { Flame, StickyNote } from "lucide-react";
 import Private from "./Private";
 import type { Lang } from "../types";
 import type { EconImpact } from "../lib/econEvents";
+import type { DayBadge } from "../lib/dayNotes";
 
 /* ── Agenda-page icon literal map (mirrors src/index.css --calendar-* vars) ───
    dark  (Navy, Black): paper #f6f1e6  ring #5a4410
@@ -14,6 +15,11 @@ import type { EconImpact } from "../lib/econEvents";
 // would assume, and the amount must never overflow or clip. min(…cqh, …cqw) also keeps a very
 // narrow cell from overflowing sideways.
 const AMOUNT_FS = "clamp(9px, min(34cqh, 22cqw), 19px)";
+// The day's mood/note badge sits bottom-start, on the amount's row (the top corners belong to the agenda icon
+// and the flame/news dots). Its size is also reserved as inline-start padding on the amount, so a wide amount
+// ellipsizes instead of running under it.
+const BADGE_SZ = "clamp(9px, 26cqh, 13px)";
+const AMOUNT_PAD = `calc(${BADGE_SZ} + 3px)`;
 
 interface DayData {
   day: string; // YYYY-MM-DD
@@ -47,6 +53,10 @@ export interface CalendarDayCellProps {
   flameDanger?: boolean;
   /** Accessible description for the flame marker, e.g. "Traded during NFP: 2 trades" or "Key event: NFP". */
   flameAriaLabel?: string;
+  /** Small mood emoji (or a plain note glyph when the day has a note but no mood) in the bottom-start corner. */
+  dayBadge?: DayBadge | null;
+  /** Accessible name for that badge, e.g. "Mood: Happy · has a note". */
+  dayBadgeLabel?: string;
 }
 
 export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProps>(
@@ -64,12 +74,16 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
     flameLabel = null,
     flameDanger = false,
     flameAriaLabel,
+    dayBadge = null,
+    dayBadgeLabel,
   }, ref) => {
     const baseId = useId();
     const tooltipId = `econ-tt-${baseId}`;
     const hasDots = econDots && econDots.length > 0 && !flameLabel;
     const hasTooltip = econTooltipLines && econTooltipLines.length > 0;
     const danger = !!flameLabel && flameDanger;
+    const badge = dayBadge ? <DayBadgeMark badge={dayBadge} label={dayBadgeLabel} /> : null;
+    const amountPad = dayBadge ? AMOUNT_PAD : undefined;
     const dayNum = Number(dayData.day.slice(8));
     const net = dayData.net ?? 0;
     const absNet = Math.abs(net);
@@ -164,7 +178,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
           {net !== 0 && (
             <div
               className="relative flex items-baseline justify-end leading-none tnum"
-              style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: AMOUNT_FS, letterSpacing: "-0.02em" }}
+              style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: AMOUNT_FS, letterSpacing: "-0.02em", paddingInlineStart: amountPad }}
             >
               {hideValues ? (
                 <span>•••</span>
@@ -179,6 +193,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
             </div>
           )}
           {hasTooltip && <EconTooltip id={tooltipId} lines={econTooltipLines!} sourceLabel={econSourceLabel} />}
+          {badge}
           {flameLabel ? (
             <FlameMarker label={flameLabel} danger={danger} ariaLabel={flameAriaLabel ?? flameLabel} />
           ) : (
@@ -195,9 +210,10 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         type="button"
         onClick={onSelect}
         aria-pressed={isSelected}
-        aria-label={`${dayData.day} · $${hideValues ? "•••" : Math.round(net)}`}
+        aria-label={`${dayData.day} · $${hideValues ? "•••" : Math.round(net)}${dayBadgeLabel ? ` · ${dayBadgeLabel}` : ""}`}
         aria-describedby={hasTooltip ? tooltipId : undefined}
-        className="group relative shrink-0 rounded-[8px] border transition hover:border-[var(--primary)] flex flex-col items-start justify-between w-14 h-16 sm:w-16 sm:h-16 md:w-20 md:h-16 p-1 sm:p-1 md:p-1.5 overflow-visible"
+        disabled={!onSelect}
+        className="group relative min-w-0 rounded-[8px] border transition enabled:hover:border-[var(--primary)] disabled:cursor-default flex flex-col items-start justify-between w-full h-[58px] sm:h-20 md:h-24 p-1 md:p-1.5 overflow-visible"
         style={{
           containerType: "size",
           background: `color-mix(in srgb, ${tintVar} ${tintPct}%, transparent)`,
@@ -211,7 +227,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         {net !== 0 && (
           <div
             className="relative flex items-baseline justify-end leading-none text-right w-full tnum"
-            style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: AMOUNT_FS, letterSpacing: "-0.02em" }}
+            style={{ zIndex: 1, fontWeight: 600, color: netColor, fontSize: AMOUNT_FS, letterSpacing: "-0.02em", paddingInlineStart: amountPad }}
           >
             <Private hint={`${dayData.day} P&L`}>
               {hideValues ? (
@@ -228,6 +244,7 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
           </div>
         )}
         {hasTooltip && <EconTooltip id={tooltipId} lines={econTooltipLines!} sourceLabel={econSourceLabel} />}
+        {badge}
         {flameLabel ? (
           <FlameMarker label={flameLabel} danger={danger} ariaLabel={flameAriaLabel ?? flameLabel} />
         ) : (
@@ -238,6 +255,20 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
   }
 );
 CalendarDayCell.displayName = "CalendarDayCell";
+
+function DayBadgeMark({ badge, label }: { badge: DayBadge; label?: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="absolute bottom-0.5 start-0.5 flex items-center justify-center leading-none"
+      style={{ zIndex: 2, width: BADGE_SZ, height: BADGE_SZ, fontSize: BADGE_SZ }}
+    >
+      {badge.kind === "mood" ? badge.emoji : <StickyNote style={{ width: "100%", height: "100%", color: "var(--muted)" }} strokeWidth={2} />}
+    </span>
+  );
+}
 
 function FlameMarker({ label, danger, ariaLabel }: { label: string; danger: boolean; ariaLabel: string }) {
   return (

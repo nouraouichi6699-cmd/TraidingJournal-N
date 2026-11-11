@@ -18,6 +18,8 @@ import { fmt } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import { dayKey, type Metrics } from "../lib/dashStats";
+import { dayBadge, dayBadgeLabel } from "../lib/dayNotes";
+import { useDayNotes } from "../useDayNotes";
 import type { Lang, Trade } from "../types";
 
 type L = Record<Lang, string>;
@@ -224,6 +226,7 @@ function CalW({ c }: { c: Ctx }) {
   const [month, setMonth] = useState(() => (days.length ? days[days.length - 1].d.slice(0, 7) : new Date().toISOString().slice(0, 7)));
   useEffect(() => { if (days.length && !days.some((d) => d.d.startsWith(month))) setMonth(days[days.length - 1].d.slice(0, 7)); }, [days.length]); // eslint-disable-line
   const settings = useSettings();
+  const dayNotes = useDayNotes();
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
 
@@ -421,13 +424,16 @@ function CalW({ c }: { c: Ctx }) {
                     flameLabel={marker?.label ?? null}
                     flameDanger={(marker?.count ?? 0) > 0}
                     flameAriaLabel={flameAria(marker)}
+                    dayBadge={dayBadge(dayNotes[k])}
+                    dayBadgeLabel={dayBadgeLabel(dayNotes[k], c.lang)}
                     onSelect={c.onOpenDay ? () => c.onOpenDay!(k, (marker?.count ?? 0) > 0) : undefined}
                   />
                 );
               }
               // A key-event day with no trade of its own still gets the outline flame marker (never the
               // danger glow, since that needs an actual trade); every other empty day keeps the plain tile.
-              if (marker && k) {
+              // A day with a mood/note but no trade and no key event gets the same tile so its badge shows.
+              if (k && (marker || dayBadge(dayNotes[k]))) {
                 const openEmptyDay = c.onOpenDay ? () => c.onOpenDay!(k) : undefined;
                 return (
                   <CalendarDayCell
@@ -436,9 +442,11 @@ function CalW({ c }: { c: Ctx }) {
                     hideValues={c.hide}
                     variant="compact"
                     lang={c.lang}
-                    flameLabel={marker.label}
+                    flameLabel={marker?.label ?? null}
                     flameDanger={false}
                     flameAriaLabel={flameAria(marker)}
+                    dayBadge={dayBadge(dayNotes[k])}
+                    dayBadgeLabel={dayBadgeLabel(dayNotes[k], c.lang)}
                     onSelect={openEmptyDay}
                   />
                 );

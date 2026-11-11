@@ -27,3 +27,21 @@ export function dayStats(day: Trade[]): DayStats {
   const holds = day.map((t) => { const a = mins(t.entryTime), b = mins(t.exitTime); return a != null && b != null && b >= a ? b - a : null; }).filter((x): x is number => x != null);
   return { net: c.net, winRate: c.winRate, pf: c.pf, avgHoldMin: holds.length ? holds.reduce((a, x) => a + x, 0) / holds.length : null, trades: c.n, expectancy: c.avgTrade, wins: c.wins.length, losses: c.losses.length, be: c.be };
 }
+
+/** A month as a week-aligned grid of 7-day rows: each in-month day as YYYY-MM-DD, null for the leading/trailing
+ *  padding that belongs to the neighbouring months. `sunFirst` starts the week on Sunday, else on Monday. */
+export function monthCells(month: string, sunFirst: boolean): (string | null)[] {
+  const [y, mo] = month.split("-").map(Number);
+  const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const dow = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
+  const lead = sunFirst ? dow : (dow + 6) % 7;
+  const cells: (string | null)[] = [...Array(lead).fill(null), ...Array.from({ length: dim }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
+  while (cells.length % 7) cells.push(null);
+  return cells;
+}
+
+/** The month (YYYY-MM) `n` months after `month`. */
+export const shiftMonth = (month: string, n: number): string => {
+  const [y, mo] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1 + n, 1)).toISOString().slice(0, 7);
+};

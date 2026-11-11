@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
-import { dayList, dayStats, dayTrades, dayKey, type DayStats } from "../lib/dayByDay";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { dayList, dayStats, dayTrades, dayKey, monthCells, shiftMonth, type DayStats } from "../lib/dayByDay";
+import { dayBadge, dayBadgeLabel, moodName, MAX_DAY_NOTE, MOODS, type DayEntry } from "../lib/dayNotes";
+import { setDayEntry, useDayNotes } from "../useDayNotes";
 import { fmt, fmtHold } from "../lib/stats";
 import { fmtMoney } from "../lib/money";
 import { usePrivacy } from "../usePrivacy";
@@ -34,6 +36,11 @@ const X = {
   soon: ["Notes are coming soon.", "الملاحظات قريباً.", "Les notes arrivent bientôt."] as L,
   empty: ["No closed trades yet.", "لا توجد صفقات مغلقة بعد.", "Aucun trade clôturé."] as L,
   days: ["Trading days", "أيام التداول", "Jours de trading"] as L, import: ["Import trades", "استيراد الصفقات", "Importer"] as L,
+  prevMonth: ["Previous month", "الشهر السابق", "Mois précédent"] as L, nextMonth: ["Next month", "الشهر التالي", "Mois suivant"] as L,
+  dayCard: ["Mood & note", "المزاج والملاحظة", "Humeur et note"] as L,
+  moodLabel: ["Mood", "المزاج", "Humeur"] as L,
+  dayNotePh: ["How was the day? What went well or badly?", "كيف كان يومك؟ ما الذي سار جيداً أو سيئاً؟", "Comment s'est passée la journée ? Ce qui a marché ou non ?"] as L,
+  dayNoteAria: ["Note for this day", "ملاحظة لهذا اليوم", "Note pour ce jour"] as L,
 };
 const asDate = (s: string | null) => { if (!s) return null; const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ", "T") + "Z"); return Number.isNaN(d.getTime()) ? null : d; };
 
@@ -47,8 +54,10 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   const day = days.find((d) => d.day === sel)?.day ?? days[0]?.day ?? null; // falls back to the newest day when the filter hides the selection
   const rows = useMemo(() => (day ? dayTrades(trades, day) : []), [trades, day]);
   const st = useMemo(() => dayStats(rows), [rows]);
-  const activeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [day]);
+  // The month the grid shows: the selected day's month until the user pages away from it.
+  const [monthSel, setMonthSel] = useState<string | null>(null);
+  const month = monthSel ?? (day ?? "").slice(0, 7);
+  const dayNotes = useDayNotes();
 
   const L = stT(lang);
   const tt = makeT(lang);
@@ -178,16 +187,17 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
   }, [trades]);
   const dayMarkers = useMemo(() => {
     const m = new Map<string, { label: string; fullLabel: string; count: number }>();
-    for (const d of days) {
-      const evs = (allEventsByDay.get(d.day)?.events ?? []).filter((e) => settings.econCurrencies.includes(e.currency));
+    // Every day that has events (the grid also shows days without trades, which can still be key-event days).
+    for (const [d, { events }] of allEventsByDay) {
+      const evs = events.filter((e) => settings.econCurrencies.includes(e.currency));
       const label = keyEventDayLabel(evs);
       const fullLabel = keyEventDayFullLabel(evs);
       if (!label || !fullLabel) continue;
-      const count = keyEventWindowTradeCount(tradesByDay.get(d.day) ?? [], allEventsByDay.get(d.day)?.events ?? [], settings.newsWindowMin);
-      m.set(d.day, { label, fullLabel, count });
+      const count = keyEventWindowTradeCount(tradesByDay.get(d) ?? [], events, settings.newsWindowMin);
+      m.set(d, { label, fullLabel, count });
     }
     return m;
-  }, [days, allEventsByDay, tradesByDay, settings.econCurrencies, settings.newsWindowMin]);
+  }, [allEventsByDay, tradesByDay, settings.econCurrencies, settings.newsWindowMin]);
   const flameAria = (m?: { fullLabel: string; count: number }): string | undefined =>
     !m ? undefined : m.count > 0 ? L("tradedDuringKey").replace("{k}", m.fullLabel).replace("{n}", String(m.count)) : L("keyEventDayLabel").replace("{k}", m.fullLabel);
 
@@ -234,49 +244,66 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     </div>
   );
   const TABS = [["overview", X.overview], ["hotspot", X.hotspot], ["notes", X.notes], ["trades", X.trades]] as const;
-  let lastMonth = "";
+
+  // ---- the month grid: 7 columns in the settings' week order; padding cells outside the month stay empty ----
+  const sunFirst = settings.weekStart === "sun";
+  const cells = monthCells(month, sunFirst);
+  const tradingDays = new Map(days.map((d) => [d.day, d]));
+  let monthMax = 0;
+  for (const d of days) if (d.day.startsWith(month)) monthMax = Math.max(monthMax, Math.abs(d.net ?? 0));
+  const weekdayNames = Array.from({ length: 7 }, (_, n) => new Intl.DateTimeFormat(lang, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, (sunFirst ? 0 : 1) + n))));
+  const minMonth = days[days.length - 1].day.slice(0, 7), maxMonth = days[0].day.slice(0, 7);
+  const monthTitle = monthFmt.format(new Date(month + "-01T00:00:00Z"));
 
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-xl font-bold text-primary">{T(DAY_TAB)}</h2>
-      <div className="flex flex-col gap-4 md:flex-row">
-        <nav aria-label={T(X.days)} className="flex shrink-0 gap-2 overflow-auto md:max-h-[560px] md:w-32 md:flex-col" dir="ltr">
-          {days.map((d) => {
-            const month = d.day.slice(0, 7), head = month !== lastMonth; lastMonth = month;
-            const on = d.day === day;
-            const dayNum = Number(d.day.slice(8));
-            let monthMax = 0;
-            for (const x of days) {
-              if (x.day.slice(0, 7) === month) monthMax = Math.max(monthMax, Math.abs(x.net ?? 0));
-            }
-            const absNet = Math.abs(d.net ?? 0);
-            const opacity = monthMax > 0 ? Math.min(0.25, 0.08 + (absNet / monthMax) * 0.17) : 0.08;
-            const color = hidden || d.net === 0 ? "var(--muted)" : d.net > 0 ? "var(--primary)" : RED;
-            const tintColor = hidden || d.net === 0 ? "var(--muted)" : d.net > 0 ? "var(--profit)" : "var(--loss)";
-            return (
-              <div key={d.day} className="contents">
-                {head && <div className="hidden px-1 pt-1 text-center text-[9px] font-semibold uppercase leading-tight text-muted md:block" title={monthFmt.format(new Date(d.day + "T00:00:00Z"))}>{new Intl.DateTimeFormat(lang, { month: "short", timeZone: "UTC" }).format(new Date(d.day + "T00:00:00Z"))}</div>}
+      <div className="flex flex-col gap-4">
+        <section aria-label={T(X.days)} className="rounded-2xl border border-border p-3 md:p-4" style={cardBg}>
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <button type="button" aria-label={T(X.prevMonth)} disabled={month <= minMonth} onClick={() => setMonthSel(shiftMonth(month, -1))} className="icon-btn !h-8 !w-8 disabled:opacity-40">
+              <ChevronLeft size={16} className="text-icon rtl:rotate-180" />
+            </button>
+            <span className="min-w-[140px] text-center font-heading text-sm font-semibold capitalize" aria-live="polite">{monthTitle}</span>
+            <button type="button" aria-label={T(X.nextMonth)} disabled={month >= maxMonth} onClick={() => setMonthSel(shiftMonth(month, 1))} className="icon-btn !h-8 !w-8 disabled:opacity-40">
+              <ChevronRight size={16} className="text-icon rtl:rotate-180" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 md:gap-1.5">
+            {weekdayNames.map((w) => <div key={w} className="truncate text-center text-[10px] font-semibold uppercase text-muted">{w}</div>)}
+            {cells.map((dayStr, n) => {
+              if (!dayStr) return <div key={`pad${n}`} aria-hidden="true" />;
+              const d = tradingDays.get(dayStr);
+              const evs = econByDay.get(dayStr)?.events ?? [];
+              const { dots, extra } = selectDots(evs);
+              const src = econByDay.get(dayStr)?.source;
+              const marker = dayMarkers.get(dayStr);
+              const entry = dayNotes[dayStr];
+              return (
                 <CalendarDayCell
-                  ref={on ? activeRef : null}
-                  dayData={{ day: d.day, net: d.net }}
-                  isSelected={on}
-                  onSelect={() => { setSel(d.day); setTab((dayMarkers.get(d.day)?.count ?? 0) > 0 ? "hotspot" : "overview"); }}
+                  key={dayStr}
+                  dayData={{ day: dayStr, net: d ? d.net : null }}
+                  isSelected={dayStr === day}
+                  onSelect={d ? () => { setSel(dayStr); setTab((marker?.count ?? 0) > 0 ? "hotspot" : "overview"); } : undefined}
                   hideValues={hidden}
                   variant="full"
                   monthMax={monthMax}
-                  econDots={(() => { const evs = econByDay.get(d.day)?.events ?? []; const { dots } = selectDots(evs); return dots.length ? dots : undefined; })()}
-                  econExtra={(() => { const evs = econByDay.get(d.day)?.events ?? []; return selectDots(evs).extra; })()}
-                  econTooltipLines={(() => { const evs = econByDay.get(d.day)?.events ?? []; return evs.length ? evs.map((e) => econTooltipLine(e)) : undefined; })()}
-                  econSourceLabel={(() => { const src = econByDay.get(d.day)?.source; return src === "mt5" ? L("econSourceMt5") : src === "ff" ? L("econSourceFf") : undefined; })()}
-                  flameLabel={dayMarkers.get(d.day)?.label ?? null}
-                  flameDanger={(dayMarkers.get(d.day)?.count ?? 0) > 0}
-                  flameAriaLabel={flameAria(dayMarkers.get(d.day))}
+                  econDots={dots.length ? dots : undefined}
+                  econExtra={extra}
+                  econTooltipLines={evs.length ? evs.map((e) => econTooltipLine(e)) : undefined}
+                  econSourceLabel={src === "mt5" ? L("econSourceMt5") : src === "ff" ? L("econSourceFf") : undefined}
+                  flameLabel={marker?.label ?? null}
+                  flameDanger={(marker?.count ?? 0) > 0}
+                  flameAriaLabel={flameAria(marker)}
+                  dayBadge={dayBadge(entry)}
+                  dayBadgeLabel={dayBadgeLabel(entry, lang)}
                 />
-              </div>
-            );
-          })}
-        </nav>
-        <div className="min-w-0 flex-1 space-y-4">
+              );
+            })}
+          </div>
+        </section>
+        {day && <DayNoteCard key={day} day={day} title={dt.format(new Date(day + "T00:00:00Z"))} entry={dayNotes[day]} lang={lang} />}
+        <div className="min-w-0 space-y-4">
           <div role="tablist" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border p-1" style={cardBg}>
             {TABS.map(([id, l]) => (
               <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className="shrink-0 whitespace-nowrap rounded-lg px-5 py-1.5 text-sm font-medium transition flex items-center gap-1.5"
@@ -488,5 +515,53 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
         </div>
       </div>
     </div>
+  );
+}
+
+/** The selected day's mood picker + free-text note. Saved on every change, like the per-trade note (mizan-trade-notes);
+ *  keyed by day in the parent so switching days resets the local draft. */
+function DayNoteCard({ day, title, entry, lang }: { day: string; title: string; entry: DayEntry | undefined; lang: Lang }) {
+  const k = i(lang);
+  const [note, setNote] = useState(entry?.note ?? "");
+  const mood = entry?.mood;
+  return (
+    <section aria-label={X.dayCard[k]} className="rounded-2xl border border-border p-4" style={cardBg}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-heading text-sm font-semibold">{X.dayCard[k]}</h3>
+        <span className="text-xs text-muted">{title}</span>
+      </div>
+      <div role="group" aria-label={X.moodLabel[k]} className="mb-3 flex flex-wrap gap-2">
+        {MOODS.map((m) => {
+          const on = mood === m.id, name = moodName(m.id, lang);
+          return (
+            <button
+              key={m.id}
+              type="button"
+              aria-pressed={on}
+              aria-label={name}
+              title={name}
+              onClick={() => setDayEntry(day, { mood: on ? null : m.id })}
+              className="grid h-10 w-10 place-items-center rounded-xl border text-xl leading-none transition"
+              style={{
+                borderColor: on ? "var(--primary)" : "var(--border)",
+                background: on ? "color-mix(in srgb, var(--primary) 14%, transparent)" : "transparent",
+                opacity: mood && !on ? 0.55 : 1,
+              }}
+            >
+              <span aria-hidden="true">{m.emoji}</span>
+            </button>
+          );
+        })}
+      </div>
+      <textarea
+        value={note}
+        rows={3}
+        maxLength={MAX_DAY_NOTE}
+        aria-label={X.dayNoteAria[k]}
+        placeholder={X.dayNotePh[k]}
+        onChange={(ev) => { setNote(ev.target.value); setDayEntry(day, { note: ev.target.value }); }}
+        className="field block w-full resize-y text-sm"
+      />
+    </section>
   );
 }
