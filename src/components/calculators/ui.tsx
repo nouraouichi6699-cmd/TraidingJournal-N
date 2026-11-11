@@ -1,14 +1,15 @@
 // The pieces every calculator screen is built from: the inputs card (sections, number fields, the journal's gold
 // fields, segmented choices) and the result card (big number, status pill, a sentence, detail rows).
 import { Fragment, useId, useState, type CSSProperties, type ReactNode } from "react";
-import { Check, NotebookPen, TriangleAlert } from "lucide-react";
+import { BookOpen, Check, NotebookPen, TriangleAlert } from "lucide-react";
 import type { Account, BalancePoint, Lang, Trade } from "../../types";
 import type { CashFlow } from "../../lib/cashflow";
 import { numberLocale } from "../../lib/numberFormat";
 import { fmtMoney } from "../../lib/money";
 import { SYMBOLS } from "../../lib/symbols";
 import type { DistUnit } from "../../lib/calcCore";
-import { T, type L3 } from "./text";
+import type { Fv } from "../../lib/calcExamples";
+import { HOW_T, T, type L3 } from "./text";
 
 /** What every calculator body is given by the page. */
 export interface Ctx {
@@ -275,3 +276,47 @@ export function Pair({ children }: { children: ReactNode }) {
 }
 
 export const Hint = ({ children }: { children: ReactNode }) => <p className="text-[11px] leading-4 text-muted">{children}</p>;
+
+// ---------- "How to use" ----------
+
+/** A worked-example value as text, through the same helpers as the results (money is the example's USD). */
+export function fmtFv(x: Fv): string {
+  if (typeof x === "string") return x;
+  const d = x.d;
+  switch (x.k) {
+    case "pct": return fmtPct(x.v, d ?? 2);
+    case "money": return Number.isFinite(x.v) ? fmtMoney(x.v, { cents: d !== 0, currency: "USD" }) : "-";
+    case "lots": return fmtLots(x.v);
+    case "price": return fmtPrice(x.v);
+    default: return fmtN(x.v, d ?? 2);
+  }
+}
+
+type Lazy = ReactNode | (() => ReactNode);
+
+/**
+ * The "How to use" card: closed by default (the page's own <details> pattern), a short blurb, the example inputs and the
+ * worked result. `inputs` and `result` may be functions, run only once the card is opened (some examples simulate).
+ */
+export function HowToUse({ lang, title, blurb, inputs, result }: { lang: Lang; title: ReactNode; blurb: ReactNode; inputs: Lazy; result: Lazy }) {
+  const [open, setOpen] = useState(false);
+  const run = (x: Lazy) => (typeof x === "function" ? x() : x);
+  return (
+    <details className="calc-glass rounded-2xl p-4 sm:p-5" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="calc-sec flex cursor-pointer select-none items-center gap-2"><BookOpen size={14} className="shrink-0 text-icon" aria-hidden />{title}</summary>
+      {open && (
+        <div className="mt-3 flex flex-col gap-3 text-sm leading-6">
+          <p>{blurb}</p>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">{HOW_T.inputs[lang]}</div>
+            <div className="calc-rows">{run(inputs)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">{HOW_T.result[lang]}</div>
+            <p>{run(result)}</p>
+          </div>
+        </div>
+      )}
+    </details>
+  );
+}

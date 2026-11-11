@@ -19,6 +19,7 @@ import { CALC_TEXT, GROUP_TEXT, T } from "./calculators/text";
 import { Seg, useL, type Ctx } from "./calculators/ui";
 import { AtrBody, CostBody, MarginBody, PipBody, PlBody, RrBody, SizeBody, SwapBody, UnitsBody } from "./calculators/TradeSetup";
 import { CompBody, PropBody } from "./calculators/PropCalcs";
+import { HowTo } from "./calculators/HowTo";
 import { FxBody, PctBody, StdBody } from "./calculators/General";
 import { DdBody, ExpBody, KellyBody, McBody, PortBody, RuinBody, StreakBody, WrBody } from "./calculators/RiskSystem";
 
@@ -237,6 +238,7 @@ function Detail({ k, lang, mode, onMode, onBack, unit, onUnit, ctxBase, toneOf, 
           : k === "cost" ? <CostBody key={bodyKey} ctx={ctx} />
           : k === "swap" ? <SwapBody ctx={ctx} />
           : null}
+        {ready && <div className="mt-4"><HowTo key={k} lang={lang} k={k} /></div>}
       </div>
     </>
   );

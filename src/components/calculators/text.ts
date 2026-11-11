@@ -339,3 +339,131 @@ export const T = {
   swapCost: l("Cost", "تكلفة", "Coût"),
   swapCredit: l("Credit", "رصيد دائن", "Crédit"),
 } satisfies Record<string, L3>;
+
+// ---------- "How to use" panel ----------
+// One entry per calculator: when to use it, the labels of its example inputs (same order as calcExample's `inputs`, in
+// src/lib/calcExamples.ts), and the worked result. {keys} are the numbers calcExample computes with the real functions.
+export const HOW_T = {
+  title: l("How to use", "كيف تُستعمل", "Comment l'utiliser"),
+  inputs: l("Example inputs:", "مدخلات المثال:", "Données de l'exemple :"),
+  result: l("Result:", "النتيجة:", "Résultat :"),
+};
+
+const SYM = l("Symbol", "الرمز", "Symbole"), BAL = l("Balance", "الرصيد", "Solde"), LOTS = l("Lots", "اللوتات", "Lots");
+const WIN = l("Win rate", "نسبة الفوز", "Taux de réussite"), RRL = l("Reward/Risk", "العائد/المخاطرة", "Rendement/Risque");
+const RPT = l("Risk per trade", "المخاطرة لكل صفقة", "Risque par trade"), TRD = l("Trades", "الصفقات", "Trades");
+const AVW = l("Average win", "متوسط الربح", "Gain moyen"), AVL = l("Average loss", "متوسط الخسارة", "Perte moyenne");
+const ENT = l("Entry", "الدخول", "Entrée"), FROM = l("From", "من", "De"), TO = l("To", "إلى", "Vers");
+
+export const HOW: Record<CalcKey, { blurb: L3; labels: L3[]; result: L3 }> = {
+  size: {
+    blurb: l("Use it just before you enter, to know how many lots lose exactly the amount you decided to risk.", "استعملها قبل الدخول مباشرة لتعرف كم لوتاً يخسر بالضبط المبلغ الذي قررت المخاطرة به.", "Utilisez-la juste avant d'entrer pour savoir combien de lots perdent exactement la somme que vous avez décidé de risquer."),
+    labels: [SYM, BAL, l("Risk", "المخاطرة", "Risque"), l("Stop loss (pips)", "وقف الخسارة (نقاط)", "Stop loss (pips)")],
+    result: l("Risk = {balance} × {pct} = {risk}. One lot with a {pips}-pip stop loses {perLot}. Lots = {risk} ÷ {perLot} = {lots}.", "المخاطرة = {balance} × {pct} = {risk}. اللوت الواحد بوقف {pips} نقطة يخسر {perLot}. اللوتات = {risk} ÷ {perLot} = {lots}.", "Risque = {balance} × {pct} = {risk}. Un lot avec un stop de {pips} pips perd {perLot}. Lots = {risk} ÷ {perLot} = {lots}."),
+  },
+  rr: {
+    blurb: l("Check a setup before taking it: is the target worth the stop? It also shows the win rate you need just to break even.", "افحص الصفقة قبل أخذها: هل الهدف يستحق وقف الخسارة؟ وتُظهر أيضاً نسبة الفوز اللازمة للتعادل.", "Vérifiez un setup avant de le prendre : l'objectif vaut-il le stop ? Elle indique aussi le taux de réussite minimal pour être à l'équilibre."),
+    labels: [ENT, l("Stop loss", "وقف الخسارة", "Stop loss"), l("Target", "الهدف", "Objectif")],
+    result: l("Risk = entry − stop = {risk}. Reward = target − entry = {reward}. R:R = {reward} ÷ {risk} = {rr}. You break even at a {be} win rate.", "المخاطرة = الدخول − الوقف = {risk}. العائد = الهدف − الدخول = {reward}. النسبة = {reward} ÷ {risk} = {rr}. تتعادل عند نسبة فوز {be}.", "Risque = entrée − stop = {risk}. Gain = objectif − entrée = {reward}. R:R = {reward} ÷ {risk} = {rr}. Vous êtes à l'équilibre avec {be} de réussite."),
+  },
+  pl: {
+    blurb: l("Work out what a trade made or lost in money, from its entry and exit, before or after you close it.", "احسب ما ربحته أو خسرته الصفقة بالمال من دخولها وخروجها، قبل الإغلاق أو بعده.", "Calculez ce qu'un trade a gagné ou perdu en argent, d'après son entrée et sa sortie, avant ou après la clôture."),
+    labels: [SYM, LOTS, ENT, l("Exit", "الخروج", "Sortie")],
+    result: l("A buy moved {move} in your favour. Profit = {move} × {contract} × {lots} lot = {money}.", "حركة الشراء لصالحك {move}. الربح = {move} × {contract} × {lots} لوت = {money}.", "Un achat a progressé de {move} en votre faveur. Gain = {move} × {contract} × {lots} lot = {money}."),
+  },
+  pip: {
+    blurb: l("Know what one pip is worth in your account currency, for one lot and for the size you trade.", "اعرف قيمة النقطة الواحدة بعملة حسابك، للوت الواحد وللحجم الذي تتداوله.", "Sachez ce que vaut un pip dans la devise de votre compte, pour un lot et pour la taille que vous tradez."),
+    labels: [SYM, LOTS, l("Account currency", "عملة الحساب", "Devise du compte")],
+    result: l("One lot: {pip} × {contract} = {perLot} per pip. For {lots} lot: {total} per pip.", "اللوت الواحد: {pip} × {contract} = {perLot} للنقطة. لـ {lots} لوت: {total} للنقطة.", "Un lot : {pip} × {contract} = {perLot} par pip. Pour {lots} lot : {total} par pip."),
+  },
+  margin: {
+    blurb: l("See how much of your balance a position locks up, so you don't open more than the account can carry.", "اعرف كم من رصيدك يحجزه المركز حتى لا تفتح أكثر مما يتحمله الحساب.", "Voyez quelle part de votre solde une position immobilise, pour ne pas ouvrir plus que le compte ne peut porter."),
+    labels: [SYM, LOTS, l("Price", "السعر", "Prix"), l("Leverage", "الرافعة", "Levier")],
+    result: l("Position value = {lots} × {contract} × {price} = {notional}. Margin = {notional} ÷ {lev} = {margin}.", "قيمة المركز = {lots} × {contract} × {price} = {notional}. الهامش = {notional} ÷ {lev} = {margin}.", "Valeur de la position = {lots} × {contract} × {price} = {notional}. Marge = {notional} ÷ {lev} = {margin}."),
+  },
+  atr: {
+    blurb: l("Size a trade whose stop follows the market's volatility (a multiple of the ATR) instead of a fixed number of pips.", "حدّد حجم صفقة يتبع وقفها تذبذب السوق (مضاعف الـ ATR) بدل عدد ثابت من النقاط.", "Dimensionnez un trade dont le stop suit la volatilité du marché (un multiple de l'ATR) plutôt qu'un nombre fixe de pips."),
+    labels: [SYM, BAL, l("Risk", "المخاطرة", "Risque"), l("ATR", "ATR", "ATR"), l("Multiplier", "المضاعف", "Multiplicateur")],
+    result: l("Stop = {atr} × {mult} = {dist} ({pips} pips). Risk = {risk}; one lot loses {perLot} at that stop. Lots = {risk} ÷ {perLot} = {lots}.", "الوقف = {atr} × {mult} = {dist} ({pips} نقطة). المخاطرة = {risk}؛ اللوت الواحد يخسر {perLot} عند هذا الوقف. اللوتات = {risk} ÷ {perLot} = {lots}.", "Stop = {atr} × {mult} = {dist} ({pips} pips). Risque = {risk} ; un lot perd {perLot} à ce stop. Lots = {risk} ÷ {perLot} = {lots}."),
+  },
+  units: {
+    blurb: l("Switch a position between lots, units and ounces, for example when your broker or a signal quotes it another way.", "حوّل المركز بين اللوتات والوحدات والأونصات، مثلاً حين يذكره وسيطك أو توصية بطريقة أخرى.", "Passez une position des lots aux unités ou aux onces, par exemple quand votre courtier ou un signal l'exprime autrement."),
+    labels: [SYM, LOTS],
+    result: l("1 lot = {contract} units, so {lots} lot = {contract} × {lots} = {units} units.", "1 لوت = {contract} وحدة، فـ {lots} لوت = {contract} × {lots} = {units} وحدة.", "1 lot = {contract} unités, donc {lots} lot = {contract} × {lots} = {units} unités."),
+  },
+  cost: {
+    blurb: l("See what a trade costs before it moves: the spread plus the commission, and how many pips it must run just to cover them.", "اعرف تكلفة الصفقة قبل أن تتحرك: السبريد والعمولة، وكم نقطة يجب أن تتحرك لتغطيتهما.", "Voyez ce que coûte un trade avant qu'il bouge : le spread plus la commission, et combien de pips il doit parcourir pour les couvrir."),
+    labels: [SYM, LOTS, l("Spread (pips)", "السبريد (نقاط)", "Spread (pips)"), l("Commission per lot", "العمولة لكل لوت", "Commission par lot")],
+    result: l("Pip value = {pv}. Spread = {lots} × {pv} × {spreadPips} = {spread}. Commission = {commission}. Total = {total}, which is {be} pips to break even.", "قيمة النقطة = {pv}. السبريد = {lots} × {pv} × {spreadPips} = {spread}. العمولة = {commission}. المجموع = {total}، أي {be} نقطة للتعادل.", "Valeur du pip = {pv}. Spread = {lots} × {pv} × {spreadPips} = {spread}. Commission = {commission}. Total = {total}, soit {be} pips pour être à l'équilibre."),
+  },
+  swap: {
+    blurb: l("Check what holding a position overnight will cost or pay, especially over a weekend or a long swing.", "اعرف ما سيكلفه أو يدفعه إبقاء المركز ليلاً، خصوصاً في عطلة نهاية الأسبوع أو الصفقات الطويلة.", "Vérifiez ce que coûte ou rapporte une position gardée la nuit, surtout sur un week-end ou un swing long."),
+    labels: [LOTS, l("Swap per lot per night", "السواب للوت في الليلة", "Swap par lot et par nuit"), l("Nights", "الليالي", "Nuits"), l("Triple-swap day crossed", "يمرّ بيوم السواب الثلاثي", "Jour de triple swap traversé")],
+    result: l("Per night = {lots} × {swap} = {perNight}. The triple-swap day adds two nights: {nights} + 2 = {eq} nights. Total = {perNight} × {eq} = {total}.", "في الليلة = {lots} × {swap} = {perNight}. يوم السواب الثلاثي يضيف ليلتين: {nights} + 2 = {eq} ليالٍ. المجموع = {perNight} × {eq} = {total}.", "Par nuit = {lots} × {swap} = {perNight}. Le jour de triple swap ajoute deux nuits : {nights} + 2 = {eq} nuits. Total = {perNight} × {eq} = {total}."),
+  },
+  dd: {
+    blurb: l("Understand why a loss is harder to win back than it was to lose: the deeper the drawdown, the larger the gain you need.", "افهم لماذا يصعب تعويض الخسارة أكثر من وقوعها: كلما كان التراجع أعمق زاد الربح اللازم.", "Comprenez pourquoi une perte est plus dure à rattraper qu'à subir : plus le drawdown est profond, plus le gain nécessaire est grand."),
+    labels: [l("Drawdown", "التراجع", "Drawdown")],
+    result: l("Gain needed = {loss} ÷ (100 − {loss}) × 100 = {gain}.", "الربح اللازم = {loss} ÷ (100 − {loss}) × 100 = {gain}.", "Gain nécessaire = {loss} ÷ (100 − {loss}) × 100 = {gain}."),
+  },
+  ruin: {
+    blurb: l("Test whether a system, with the risk you take per trade, is likely to blow the account before its edge shows.", "اختبر هل نظامك، بالمخاطرة التي تأخذها في كل صفقة، قد يُنهي الحساب قبل أن تظهر أفضليته.", "Testez si un système, avec le risque pris par trade, risque de faire sauter le compte avant que son avantage n'apparaisse."),
+    labels: [WIN, RRL, RPT, l("Ruin level", "مستوى الإفلاس", "Seuil de ruine"), TRD],
+    result: l("Simulating the system over {n} trades, the account loses {level} of its value in {ruin} of the simulated runs.", "بمحاكاة النظام على {n} صفقة، يخسر الحساب {level} من قيمته في {ruin} من التجارب المحاكاة.", "En simulant le système sur {n} trades, le compte perd {level} de sa valeur dans {ruin} des simulations."),
+  },
+  streak: {
+    blurb: l("Prepare for the losing run you will meet sooner or later, and see what it costs, so it does not shake you when it comes.", "استعد لسلسلة الخسائر التي ستواجهها عاجلاً أو آجلاً وانظر كم تكلفك، كي لا تهزّك حين تأتي.", "Préparez-vous à la série de pertes que vous rencontrerez tôt ou tard et voyez ce qu'elle coûte, pour qu'elle ne vous ébranle pas."),
+    labels: [TRD, WIN, RPT],
+    result: l("Over {n} trades the most likely longest losing streak is {k} in a row. Cost = {k} × {risk} = {cost} of the balance.", "على {n} صفقة، أرجح أطول سلسلة خسائر هي {k} متتالية. التكلفة = {k} × {risk} = {cost} من الرصيد.", "Sur {n} trades, la série de pertes la plus probable est de {k} d'affilée. Coût = {k} × {risk} = {cost} du solde."),
+  },
+  port: {
+    blurb: l("Add up the risk of every open trade at once, since several trades that look small can together risk too much.", "اجمع مخاطرة كل الصفقات المفتوحة معاً، فقد تخاطر صفقات تبدو صغيرة بمبلغ كبير مجتمعة.", "Additionnez le risque de tous vos trades ouverts, car plusieurs trades qui semblent petits peuvent ensemble risquer trop."),
+    labels: [BAL, l("Trade 1 (lots / stop pips)", "الصفقة 1 (لوتات / نقاط الوقف)", "Trade 1 (lots / pips de stop)"), l("Trade 2 (lots / stop pips)", "الصفقة 2 (لوتات / نقاط الوقف)", "Trade 2 (lots / pips de stop)")],
+    result: l("Trade 1 risks {a}, trade 2 risks {b}. Total = {a} + {b} = {total}, which is {total} ÷ {balance} = {pct} of the balance.", "الصفقة 1 تخاطر بـ {a} والصفقة 2 بـ {b}. المجموع = {a} + {b} = {total}، أي {total} ÷ {balance} = {pct} من الرصيد.", "Le trade 1 risque {a}, le trade 2 risque {b}. Total = {a} + {b} = {total}, soit {total} ÷ {balance} = {pct} du solde."),
+  },
+  exp: {
+    blurb: l("Find out what one trade earns on average from your own win rate and average win and loss: positive means the system pays over time.", "اعرف ما تربحه الصفقة في المتوسط من نسبة فوزك ومتوسط ربحك وخسارتك: الموجب يعني أن النظام يربح مع الوقت.", "Découvrez ce que rapporte un trade en moyenne d'après votre taux de réussite et vos gain et perte moyens : positif signifie que le système paie avec le temps."),
+    labels: [WIN, AVW, AVL],
+    result: l("Expectancy = {wr} × {win} − {lr} × {loss} = {e} per trade, or {per100} per 100 trades ({eR} R).", "التوقع = {wr} × {win} − {lr} × {loss} = {e} للصفقة، أي {per100} لكل 100 صفقة ({eR} R).", "Espérance = {wr} × {win} − {lr} × {loss} = {e} par trade, soit {per100} pour 100 trades ({eR} R)."),
+  },
+  wr: {
+    blurb: l("Given your reward-to-risk ratio, see the win rate you must reach just to break even, before you judge a system by its hit rate.", "بمعرفة نسبة العائد إلى المخاطرة، اعرف نسبة الفوز التي يجب بلوغها للتعادل قبل أن تحكم على نظام بنسبة إصاباته.", "Avec votre rapport rendement/risque, voyez le taux de réussite à atteindre pour être à l'équilibre, avant de juger un système sur son taux de réussite."),
+    labels: [RRL],
+    result: l("Break-even win rate = 1 ÷ ({rr} + 1) = {wr}. Win more often than that and the system earns.", "نسبة الفوز للتعادل = 1 ÷ ({rr} + 1) = {wr}. إن ربحت أكثر من ذلك ربح النظام.", "Taux de réussite d'équilibre = 1 ÷ ({rr} + 1) = {wr}. Gagnez plus souvent et le système rapporte."),
+  },
+  kelly: {
+    blurb: l("Find the risk per trade that grows an account fastest for a given edge. Most traders use half or a quarter of it.", "اعرف المخاطرة لكل صفقة التي تنمّي الحساب أسرع لأفضلية معينة. معظم المتداولين يستعملون نصفها أو ربعها.", "Trouvez le risque par trade qui fait croître un compte le plus vite pour un avantage donné. La plupart des traders en utilisent la moitié ou le quart."),
+    labels: [WIN, l("Payoff (avg win ÷ avg loss)", "العائد (متوسط الربح ÷ الخسارة)", "Payoff (gain moyen ÷ perte moyenne)")],
+    result: l("Kelly = {p} − (1 − {p}) ÷ {b} = {f} of the balance. Half Kelly = {half}; quarter Kelly = {quarter}.", "كيلي = {p} − (1 − {p}) ÷ {b} = {f} من الرصيد. نصف كيلي = {half}؛ ربع كيلي = {quarter}.", "Kelly = {p} − (1 − {p}) ÷ {b} = {f} du solde. Demi-Kelly = {half} ; quart de Kelly = {quarter}."),
+  },
+  mc: {
+    blurb: l("Shuffle your results into many possible futures to see the range of outcomes and the worst drawdown you could meet, not only the average.", "اخلط نتائجك في عدة مستقبلات ممكنة لترى نطاق النتائج وأسوأ تراجع قد تواجهه، لا المتوسط فقط.", "Mélangez vos résultats en de nombreux futurs possibles pour voir l'éventail des issues et le pire drawdown possible, pas seulement la moyenne."),
+    labels: [WIN, AVW, AVL, TRD],
+    result: l("Across {paths} simulated runs of {n} trades: {prob} end in profit, the median run ends at {median}, and in 95% of runs the drawdown stays under {dd}.", "عبر {paths} تجربة محاكاة من {n} صفقة: {prob} تنتهي بربح، والتجربة الوسيطة تنتهي عند {median}، وفي 95% من التجارب يبقى التراجع دون {dd}.", "Sur {paths} simulations de {n} trades : {prob} finissent en gain, la simulation médiane finit à {median}, et dans 95 % des cas le drawdown reste sous {dd}."),
+  },
+  prop: {
+    blurb: l("Plan a prop-firm challenge before you start: the risk that keeps you inside the loss limits and how many trades the target takes.", "خطّط لتحدي شركة التمويل قبل أن تبدأ: المخاطرة التي تبقيك ضمن حدود الخسارة وكم صفقة يحتاجها الهدف.", "Planifiez un challenge prop avant de commencer : le risque qui vous garde dans les limites de perte et le nombre de trades pour l'objectif."),
+    labels: [WIN, RRL, RPT, l("Profit target", "هدف الربح", "Objectif de profit"), l("Daily loss limit", "حد الخسارة اليومي", "Limite de perte journalière"), l("Max loss limit", "حد الخسارة الأقصى", "Limite de perte maximale")],
+    result: l("Each trade earns {edge} on average, so the {target} target takes about {trades} trades. A safe risk is a third of the {daily} daily limit: {safe}.", "كل صفقة تربح {edge} في المتوسط، فهدف {target} يحتاج نحو {trades} صفقة. المخاطرة الآمنة ثلث الحد اليومي {daily}: {safe}.", "Chaque trade rapporte {edge} en moyenne, donc l'objectif de {target} demande environ {trades} trades. Un risque sûr est le tiers de la limite journalière de {daily} : {safe}."),
+  },
+  comp: {
+    blurb: l("See where a steady monthly return could take a balance, and how much of the end result is growth on growth.", "انظر إلى أين قد يصل رصيد بعائد شهري ثابت، وكم من النتيجة نمو فوق نمو.", "Voyez où un rendement mensuel régulier peut mener un solde, et quelle part du résultat est de la croissance sur la croissance."),
+    labels: [l("Starting balance", "الرصيد الابتدائي", "Solde de départ"), l("Monthly return", "العائد الشهري", "Rendement mensuel"), l("Months", "الأشهر", "Mois")],
+    result: l("{start} grown by {rate} a month for {months} months becomes {final}, a gain of {gain}.", "{start} بنمو {rate} شهرياً لمدة {months} شهراً تصبح {final}، أي ربح {gain}.", "{start} augmentés de {rate} par mois pendant {months} mois deviennent {final}, soit un gain de {gain}."),
+  },
+  std: {
+    blurb: l("A plain calculator for quick sums while you plan a trade, so you don't have to leave the page.", "آلة حاسبة عادية للعمليات السريعة أثناء تخطيط الصفقة دون مغادرة الصفحة.", "Une calculatrice simple pour les petits calculs pendant que vous préparez un trade, sans quitter la page."),
+    labels: [l("First number", "الرقم الأول", "Premier nombre"), l("Operation", "العملية", "Opération"), l("Second number", "الرقم الثاني", "Second nombre")],
+    result: l("Press the keys one after the other, then =: {a} × {b} = {r}.", "اضغط الأزرار بالترتيب ثم =: {a} × {b} = {r}.", "Appuyez sur les touches dans l'ordre, puis = : {a} × {b} = {r}."),
+  },
+  fx: {
+    blurb: l("Convert an amount between currencies, for example to compare a prop fee or a payout in the currency you think in.", "حوّل مبلغاً بين العملات، مثلاً لمقارنة رسوم أو أرباح بالعملة التي تفكر بها.", "Convertissez un montant entre devises, par exemple pour comparer des frais ou un retrait dans la devise dans laquelle vous raisonnez."),
+    labels: [l("Amount", "المبلغ", "Montant"), FROM, TO, l("Rate (example, per 1 USD)", "السعر (مثال، لكل 1 دولار)", "Taux (exemple, pour 1 USD)")],
+    result: l("With 1 USD = {rate} EUR (an example rate, yours are live): {amount} USD × {rate} = {r} EUR.", "بسعر 1 دولار = {rate} يورو (سعر للمثال، أسعارك حية): {amount} دولار × {rate} = {r} يورو.", "Avec 1 USD = {rate} EUR (taux d'exemple, les vôtres sont en direct) : {amount} USD × {rate} = {r} EUR."),
+  },
+  pct: {
+    blurb: l("Work out a share, a part or a change in percent, for instance how much your balance moved.", "احسب حصة أو جزءاً أو تغيّراً بالنسبة المئوية، مثل مقدار تغيّر رصيدك.", "Calculez une part, une proportion ou une variation en pourcentage, par exemple de combien votre solde a bougé."),
+    labels: [FROM, TO],
+    result: l("Change = ({to} − {from}) ÷ {from} × 100 = {r}.", "التغيّر = ({to} − {from}) ÷ {from} × 100 = {r}.", "Variation = ({to} − {from}) ÷ {from} × 100 = {r}."),
+  },
+};

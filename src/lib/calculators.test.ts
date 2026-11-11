@@ -7,6 +7,8 @@ import {
   avgCommissionPerLot, convertUnits, swapCost, tradeCost,
   type FxStore, type StdKey, type StdState,
 } from "./calculators";
+import { calcExample, EX, type Fv } from "./calcExamples";
+import { HOW } from "../components/calculators/text";
 import { contrastRatio } from "./lighting";
 import type { Challenge } from "./challenge";
 import type { Trade } from "../types";
@@ -641,6 +643,46 @@ console.log("-- swap");
   nan("negative lots: NaN", swapCost(-1, -6.5, 3, true).total);
   nan("negative nights: NaN", swapCost(1, -6.5, -1, false).total);
   nan("missing swap: NaN", swapCost(1, NaN, 3, false).total);
+}
+
+console.log("-- How to use examples");
+{
+  const val = (k: Parameters<typeof calcExample>[0], key: string) => (calcExample(k).out[key] as Exclude<Fv, string>).v;
+  const spec = symbolSpec("EURUSD"), C = 100000;
+  const sz = positionSize({ balance: EX.size.balance, mode: "pct", pct: EX.size.riskPct, amt: 0, spec, contract: C, entry: 0, stop: 0, cur: "USD", rate: 1, dist: EX.size.stopPips * EX.size.pip, price: EX.size.price, pip: EX.size.pip });
+  near("size: lots match positionSize", val("size", "lots"), sz.lots);
+  near("size: 20 pips / 10,000 / 1% = 0.50 lot", val("size", "lots"), 0.5);
+  near("dd: matches drawdownRecovery(20)", val("dd", "gain"), drawdownRecovery(20));
+  near("dd: 20% needs 25%", val("dd", "gain"), 25);
+  near("wr: matches requiredWinRate(2)", val("wr", "wr"), requiredWinRate(2));
+  near("wr: RR 2 needs 33.3%", val("wr", "wr"), 33.3, 0.05);
+  near("exp: matches expectancy(54, 182, 121)", val("exp", "e"), expectancy(54, 182, 121).e);
+  near("exp: 42.62", val("exp", "e"), 42.62);
+  near("kelly: matches kellyFull(54, 1.504)", val("kelly", "f"), kellyFull(54, 1.504).f * 100);
+  near("kelly: 0.2341", val("kelly", "f") / 100, 0.2341, 0.0001);
+  eq("prop: matches challengePlan", val("prop", "trades"), challengePlan({ target: 8, daily: 5, max: 10, risk: 0.5, rr: 2, winRate: 54 }).trades);
+  eq("prop: 54% / RR 2 / 0.5% / 8% target = 26 trades", val("prop", "trades"), 26);
+  eq("streak: matches likelyLongestRun(26, 0.46)", val("streak", "k"), likelyLongestRun(26, 0.46));
+  near("comp: matches compound()", val("comp", "final"), (compound(1000, 5, 12) as { final: number }).final);
+  near("cost: matches tradeCost", val("cost", "total"), tradeCost({ lots: 1, spreadPips: 1.2, pip: 0.0001, contract: C, rate: 1, commissionPerLot: 7 }).total);
+  near("swap: matches swapCost", val("swap", "total"), swapCost(1, -6.5, 3, true).total);
+  near("margin: matches marginFor", val("margin", "margin"), marginFor(spec, "USD", 1, C, 1.1, 100, 1).margin);
+  near("pl: matches profitLoss", val("pl", "money"), profitLoss("buy", 0.5, 1.1, 1.104, C, 1).money);
+  near("pct: matches percentCalc", val("pct", "r"), percentCalc("change", 10000, 11200).value as number);
+  near("rr: matches riskReward", val("rr", "rr"), riskReward(1.1, 1.098, 1.104).rr);
+  near("ruin: matches riskOfRuin", val("ruin", "ruin"), riskOfRuin(EX.ruin));
+  near("fx: matches convertFx", val("fx", "r"), convertFx(100, "USD", "EUR", { USD: { rate: 1 }, EUR: { rate: 0.92 } }));
+  near("std: 12.5 x 4 = 50 through the keypad", val("std", "r"), 50);
+  const keysOf = (t: string) => [...t.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+  for (const k of CALC_KEYS) {
+    const ex = calcExample(k), h = HOW[k];
+    eq(`${k}: one label per example input`, h.labels.length, ex.inputs.length);
+    const sets = (["en", "ar", "fr"] as const).map((lg) => [...new Set(keysOf(h.result[lg]))].sort().join());
+    ok(`${k}: AR / EN / FR use the same {keys}`, sets[0] === sets[1] && sets[1] === sets[2], sets.join(" | "));
+    const missing = keysOf(h.result.en).filter((x) => !(x in ex.out));
+    ok(`${k}: every {key} of the result text has a computed value`, missing.length === 0, missing.join(","));
+    ok(`${k}: the example values are finite`, Object.values(ex.out).every((x) => typeof x === "string" || Number.isFinite(x.v)));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
