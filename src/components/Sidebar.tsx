@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import GlassIcon from "./GlassIcon";
 import { CandleIcon, MathFunctionIcon } from "./Mascot";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
+
+const GOLD = "#e6b84a";
+const COLOR: Record<string, string> = {
+  dashboard: "#3b82f6", journal: "#22c55e", charts: "#06b6d4", calculators: GOLD, reports: "#94a3b8",
+  accounts: "#14b8a6", import: "#f97316", roadmap: "#8b5cf6",
+  advisor: "#d946ef", challenges: "#ef4444", strategies: "#ec4899", achievements: "#f59e0b",
+};
 
 const groups = [
   {
@@ -60,9 +69,7 @@ export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
                       transition={{ type: "spring", stiffness: 180, damping: 28, mass: 1.1 }}
                     />
                   )}
-                  <span className={`relative z-10 inline-flex shrink-0 items-center justify-center rounded-xl p-1${!on ? " mz-icon-tile" : ""}`}>
-                    <Icon size={19} strokeWidth={1.9} className={`transition-transform group-hover:scale-110 ${on ? "" : "text-icon"}`} />
-                  </span>
+                  <GlassIcon icon={Icon as LucideIcon} size={30} color={COLOR[id]} className="relative z-10 transition-transform group-hover:scale-110" style={on ? { borderColor: "rgba(255, 255, 255, 0.7)" } : undefined} />
                   {open && <span className="relative z-10 truncate">{t(id)}</span>}
                 </button>
               );
@@ -71,7 +78,7 @@ export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
         </div>
       ))}
       <button type="button" onClick={flip} aria-label={open ? "collapse" : "expand"} className={`mt-3 flex items-center gap-3 rounded-xl border-t border-border px-3 pt-3 text-xs text-muted transition hover:text-text ${open ? "" : "justify-center px-0"}`}>
-        {open ? <PanelLeftClose size={16} className="rtl:rotate-180" /> : <PanelLeftOpen size={16} className="rtl:rotate-180" />}
+        <GlassIcon icon={open ? PanelLeftClose : PanelLeftOpen} size={26} color="#64748b" className="rtl:-scale-x-100" />
         {open && <span>{lang === "ar" ? "طيّ القائمة" : lang === "fr" ? "Réduire" : "Collapse"}</span>}
       </button>
     </nav>

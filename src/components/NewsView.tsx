@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import GlassIcon from "./GlassIcon";
 import { createPortal } from "react-dom";
 import {
   Search, RefreshCw, ExternalLink, ShieldCheck, Bitcoin, Globe2, Landmark, DollarSign, ChevronLeft, ChevronRight, X,
@@ -181,8 +182,8 @@ export default function NewsView({ t, lang, interests }: { t: (k: Key) => string
           <Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-icon" />
           <input className="field !ps-9" value={q} onChange={(e) => setF((f) => ({ ...f, q: e.target.value }))} placeholder={t("newsSearch")} aria-label={t("newsSearch")} />
         </div>
-        <button type="button" onClick={load} disabled={busy} aria-label={t("refresh")} title={t("refresh")} className="icon-btn border border-border">
-          <RefreshCw size={16} className={`text-icon ${busy ? "animate-spin" : ""}`} />
+        <button type="button" onClick={load} disabled={busy} aria-label={t("refresh")} title={t("refresh")} className="icon-btn mz-no-glass">
+          <GlassIcon icon={RefreshCw} size={30} color="#d946ef" className={busy ? "animate-spin" : ""} />
         </button>
       </div>
 
