@@ -1,5 +1,5 @@
 // Run: npx tsx src/lib/newsZones.test.ts
-import { classifyZone, zoneDayStats, keyEventWindowTradeCount, type ZoneNewsEvent, type ZoneSettings } from "./newsZones";
+import { classifyZone, zoneDayStats, zoneStatsForTrades, keyEventWindowTradeCount, type ZoneNewsEvent, type ZoneSettings } from "./newsZones";
 import type { Trade } from "../types";
 
 let pass = 0, fail = 0;
@@ -73,6 +73,28 @@ ok("zoneDayStats: before has both trades, net and win rate", beforeStat.trades =
 ok("zoneDayStats: normal has the third trade", normalStat.trades === 1 && normalStat.net === 30 && normalStat.winRate === 100);
 ok("zoneDayStats: an empty zone is zero trades, null win rate, zero net", heldStat.trades === 0 && heldStat.winRate === null && heldStat.net === 0);
 ok("zoneDayStats: fixed display order", stats.map((s) => s.zone).join(",") === "before,atRelease,after,held,normal");
+
+// ---- zoneStatsForTrades: a whole list, each trade against its own day's events ----
+const eu = (id: number, entry: string, exit: string, pnl: number): Trade => ({ ...mk(id, entry, exit, pnl), symbol: "EURUSD" } as Trade);
+const D1 = "2026-01-05", D2 = "2026-01-06", D3 = "2026-01-07";
+const byDay = new Map<string, { events: ZoneNewsEvent[] }>([
+  [D1, { events: [ev(`${D1}T12:00:00Z`, "USD")] }],
+  [D2, { events: [ev(`${D2}T12:00:00Z`, "USD")] }],
+]); // D3 has no econ data
+const multi = zoneStatsForTrades([
+  eu(1, `${D1}T11:30:00Z`, `${D1}T11:40:00Z`, 40),  // before D1's event
+  eu(2, `${D2}T11:00:00Z`, `${D2}T12:30:00Z`, -15), // held through D2's event
+  eu(3, `${D2}T11:30:00Z`, `${D2}T11:40:00Z`, 10),  // before D2's event
+  eu(4, `${D1}T12:05:00Z`, `${D1}T12:20:00Z`, 5),   // at release D1
+  eu(5, `${D3}T12:00:00Z`, `${D3}T12:10:00Z`, 7),   // D3: no econ data -> normal
+], byDay, W60);
+const zs = (z: string) => multi.find((s) => s.zone === z)!;
+ok("zoneStatsForTrades: trades across several days land in their own day's zone", zs("before").trades === 2 && zs("before").net === 50 && zs("held").trades === 1 && zs("held").net === -15 && zs("atRelease").trades === 1 && zs("atRelease").net === 5, JSON.stringify(multi));
+ok("zoneStatsForTrades: a day with no econ data is normal", zs("normal").trades === 1 && zs("normal").net === 7, JSON.stringify(zs("normal")));
+ok("zoneStatsForTrades: an event on another day never affects the trade", zoneStatsForTrades([eu(9, `${D3}T11:30:00Z`, `${D3}T11:40:00Z`, 1)], byDay, W60).find((s) => s.zone === "normal")!.trades === 1);
+const emptyStats = zoneStatsForTrades([], byDay, W60);
+ok("zoneStatsForTrades: empty list -> all five zones, zero trades and net", emptyStats.length === 5 && emptyStats.every((s) => s.trades === 0 && s.net === 0 && s.winRate === null));
+ok("zoneStatsForTrades: unknown-currency symbols and open trades are left out", zoneStatsForTrades([mk(10, `${D1}T11:30:00Z`, `${D1}T11:40:00Z`, 99), { ...eu(11, `${D1}T11:30:00Z`, `${D1}T11:40:00Z`, 1), status: "open" } as Trade], byDay, W60).every((s) => s.trades === 0));
 
 // ---- keyEventWindowTradeCount: danger-day detection, always real key events, any zone ----
 const nfp = ev(T0, "USD", "high", "Non-Farm Payrolls");

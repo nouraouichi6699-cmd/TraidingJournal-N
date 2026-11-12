@@ -4,6 +4,7 @@ import type { Trade } from "../types";
 import { tradeCore } from "./stats";
 import { symbolCurrencies } from "./symbolCurrencies";
 import { isKeyEvent } from "./keyEvents";
+import { dayKey } from "./dayByDay";
 
 export type NewsZone = "before" | "atRelease" | "after" | "held" | "normal";
 export const NEWS_ZONES: NewsZone[] = ["before", "atRelease", "after", "held", "normal"];
@@ -115,4 +116,21 @@ export function zoneDayStats(rows: { trade: Trade; zone: NewsZone | null }[]): Z
     const c = tradeCore(list);
     return { zone, trades: c.n, winRate: c.winRate, net: Math.round(c.net) };
   });
+}
+
+/**
+ * News-zone stats for a whole list of trades (e.g. a report period): each closed trade is classified against ITS OWN
+ * day's events (day = the trade's close date, as Day by day uses) and counts + whole-unit net are aggregated per zone,
+ * in the fixed display order. Trades whose symbol/entry can't be classified (zone null) are left out; a day with no
+ * econ data makes its trades "normal".
+ */
+export function zoneStatsForTrades(
+  trades: Trade[],
+  eventsByDay: Map<string, { events: ZoneNewsEvent[] }>,
+  settings: ZoneSettings,
+): ZoneDayStat[] {
+  const rows = trades
+    .filter((t) => t.status === "closed" && t.pnl != null)
+    .map((t) => ({ trade: t, zone: classifyZone(t.symbol, t.entryTime, t.exitTime, eventsByDay.get(dayKey(t))?.events ?? [], settings).zone }));
+  return zoneDayStats(rows);
 }

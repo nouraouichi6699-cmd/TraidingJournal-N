@@ -21,7 +21,13 @@ import ReportTabs from "./ReportTabs";
 import WhatIfTab, { WHATIF_TAB } from "./WhatIfTab";
 import type { ReportTabId } from "./ReportTabIcons";
 import { computeTradeOutcomes, recentOutcomes } from "../lib/tradeOutcomes";
-import { toT } from "../i18n";
+import { toT, stT } from "../i18n";
+import { dayList } from "../lib/dayByDay";
+import { zoneStatsForTrades, type NewsZone, type ZoneSettings } from "../lib/newsZones";
+import { fmtMoney } from "../lib/money";
+import { usePrivacy } from "../usePrivacy";
+import { useSettings } from "../useSettings";
+import { useEconEvents } from "../useEconEvents";
 import { ovT } from "../i18n";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
@@ -44,6 +50,7 @@ const TX = {
   tv: X("Total volume", "إجمالي الحجم", "Volume total"), av: X("Average trade volume", "متوسط حجم الصفقة", "Volume moyen"), mv: X("Maximum trade volume", "أكبر حجم صفقة", "Volume max"),
   lg: X("Long trades", "صفقات الشراء", "Trades long"), sh: X("Short trades", "صفقات البيع", "Trades short"), ratio: X("Long-to-short ratio", "نسبة الشراء إلى البيع", "Ratio long/short"),
   byWd: X("Trades by weekday", "الصفقات حسب اليوم", "Trades par jour"), byHr: X("Trades by hour", "الصفقات حسب الساعة", "Trades par heure"), heat: X("Daily activity", "النشاط اليومي", "Activité quotidienne"),
+  news: X("Trading during news", "التداول أثناء الأخبار", "Trading pendant les actualités"),
   split: X("Direction split", "توزيع الاتجاه", "Répartition"), trades: X("trades", "صفقة", "trades"), vol: X("Volume", "الحجم", "Volume"), cons: X("Consistency", "الانتظام", "Régularité"),
 } satisfies Record<string, L>;
 
@@ -99,6 +106,8 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
   useEffect(() => { if (nav) onNavDone?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [per, setPer] = useState("all");
   const L = (k: L) => k[lang];
+  const SL = stT(lang);
+  const zoneLabel = (z: NewsZone): string => ({ before: SL("zoneBefore"), atRelease: SL("zoneAtRelease"), after: SL("zoneAfter"), held: SL("zoneHeld"), normal: SL("zoneNormal") }[z]);
   const li = lang === "en" ? 0 : lang === "ar" ? 1 : 2;
   const labels: Record<ReportTabId, string> = { overview: ovT(lang)("tab"), daybyday: DAY_TAB[li], activity: L(TX.tab), outcomes: toT(lang)("tab"), returns: RET_TAB[li], benchmark: BENCH_TAB[li], portfolio: PORTFOLIO_TAB[li], path: PATH_TAB[li], whatif: WHATIF_TAB[li], advanced: ADV_TAB[li] };
 
@@ -119,6 +128,16 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
     return (acc === "all" ? trades : trades.filter((x) => x.accountId === acc)).filter((x) => !inList.has(x.key));
   }, [trades, list, acc, per]);
   const a = useMemo(() => computeActivity(list), [list]);
+  // Trading during news: the selected period's trades against that period's economic events (same zone rules as Day by day).
+  const settings = useSettings();
+  const { hidden } = usePrivacy();
+  const newsDays = useMemo(() => dayList(list), [list]);
+  const { allEventsByDay } = useEconEvents(newsDays.length ? newsDays[newsDays.length - 1].day : null, newsDays.length ? newsDays[0].day : null);
+  const zoneSettings: ZoneSettings = useMemo(
+    () => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium, keyEventsOnly: settings.keyEventsOnly }),
+    [settings.newsWindowMin, settings.newsCountMedium, settings.keyEventsOnly],
+  );
+  const newsStats = useMemo(() => zoneStatsForTrades(list, allEventsByDay, zoneSettings), [list, allEventsByDay, zoneSettings]);
   const startBal = useMemo(() => accounts.filter((x) => acc === "all" || x.id === acc).reduce((n, x) => n + (x.startBalance || 0), 0), [accounts, acc]);
   // Cash flows of the selected accounts, split at the same period cut-off as the trades (flow date >= cut-off = in period).
   const accFlows = useMemo(() => flows.filter((f) => acc === "all" || f.accountId === acc), [flows, acc]);
@@ -270,6 +289,22 @@ export default function ReportsView({ nav, onNavDone, t, lang, accounts: account
               </div>
             </Card>
           </div>
+
+          <Card title={L(TX.news)}>
+            <div className="divide-y divide-border">
+              {newsStats.map((z) => (
+                <div key={z.zone} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span className="min-w-0 truncate text-text">{zoneLabel(z.zone)}</span>
+                  <span className="flex shrink-0 items-center gap-4">
+                    <span className="tnum text-muted">{z.trades} {L(TX.trades)}</span>
+                    <span className="tnum w-24 text-end font-semibold" style={{ color: z.trades === 0 || z.net === 0 ? "var(--muted)" : z.net > 0 ? "var(--profit)" : "var(--loss)" }}>
+                      {z.trades === 0 ? "—" : hidden ? "••••" : fmtMoney(z.net, { sign: true, cents: false, currency })}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
         </>
       )}
       </div>

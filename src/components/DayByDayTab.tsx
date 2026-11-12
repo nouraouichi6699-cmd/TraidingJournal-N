@@ -11,8 +11,8 @@ import { GREEN, RED } from "./dashWidgets";
 import { cardBg } from "./metricUi";
 import Private from "./Private";
 import { CalendarDayCell } from "./CalendarDayCell";
-import { supabase } from "../lib/supabase";
-import { econEventsByDay, selectDots, econTooltipLine, mt5CoverageRange, mergeEconByDay, filterEconEventsForDisplay, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
+import { useEconEvents } from "../useEconEvents";
+import { econEventsByDay, selectDots, econTooltipLine, mergeEconByDay, filterEconEventsForDisplay, dayTradedCurrencies, filterByMySymbols, type StoredEconEvent } from "../lib/econEvents";
 import { classifyZone, isCountedEvent, keyEventWindowTradeCount, type NewsZone, type ZoneSettings } from "../lib/newsZones";
 import { keyEventKind, keyEventDayLabel, keyEventDayFullLabel } from "../lib/keyEvents";
 import { rulerZoneSpans, rulerBar } from "../lib/newsRuler";
@@ -58,47 +58,8 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
 
   const L = stT(lang);
   const tt = makeT(lang);
-  const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
-  const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
-  const [econMt5Times, setEconMt5Times] = useState<{ time: string }[]>([]);
   const oldestDay = days.length ? days[days.length - 1].day : null, newestDay = days.length ? days[0].day : null;
-
-  useEffect(() => {
-    if (!oldestDay || !newestDay) { setEconRaw([]); setEconMt5Raw([]); setEconMt5Times([]); return; }
-    const rangeStart = `${oldestDay}T00:00:00.000Z`, rangeEnd = `${newestDay}T23:59:59.999Z`;
-    let cancelled = false;
-
-    // Supabase/PostgREST caps a single response at 1000 rows: page with .range() rather than
-    // trust one request, since a long trading history can hold many thousands of calendar rows.
-    const pageAll = async <T,>(build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null }>): Promise<T[]> => {
-      const out: T[] = [];
-      for (let from = 0; from < 50_000; from += 1000) {
-        const { data } = await build(from, from + 999);
-        if (!data || !data.length) break;
-        out.push(...(data as T[]));
-        if (data.length < 1000) break;
-      }
-      return out;
-    };
-
-    // Not filtered by impact/currency server-side: the day timeline (and its news zones) needs every event in
-    // range, whatever the calendar's own dot filters say, plus the forecast/previous/actual fields the dots never
-    // needed. The calendar-dot view below still honours the impact/currency filters, applied client-side.
-    pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events").select("id,time,currency,title,impact,previous,forecast,actual")
-      .gte("time", rangeStart).lte("time", rangeEnd).range(from, to))
-      .then((rows) => { if (!cancelled) setEconRaw(rows); });
-    pageAll<StoredEconEvent>((from, to) => supabase.from("econ_events_mt5").select("id,time,currency,title,impact,previous,forecast,actual")
-      .gte("time", rangeStart).lte("time", rangeEnd).range(from, to))
-      .then((rows) => { if (!cancelled) setEconMt5Raw(rows); });
-    // NOT filtered by impact/currency, and only the "time" column: mt5CoverageRange needs every
-    // row this user has in range to tell "MT5 has no data for this day" apart from "MT5 has data
-    // but it's filtered out" -- the latter must still suppress the ForexFactory fallback.
-    pageAll<{ time: string }>((from, to) => supabase.from("econ_events_mt5").select("time")
-      .gte("time", rangeStart).lte("time", rangeEnd).range(from, to))
-      .then((rows) => { if (!cancelled) setEconMt5Times(rows); });
-
-    return () => { cancelled = true; };
-  }, [oldestDay, newestDay]);
+  const { econRaw, econMt5Raw, mt5Range: econMt5Range, allEventsByDay } = useEconEvents(oldestDay, newestDay);
 
   // The nav list's dots still honour the calendar's own impact/currency filters (applied client-side now).
   const econFiltered = useMemo(
@@ -109,15 +70,9 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     () => filterEconEventsForDisplay(econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),
     [econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
   );
-  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Times), [econMt5Times]);
   const econByDay = useMemo(
     () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
     [econMt5Filtered, econFiltered, econMt5Range],
-  );
-  // The timeline and its news zones use every event in range, regardless of the calendar's dot filters.
-  const allEventsByDay = useMemo(
-    () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
-    [econMt5Raw, econRaw, econMt5Range],
   );
   const zoneSettings: ZoneSettings = useMemo(
     () => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium, keyEventsOnly: settings.keyEventsOnly }),
