@@ -8,7 +8,7 @@ import {
   surfaceReadable, surfaceVars,
   bandAt, cardSurface, DARK_INK_VARS, DARK_SURFACE_INK, inkReadable, INK_VAR_NAMES, readableBands,
   isHexColor, normalizeHex, paletteChoice, PRESETS, pushRecent, RECENT_MAX, SWATCH,
-  clampGlassTransparency, ICON_COLOR, maxGlassTransparency,
+  clampGlassTransparency, glassTileFill, ICON_COLOR, maxGlassTransparency,
 } from "./lighting";
 import type { Theme } from "../types";
 import { SESSION_COLORS, SESSION_TRIO } from "./sessionColors";
@@ -528,6 +528,14 @@ for (const theme of THEMES) {
 console.log("-- DEFAULT_LIGHTING has icon fields");
 eq("iconStyle default is normal", DEFAULT_LIGHTING.iconStyle, "normal");
 eq("iconTransparency default is 50", DEFAULT_LIGHTING.iconTransparency, 50);
+
+console.log("-- glass icon tiles: glassTileFill");
+for (const theme of ["dark", "light", "black"] as const) {
+  eq(`${theme}: solid keeps full colour`, glassTileFill(0, theme), 1);
+  const lo = glassTileFill(1000, theme);
+  eq(`${theme}: most transparent never drops below half`, lo >= 0.5 && lo < 1, true);
+  eq(`${theme}: NaN is solid`, glassTileFill(NaN, theme), 1);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

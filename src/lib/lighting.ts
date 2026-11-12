@@ -486,6 +486,15 @@ export function clampGlassTransparency(transparency: number, theme: Theme): numb
   return Number.isNaN(transparency) ? 0 : Math.max(0, Math.min(max, Math.round(transparency)));
 }
 
+/**
+ * How much colour the coloured glass tile (GlassIcon) keeps, 0.5..1, from the same transparency slider the frosted
+ * tile uses. Solid (0%) is full colour; the most transparent the theme allows is half colour, never less, so the
+ * white glyph on top always stays readable.
+ */
+export function glassTileFill(transparency: number, theme: Theme): number {
+  return 0.5 + 0.5 * (100 - clampGlassTransparency(transparency, theme)) / 100;
+}
+
 /** The whole lighting setting, as it is stored. */
 export interface Lighting {
   style: LightStyle;

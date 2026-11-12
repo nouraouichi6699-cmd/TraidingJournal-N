@@ -1,22 +1,16 @@
 import { useLayoutEffect, useMemo } from "react";
 import {
-  cardSurface, clampGlassTransparency, DEFAULT_LIGHTING, fullColourBg, INK_VAR_NAMES,
+  cardSurface, clampGlassTransparency, fullColourBg, INK_VAR_NAMES,
   sessionNow, sessionTrio, SURFACE_VAR_NAMES, SWATCH,
-  type Lighting, type Trio,
+  type Trio,
 } from "../lib/lighting";
-import { useActiveTheme, useReduceMotion, useSettings } from "../useSettings";
-import { resolveTheme } from "../lib/customThemes";
+import { useReduceMotion, useSettings } from "../useSettings";
+import { useLook } from "../useLook";
 import type { Theme } from "../types";
 
 export default function Ambient({ theme }: { theme: Theme }) {
   const s = useSettings();
-  const activeId = useActiveTheme();
-  const resolved = resolveTheme(activeId, s.customThemes ?? [], theme);
-  const light: Lighting = {
-    ...DEFAULT_LIGHTING, ...resolved.look,
-    playing: s.lighting?.playing ?? DEFAULT_LIGHTING.playing,
-    recentColors: s.lighting?.recentColors ?? [],
-  };
+  const { light, resolved } = useLook(theme);
   const off = light.style === "off";
 
   useLayoutEffect(() => {

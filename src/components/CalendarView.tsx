@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import GlassIcon from "./GlassIcon";
+import StyledIcon from "./StyledIcon";
+import { useIconGlass } from "../useIconGlass";
 import { createPortal } from "react-dom";
 import {
   Search, SlidersHorizontal, Bell, BellRing, Heart, Download, RefreshCw, X, CalendarDays, CalendarOff, Mic, ArrowUp, ArrowDown, Equal,
@@ -96,6 +97,8 @@ function Flag({ cur }: { cur: string }) {
 }
 
 export default function CalendarView({ t, lang, interests }: { t: (k: Key) => string; lang: Lang; interests: Interests }) {
+  const { glass } = useIconGlass();
+  const ibtn = glass ? "icon-btn mz-no-glass" : "icon-btn border border-border"; // a coloured tile brings its own surface
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -232,8 +235,8 @@ export default function CalendarView({ t, lang, interests }: { t: (k: Key) => st
           <select className="field !min-h-0 !w-auto !py-1" aria-label={t("calTz")} value={prefs.tz} onChange={(e) => save({ ...prefs, tz: e.target.value })}>
             {TZS.map((z) => <option key={z} value={z}>{z === "auto" ? t("calAuto") : fmtOff(Number(z))}</option>)}
           </select>
-          <button type="button" onClick={load} disabled={busy} aria-label={t("refresh")} title={t("refresh")} className="icon-btn mz-no-glass">
-            <GlassIcon icon={RefreshCw} size={30} color="#06b6d4" className={busy ? "animate-spin" : ""} />
+          <button type="button" onClick={load} disabled={busy} aria-label={t("refresh")} title={t("refresh")} className={ibtn}>
+            <StyledIcon icon={RefreshCw} size={30} color="#06b6d4" plain={{ size: 16, className: `text-icon ${busy ? "animate-spin" : ""}` }} className={busy ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -269,8 +272,8 @@ export default function CalendarView({ t, lang, interests }: { t: (k: Key) => st
           ))}
         </div>
         <div className="relative">
-          <button type="button" onClick={() => (panel ? setPanel(false) : openPanel())} aria-expanded={panel} aria-label={t("calFilters")} title={t("calFilters")} className="icon-btn mz-no-glass">
-            <GlassIcon icon={SlidersHorizontal} size={30} color="#8b5cf6" />
+          <button type="button" onClick={() => (panel ? setPanel(false) : openPanel())} aria-expanded={panel} aria-label={t("calFilters")} title={t("calFilters")} className={ibtn}>
+            <StyledIcon icon={SlidersHorizontal} size={30} color="#8b5cf6" plain={{ size: 16, className: "text-icon" }} />
           </button>
           {panel && (
             <div className="news-panel absolute end-0 z-30 mt-2 flex max-h-[80vh] w-[min(92vw,420px)] flex-col gap-4 overflow-y-auto rounded-2xl border border-border bg-surface p-4 shadow-2xl">

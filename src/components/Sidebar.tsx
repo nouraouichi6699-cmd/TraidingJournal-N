@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import GlassIcon from "./GlassIcon";
+import { useIconGlass } from "../useIconGlass";
 import { CandleIcon, MathFunctionIcon } from "./Mascot";
 import type { Key } from "../i18n";
 import type { Lang } from "../types";
@@ -43,6 +44,7 @@ interface Props {
 
 export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
   const [open, setOpen] = useState(() => { try { const v = localStorage.getItem("mizan-sidebar"); return v == null ? window.innerWidth >= 1000 : v !== "0"; } catch { return true; } });
+  const { glass, fill } = useIconGlass();
   const flip = () => setOpen((o) => { try { localStorage.setItem("mizan-sidebar", o ? "0" : "1"); } catch { } return !o; });
 
   return (
@@ -69,7 +71,13 @@ export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
                       transition={{ type: "spring", stiffness: 180, damping: 28, mass: 1.1 }}
                     />
                   )}
-                  <GlassIcon icon={Icon as LucideIcon} size={30} color={COLOR[id]} className="relative z-10 transition-transform group-hover:scale-110" style={on ? { borderColor: "rgba(255, 255, 255, 0.7)" } : undefined} />
+                  {glass ? (
+                    <GlassIcon icon={Icon as LucideIcon} size={30} color={COLOR[id]} fill={fill} className="relative z-10 transition-transform group-hover:scale-110" style={on ? { borderColor: "rgba(255, 255, 255, 0.7)" } : undefined} />
+                  ) : (
+                    <span className={`relative z-10 inline-flex shrink-0 items-center justify-center rounded-xl p-1${!on ? " mz-icon-tile" : ""}`}>
+                      <Icon size={19} strokeWidth={1.9} className={`transition-transform group-hover:scale-110 ${on ? "" : "text-icon"}`} />
+                    </span>
+                  )}
                   {open && <span className="relative z-10 truncate">{t(id)}</span>}
                 </button>
               );
@@ -78,7 +86,9 @@ export default function Sidebar({ t, view, onView, lang = "en" }: Props) {
         </div>
       ))}
       <button type="button" onClick={flip} aria-label={open ? "collapse" : "expand"} className={`mt-3 flex items-center gap-3 rounded-xl border-t border-border px-3 pt-3 text-xs text-muted transition hover:text-text ${open ? "" : "justify-center px-0"}`}>
-        <GlassIcon icon={open ? PanelLeftClose : PanelLeftOpen} size={26} color="#64748b" className="rtl:-scale-x-100" />
+        {glass
+          ? <GlassIcon icon={open ? PanelLeftClose : PanelLeftOpen} size={26} color="#64748b" fill={fill} className="rtl:-scale-x-100" />
+          : open ? <PanelLeftClose size={16} className="rtl:rotate-180" /> : <PanelLeftOpen size={16} className="rtl:rotate-180" />}
         {open && <span>{lang === "ar" ? "طيّ القائمة" : lang === "fr" ? "Réduire" : "Collapse"}</span>}
       </button>
     </nav>

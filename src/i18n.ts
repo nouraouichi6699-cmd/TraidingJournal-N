@@ -800,7 +800,7 @@ const st: Record<string, [string, string, string]> = {
   iconStyleNormal: ["Normal", "عادي", "Normal"],
   iconStyleGlass: ["Glass", "زجاجي", "Verre"],
   iconTransparency: ["Transparency", "الشفافية", "Transparence"],
-  iconGlassSub: ["Frosted glass tile on sidebar navigation, header and settings icons.", "لوح زجاجي مثلّج على أيقونات التنقل الجانبي والترويسة والإعدادات.", "Tuile en verre dépoli sur les icônes de navigation latérale, d'en-tête et de paramètres."],
+  iconGlassSub: ["Coloured glass tiles on the sidebar, header and page action icons; frosted tiles on settings icons.", "ألواح زجاجية ملوّنة على أيقونات الشريط الجانبي والترويسة وأزرار الصفحات، وألواح مثلّجة على أيقونات الإعدادات.", "Tuiles de verre colorées sur les icônes de la barre latérale, de l'en-tête et des actions de page ; tuiles dépolies sur les icônes de paramètres."],
   iconUsed: ["{n}% fill — the tile stays opaque enough to keep the icon readable.", "تعبئة {n}% — يبقى اللوح معتماً بما يكفي ليبقى الأيقون مقروءاً.", "{n} % de remplissage — le carreau reste assez opaque pour que l'icône reste lisible."],
   lightColor: ["Colour", "اللون", "Couleur"],
   lightGold: ["Gold", "ذهبي", "Or"],

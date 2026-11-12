@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react";
+import StyledIcon from "./StyledIcon";
 import GlassIcon from "./GlassIcon";
+import { useIconGlass } from "../useIconGlass";
 import { Calculator, Coins, Delete, Eye, Percent, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import Brand from "./Brand";
@@ -33,8 +35,10 @@ interface Props {
 }
 
 const GOLD = "#e6b84a", GREY = "#94a3b8";
-const G = (icon: LucideIcon, color: string, size = 30) => <GlassIcon icon={icon} size={size} color={color} className="transition hover:brightness-110" />;
 const ic = { size: 18, strokeWidth: 1.9, className: "text-icon" };
+// A header icon: plain as before, or (icon style "glass") a coloured tile. `plain` is the plain size/stroke/class.
+const G = (icon: LucideIcon, color: string, size = 30, plain: { size: number; strokeWidth?: number; className?: string } = ic) =>
+  <StyledIcon icon={icon} size={size} color={color} plain={plain} className="transition hover:brightness-110" />;
 
 const calcLabel: Record<Lang, string> = { en: "Position size", ar: "حجم الصفقة", fr: "Taille de position" };
 const generalTools: Record<Lang, string> = { en: "General tools", ar: "أدوات عامة", fr: "Outils généraux" };
@@ -48,6 +52,8 @@ const allCalcs: Record<Lang, string> = { en: "All calculators", ar: "كل الح
 
 export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
   const privacy = usePrivacy();
+  const { glass, fill } = useIconGlass();
+  const ng = glass ? " mz-no-glass" : ""; // the coloured tile brings its own surface, so the frosted one steps aside
   const dash = useDashEdit();
   const appSettings = useSettings();
   const activeId = useActiveTheme();
@@ -84,7 +90,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
           <div className="hidden items-center gap-1 lg:flex">
             {tabs.map(({ icon, color, label, onClick }) => (
               <button key={label} type="button" aria-label={label} onClick={onClick} className="flex items-center gap-2 rounded-lg px-3 py-1.5 font-medium hover:bg-primary-tint">
-                {G(icon, color, 24)}
+                {G(icon, color, 24, { size: 16, strokeWidth: 1.9, className: "text-icon" })}
                 <span className="hidden 2xl:inline">{label}</span>
               </button>
             ))}
@@ -93,26 +99,26 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
                 {t("boards")}
                 <ChevronDown size={14} className="text-icon" />
               </button>
-              <button type="button" aria-label={t("addBoard")} className="icon-btn mz-no-glass !h-7 !w-7">
-                {G(Plus, "#22c55e", 24)}
+              <button type="button" aria-label={t("addBoard")} className={`icon-btn${ng} !h-7 !w-7`}>
+                {G(Plus, "#22c55e", 24, { size: 15, className: "text-icon" })}
               </button>
-              <button type="button" aria-label={t("editBoards")} aria-pressed={dash.editing} onClick={() => { onDashboard(); dash.toggle(); }} className={`icon-btn mz-no-glass !h-7 !w-7 ${dash.editing ? "!bg-primary" : ""}`}>
-                {G(Pencil, "#8b5cf6", 24)}
+              <button type="button" aria-label={t("editBoards")} aria-pressed={dash.editing} onClick={() => { onDashboard(); dash.toggle(); }} className={`icon-btn${ng} !h-7 !w-7 ${dash.editing ? "!bg-primary" : ""}`}>
+                {G(Pencil, "#8b5cf6", 24, { size: 14, className: dash.editing ? "text-on-primary" : "text-icon" })}
               </button>
             </div>
             <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           </div>
 
           {calc && (
-            <Dropdown label={calcLabel[lang]} panelClass="w-[min(92vw,360px)]" bare trigger={G(Calculator, GOLD)}>
+            <Dropdown label={calcLabel[lang]} panelClass="w-[min(92vw,360px)]" bare={glass} trigger={G(Calculator, GOLD)}>
               {(close) => (
                 <>
                   {calc}
                   <div className="flex items-center justify-between gap-2 border-t border-border px-4 pb-1.5 pt-2">
                     <div className="flex items-center gap-1" role="group" aria-label={generalTools[lang]}>
                       {generalItems.map(({ key, icon: Icon, label }) => (
-                        <button key={key} type="button" aria-label={label[lang]} title={label[lang]} onClick={() => { close(); openCalculator(key); }} className="icon-btn mz-no-glass">
-                          {G(Icon, genColor[key], 28)}
+                        <button key={key} type="button" aria-label={label[lang]} title={label[lang]} onClick={() => { close(); openCalculator(key); }} className={`icon-btn${ng}`}>
+                          {G(Icon, genColor[key], 28, { size: 16, strokeWidth: 1.9, className: "text-icon" })}
                         </button>
                       ))}
                     </div>
@@ -126,11 +132,11 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             </Dropdown>
           )}
 
-          <button type="button" aria-pressed={privacy.hidden} aria-label={t(privacy.hidden ? "privacyOff" : "privacyOn")} title={t(privacy.hidden ? "privacyOff" : "privacyOn")} onClick={privacy.toggle} className="icon-btn mz-no-glass">
+          <button type="button" aria-pressed={privacy.hidden} aria-label={t(privacy.hidden ? "privacyOff" : "privacyOn")} title={t(privacy.hidden ? "privacyOff" : "privacyOn")} onClick={privacy.toggle} className={`icon-btn${ng}`}>
             {privacy.hidden ? G(EyeOff, GREY) : G(Eye, "#22c55e")}
           </button>
 
-          <Dropdown label={t("language")} bare trigger={G(Globe, "#3b82f6")}>
+          <Dropdown label={t("language")} bare={glass} trigger={G(Globe, "#3b82f6")}>
             {(close) =>
               languages.map((l) => (
                 <button key={l.code} role="menuitemradio" aria-checked={lang === l.code} onClick={() => { onLang(l.code); close(); }} className="menu-item">
@@ -142,12 +148,12 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
           </Dropdown>
 
           <Dropdown
-            bare
+            bare={glass}
             label={t("notifications")}
             panelClass="w-[min(92vw,380px)]"
             trigger={
               <span className={`relative flex items-center justify-center ${interests.unread > 0 ? "bell-ringing" : ""}`}>
-                <GlassIcon icon={Bell} size={30} color="#f97316" className="bell-ico" />
+                {glass ? <GlassIcon icon={Bell} size={30} color="#f97316" fill={fill} className="bell-ico" /> : <Bell {...ic} className="bell-ico" />}
                 {interests.unread > 0 && (
                   <span className="absolute -end-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-loss px-1 text-[10px] font-bold text-white">{interests.unread > 9 ? "9+" : interests.unread}</span>
                 )}
@@ -157,7 +163,7 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
             {(close) => <NotificationsPanel t={t} lang={lang} interests={interests} onNews={onNews} onCalendar={onCalendar} onCharts={onCharts} close={close} />}
           </Dropdown>
 
-          <Dropdown label={t("settings")} bare trigger={G(MoreHorizontal, GREY)}>
+          <Dropdown label={t("settings")} bare={glass} trigger={G(MoreHorizontal, GREY)}>
             {(close) => (
               <>
                 <button type="button" onClick={() => { toggleFull(); close(); }} className="menu-item">

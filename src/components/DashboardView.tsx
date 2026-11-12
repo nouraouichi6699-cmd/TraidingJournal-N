@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import GlassIcon from "./GlassIcon";
+import StyledIcon from "./StyledIcon";
+import { useIconGlass } from "../useIconGlass";
 import { readSettings } from "../useSettings";
 import { useConverted } from "../useConverted";
 import FxWarning from "./FxWarning";
@@ -73,6 +74,7 @@ const fromKey = (r: string) => {
 };
 
 export default function DashboardView({ lang, accounts: accountsIn, trades: allIn, flows: flowsIn = [], userId, onOpenDay }: Props) {
+  const { glass } = useIconGlass();
   const { editing, toggle } = useDashEdit();
   const { hidden } = usePrivacy();
   const [cells, setCells] = useState<Cell[]>(load);
@@ -179,7 +181,7 @@ export default function DashboardView({ lang, accounts: accountsIn, trades: allI
           {can && (
             <>
               <button type="button" onClick={() => setCells(flow(settle(cells).sort((a, b) => a.y - b.y || a.x - b.x).map((i) => i.id)))} className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-medium hover:bg-primary-tint"><LayoutGrid size={14} />{L(TT.arrange)}</button>
-              <button type="button" aria-label="reset" onClick={() => setCells(flow(DEFAULT_IDS))} className="icon-btn mz-no-glass !h-8 !w-8"><GlassIcon icon={RotateCcw} size={26} color="#94a3b8" /></button>
+              <button type="button" aria-label="reset" onClick={() => setCells(flow(DEFAULT_IDS))} className={`icon-btn${glass ? " mz-no-glass" : ""} !h-8 !w-8`}><StyledIcon icon={RotateCcw} size={26} color="#94a3b8" plain={{ size: 14, className: "text-icon" }} /></button>
             </>
           )}
           <button type="button" onClick={toggle} className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-medium transition ${editing ? "border-primary bg-primary text-on-primary" : "border-border bg-surface hover:bg-primary-tint"}`}>
