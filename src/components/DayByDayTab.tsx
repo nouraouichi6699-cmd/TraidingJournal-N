@@ -71,8 +71,8 @@ export default function DayByDayTab({ lang, trades, onImport, currency = null, f
     [econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
   );
   const econByDay = useMemo(
-    () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
-    [econMt5Filtered, econFiltered, econMt5Range],
+    () => mergeEconByDay(econEventsByDay(econMt5Filtered, settings.dayStart), econEventsByDay(econFiltered, settings.dayStart), econMt5Range),
+    [econMt5Filtered, econFiltered, econMt5Range, settings.dayStart],
   );
   const zoneSettings: ZoneSettings = useMemo(
     () => ({ windowMin: settings.newsWindowMin, countMedium: settings.newsCountMedium, keyEventsOnly: settings.keyEventsOnly }),

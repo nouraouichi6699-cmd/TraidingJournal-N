@@ -1,5 +1,6 @@
 import { symbolCurrencies } from "./symbolCurrencies";
 import { isKeyEvent } from "./keyEvents";
+import { tradingDayOf, type DayStart } from "./tradingTime";
 
 export type EconImpact = "high" | "medium" | "low";
 
@@ -67,11 +68,21 @@ export function filterByMySymbols<T extends { currency: string }>(
   return events.filter((e) => dayCurrencies.has(e.currency));
 }
 
-/** Group events by their UTC calendar day (YYYY-MM-DD). */
-export function econEventsByDay<T extends { time: string }>(events: T[]): Map<string, T[]> {
+/**
+ * The trading day an event falls in, keyed the same way a trade's dayKey is so the two line up.
+ * Event times are real UTC and belong to no account, so only the global `dayStart` applies: no broker-clock
+ * offset (a trade's own `aheadHours` already takes its stamp back to real UTC before the day is read).
+ * With "midnight" (the default) this is the plain UTC date, byte-for-byte what it always was.
+ */
+export function econEventDay(time: string, dayStart: DayStart = "midnight"): string {
+  return dayStart === "midnight" ? time.slice(0, 10) : tradingDayOf(time, { dayStart });
+}
+
+/** Group events by trading day (YYYY-MM-DD): the UTC calendar day for "midnight", the NY 17:00 day for "ny17". */
+export function econEventsByDay<T extends { time: string }>(events: T[], dayStart: DayStart = "midnight"): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const e of events) {
-    const k = e.time.slice(0, 10);
+    const k = econEventDay(e.time, dayStart);
     const list = m.get(k);
     if (list) list.push(e);
     else m.set(k, [e]);
@@ -152,15 +163,15 @@ export function validateMt5CalendarEvent(raw: unknown): Mt5CalendarEvent | null 
   return { id, time, currency, title, impact, previous, forecast, actual };
 }
 
-/** The UTC-day span the user's MT5 events cover (their earliest to their latest stored event), or null when empty. */
-export function mt5CoverageRange<T extends { time: string }>(events: T[]): { min: string; max: string } | null {
+/** The day span (in the same trading-day keys as econEventsByDay) the user's MT5 events cover, or null when empty. */
+export function mt5CoverageRange<T extends { time: string }>(events: T[], dayStart: DayStart = "midnight"): { min: string; max: string } | null {
   if (!events.length) return null;
   let min = events[0].time, max = events[0].time;
   for (const e of events) {
     if (e.time < min) min = e.time;
     if (e.time > max) max = e.time;
   }
-  return { min: min.slice(0, 10), max: max.slice(0, 10) };
+  return { min: econEventDay(min, dayStart), max: econEventDay(max, dayStart) };
 }
 
 /** True when the MT5 coverage range (its earliest to its latest stored event) includes this UTC day. */

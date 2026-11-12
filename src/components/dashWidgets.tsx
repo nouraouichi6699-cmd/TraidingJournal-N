@@ -279,17 +279,17 @@ function CalW({ c }: { c: Ctx }) {
     () => filterEconEventsForDisplay(econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),
     [econMt5Raw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly],
   );
-  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Raw), [econMt5Raw]);
+  const econMt5Range = useMemo(() => mt5CoverageRange(econMt5Raw, settings.dayStart), [econMt5Raw, settings.dayStart]);
   const econByDay = useMemo(
-    () => mergeEconByDay(econEventsByDay(econMt5Filtered), econEventsByDay(econFiltered), econMt5Range),
-    [econMt5Filtered, econFiltered, econMt5Range],
+    () => mergeEconByDay(econEventsByDay(econMt5Filtered, settings.dayStart), econEventsByDay(econFiltered, settings.dayStart), econMt5Range),
+    [econMt5Filtered, econFiltered, econMt5Range, settings.dayStart],
   );
 
   // Unfiltered by the dot chips above: a trade's news zone depends on its own symbol's currencies and the
   // Analysis > News settings, not on which currencies the user happens to be showing dots for.
   const allEconByDay = useMemo(
-    () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), econMt5Range),
-    [econMt5Raw, econRaw, econMt5Range],
+    () => mergeEconByDay(econEventsByDay(econMt5Raw, settings.dayStart), econEventsByDay(econRaw, settings.dayStart), econMt5Range),
+    [econMt5Raw, econRaw, econMt5Range, settings.dayStart],
   );
   // Closed trades grouped by day, for the flame markers below -- a danger day needs every trade of that
   // day, not just whether one exists.

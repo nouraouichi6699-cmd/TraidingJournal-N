@@ -1,23 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase";
+import { useSettings } from "./useSettings";
 import { econEventsByDay, mergeEconByDay, mt5CoverageRange, type StoredEconEvent } from "./lib/econEvents";
 
 /**
- * Economic events (ForexFactory `econ_events` + MT5 `econ_events_mt5`) for an inclusive UTC day range
- * (YYYY-MM-DD strings; null/null = nothing to fetch). Shared by Day by day and the Activity & Behaviour tab.
+ * Economic events (ForexFactory `econ_events` + MT5 `econ_events_mt5`) for an inclusive trading-day range
+ * (YYYY-MM-DD strings; null/null = nothing to fetch). Events are keyed by the user's `dayStart` trading day,
+ * the same way trades are, so `allEventsByDay.get(dayKey(trade))` lines up. Shared by Day by day and the Activity & Behaviour tab.
  *
  * Returns the raw rows of both sources, the MT5 coverage range, and `allEventsByDay`: every event in range
  * (no impact/currency filtering) merged per day with the MT5-over-ForexFactory rule -- what news-zone
  * classification uses.
  */
 export function useEconEvents(oldestDay: string | null, newestDay: string | null) {
+  const { dayStart } = useSettings();
   const [econRaw, setEconRaw] = useState<StoredEconEvent[]>([]);
   const [econMt5Raw, setEconMt5Raw] = useState<StoredEconEvent[]>([]);
   const [econMt5Times, setEconMt5Times] = useState<{ time: string }[]>([]);
 
   useEffect(() => {
     if (!oldestDay || !newestDay) { setEconRaw([]); setEconMt5Raw([]); setEconMt5Times([]); return; }
-    const rangeStart = `${oldestDay}T00:00:00.000Z`, rangeEnd = `${newestDay}T23:59:59.999Z`;
+    // A non-midnight trading day starts the evening before its date, so reach one UTC day further back.
+    const fetchFrom = dayStart === "midnight" ? oldestDay : new Date(Date.parse(`${oldestDay}T00:00:00Z`) - 864e5).toISOString().slice(0, 10);
+    const rangeStart = `${fetchFrom}T00:00:00.000Z`, rangeEnd = `${newestDay}T23:59:59.999Z`;
     let cancelled = false;
 
     // Supabase/PostgREST caps a single response at 1000 rows: page with .range() rather than
@@ -50,12 +55,12 @@ export function useEconEvents(oldestDay: string | null, newestDay: string | null
       .then((rows) => { if (!cancelled) setEconMt5Times(rows); });
 
     return () => { cancelled = true; };
-  }, [oldestDay, newestDay]);
+  }, [oldestDay, newestDay, dayStart]);
 
-  const mt5Range = useMemo(() => mt5CoverageRange(econMt5Times), [econMt5Times]);
+  const mt5Range = useMemo(() => mt5CoverageRange(econMt5Times, dayStart), [econMt5Times, dayStart]);
   const allEventsByDay = useMemo(
-    () => mergeEconByDay(econEventsByDay(econMt5Raw), econEventsByDay(econRaw), mt5Range),
-    [econMt5Raw, econRaw, mt5Range],
+    () => mergeEconByDay(econEventsByDay(econMt5Raw, dayStart), econEventsByDay(econRaw, dayStart), mt5Range),
+    [econMt5Raw, econRaw, mt5Range, dayStart],
   );
   return { econRaw, econMt5Raw, mt5Range, allEventsByDay };
 }

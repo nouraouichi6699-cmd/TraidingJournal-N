@@ -6,6 +6,7 @@ import {
 } from "./econEvents";
 import { dayKey } from "./dashStats";
 import { DEFAULTS } from "../useSettings";
+import { setAnalysisSettings } from "./tradingTime";
 import type { Trade } from "../types";
 
 let pass = 0, fail = 0;
@@ -270,6 +271,52 @@ is("changing the shared impacts changes both views identically", (() => {
 // so the two views diverge only there, never on the impact/currency chips themselves.
 const timelineNarrowed = filterByMySymbols(timelineView, true, new Set(["USD"]));
 is("'My symbols only' narrows the timeline without touching the shared filtered set", timelineNarrowed.length <= timelineView.length && timelineView.length === dashboardView.length);
+// ---- trading-day-aware event keys (dayStart) ----
+// Default / "midnight": exactly the UTC date slice, so every assertion above is unchanged.
+{
+  const times = ["2026-11-09T22:30:00Z", "2026-11-09T23:00", "2026-11-10T00:00:00Z", "2026-11-10T13:30:00Z", "2026-11-10T22:30:00Z"];
+  const evs = times.map((time, i) => ({ time, id: String(i) }));
+  const keysOf = (m: Map<string, unknown[]>) => JSON.stringify([...m.entries()].map(([k, v]) => [k, v.length]));
+  is("midnight: explicit param is identical to the default", keysOf(econEventsByDay(evs, "midnight")) === keysOf(econEventsByDay(evs)));
+  is("midnight: keys are exactly time.slice(0,10)", [...econEventsByDay(evs).keys()].join() === times.map((x) => x.slice(0, 10)).filter((x, i, a) => a.indexOf(x) === i).join());
+  const r = mt5CoverageRange(evs);
+  is("midnight: coverage range is the plain UTC date span", r?.min === "2026-11-09" && r?.max === "2026-11-10");
+  is("midnight: coverage range explicit param identical", JSON.stringify(mt5CoverageRange(evs, "midnight")) === JSON.stringify(r));
+
+  // ny17 (EST in November: 17:00 New York = 22:00 UTC; a trading day is named after the date it ends on)
+  const ny = econEventsByDay(evs, "ny17");
+  is("ny17: 22:30Z and 23:00 on the 9th, plus the 10th's 00:00 and 13:30, land in trading day 2026-11-10", (ny.get("2026-11-10") ?? []).map((e) => e.id).join() === "0,1,2,3");
+  is("ny17: 22:30Z on the 10th rolls into trading day 2026-11-11", (ny.get("2026-11-11") ?? []).map((e) => e.id).join() === "4");
+  is("ny17: no 2026-11-09 bucket (nothing ended that day)", !ny.has("2026-11-09"));
+  const rn = mt5CoverageRange(evs, "ny17");
+  is("ny17: coverage range is in trading-day keys (max follows the evening roll)", rn?.min === "2026-11-10" && rn?.max === "2026-11-11");
+  is("ny17: every merged day with events is covered by the range", [...mergeEconByDay(ny, new Map(), rn).values()].every((v) => v.source === "mt5"));
+
+  // A trade and an event in the same real trading session share a bucket, with the global dayStart in force.
+  const tradeAt = (exitTime: string, accountId = "a1"): Trade => ({ ...sampleTrade(exitTime), accountId });
+  try {
+    setAnalysisSettings({ dayStart: "ny17" });
+    const evNight = { time: "2026-11-09T23:00:00Z", id: "n" };     // Mon 18:00 NY -> Tue's trading day
+    const evMorning = { time: "2026-11-10T13:30:00Z", id: "m" };  // Tue 08:30 NY -> same trading day
+    const evNext = { time: "2026-11-10T22:30:00Z", id: "x" };     // Tue 17:30 NY -> Wed's trading day
+    const m = econEventsByDay([evNight, evMorning, evNext], "ny17");
+    const tNight = tradeAt("2026-11-09T22:30:00Z"), tMorning = tradeAt("2026-11-10T13:35:00Z"), tNext = tradeAt("2026-11-10T23:00:00Z");
+    is("ny17: night trade keys to 2026-11-10", dayKey(tNight) === "2026-11-10");
+    is("ny17: night trade's bucket holds the night and the morning event", (m.get(dayKey(tNight)) ?? []).map((e) => e.id).sort().join() === "m,n");
+    is("ny17: morning trade lands in the same bucket", dayKey(tMorning) === dayKey(tNight) && (m.get(dayKey(tMorning)) ?? []).length === 2);
+    is("ny17: the evening-after trade and event share the next bucket", dayKey(tNext) === "2026-11-11" && (m.get(dayKey(tNext)) ?? []).map((e) => e.id).join() === "x");
+    // The old UTC-slice keying would have put the night event in a different bucket than its trade:
+    is("ny17: old UTC keying would have mismatched (regression guard)", evNight.time.slice(0, 10) !== dayKey(tNight));
+
+    // A broker-clock trade: its own aheadHours takes the stamp back to real UTC; the event (real UTC) needs none.
+    setAnalysisSettings({ clock: { kind: "fixed", hours: 2 } });
+    const tBroker = tradeAt("2026-11-10T00:30"); // broker +2 -> 22:30Z on the 9th
+    is("ny17 + broker clock: trade keys to the same bucket as the real-UTC event", dayKey(tBroker) === "2026-11-10" && (m.get(dayKey(tBroker)) ?? []).length === 2);
+  } finally {
+    setAnalysisSettings({ dayStart: "midnight", clock: { kind: "none" } });
+  }
+}
+
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
