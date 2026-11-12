@@ -117,8 +117,9 @@
   --on-primary: var(--ink-on-primary);
   --accent: var(--ink-accent);
   --icon: var(--ink-icon);
-  --profit: var(--ink-profit);
-  --loss: var(--ink-loss);
+  /* --ink-wl-* are set only while a win/loss colour preset is on (lib/winLoss.ts); otherwise the ink pair applies. */
+  --profit: var(--ink-wl-profit, var(--ink-profit));
+  --loss: var(--ink-wl-loss, var(--ink-loss));
   --breakeven: var(--ink-breakeven);
   --primary-tint: var(--ink-primary-tint);
   --chart-grid: var(--ink-chart-grid);

@@ -22,6 +22,7 @@ import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { setActiveTheme, setSettings, useActiveTheme, useReduceMotion, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
 import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
+import { DEFAULT_WIN_LOSS, type WinLossPreset } from "../lib/winLoss";
 import { classifyOutcome } from "../lib/outcome";
 import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
 import { setPrivacy } from "../usePrivacy";
@@ -182,6 +183,24 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         )}
         {notice === "savedAsNew" && <p role="status" className="text-xs font-medium text-profit">{L("savedAsNew")}</p>}
         {notice === "baseChanged" && <p role="status" className="text-xs font-medium text-profit">{L("baseChanged")}</p>}
+      </Tile>
+      <Tile title={L("tileWinLoss")}>
+        <Row label={L("winLossLabel")} sub={L("winLossSub")}>
+          <Pills<WinLossPreset>
+            label={L("tileWinLoss")} value={s.winLossPreset ?? DEFAULT_WIN_LOSS} onChange={(v) => setSettings({ winLossPreset: v })}
+            options={[
+              { v: "classic", label: L("winLossClassic") },
+              { v: "colorBlind", label: L("winLossColorBlind") },
+              { v: "asian", label: L("winLossAsian") },
+            ]}
+          />
+        </Row>
+        <Note text={L(({ classic: "winLossClassicDesc", colorBlind: "winLossColorBlindDesc", asian: "winLossAsianDesc" } as const)[s.winLossPreset ?? DEFAULT_WIN_LOSS] ?? "winLossClassicDesc")} />
+        {/* Reads the live variables, so it shows exactly what the rest of the app is about to show. */}
+        <p className="flex items-center gap-3 text-sm font-semibold tnum" aria-label={L("winLossSample")}>
+          <span className="text-profit">+120.50</span>
+          <span className="text-loss">−80.00</span>
+        </p>
       </Tile>
       <Tile title={L("tileFont")}>
         <Row label={L("fontSize")} sub={L("fontSizeSub")}>

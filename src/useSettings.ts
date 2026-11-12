@@ -5,6 +5,7 @@ import { setBreakEvenRange } from "./lib/outcome";
 import { DEFAULT_LIGHTING, type Lighting } from "./lib/lighting";
 import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
 import { DEFAULT_LOOK, extractLook, migrateToSingle, MY_THEME_ID, type CustomTheme } from "./lib/customThemes";
+import { applyWinLoss, DEFAULT_WIN_LOSS, type WinLossPreset } from "./lib/winLoss";
 import { stT } from "./i18n";
 import type { Lang } from "./types";
 
@@ -73,6 +74,9 @@ export interface Settings {
   /** Off (the default). On: calendar dots, the day-by-day timeline and trade news-zone classification all use
    *  only key events (NFP, CPI, PPI, FOMC) instead of the impact chips; the currency filter still applies. */
   keyEventsOnly: boolean;
+
+  /** Which pair paints gains and losses. "classic" (the default) leaves the per-theme colours untouched. */
+  winLossPreset: WinLossPreset;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -101,6 +105,7 @@ export const DEFAULTS: Settings = {
   newsCountMedium: false,
   myNewsSymbolsOnly: true,
   keyEventsOnly: false,
+  winLossPreset: DEFAULT_WIN_LOSS,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };
@@ -179,6 +184,8 @@ function apply(s: Settings) {
     root.setAttribute("data-font", s.fontSize);
     if (s.reduceMotion) root.setAttribute("data-reduce-motion", "1");
     else root.removeAttribute("data-reduce-motion");
+    // Not Ambient's job: this is a plain setting, independent of theme and lighting, so it applies before mount too.
+    applyWinLoss(root.style, s.winLossPreset);
   } catch { /* no document: nothing to style */ }
 }
 
