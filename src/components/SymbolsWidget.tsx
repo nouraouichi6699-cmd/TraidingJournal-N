@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, RotateCcw } from "lucide-react";
 import { symbolBreakdown } from "../lib/dashAnalytics";
 import { symL } from "../i18n";
+import { setSettings, useSettings } from "../useSettings";
+import { symbolColor, withSymbolColor } from "../lib/symbolColors";
+import { normalizeHex } from "../lib/lighting";
 import type { Ctx } from "./dashWidgets";
 import { PieChart } from "./charts/pie-chart";
 import { PieSlice } from "./charts/pie-slice";
@@ -20,9 +23,17 @@ export const symColor = (rank: number) => {
   return r === 0 ? c : `color-mix(in srgb, ${c}, ${r === 1 ? "white" : "black"} 35%)`;
 };
 
+/** A hex for the native colour input to open on when a symbol has no manual colour (it only accepts #rrggbb, the automatic ones can be var()/color-mix()). */
+const autoHex = (rank: number) => {
+  const c = BASE[rank % BASE.length];
+  if (normalizeHex(c)) return c;
+  try { return normalizeHex(getComputedStyle(document.documentElement).getPropertyValue("--primary")) ?? "#d4af37"; } catch { return "#d4af37"; }
+};
+
 export default function SymbolsWidget({ c }: { c: Ctx }) {
   const L = (k: string) => symL(k)[c.lang];
   const full = useMemo(() => symbolBreakdown(c.closed), [c.closed]);
+  const manual = useSettings().symbolColors;
   const rank = useMemo(() => new Map(full.symbols.map((s, i) => [s.symbol, i])), [full]);
   const [off, setOff] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
@@ -35,7 +46,9 @@ export default function SymbolsWidget({ c }: { c: Ctx }) {
   const chosen = names.filter((n) => !off.has(n));
   const selected = chosen.length ? chosen : names; // never empty
   const b = useMemo(() => symbolBreakdown(c.closed, selected), [c.closed, selected.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const pieData = useMemo<PieData[]>(() => b.symbols.map((s) => ({ label: s.symbol, value: s.count, color: symColor(rank.get(s.symbol) ?? 0) })), [b, rank]);
+  // Manual colour when the user picked one, otherwise the positional automatic colour.
+  const colorOf = (n: string) => symbolColor(manual, n, symColor(rank.get(n) ?? 0));
+  const pieData = useMemo<PieData[]>(() => b.symbols.map((s) => ({ label: s.symbol, value: s.count, color: symbolColor(manual, s.symbol, symColor(rank.get(s.symbol) ?? 0)) })), [b, rank, manual]);
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +63,7 @@ export default function SymbolsWidget({ c }: { c: Ctx }) {
   const toggle = (n: string) => setOff((o) => { const nx = new Set(o); if (nx.has(n)) nx.delete(n); else if (names.filter((x) => !nx.has(x)).length > 1) nx.add(n); return nx; });
   const openMenu = () => { const r = btn.current!.getBoundingClientRect(); const rtl = document.dir === "rtl"; setPos({ top: r.bottom + 6, left: rtl ? Math.max(8, r.right - 208) : Math.min(r.left, window.innerWidth - 216) }); setOpen((v) => !v); };
 
-  const slices = b.symbols.map((s) => ({ ...s, color: symColor(rank.get(s.symbol) ?? 0) }));
+  const slices = b.symbols.map((s) => ({ ...s, color: colorOf(s.symbol) }));
   const h = hot != null ? slices[hot] : null;
   const shown = expand ? slices : slices.slice(0, 3);
 
@@ -67,11 +80,16 @@ export default function SymbolsWidget({ c }: { c: Ctx }) {
       </div>
       {open && createPortal(
         <div data-symmenu role="listbox" aria-multiselectable title={L("keep")} className="fixed z-50 max-h-64 w-52 overflow-auto rounded-xl border border-border bg-surface p-1 shadow-2xl" style={{ top: pos.top, left: pos.left }}>
-          {full.symbols.map((s) => { const on = !off.has(s.symbol) || !chosen.length; return (
-            <button key={s.symbol} role="option" aria-selected={on} type="button" onClick={() => toggle(s.symbol)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-xs text-text hover:bg-primary-tint">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: symColor(rank.get(s.symbol) ?? 0) }} />
-              <span className="flex-1 truncate">{s.symbol}</span><span className="tnum text-muted">{s.count}</span>{on && <Check size={12} className="text-primary" />}
-            </button>); })}
+          {full.symbols.map((s) => { const on = !off.has(s.symbol) || !chosen.length; const has = Object.prototype.hasOwnProperty.call(manual ?? {}, s.symbol) && !!normalizeHex(manual[s.symbol]); return (
+            <div key={s.symbol} className="flex items-center gap-1 rounded-lg px-1 hover:bg-primary-tint">
+              <label className="relative my-1 h-4 w-4 shrink-0 cursor-pointer rounded-full ring-1 ring-border focus-within:ring-2 focus-within:ring-primary" style={{ background: colorOf(s.symbol) }}>
+                <input type="color" value={has ? manual[s.symbol] : autoHex(rank.get(s.symbol) ?? 0)} onChange={(e) => setSettings({ symbolColors: withSymbolColor(manual, s.symbol, e.target.value) })} aria-label={`${L("colour")} ${s.symbol}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+              </label>
+              <button role="option" aria-selected={on} type="button" onClick={() => toggle(s.symbol)} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1.5 text-start text-xs text-text">
+                <span className="flex-1 truncate">{s.symbol}</span><span className="tnum text-muted">{s.count}</span>{on && <Check size={12} className="text-primary" />}
+              </button>
+              {has && <button type="button" title={L("autoColour")} aria-label={`${L("autoColour")}: ${s.symbol}`} onClick={() => setSettings({ symbolColors: withSymbolColor(manual, s.symbol, null) })} className="grid h-5 w-5 shrink-0 place-items-center rounded text-muted hover:text-text"><RotateCcw size={11} /></button>}
+            </div>); })}
         </div>, document.body)}
 
       <div className="relative min-h-0 flex-1" role="img" aria-label={`${L("title")}: ${b.total} · ${slices.map((x) => `${x.symbol} ${x.pct.toFixed(1)}%`).join(", ")}`}>

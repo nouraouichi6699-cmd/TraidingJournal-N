@@ -51,23 +51,23 @@ const Empty = ({ lang }: { lang: Lang }) => <div className="grid h-full place-it
 const Hidden = () => <div className="grid h-full place-items-center text-xl tracking-widest text-muted">••••</div>;
 const big = (extra?: string, withVisual = false) => ({ fontSize: withVisual ? "clamp(1rem,min(30cqh,11cqw),3.4rem)" : "clamp(1.1rem,min(30cqh,14cqw),3.4rem)", lineHeight: 1, whiteSpace: "nowrap" as const, ...(extra ? { color: extra } : {}) });
 
-export function Donut({ pct, label }: { pct: number; color?: string; label: string }) {
+export function Donut({ pct, color, label }: { pct: number; color?: string; label: string }) {
   const r = 40, c = 2 * Math.PI * r;
   return (
     <svg viewBox="0 0 100 100" className="h-full max-h-full w-full" style={{ maxWidth: "100%" }}>
       <circle cx="50" cy="50" r={r} fill="none" stroke="var(--gauge-track)" strokeWidth="11" />
-      <circle cx="50" cy="50" r={r} fill="none" stroke="var(--gauge-arc)" strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} transform="rotate(-90 50 50)" style={{ transition: "stroke-dasharray .6s ease", filter: "var(--gauge-glow)" }} />
+      <circle cx="50" cy="50" r={r} fill="none" stroke={color ?? "var(--gauge-arc)"} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} transform="rotate(-90 50 50)" style={{ transition: "stroke-dasharray .6s ease", filter: "var(--gauge-glow)" }} />
       <text x="50" y="55" textAnchor="middle" fontSize="19" fontWeight="700" fill="currentColor" className="tnum">{label}</text>
     </svg>
   );
 }
 
-export function HalfGauge({ v, max }: { v: number; max: number; color?: string }) {
+export function HalfGauge({ v, max, color }: { v: number; max: number; color?: string }) {
   const f = Math.max(0, Math.min(1, v / max)), r = 40, L = Math.PI * r;
   return (
     <svg viewBox="0 0 100 56" className="h-full w-full">
       <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="var(--gauge-track)" strokeWidth="11" strokeLinecap="round" />
-      <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="var(--gauge-arc)" strokeWidth="11" strokeLinecap="round" strokeDasharray={`${f * L} ${L}`} style={{ transition: "stroke-dasharray .6s ease", filter: "var(--gauge-glow)" }} />
+      <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke={color ?? "var(--gauge-arc)"} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${f * L} ${L}`} style={{ transition: "stroke-dasharray .6s ease", filter: "var(--gauge-glow)" }} />
     </svg>
   );
 }
@@ -97,14 +97,17 @@ function Radar({ c }: { c: Ctx }) {
   const pt = (i: number, f: number) => { const a = -Math.PI / 2 + (i / 6) * 2 * Math.PI; return [cx + Math.cos(a) * R * f, cy + Math.sin(a) * R * f] as const; };
   const ring = (f: number) => m.score!.map((_, i) => pt(i, f).join(",")).join(" ");
   const poly = m.score.map((s, i) => pt(i, s.v / 100).join(",")).join(" ");
+  // Tint by which half the overall score is in: the accent at 50, fading to profit towards 100 and to loss towards 0 (same endpoints as the bar under it).
+  const o = Math.max(0, Math.min(100, m.overall ?? 50));
+  const tint = Math.abs(o - 50) < 1 ? "var(--primary)" : `color-mix(in srgb, ${o > 50 ? GREEN : RED} ${Math.round(Math.abs(o - 50) * 2)}%, var(--primary))`;
   return (
     <div ref={ref} className="relative h-full w-full">
       {w > 0 && (
         <svg width={w} height={h} className="absolute inset-0">
           {[0.25, 0.5, 0.75, 1].map((f) => <polygon key={f} points={ring(f)} fill="none" stroke="color-mix(in srgb,var(--text) 12%,transparent)" />)}
           {m.score.map((_, i) => { const [x, y] = pt(i, 1); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="color-mix(in srgb,var(--text) 10%,transparent)" />; })}
-          <polygon points={poly} fill="color-mix(in srgb,var(--primary) 30%,transparent)" stroke="var(--primary)" strokeWidth="2" strokeLinejoin="round" />
-          {m.score.map((s, i) => { const [x, y] = pt(i, s.v / 100); return <circle key={i} cx={x} cy={y} r="3" fill="var(--primary)" />; })}
+          <polygon points={poly} fill={`color-mix(in srgb,${tint} 30%,transparent)`} stroke={tint} strokeWidth="2" strokeLinejoin="round" />
+          {m.score.map((s, i) => { const [x, y] = pt(i, s.v / 100); return <circle key={i} cx={x} cy={y} r="3" fill={tint} />; })}
           {m.score.map((s, i) => { const [x, y] = pt(i, 1.2); return <text key={s.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="var(--muted)">{names[s.key][c.lang]}</text>; })}
         </svg>
       )}

@@ -79,6 +79,8 @@ export interface Settings {
   winLossPreset: WinLossPreset;
   /** The pair used when winLossPreset is "custom", as the customer picked it. Synced with the rest of mizan-settings. */
   winLossCustom: CustomWinLoss;
+  /** Manual colour per symbol on the Symbols widget (symbol -> "#rrggbb"). Absent symbols keep the automatic colour. Synced with mizan-settings. */
+  symbolColors: Record<string, string>;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -109,6 +111,7 @@ export const DEFAULTS: Settings = {
   keyEventsOnly: false,
   winLossPreset: DEFAULT_WIN_LOSS,
   winLossCustom: DEFAULT_CUSTOM_WIN_LOSS,
+  symbolColors: {},
 };
 
 export type { BrokerClock, DayStart, SessionBounds };
@@ -141,6 +144,7 @@ const read = (): Settings => {
       ...DEFAULTS, ...saved,
       lighting: lit,
       customThemes: Array.isArray(saved.customThemes) ? saved.customThemes : [],
+      symbolColors: saved.symbolColors && typeof saved.symbolColors === "object" && !Array.isArray(saved.symbolColors) ? saved.symbolColors : {},
     };
   } catch {
     return DEFAULTS;

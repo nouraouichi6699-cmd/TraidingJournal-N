@@ -676,6 +676,7 @@ const sym: Record<string, [string, string, string]> = {
   title: ["Symbols traded", "الرموز المتداولة", "Symboles tradés"],
   info: ["Closed trades per symbol, with each symbol's share of the total.", "الصفقات المغلقة لكل رمز مع نصيب كل رمز من الإجمالي.", "Trades clôturés par symbole, avec la part de chacun."],
   trades: ["Trades", "صفقة", "Trades"], all: ["All", "الكل", "Tous"], more: ["more", "أخرى", "de plus"], less: ["Show less", "عرض أقل", "Réduire"],
+  colour: ["Colour for", "لون", "Couleur de"], autoColour: ["Reset to automatic colour", "إعادة اللون التلقائي", "Revenir à la couleur automatique"],
   pick: ["Choose symbols", "اختر الرموز", "Choisir les symboles"], keep: ["At least one symbol must stay selected", "يجب إبقاء رمز واحد على الأقل", "Gardez au moins un symbole"],
 };
 export const symL = (k: string): Record<Lang, string> => ({ en: sym[k][0], ar: sym[k][1], fr: sym[k][2] });
