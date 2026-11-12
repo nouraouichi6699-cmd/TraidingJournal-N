@@ -52,74 +52,83 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
   wb.created = new Date();
 
   const HEADER_FILL = argb("#1F2937");
-  const used = new Set<string>(["summary", "trades"]);
+  const used = new Set<string>(["trades"]);
+  type Sheet = ReturnType<typeof wb.addWorksheet>;
+  const solid = (color: string) => ({ type: "pattern", pattern: "solid", fgColor: { argb: color } }) as const;
+  const headCell = (ws: Sheet, row: number, col: number, v: string) => {
+    const c = ws.getCell(row, col);
+    c.value = v;
+    c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    c.fill = solid(HEADER_FILL);
+  };
 
-  const bold = { bold: true } as const;
-  const summary = wb.addWorksheet("Summary");
-  const s = computeStats(trades);
-  summary.addRow(["Metric", "Value"]);
-  summary.addRow(["Total trades", s.count]);
-  summary.addRow(["Win rate", s.winRate == null ? "" : s.winRate / 100]);
-  summary.addRow(["Net P&L", s.net]);
-  summary.addRow(["Profit factor", s.profitFactor == null ? "" : s.profitFactor]);
-  summary.getCell("B3").numFmt = "0.0%";
-  summary.getCell("B4").numFmt = "#,##0.00";
-  summary.getCell("B5").numFmt = "0.00";
-  summary.addRow([]);
-  const head = summary.addRow(["Account", "Trades", "Win rate", "Net P&L"]);
-  const byAccount = [...new Set(trades.map((t) => t.accountId))];
-  for (const id of byAccount) {
-    const a = computeStats(trades.filter((t) => t.accountId === id));
-    const r = summary.addRow([name.get(id) ?? id, a.count, a.winRate == null ? "" : a.winRate / 100, a.net]);
-    r.getCell(3).numFmt = "0.0%";
-    r.getCell(4).numFmt = "#,##0.00";
-    r.getCell(4).font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
-  }
-  for (const row of [summary.getRow(1), head]) {
-    row.font = { ...bold, color: { argb: "FFFFFFFF" } };
-    row.eachCell((c) => { c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } }; });
-  }
-  summary.getColumn(1).width = 24;
-  [2, 3, 4].forEach((i) => { summary.getColumn(i).width = 14; });
-  summary.getColumn(2).alignment = { horizontal: "right" };
-
-  const fill = (ws: ReturnType<typeof wb.addWorksheet>, list: Trade[]) => {
-    ws.addRow([...COLUMNS]);
-    for (const t of list) {
-      ws.addRow([
+  // Writes a trades table whose header sits on row 1 and whose first column is `c0`, with the frozen header,
+  // autofilter, number formats, pnl colouring and auto widths all scoped to that column range.
+  const fill = (ws: Sheet, list: Trade[], c0 = 1) => {
+    COLUMNS.forEach((c, i) => headCell(ws, 1, c0 + i, c));
+    list.forEach((t, r) => {
+      const vals = [
         name.get(t.accountId) ?? t.accountId, t.no, t.symbol, t.side, t.qty, t.entryTime, t.entryPrice,
-        t.exitTime, t.exitPrice, t.pnl, t.returnPct == null ? null : t.returnPct / 100,
+        t.exitTime, t.exitPrice, t.pnl,
+        // returnPct is stored in percent units (1.25 = 1.25%), so it is divided by 100 for Excel's % format.
+        t.returnPct == null ? null : t.returnPct / 100,
         t.commission, t.sl ?? null, t.tp ?? null, t.status,
-      ]);
-    }
-    const h = ws.getRow(1);
-    h.font = { ...bold, color: { argb: "FFFFFFFF" } };
-    h.eachCell((c) => { c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } }; });
-    ws.views = [{ state: "frozen", ySplit: 1 }];
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUMNS.length } };
-    // returnPct is stored in percent units (1.25 = 1.25%), so it is divided by 100 above for Excel's % format.
-    for (const col of ["entry_price", "exit_price", "pnl", "commission", "sl", "tp"]) ws.getColumn(COLUMNS.indexOf(col as typeof COLUMNS[number]) + 1).numFmt = "#,##0.00";
-    ws.getColumn(COLUMNS.indexOf("return_pct") + 1).numFmt = "0.00%";
-    ws.eachRow((row, n) => {
-      if (n === 1) return;
-      const v = row.getCell(PNL_COL).value;
-      if (typeof v === "number" && v !== 0) {
-        row.getCell(PNL_COL).fill = { type: "pattern", pattern: "solid", fgColor: { argb: tint(v > 0 ? profit : loss) } };
-        row.getCell(PNL_COL).font = { color: { argb: argb(v > 0 ? profit : loss) }, bold: true };
-      }
+      ];
+      vals.forEach((v, i) => { ws.getCell(r + 2, c0 + i).value = v; });
     });
+    ws.views = [{ state: "frozen", ySplit: 1 }];
+    ws.autoFilter = { from: { row: 1, column: c0 }, to: { row: 1, column: c0 + COLUMNS.length - 1 } };
+    const col = (n: (typeof COLUMNS)[number]) => c0 + COLUMNS.indexOf(n);
+    for (let r = 2; r <= list.length + 1; r++) {
+      for (const n of ["entry_price", "exit_price", "pnl", "commission", "sl", "tp"] as const) ws.getCell(r, col(n)).numFmt = "#,##0.00";
+      ws.getCell(r, col("return_pct")).numFmt = "0.00%";
+      const p = ws.getCell(r, c0 + PNL_COL - 1);
+      const v = p.value;
+      if (typeof v === "number" && v !== 0) {
+        p.fill = solid(tint(v > 0 ? profit : loss));
+        p.font = { color: { argb: argb(v > 0 ? profit : loss) }, bold: true };
+      }
+    }
     COLUMNS.forEach((c, i) => {
       let w = c.length;
-      ws.getColumn(i + 1).eachCell({ includeEmpty: false }, (cell) => {
+      ws.getColumn(c0 + i).eachCell({ includeEmpty: false }, (cell) => {
         const val = cell.value;
         const len = typeof val === "number" ? val.toFixed(2).length : String(val ?? "").length;
         if (len > w) w = len;
       });
-      ws.getColumn(i + 1).width = Math.min(40, w + 3);
+      ws.getColumn(c0 + i).width = Math.min(40, w + 3);
     });
   };
 
-  fill(wb.addWorksheet("Trades"), trades);
+  // One sheet: the summary block in columns A-D, two blank gap columns (E, F), then the trades table from G.
+  const main = wb.addWorksheet("Trades");
+  const s = computeStats(trades);
+  const byAccount = [...new Set(trades.map((t) => t.accountId))];
+  const put = (row: number, col: number, v: string | number | null, numFmt?: string) => {
+    const c = main.getCell(row, col);
+    c.value = v;
+    if (numFmt) c.numFmt = numFmt;
+    return c;
+  };
+  ["Metric", "Value"].forEach((h, i) => headCell(main, 1, 1 + i, h));
+  put(2, 1, "Total trades"); put(2, 2, s.count);
+  put(3, 1, "Win rate"); put(3, 2, s.winRate == null ? null : s.winRate / 100, "0.0%");
+  put(4, 1, "Net P&L"); put(4, 2, s.net, "#,##0.00");
+  put(5, 1, "Profit factor"); put(5, 2, s.profitFactor, "0.00");
+  ["Account", "Trades", "Win rate", "Net P&L"].forEach((h, i) => headCell(main, 7, 1 + i, h));
+  byAccount.forEach((id, i) => {
+    const a = computeStats(trades.filter((t) => t.accountId === id));
+    put(8 + i, 1, name.get(id) ?? id);
+    put(8 + i, 2, a.count);
+    put(8 + i, 3, a.winRate == null ? null : a.winRate / 100, "0.0%");
+    put(8 + i, 4, a.net, "#,##0.00").font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
+  });
+  main.getColumn(1).width = 24;
+  [2, 3, 4].forEach((i) => { main.getColumn(i).width = 14; });
+  main.getColumn(5).width = 4;
+  main.getColumn(6).width = 4;
+  fill(main, trades, 7);
+
   if (accounts.length > 1) {
     for (const id of byAccount) {
       fill(wb.addWorksheet(sheetName(name.get(id) ?? id, used)), trades.filter((t) => t.accountId === id));
