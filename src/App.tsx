@@ -9,7 +9,6 @@ import { useInterests } from "./useInterests";
 import { edgeAlerts, weeklyReport } from "./lib/tradeLab";
 import { commonCurrency, fmtMoney, ltrNumbers } from "./lib/money";
 import Header from "./components/Header";
-import SizeCalc from "./components/SizeCalc";
 import Sidebar, { type View } from "./components/Sidebar";
 import ConnectAccountModal from "./components/ConnectAccountModal";
 import DashboardView from "./components/DashboardView";
@@ -44,6 +43,7 @@ const loadNews = () => import("./components/NewsView");
 const loadProfile = () => import("./components/ProfileView");
 const loadSettingsView = () => import("./components/SettingsView");
 const loadCalculators = () => import("./components/CalculatorsView");
+const loadSizeCalc = () => import("./components/SizeCalc"); // the header dropdown's panel: fetched on first open
 
 const AccountsList = lazy(loadAccounts);
 const ImportView = lazy(loadImport);
@@ -58,6 +58,7 @@ const NewsView = lazy(loadNews);
 const ProfileView = lazy(loadProfile);
 const SettingsView = lazy(loadSettingsView);
 const CalculatorsView = lazy(loadCalculators);
+const SizeCalc = lazy(loadSizeCalc);
 
 // The views switched to most often once signed in: prefetched in idle time so the first tab switch feels instant.
 const PREFETCH_AFTER_SIGNIN = [loadJournal, loadCharts, loadReports];
@@ -235,7 +236,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
       {/* The light sits over the page colour and under everything else; the wrapper below keeps content on top. */}
       <AmbientErrorBoundary theme={theme} />
       <div className="relative z-10">
-      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={handleTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} />} />
+      <Header lang={lang} t={t} theme={theme} name={profile.name} avatar={profile.avatar} onLang={setLang} onTheme={handleTheme} onProfile={() => setView("profile")} onSettings={() => { setSettingsAt(null); setView("settings"); }} onNews={() => setView("news")} onCalendar={() => setView("calendar")} onDashboard={() => setView("dashboard")} onCharts={() => setView("charts")} interests={interests} calc={<ChunkErrorBoundary t={t}><Suspense fallback={<div className="min-h-[220px]" aria-busy="true" />}><SizeCalc lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} /></Suspense></ChunkErrorBoundary>} />
       <div className="flex">
         <Sidebar t={t} lang={lang} view={view} onView={(v) => { if (v === "calculators") setCalcNav({ key: null }); setView(v); }} />
         <main className="min-w-0 flex-1 p-4">
