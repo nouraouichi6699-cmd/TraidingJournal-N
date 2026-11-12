@@ -16,6 +16,7 @@
     "@visx/shape": "^4.0.0",
     "clsx": "^2.1.1",
     "d3-shape": "^3.2.0",
+    "exceljs": "^4.4.0",
     "flag-icons": "^7.5.0",
     "lucide-react": "^0.439.0",
     "motion": "^14.3.0",

@@ -26,7 +26,7 @@ import { customPair, DEFAULT_CUSTOM_WIN_LOSS, DEFAULT_WIN_LOSS, type WinLossPres
 import { classifyOutcome } from "../lib/outcome";
 import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
 import { setPrivacy } from "../usePrivacy";
-import { downloadCsv, tradesToCsv } from "../lib/exportTrades";
+import { downloadBlob, tradesToXlsx } from "../lib/exportTrades";
 import { supabase } from "../lib/supabase";
 import type { Account, Lang, Theme, Trade } from "../types";
 
@@ -111,12 +111,16 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     }
   };
 
-  const exportNow = () => {
+  const exportNow = async () => {
     const list = trades.filter((x) => exportAcc === "all" || x.accountId === exportAcc);
     if (!list.length) return setNote(L("noTrades"));
     const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${stamp}.csv`, tradesToCsv(list, accounts));
+    try {
+      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${stamp}.xlsx`, await tradesToXlsx(list, accounts));
+    } catch {
+      return setNote(L("exportFailed"));
+    }
     setNote(L("exported").replace("{n}", String(list.length)));
   };
 

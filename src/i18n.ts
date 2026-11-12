@@ -1009,7 +1009,8 @@ const st: Record<string, [string, string, string]> = {
 
   data: ["Data and security", "البيانات والأمان", "Données et sécurité"],
   dataSub: ["Take your trades with you, and manage where you are signed in.", "خُذ صفقاتك معك، وتحكّم بأماكن تسجيل دخولك.", "Emportez vos trades, et gérez vos connexions."],
-  exportCsv: ["Export trades as CSV", "تصدير الصفقات CSV", "Exporter les trades en CSV"],
+  exportCsv: ["Export trades as Excel (.xlsx)", "تصدير الصفقات إلى Excel (.xlsx)", "Exporter les trades en Excel (.xlsx)"],
+  exportFailed: ["Export failed. Please try again.", "فشل التصدير. حاول مرة أخرى.", "Échec de l'export. Réessayez."],
   exportCsvSub: ["Built here in your browser; nothing is uploaded.", "يُنشأ في متصفحك؛ لا يُرسل شيء.", "Généré dans votre navigateur ; rien n'est envoyé."],
   exportWhich: ["Which account", "أي حساب", "Quel compte"],
   download: ["Download", "تنزيل", "Télécharger"],
