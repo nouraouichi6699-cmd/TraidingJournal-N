@@ -2,7 +2,6 @@ import { Component, lazy, Suspense, useEffect, useMemo, useState, type ReactNode
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
-import AuthView from "./components/AuthView";
 import { initialSync, startRowSync, haltSync, resumeSync } from "./lib/rowSync";
 import { initialSettingsSync, startSettingsSync, settingsIdle } from "./lib/settingsSync";
 import { useInterests } from "./useInterests";
@@ -10,8 +9,6 @@ import { edgeAlerts, weeklyReport } from "./lib/tradeLab";
 import { commonCurrency, fmtMoney, ltrNumbers } from "./lib/money";
 import Header from "./components/Header";
 import Sidebar, { type View } from "./components/Sidebar";
-import ConnectAccountModal from "./components/ConnectAccountModal";
-import DashboardView from "./components/DashboardView";
 import { Watermark } from "./components/Brand";
 import LoadingScreen from "./components/LoadingScreen";
 import Ambient from "./components/Ambient";
@@ -59,6 +56,15 @@ const ProfileView = lazy(loadProfile);
 const SettingsView = lazy(loadSettingsView);
 const CalculatorsView = lazy(loadCalculators);
 const SizeCalc = lazy(loadSizeCalc);
+const loadAuth = () => import("./components/AuthView"); // signed-out only
+const loadConnect = () => import("./components/ConnectAccountModal"); // only when the modal opens
+const loadDashboard = () => import("./components/DashboardView");
+const DashboardView = lazy(loadDashboard);
+// The dashboard is the first view after sign-in: start fetching its chunk at boot, in parallel with the session
+// check behind the loading screen, so it is normally ready by the time the screen lifts (no extra skeleton flash).
+void loadDashboard().catch(() => { /* LazyView's boundary reports a failed load when it renders */ });
+const AuthView = lazy(loadAuth);
+const ConnectAccountModal = lazy(loadConnect);
 
 // The views switched to most often once signed in: prefetched in idle time so the first tab switch feels instant.
 const PREFETCH_AFTER_SIGNIN = [loadJournal, loadCharts, loadReports];
@@ -305,7 +311,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
               {view === "news" && <LazyView t={t} lang={lang}><NewsView t={t} lang={lang} interests={interests} /></LazyView>}
               {view === "calculators" && <LazyView t={t} lang={lang}><CalculatorsView t={t} lang={lang} theme={theme} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} nav={calcNav} onNavDone={() => setCalcNav(null)} /></LazyView>}
               {view === "charts" && <LazyView t={t} lang={lang}><ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} /></LazyView>}
-              {view === "dashboard" && <DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} userId={userId} onOpenDay={(day, hotspot) => { setReportsNav({ tab: "daybyday", day, sub: hotspot ? "hotspot" : undefined }); setView("reports"); }} />}
+              {view === "dashboard" && <LazyView t={t} lang={lang}><DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} userId={userId} onOpenDay={(day, hotspot) => { setReportsNav({ tab: "daybyday", day, sub: hotspot ? "hotspot" : undefined }); setView("reports"); }} /></LazyView>}
               {view === "reports" && <LazyView t={t} lang={lang}><ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} /></LazyView>}
               {view === "advisor" && <LazyView t={t} lang={lang}><AdvisorView lang={lang} accounts={accounts} trades={journal.trades} onWhatIf={(acc) => { setReportsNav({ tab: "whatif", acc }); setView("reports"); }} onOpenPath={() => { setReportsNav({ tab: "path" }); setView("reports"); }} /></LazyView>}
               {view === "strategies" && <LazyView t={t} lang={lang}><StrategiesView lang={lang} t={t} trades={journal.trades} accounts={accounts} onOpenJournal={() => setView("journal")} /></LazyView>}
@@ -322,7 +328,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
       </div>
       </div>
       <Watermark feedback={t("feedback")} />
-      {connecting && <ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} />}
+      {connecting && <ChunkErrorBoundary t={t}><Suspense fallback={null}><ConnectAccountModal t={t} onClose={() => setConnecting(false)} onCreate={add} /></Suspense></ChunkErrorBoundary>}
     </div>
   );
 }
@@ -389,7 +395,7 @@ export default function App() {
   return (
     <>
       {showAuth
-        ? <AuthView t={t} lang={lang} onLang={setLang} onAttempt={() => setHoldAuth(true)} onDone={() => setHoldAuth(false)} />
+        ? <ChunkErrorBoundary t={t}><Suspense fallback={<LoadingScreen t={t} lang={lang} />}><AuthView t={t} lang={lang} onLang={setLang} onAttempt={() => setHoldAuth(true)} onDone={() => setHoldAuth(false)} /></Suspense></ChunkErrorBoundary>
         : !loading && session
           ? <Main lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} email={session.user.email ?? ""} userId={session.user.id} />
           : null}
