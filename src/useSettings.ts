@@ -5,7 +5,7 @@ import { setBreakEvenRange } from "./lib/outcome";
 import { DEFAULT_LIGHTING, type Lighting } from "./lib/lighting";
 import { DEFAULT_BOUNDS, setAnalysisSettings, type BrokerClock, type DayStart, type SessionBounds } from "./lib/tradingTime";
 import { DEFAULT_LOOK, extractLook, migrateToSingle, MY_THEME_ID, type CustomTheme } from "./lib/customThemes";
-import { applyWinLoss, DEFAULT_WIN_LOSS, type WinLossPreset } from "./lib/winLoss";
+import { applyWinLoss, DEFAULT_CUSTOM_WIN_LOSS, DEFAULT_WIN_LOSS, type CustomWinLoss, type WinLossPreset } from "./lib/winLoss";
 import { stT } from "./i18n";
 import type { Lang } from "./types";
 
@@ -77,6 +77,8 @@ export interface Settings {
 
   /** Which pair paints gains and losses. "classic" (the default) leaves the per-theme colours untouched. */
   winLossPreset: WinLossPreset;
+  /** The pair used when winLossPreset is "custom", as the customer picked it. Synced with the rest of mizan-settings. */
+  winLossCustom: CustomWinLoss;
 }
 
 // Every default is what the app did before this page existed, so switching nothing changes nothing.
@@ -106,6 +108,7 @@ export const DEFAULTS: Settings = {
   myNewsSymbolsOnly: true,
   keyEventsOnly: false,
   winLossPreset: DEFAULT_WIN_LOSS,
+  winLossCustom: DEFAULT_CUSTOM_WIN_LOSS,
 };
 
 export type { BrokerClock, DayStart, SessionBounds };
@@ -185,7 +188,7 @@ function apply(s: Settings) {
     if (s.reduceMotion) root.setAttribute("data-reduce-motion", "1");
     else root.removeAttribute("data-reduce-motion");
     // Not Ambient's job: this is a plain setting, independent of theme and lighting, so it applies before mount too.
-    applyWinLoss(root.style, s.winLossPreset);
+    applyWinLoss(root.style, s.winLossPreset, s.winLossCustom);
   } catch { /* no document: nothing to style */ }
 }
 

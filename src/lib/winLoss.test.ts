@@ -1,4 +1,4 @@
-import { applyWinLoss, DEFAULT_WIN_LOSS, WIN_LOSS_COLOURS, WIN_LOSS_PRESETS, winLossVars, type WinLossPreset } from "./winLoss";
+import { applyWinLoss, customPair, DEFAULT_CUSTOM_WIN_LOSS, DEFAULT_WIN_LOSS, INK_MIN, PAGE_MIN, PAGE_SURFACES, readableInk, readablePage, WIN_LOSS_COLOURS, WIN_LOSS_PRESETS, winLossVars, type WinLossPreset } from "./winLoss";
 import { DEFAULTS } from "../useSettings";
 
 let pass = 0, fail = 0;
@@ -20,7 +20,8 @@ const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((
 
 eq("default preset is classic", DEFAULT_WIN_LOSS, "classic");
 eq("the settings default is classic", DEFAULTS.winLossPreset, "classic");
-eq("three presets", WIN_LOSS_PRESETS, ["classic", "colorBlind", "asian"]);
+eq("four presets", WIN_LOSS_PRESETS, ["classic", "colorBlind", "asian", "custom"]);
+eq("the settings default custom pair", DEFAULTS.winLossCustom, DEFAULT_CUSTOM_WIN_LOSS);
 eq("classic sets nothing", winLossVars("classic"), {});
 
 {

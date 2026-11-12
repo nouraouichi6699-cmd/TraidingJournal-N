@@ -22,7 +22,7 @@ import { sessionAt } from "../lib/tradingTime";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { setActiveTheme, setSettings, useActiveTheme, useReduceMotion, useSettings, type BrokerClock, type DayStart, type FontSize, type NumberFormat, type SettingsStart, type WeekStart } from "../useSettings";
 import { clampBounds, DEFAULT_BOUNDS } from "../lib/tradingTime";
-import { DEFAULT_WIN_LOSS, type WinLossPreset } from "../lib/winLoss";
+import { customPair, DEFAULT_CUSTOM_WIN_LOSS, DEFAULT_WIN_LOSS, type WinLossPreset } from "../lib/winLoss";
 import { classifyOutcome } from "../lib/outcome";
 import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
 import { setPrivacy } from "../usePrivacy";
@@ -153,6 +153,12 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     setDeleting(false);
   };
 
+  // The win/loss tile sits above `light`, so it reads the remembered colours straight from settings.
+  const wlPreset: WinLossPreset = s.winLossPreset ?? DEFAULT_WIN_LOSS;
+  const wlCustom = { ...DEFAULT_CUSTOM_WIN_LOSS, ...(s.winLossCustom ?? {}) };
+  const wlPair = customPair(wlCustom);
+  const wlRecent = s.lighting?.recentColors ?? [];
+
   const look: ReactNode = (
     <>
       <Tile title={L("tileTheme")} wide>
@@ -187,15 +193,35 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
       <Tile title={L("tileWinLoss")}>
         <Row label={L("winLossLabel")} sub={L("winLossSub")}>
           <Pills<WinLossPreset>
-            label={L("tileWinLoss")} value={s.winLossPreset ?? DEFAULT_WIN_LOSS} onChange={(v) => setSettings({ winLossPreset: v })}
+            label={L("tileWinLoss")} value={wlPreset} onChange={(v) => setSettings({ winLossPreset: v })}
             options={[
               { v: "classic", label: L("winLossClassic") },
               { v: "colorBlind", label: L("winLossColorBlind") },
               { v: "asian", label: L("winLossAsian") },
+              { v: "custom", label: L("winLossCustom") },
             ]}
           />
         </Row>
-        <Note text={L(({ classic: "winLossClassicDesc", colorBlind: "winLossColorBlindDesc", asian: "winLossAsianDesc" } as const)[s.winLossPreset ?? DEFAULT_WIN_LOSS] ?? "winLossClassicDesc")} />
+        <Note text={L(({ classic: "winLossClassicDesc", colorBlind: "winLossColorBlindDesc", asian: "winLossAsianDesc", custom: "winLossCustomDesc" } as const)[wlPreset] ?? "winLossClassicDesc")} />
+        {wlPreset === "custom" && (
+          <>
+            {([["profit", "winLossGain"], ["loss", "winLossLoss"]] as const).map(([k, label]) => (
+              <Row key={k} label={L(label)}>
+                <ColorPalette
+                  label={L(label)} text={L} specials={[]} choice={paletteChoice("solid", [], wlCustom[k], SWATCH)}
+                  hex={wlCustom[k]} recent={wlRecent}
+                  onSpecial={() => {}}
+                  onPick={(h, own) => setSettings({
+                    winLossCustom: { ...wlCustom, [k]: h },
+                    ...(own ? { lighting: { ...s.lighting, recentColors: pushRecent(wlRecent, h) } } : {}),
+                  })}
+                />
+                {wlPair.adjusted[k] && <Note text={L("winLossAdjusted").replace("{c}", wlPair.page[k])} />}
+              </Row>
+            ))}
+            {wlPair.tooClose && <Note text={L("winLossClose")} />}
+          </>
+        )}
         {/* Reads the live variables, so it shows exactly what the rest of the app is about to show. */}
         <p className="flex items-center gap-3 text-sm font-semibold tnum" aria-label={L("winLossSample")}>
           <span className="text-profit">+120.50</span>
@@ -890,7 +916,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
 
         {/* The phone fills the column phase A left for it, and only where there is a message to show. */}
         <div className="flex min-h-0 flex-1 gap-5">
-          <div className="flex min-w-0 flex-1 flex-col gap-4 lg:min-h-0 lg:overflow-y-auto lg:pe-1 xl:max-w-[940px]">
+          <div className={`flex min-w-0 flex-1 flex-col gap-4 lg:min-h-0 lg:overflow-y-auto lg:pe-1 ${secId === "telegram" ? "xl:max-w-[940px]" : "xl:max-w-[1280px]"}`}>
             <header className="flex shrink-0 flex-wrap items-center gap-3">
               <span className="min-w-0 flex-1">
                 <h1 className="font-heading text-xl font-bold">{section.label}</h1>

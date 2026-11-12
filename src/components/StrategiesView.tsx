@@ -360,7 +360,7 @@ export default function StrategiesView({ lang, t: tr, trades: tradesIn, accounts
                     const c = cond.heat[d][h], a = c.n ? 0.18 + (0.82 * Math.abs(c.net)) / maxAbs : 0, on = cell?.[0] === d && cell?.[1] === h;
                     return <button key={h} type="button" disabled={!c.n} aria-label={`${dayName(d, "long")} ${h}:00`} onClick={() => setCell([d, h])} onMouseEnter={() => setCell([d, h])}
                       className={`h-5 rounded-[4px] border ${on ? "border-[var(--icon)]" : c.n ? "border-transparent" : "border-border"}`}
-                      style={{ background: c.n ? (c.net >= 0 ? `rgba(34,197,94,${a})` : `rgba(248,113,113,${a})`) : "transparent" }} />;
+                      style={{ background: c.n ? `color-mix(in srgb, var(${c.net >= 0 ? "--profit" : "--loss"}) ${(a * 100).toFixed(1)}%, transparent)` : "transparent" }} />;
                   })}
                 </Fragment>
               ))}
