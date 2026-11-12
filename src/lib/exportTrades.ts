@@ -61,11 +61,14 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     c.font = { bold: true, color: { argb: "FFFFFFFF" } };
     c.fill = solid(HEADER_FILL);
   };
+  const ZEBRA = "FFF3F4F6";
+  const NEUTRAL = "FFE5E7EB";
+  const INK = "FF111827";
 
-  // Writes a trades table whose header sits on row 1 and whose first column is `c0`, with the frozen header,
-  // autofilter, number formats, pnl colouring and auto widths all scoped to that column range.
-  const fill = (ws: Sheet, list: Trade[], c0 = 1) => {
-    COLUMNS.forEach((c, i) => headCell(ws, 1, c0 + i, c));
+  // Writes a trades table whose header sits on `h` and whose first column is `c0`, with the frozen header,
+  // autofilter, number formats, zebra stripes, pnl colouring and auto widths all scoped to that range.
+  const fill = (ws: Sheet, list: Trade[], c0 = 1, h = 1) => {
+    COLUMNS.forEach((c, i) => headCell(ws, h, c0 + i, c));
     list.forEach((t, r) => {
       const vals = [
         name.get(t.accountId) ?? t.accountId, t.no, t.symbol, t.side, t.qty, t.entryTime, t.entryPrice,
@@ -74,12 +77,14 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
         t.returnPct == null ? null : t.returnPct / 100,
         t.commission, t.sl ?? null, t.tp ?? null, t.status,
       ];
-      vals.forEach((v, i) => { ws.getCell(r + 2, c0 + i).value = v; });
+      vals.forEach((v, i) => { ws.getCell(h + 1 + r, c0 + i).value = v; });
     });
-    ws.views = [{ state: "frozen", ySplit: 1 }];
-    ws.autoFilter = { from: { row: 1, column: c0 }, to: { row: 1, column: c0 + COLUMNS.length - 1 } };
+    ws.views = [{ state: "frozen", ySplit: h }];
+    ws.autoFilter = { from: { row: h, column: c0 }, to: { row: h, column: c0 + COLUMNS.length - 1 } };
     const col = (n: (typeof COLUMNS)[number]) => c0 + COLUMNS.indexOf(n);
-    for (let r = 2; r <= list.length + 1; r++) {
+    for (let r = h + 1; r <= h + list.length; r++) {
+      // Zebra first, so the pnl tint below overrides it on that one column.
+      if ((r - h) % 2 === 0) for (let i = 0; i < COLUMNS.length; i++) ws.getCell(r, c0 + i).fill = solid(ZEBRA);
       for (const n of ["entry_price", "exit_price", "pnl", "commission", "sl", "tp"] as const) ws.getCell(r, col(n)).numFmt = "#,##0.00";
       ws.getCell(r, col("return_pct")).numFmt = "0.00%";
       const p = ws.getCell(r, c0 + PNL_COL - 1);
@@ -91,16 +96,18 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     }
     COLUMNS.forEach((c, i) => {
       let w = c.length;
-      ws.getColumn(c0 + i).eachCell({ includeEmpty: false }, (cell) => {
-        const val = cell.value;
+      for (let r = h + 1; r <= h + list.length; r++) {
+        const val = ws.getCell(r, c0 + i).value;
         const len = typeof val === "number" ? val.toFixed(2).length : String(val ?? "").length;
         if (len > w) w = len;
-      });
+      }
       ws.getColumn(c0 + i).width = Math.min(40, w + 3);
     });
   };
 
-  // One sheet: the summary block in columns A-D, two blank gap columns (E, F), then the trades table from G.
+  // One sheet: a brand strip (rows 1-2, row 3 blank), then the summary in columns A-D, two gap columns (E, F)
+  // and the trades table from G, the two blocks sharing the header row.
+  const C0 = 7, HDR = 4, LAST = C0 + COLUMNS.length - 1;
   const main = wb.addWorksheet("Trades");
   const s = computeStats(trades);
   const byAccount = [...new Set(trades.map((t) => t.accountId))];
@@ -110,24 +117,64 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     if (numFmt) c.numFmt = numFmt;
     return c;
   };
-  ["Metric", "Value"].forEach((h, i) => headCell(main, 1, 1 + i, h));
-  put(2, 1, "Total trades"); put(2, 2, s.count);
-  put(3, 1, "Win rate"); put(3, 2, s.winRate == null ? null : s.winRate / 100, "0.0%");
-  put(4, 1, "Net P&L"); put(4, 2, s.net, "#,##0.00");
-  put(5, 1, "Profit factor"); put(5, 2, s.profitFactor, "0.00");
-  ["Account", "Trades", "Win rate", "Net P&L"].forEach((h, i) => headCell(main, 7, 1 + i, h));
+
+  main.mergeCells(1, 1, 1, LAST);
+  const brand = main.getCell(1, 1);
+  brand.value = "Mizan";
+  brand.font = { bold: true, size: 22, color: { argb: "FFFFFFFF" } };
+  brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  for (let c = 1; c <= LAST; c++) main.getCell(1, c).fill = solid(HEADER_FILL);
+  main.getRow(1).height = 36;
+  main.mergeCells(2, 1, 2, LAST);
+  const when = main.getCell(2, 1);
+  when.value = `Exported ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
+  when.font = { italic: true, color: { argb: "FF6B7280" } };
+  when.alignment = { horizontal: "left", indent: 1 };
+
+  // KPI cards: a tinted label + value pair per metric. `good` null = no polarity, so neutral grey.
+  const best = trades.filter((t) => t.pnl != null).reduce<Trade | null>((m, t) => (m == null || (t.pnl as number) > (m.pnl as number) ? t : m), null);
+  const worst = trades.filter((t) => t.pnl != null).reduce<Trade | null>((m, t) => (m == null || (t.pnl as number) < (m.pnl as number) ? t : m), null);
+  const card = (row: number, label: string, v: number | null, numFmt: string, good: boolean | null, extra?: string) => {
+    const bg = solid(good == null ? NEUTRAL : tint(good ? profit : loss));
+    const l = put(row, 1, label);
+    l.fill = bg; l.font = { bold: true, color: { argb: INK } };
+    const c = put(row, 2, v, numFmt);
+    c.fill = bg; c.font = { bold: true, size: 13, color: { argb: INK } };
+    c.alignment = { horizontal: "right" };
+    if (extra !== undefined) {
+      const e = put(row, 3, extra);
+      e.fill = bg; e.font = { bold: true, color: { argb: INK } };
+    }
+  };
+  ["Metric", "Value"].forEach((hd, i) => headCell(main, HDR, 1 + i, hd));
+  card(5, "Total trades", s.count, "0", null);
+  card(6, "Win rate", s.winRate == null ? null : s.winRate / 100, "0.0%", s.winRate == null ? null : s.winRate >= 50);
+  card(7, "Net P&L", s.net, "#,##0.00", s.net >= 0);
+  card(8, "Profit factor", s.profitFactor, "0.00", s.profitFactor == null ? null : s.profitFactor >= 1);
+  card(9, "Best trade", best ? (best.pnl as number) : null, "#,##0.00", best ? (best.pnl as number) >= 0 : null, best?.symbol ?? "");
+  card(10, "Worst trade", worst ? (worst.pnl as number) : null, "#,##0.00", worst ? (worst.pnl as number) >= 0 : null, worst?.symbol ?? "");
+
+  const AH = 12;
+  ["Account", "Trades", "Win rate", "Net P&L"].forEach((hd, i) => headCell(main, AH, 1 + i, hd));
   byAccount.forEach((id, i) => {
     const a = computeStats(trades.filter((t) => t.accountId === id));
-    put(8 + i, 1, name.get(id) ?? id);
-    put(8 + i, 2, a.count);
-    put(8 + i, 3, a.winRate == null ? null : a.winRate / 100, "0.0%");
-    put(8 + i, 4, a.net, "#,##0.00").font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
+    put(AH + 1 + i, 1, name.get(id) ?? id);
+    put(AH + 1 + i, 2, a.count);
+    put(AH + 1 + i, 3, a.winRate == null ? null : a.winRate / 100, "0.0%");
+    put(AH + 1 + i, 4, a.net, "#,##0.00").font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
   });
+  if (byAccount.length) {
+    // Win rates are stored as 0-1 fractions, so the bar scales over that fixed range.
+    main.addConditionalFormatting({
+      ref: `C${AH + 1}:C${AH + byAccount.length}`,
+      rules: [{ type: "dataBar", priority: 1, gradient: false, showValue: true, cfvo: [{ type: "num", value: 0 }, { type: "num", value: 1 }], color: { argb: argb(profit) } } as never],
+    });
+  }
   main.getColumn(1).width = 24;
   [2, 3, 4].forEach((i) => { main.getColumn(i).width = 14; });
   main.getColumn(5).width = 4;
   main.getColumn(6).width = 4;
-  fill(main, trades, 7);
+  fill(main, trades, C0, HDR);
 
   if (accounts.length > 1) {
     for (const id of byAccount) {
