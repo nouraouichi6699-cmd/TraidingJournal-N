@@ -11,6 +11,9 @@ import type { Replay } from "../lib/replay";
 import { usePrivacy } from "../usePrivacy";
 import { noteOf, saveNote } from "../lib/tradeNotes";
 import { readPlan } from "../lib/tradePlan";
+import { MOODS, moodName, type MoodId } from "../lib/dayNotes";
+import { moodOf, saveMood, type TradeMood } from "../lib/tradeMood";
+import { MISTAKES, mistakesOf, toggleMistake, type MistakeId } from "../lib/tradeMistakes";
 import { voiceOf } from "../lib/tradeVoice";
 
 type L3 = Record<Lang, string>;
@@ -19,6 +22,9 @@ const T = {
   note: { en: "Note", ar: "ملاحظة", fr: "Note" },
   voice: { en: "Voice note from Telegram", ar: "ملاحظة صوتية من تيليغرام", fr: "Note vocale depuis Telegram" },
   notePh: { en: "Why did you take this trade? How did you feel?", ar: "لماذا دخلت هذه الصفقة؟ وبماذا شعرت؟", fr: "Pourquoi ce trade ? Qu'avez-vous ressenti ?" },
+  moodBefore: { en: "Before", ar: "قبل", fr: "Avant" },
+  moodAfter: { en: "After", ar: "بعد", fr: "Après" },
+  mistakes: { en: "Mistakes", ar: "الأخطاء", fr: "Erreurs" },
   planIn: { en: "In the plan", ar: "ضمن الخطة", fr: "Dans le plan" },
   planOut: { en: "Outside the plan", ar: "خارج الخطة", fr: "Hors plan" },
   loading: { en: "Loading market prices… {d}/{t}", ar: "جارٍ تحميل أسعار السوق… {d}/{t}", fr: "Chargement des prix… {d}/{t}" },
@@ -187,6 +193,13 @@ type Ev = { t: number; i: number; text: string; tone: "up" | "down" | "plain" };
 export default function TradeReplay({ lang, trade, trades, currency, onClose, onOpenReport, focusNote }: { lang: Lang; trade: Trade; trades: Trade[]; currency?: string; onClose: () => void; onOpenReport?: (tab: "benchmark" | "path") => void; focusNote?: boolean }) {
   const L = (x: L3) => x[lang];
   const [note, setNote] = useState(() => noteOf(trade.key));
+  const [mood, setMood] = useState<TradeMood>(() => moodOf(trade.key));
+  const [tags, setTags] = useState<MistakeId[]>(() => mistakesOf(trade.key));
+  const pickMood = (when: "before" | "after", id: MoodId) => {
+    const next = mood[when] === id ? null : id;
+    saveMood(trade.key, when, next);
+    setMood((m) => { const n = { ...m }; if (next) n[when] = next; else delete n[when]; return n; });
+  };
   const [inPlan] = useState<boolean | undefined>(() => readPlan()[trade.key]); // answered in Telegram
   const [voices] = useState(() => voiceOf(trade.key)); // voice notes sent to the bot, as text
   const noteBox = useRef<HTMLTextAreaElement>(null);
@@ -345,6 +358,36 @@ export default function TradeReplay({ lang, trade, trades, currency, onClose, on
         <div className="border-b border-border px-4 py-3 sm:px-5">
           <label htmlFor="trade-note" className="text-xs font-semibold text-muted">{L(T.note)}</label>
           <textarea id="trade-note" ref={noteBox} value={note} rows={2} maxLength={2000} placeholder={L(T.notePh)} onChange={(ev) => { setNote(ev.target.value); saveNote(trade.key, ev.target.value); }} className="field mt-1.5 block w-full resize-y text-sm" />
+          <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-2">
+            {(["before", "after"] as const).map((when) => (
+              <div key={when} role="group" aria-label={L(when === "before" ? T.moodBefore : T.moodAfter)} className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-muted">{L(when === "before" ? T.moodBefore : T.moodAfter)}</span>
+                {MOODS.map((m) => {
+                  const on = mood[when] === m.id, name = moodName(m.id, lang);
+                  return (
+                    <button key={m.id} type="button" aria-pressed={on} aria-label={name} title={name} onClick={() => pickMood(when, m.id)}
+                      className="grid h-8 w-8 place-items-center rounded-lg border text-base leading-none transition"
+                      style={{ borderColor: on ? "var(--primary)" : "var(--border)", background: on ? "color-mix(in srgb, var(--primary) 14%, transparent)" : "transparent", opacity: mood[when] && !on ? 0.55 : 1 }}>
+                      <span aria-hidden="true">{m.emoji}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          <div role="group" aria-label={L(T.mistakes)} className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-muted">{L(T.mistakes)}</span>
+            {MISTAKES.map((m) => {
+              const on = tags.includes(m.id);
+              return (
+                <button key={m.id} type="button" aria-pressed={on} onClick={() => setTags(toggleMistake(trade.key, m.id))}
+                  className="rounded-full border px-2.5 py-0.5 text-xs font-medium transition"
+                  style={{ borderColor: on ? "var(--primary)" : "var(--border)", background: on ? "color-mix(in srgb, var(--primary) 14%, transparent)" : "transparent" }}>
+                  {m.label[lang]}
+                </button>
+              );
+            })}
+          </div>
           {voices.map((v, i) => (
             <p key={i} className="mt-2 rounded-lg bg-primary-tint px-3 py-2 text-sm">
               <span className="mb-0.5 block text-xs font-semibold text-muted">🎙️ {L(T.voice)} · <bdi dir="ltr">{new Date(v.at).toLocaleString(lang === "ar" ? "ar-u-nu-latn" : lang, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {lang === "ar" ? `${v.d} ث` : `${v.d} s`}</bdi></span>
