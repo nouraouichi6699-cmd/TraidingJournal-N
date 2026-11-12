@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
       const events = Array.isArray(body.events) ? body.events : [];
       if (events.length > CAL_MAX) return json({ ok: false, error: "too many events in one request" }, 413);
       const rows = events.map(validCalEvent).filter((e: CalEvt | null): e is CalEvt => e !== null)
+        .filter((e: CalEvt) => e.impact !== "low") // low-impact is pruned from storage (migration 20261112); don't re-accumulate it
         .map((e: CalEvt) => ({ user_id: uid, id: e.id, time: e.time, currency: e.currency, title: e.title, impact: e.impact, previous: e.previous ?? "", forecast: e.forecast ?? "", actual: e.actual ?? "", updated_at: new Date().toISOString() }));
       if (rows.length) {
         const w = await db("econ_events_mt5?on_conflict=user_id,id", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(rows) });
