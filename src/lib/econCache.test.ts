@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/econCache.test.ts
 import { econCacheKey, econMonthRange, monthsToEvict, mergeEconCacheRows, ECON_CACHE_MAX_MONTHS } from "./econCache";
-import type { StoredEconEvent } from "./econEvents";
+import { econEventsByDay, type StoredEconEvent } from "./econEvents";
 
 let pass = 0, fail = 0;
 const is = (name: string, c: boolean, d = "") => {
@@ -58,6 +58,21 @@ is("fresh empty array is a real empty month, not treated as a failure", (() => {
   const r = mergeEconCacheRows({ ff: cachedFf, mt5: cachedMt5 }, { ff: [], mt5: cachedMt5 });
   return r.ff.length === 0;
 })());
+// ---- econMonthRange with dayStart ----
+is("midnight: explicit param leaves the range identical", JSON.stringify(econMonthRange("2026-11", "midnight")) === JSON.stringify(econMonthRange("2026-11")));
+const nyNov = econMonthRange("2026-11", "ny17");
+is("ny17: start reaches one UTC day back (Oct 31)", nyNov.start === "2026-10-31T00:00:00.000Z");
+is("ny17: end is unchanged", nyNov.end === nov.end);
+is("ny17: January start crosses the year boundary", econMonthRange("2027-01", "ny17").start === "2026-12-31T00:00:00.000Z");
+{
+  const evening = { time: "2026-10-31T23:00:00Z", id: "e" }; // 19:00 EDT on Oct 31 -> trading day 2026-11-01
+  const inRange = (t: string, r: { start: string; end: string }) => t >= r.start.slice(0, 19) && t <= r.end.slice(0, 19);
+  is("midnight: the Oct 31 evening event is outside November's fetch", !inRange("2026-10-31T23:00:00", econMonthRange("2026-11")));
+  is("ny17: the Oct 31 evening event is inside November's fetch", inRange("2026-10-31T23:00:00", nyNov));
+  is("ny17: it lands under 2026-11-01's trading day", (econEventsByDay([evening], "ny17").get("2026-11-01") ?? []).length === 1);
+  is("midnight: it stays under 2026-10-31", (econEventsByDay([evening]).get("2026-10-31") ?? []).length === 1);
+}
+
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

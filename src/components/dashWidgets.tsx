@@ -238,7 +238,7 @@ function CalW({ c }: { c: Ctx }) {
   // the filter, to correctly tell "MT5 has no data for this day" apart from "MT5 has data but it's
   // filtered out" -- the latter must still suppress the FF fallback. Filtering happens client-side below.
   useEffect(() => {
-    const { start: monthStart, end: monthEnd } = econMonthRange(month);
+    const { start: monthStart, end: monthEnd } = econMonthRange(month, settings.dayStart);
     const userId = c.userId;
     let cancelled = false;
 
@@ -269,7 +269,7 @@ function CalW({ c }: { c: Ctx }) {
     })();
 
     return () => { cancelled = true; };
-  }, [month, c.userId]);
+  }, [month, c.userId, settings.dayStart]);
 
   const econFiltered = useMemo(
     () => filterEconEventsForDisplay(econRaw, settings.econImpacts, settings.econCurrencies, settings.keyEventsOnly),

@@ -1,4 +1,5 @@
 import type { StoredEconEvent } from "./econEvents";
+import type { DayStart } from "./tradingTime";
 
 /** At most this many distinct months are kept per user in the browser cache. */
 export const ECON_CACHE_MAX_MONTHS = 14;
@@ -9,11 +10,13 @@ export function econCacheKey(userId: string, month: string): string {
   return `${userId}:${month}`;
 }
 
-/** UTC start/end ISO bounds (inclusive) of a "YYYY-MM" month -- the same range the Supabase query filters on. */
-export function econMonthRange(month: string): { start: string; end: string } {
+/** UTC start/end ISO bounds (inclusive) of a "YYYY-MM" month -- the same range the Supabase query filters on.
+ *  With a non-midnight dayStart the start reaches one UTC day back: the 1st's trading day begins the evening
+ *  before. The end needs no widening (a trading day ends by ~22:00 UTC on its own date, inside the month). */
+export function econMonthRange(month: string, dayStart: DayStart = "midnight"): { start: string; end: string } {
   const [y, mo] = month.split("-").map(Number);
   return {
-    start: new Date(Date.UTC(y, mo - 1, 1)).toISOString(),
+    start: new Date(Date.UTC(y, mo - 1, dayStart === "midnight" ? 1 : 0)).toISOString(),
     end: new Date(Date.UTC(y, mo, 0, 23, 59, 59, 999)).toISOString(),
   };
 }
