@@ -75,6 +75,7 @@ export async function tradesToStreamLog(
   const BLUE = "FF2F5597";
   const BAND = "FFD9E1F2";
   const WHITE = "FFFFFFFF";
+  const GOLD = "FFFFC000";
   type Sheet = ReturnType<typeof wb.addWorksheet>;
   const solid = (color: string) => ({ type: "pattern", pattern: "solid", fgColor: { argb: color } }) as const;
   const RIGHT = { horizontal: "right" } as const;
@@ -116,24 +117,31 @@ export async function tradesToStreamLog(
 
     WIDTHS.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
-    // Brand row: "Mizan" at the left, the account and month as the title over the right-hand columns.
+    // Title row: "MIZAN" in gold at the left, "Account name : <name>" over the trades table, and "date : <export date>"
+    // at the far right. Row 2 keeps the month, since the title no longer carries it.
+    const TITLE_END = LAST - 3; // the last three columns (K:M) hold the date
     ws.mergeCells(1, 1, 1, C0 - 1);
     const brand = ws.getCell(1, 1);
-    brand.value = "Mizan";
-    brand.font = { bold: true, size: 22, color: { argb: WHITE } };
+    brand.value = "MIZAN";
+    brand.font = { bold: true, size: 26, color: { argb: GOLD } };
     brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    ws.mergeCells(1, C0, 1, LAST);
+    ws.mergeCells(1, C0, 1, TITLE_END);
     const title = ws.getCell(1, C0);
-    title.value = `${who} · ${monthTitle(m)}`;
-    title.font = { bold: true, size: 20, color: { argb: WHITE } };
+    title.value = `Account name : ${who}`;
+    title.font = { bold: true, size: 14, color: { argb: WHITE } };
     title.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    ws.mergeCells(1, TITLE_END + 1, 1, LAST);
+    const when = ws.getCell(1, TITLE_END + 1);
+    when.value = `date : ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
+    when.font = { bold: true, size: 12, color: { argb: WHITE } };
+    when.alignment = { vertical: "middle", horizontal: "right", indent: 1 };
     for (let c = 1; c <= LAST; c++) ws.getCell(1, c).fill = solid(BLUE);
     ws.getRow(1).height = 36;
     ws.mergeCells(2, 1, 2, LAST);
-    const when = ws.getCell(2, 1);
-    when.value = `Exported ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
-    when.font = { italic: true, color: { argb: "FF6B7280" } };
-    when.alignment = { horizontal: "left", indent: 1 };
+    const month = ws.getCell(2, 1);
+    month.value = monthTitle(m);
+    month.font = { bold: true, color: { argb: "FF6B7280" } };
+    month.alignment = { horizontal: "left", indent: 1 };
 
     // Stats box (A:B).
     const SH = HDR;

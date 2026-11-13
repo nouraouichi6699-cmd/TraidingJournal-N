@@ -48,8 +48,11 @@ eq("sheets: newest month first, no empty October", wb.worksheets.map((w) => w.na
 const ws = wb.getWorksheet("November 2026")!;
 const v = (r: number, c: number) => { const x = ws.getCell(r, c).value; return x && typeof x === "object" && "result" in x ? x.result : x; };
 const row = (r: number, from: number, n: number) => Array.from({ length: n }, (_, k) => v(r, from + k));
-eq("brand", v(1, 1), "Mizan");
-eq("title sits over the trades table (G)", v(1, 7), "Main · November 2026");
+eq("brand", v(1, 1), "MIZAN");
+eq("brand is bold gold", [ws.getCell(1, 1).font?.bold, ws.getCell(1, 1).font?.color?.argb, (ws.getCell(1, 1).font?.size ?? 0) >= 20], [true, "FFFFC000", true]);
+eq("account label over the trades table (G)", v(1, 7), "Account name : Main");
+eq("date label at the far right of row 1", [v(1, 11), ws.getCell(1, 11).alignment?.horizontal], [`date : ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, "right"]);
+eq("no old title / Exported line", [String(v(1, 7)).includes("·"), v(2, 1)], [false, "November 2026"]);
 eq("stats and trades share header row 3", [row(3, 1, 2), row(3, 7, 7)], [["Stats", "Month"], ["Contract", "Date", "Long/Short", "Entry price", "Exit price", "Pip", "W/L/BE"]]);
 eq("gap columns E:F empty", [v(3, 5), v(3, 6), v(4, 5), v(14, 6)], [null, null, null, null]);
 eq("stats labels", [4, 5, 6, 7, 8, 9, 10, 11].map((r) => v(r, 1)), ["Total trades", "W", "L", "BE", "Win rate", "Winning pips", "Losing pips", "Total pips"]);
