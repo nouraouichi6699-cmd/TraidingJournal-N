@@ -1012,6 +1012,8 @@ const st: Record<string, [string, string, string]> = {
   exportCsv: ["Export trades as Excel (.xlsx)", "تصدير الصفقات إلى Excel (.xlsx)", "Exporter les trades en Excel (.xlsx)"],
   exportFailed: ["Export failed. Please try again.", "فشل التصدير. حاول مرة أخرى.", "Échec de l'export. Réessayez."],
   exportCsvSub: ["Built here in your browser; nothing is uploaded.", "يُنشأ في متصفحك؛ لا يُرسل شيء.", "Généré dans votre navigateur ; rien n'est envoyé."],
+  exportMonth: ["Which month", "أي شهر", "Quel mois"],
+  allTime: ["All time", "كل الفترات", "Toute la période"],
   exportWhich: ["Which account", "أي حساب", "Quel compte"],
   download: ["Download", "تنزيل", "Télécharger"],
   noTrades: ["No trades to export yet.", "لا توجد صفقات للتصدير بعد.", "Aucun trade à exporter pour l'instant."],

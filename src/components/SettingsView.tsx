@@ -63,6 +63,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const customs = s.customThemes ?? [];
   const resolved = resolveTheme(activeId, customs, theme);
   const [exportAcc, setExportAcc] = useState("all");
+  const [exportMonth, setExportMonth] = useState("all");
   const [note, setNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -111,13 +112,21 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     }
   };
 
+  // The calendar months (by entry time) that have trades in the chosen scope, newest first.
+  const monthOf = (x: Trade) => (/^\d{4}-\d{2}/.test(x.entryTime ?? "") ? (x.entryTime as string).slice(0, 7) : null);
+  const scoped = useMemo(() => trades.filter((x) => exportAcc === "all" || x.accountId === exportAcc), [trades, exportAcc]);
+  const months = useMemo(() => [...new Set(scoped.map(monthOf).filter((m): m is string => m != null))].sort().reverse(), [scoped]);
+  // Switching account can leave the picked month without trades there, so it quietly falls back to All time.
+  const month = months.includes(exportMonth) ? exportMonth : "all";
+  const monthLabel = (m: string) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleDateString(lang, { month: "long", year: "numeric" });
+
   const exportNow = async () => {
-    const list = trades.filter((x) => exportAcc === "all" || x.accountId === exportAcc);
+    const list = month === "all" ? scoped : scoped.filter((x) => monthOf(x) === month);
     if (!list.length) return setNote(L("noTrades"));
     const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
     const stamp = new Date().toISOString().slice(0, 10);
     try {
-      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${stamp}.xlsx`, await tradesToXlsx(list, accounts));
+      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${month === "all" ? "" : `${month}-`}${stamp}.xlsx`, await tradesToXlsx(list, accounts));
     } catch {
       return setNote(L("exportFailed"));
     }
@@ -729,6 +738,10 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         <Row label={L("exportCsv")} sub={L("exportShort")}>
           <span className="flex flex-wrap items-center gap-2">
             {accountSelect(exportAcc, setExportAcc, L("exportWhich"))}
+            <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => setExportMonth(e.target.value)}>
+              <option value="all">{L("allTime")}</option>
+              {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
             <button type="button" onClick={exportNow} className={btnGold}>{L("download")}</button>
           </span>
         </Row>
