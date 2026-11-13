@@ -126,14 +126,23 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     return cols.length;
   };
 
-  // Brand area over `last` columns: "Mizan" (row 1), the export date (row 2) and, for a single-account table,
-  // the account's name as a bold title (row 3).
-  const strip = (ws: Sheet, last: number, title?: string) => {
-    ws.mergeCells(1, 1, 1, last);
+  // Brand area over `last` columns. Row 1: "Mizan" in blackletter at the left and, for a single-account table, the
+  // account's name as a bold title further right (over the trades table; `titleAt` is its first column). Row 2: the
+  // export date. The header row follows directly on row 3.
+  const strip = (ws: Sheet, last: number, titleAt: number, title?: string) => {
+    ws.mergeCells(1, 1, 1, titleAt - 1);
     const brand = ws.getCell(1, 1);
     brand.value = "Mizan";
-    brand.font = { bold: true, size: 22, color: { argb: INK } };
+    // Blackletter ships with Office ("Old English Text MT"); where it is missing the viewer falls back to its default.
+    brand.font = { name: "Old English Text MT", bold: true, size: 22, color: { argb: INK } };
     brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    if (title) {
+      ws.mergeCells(1, titleAt, 1, last);
+      const t = ws.getCell(1, titleAt);
+      t.value = title;
+      t.font = { bold: true, size: 20, color: { argb: INK } };
+      t.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    }
     for (let c = 1; c <= last; c++) ws.getCell(1, c).border = { bottom: RULE_DARK };
     ws.getRow(1).height = 36;
     ws.mergeCells(2, 1, 2, last);
@@ -141,18 +150,11 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     when.value = `Exported ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
     when.font = { italic: true, color: { argb: "FF6B7280" } };
     when.alignment = { horizontal: "left", indent: 1 };
-    if (title) {
-      ws.mergeCells(3, 1, 3, last);
-      const t = ws.getCell(3, 1);
-      t.value = title;
-      t.font = { bold: true, size: 14, color: { argb: INK } };
-      t.alignment = { horizontal: "left", indent: 1 };
-    }
   };
 
-  // One sheet: a brand strip (rows 1-2, row 3 blank), then the summary in columns A-D, two gap columns (E, F)
+  // One sheet: a brand area (rows 1-2), then the shared header row 3, with the summary in columns A-D, two gap columns (E, F)
   // and the trades table from G, the two blocks sharing the header row.
-  const C0 = 7, HDR = 4;
+  const C0 = 7, HDR = 3;
   const main = wb.addWorksheet("Trades");
   const s = computeStats(trades);
   const byAccount = [...new Set(trades.map((t) => t.accountId))];
@@ -180,16 +182,16 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     for (let k = 1; k <= 4; k++) main.getCell(row, k).border = { bottom: RULE_LIGHT };
   };
   ["Metric", "Value"].forEach((hd, i) => headCell(main, HDR, 1 + i, hd, i === 1));
-  card(5, "Total trades", s.count, "0", null);
-  card(6, "Win rate", s.winRate == null ? null : s.winRate / 100, "0.0%", null);
-  card(7, "Net P&L", s.net, "#,##0.00", s.net >= 0);
-  card(8, "Profit factor", s.profitFactor, "0.00", s.profitFactor == null ? null : s.profitFactor >= 1);
-  card(9, "Best trade", best ? (best.pnl as number) : null, "#,##0.00", best ? (best.pnl as number) >= 0 : null, best?.symbol ?? "");
-  card(10, "Worst trade", worst ? (worst.pnl as number) : null, "#,##0.00", worst ? (worst.pnl as number) >= 0 : null, worst?.symbol ?? "");
+  card(HDR + 1, "Total trades", s.count, "0", null);
+  card(HDR + 2, "Win rate", s.winRate == null ? null : s.winRate / 100, "0.0%", null);
+  card(HDR + 3, "Net P&L", s.net, "#,##0.00", s.net >= 0);
+  card(HDR + 4, "Profit factor", s.profitFactor, "0.00", s.profitFactor == null ? null : s.profitFactor >= 1);
+  card(HDR + 5, "Best trade", best ? (best.pnl as number) : null, "#,##0.00", best ? (best.pnl as number) >= 0 : null, best?.symbol ?? "");
+  card(HDR + 6, "Worst trade", worst ? (worst.pnl as number) : null, "#,##0.00", worst ? (worst.pnl as number) >= 0 : null, worst?.symbol ?? "");
 
   // The per-account table only earns its place when accounts are mixed; for one account it repeats the cards.
   if (single === undefined) {
-    const AH = 12;
+    const AH = HDR + 8;
     ["Account", "Trades", "Win rate", "Net P&L"].forEach((hd, i) => headCell(main, AH, 1 + i, hd, i > 0));
     byAccount.forEach((id, i) => {
       const a = computeStats(trades.filter((t) => t.accountId === id));
@@ -214,13 +216,14 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
   main.getColumn(5).width = 4;
   main.getColumn(6).width = 4;
   const n = fill(main, trades, C0, HDR, single === undefined);
-  strip(main, C0 + n - 1, single);
+  strip(main, C0 + n - 1, C0, single);
 
   if (accounts.length > 1) {
     for (const id of byAccount) {
       const ws = wb.addWorksheet(sheetName(name.get(id) ?? id, used));
       const n = fill(ws, trades.filter((t) => t.accountId === id), 1, HDR, false);
-      strip(ws, n, name.get(id) ?? id);
+      // Table starts at column 1 here, so the title sits over the entry columns, clear of "Mizan".
+      strip(ws, n, 5, name.get(id) ?? id);
     }
   }
 
