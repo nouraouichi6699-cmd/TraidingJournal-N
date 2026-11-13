@@ -4,6 +4,7 @@ import type { Account, Trade } from "../types";
 import { computeStats } from "./stats";
 
 const MONEY = "#,##0.00";
+const BODY_PT = 10;
 /** "2026-01-01T10:00" or "2026-01-01 10:00" -> ["2026-01-01", "10:00"]; kept as text so no timezone shifts. */
 const splitStamp = (v: string | null): [string | null, string | null] => {
   if (!v) return [null, null];
@@ -88,7 +89,10 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
 
   // Writes a trades table whose header sits on `h` and whose first column is `c0`, with the frozen header,
   // autofilter, number formats, zebra stripes, pnl colouring and auto widths all scoped to that range.
-  const fill = (ws: Sheet, list: Trade[], c0: number, h: number, showAccount: boolean) => {
+  const fill = (ws: Sheet, input: Trade[], c0: number, h: number, showAccount: boolean) => {
+    // Newest entry first (undated last; ties keep their input order), and `no` counts in that order.
+    const stamp = (t: Trade) => (t.entryTime ?? "").replace("T", " ");
+    const list = [...input].sort((a, b) => (stamp(a) < stamp(b) ? 1 : stamp(a) > stamp(b) ? -1 : 0));
     const cols = columns(showAccount);
     const pnlAt = c0 + cols.findIndex((c) => c.key === "pnl");
     cols.forEach((c, i) => headCell(ws, h, c0 + i, c.key));
@@ -103,23 +107,27 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
         const cell = ws.getCell(r, c0 + i);
         // Zebra first, so the pnl tint below overrides it on that one column.
         if ((r - h) % 2 === 0) cell.fill = solid(ZEBRA);
+        cell.font = { name: "Calibri", size: BODY_PT };
         if (c.numFmt) cell.numFmt = c.numFmt;
       });
       const p = ws.getCell(r, pnlAt);
       const v = p.value;
       if (typeof v === "number" && v !== 0) {
         p.fill = solid(tint(v > 0 ? profit : loss));
-        p.font = { color: { argb: argb(v > 0 ? profit : loss) }, bold: true };
+        p.font = { name: "Calibri", size: BODY_PT, color: { argb: argb(v > 0 ? profit : loss) }, bold: true };
       }
     }
     cols.forEach((c, i) => {
-      let w = c.key.length;
+      // The bold header is wider per character than the body, so it counts a little extra.
+      let w = Math.ceil(c.key.length * 1.15);
       for (let r = h + 1; r <= h + list.length; r++) {
         const val = ws.getCell(r, c0 + i).value;
-        const len = typeof val === "number" ? val.toFixed(2).length : String(val ?? "").length;
+        const len = typeof val === "number"
+          ? (c.numFmt ? val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(val)).length
+          : String(val ?? "").length;
         if (len > w) w = len;
       }
-      ws.getColumn(c0 + i).width = Math.min(40, w + 3);
+      ws.getColumn(c0 + i).width = Math.min(18, w + 1);
     });
     return cols.length;
   };
@@ -186,21 +194,24 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
   card(9, "Best trade", best ? (best.pnl as number) : null, "#,##0.00", best ? (best.pnl as number) >= 0 : null, best?.symbol ?? "");
   card(10, "Worst trade", worst ? (worst.pnl as number) : null, "#,##0.00", worst ? (worst.pnl as number) >= 0 : null, worst?.symbol ?? "");
 
-  const AH = 12;
-  ["Account", "Trades", "Win rate", "Net P&L"].forEach((hd, i) => headCell(main, AH, 1 + i, hd));
-  byAccount.forEach((id, i) => {
-    const a = computeStats(trades.filter((t) => t.accountId === id));
-    put(AH + 1 + i, 1, name.get(id) ?? id);
-    put(AH + 1 + i, 2, a.count);
-    put(AH + 1 + i, 3, a.winRate == null ? null : a.winRate / 100, "0.0%");
-    put(AH + 1 + i, 4, a.net, "#,##0.00").font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
-  });
-  if (byAccount.length) {
-    // Win rates are stored as 0-1 fractions, so the bar scales over that fixed range.
-    main.addConditionalFormatting({
-      ref: `C${AH + 1}:C${AH + byAccount.length}`,
-      rules: [{ type: "dataBar", priority: 1, gradient: false, showValue: true, cfvo: [{ type: "num", value: 0 }, { type: "num", value: 1 }], color: { argb: argb(profit) } } as never],
+  // The per-account table only earns its place when accounts are mixed; for one account it repeats the cards.
+  if (single === undefined) {
+    const AH = 12;
+    ["Account", "Trades", "Win rate", "Net P&L"].forEach((hd, i) => headCell(main, AH, 1 + i, hd));
+    byAccount.forEach((id, i) => {
+      const a = computeStats(trades.filter((t) => t.accountId === id));
+      put(AH + 1 + i, 1, name.get(id) ?? id);
+      put(AH + 1 + i, 2, a.count);
+      put(AH + 1 + i, 3, a.winRate == null ? null : a.winRate / 100, "0.0%");
+      put(AH + 1 + i, 4, a.net, "#,##0.00").font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
     });
+    if (byAccount.length) {
+      // Win rates are stored as 0-1 fractions, so the bar scales over that fixed range.
+      main.addConditionalFormatting({
+        ref: `C${AH + 1}:C${AH + byAccount.length}`,
+        rules: [{ type: "dataBar", priority: 1, gradient: false, showValue: true, cfvo: [{ type: "num", value: 0 }, { type: "num", value: 1 }], color: { argb: argb(profit) } } as never],
+      });
+    }
   }
   main.getColumn(1).width = 24;
   [2, 3, 4].forEach((i) => { main.getColumn(i).width = 14; });
