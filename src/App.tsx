@@ -302,7 +302,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
                 <LazyView t={t} lang={lang}>
                   <SettingsView
                     t={t} lang={lang} theme={theme} onLang={setLang} onTheme={handleTheme}
-                    accounts={accounts} trades={journal.trades} onImport={() => setView("import")}
+                    accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onImport={() => setView("import")}
                     onProfile={() => setView("profile")} start={settingsAt}
                   />
                 </LazyView>

@@ -32,7 +32,7 @@ const columns = (showAccount: boolean): Col[] => [
 ];
 
 /** The app's own --profit / --loss, resolved at export time so custom win/loss colours carry through. */
-function themeColors(): { profit: string; loss: string } {
+export function themeColors(): { profit: string; loss: string } {
   const read = (name: string, fallback: string) => {
     try {
       const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();

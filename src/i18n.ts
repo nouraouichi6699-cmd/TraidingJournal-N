@@ -1009,7 +1009,10 @@ const st: Record<string, [string, string, string]> = {
 
   data: ["Data and security", "البيانات والأمان", "Données et sécurité"],
   dataSub: ["Take your trades with you, and manage where you are signed in.", "خُذ صفقاتك معك، وتحكّم بأماكن تسجيل دخولك.", "Emportez vos trades, et gérez vos connexions."],
-  exportCsv: ["Export trades as Excel (.xlsx)", "تصدير الصفقات إلى Excel (.xlsx)", "Exporter les trades en Excel (.xlsx)"],
+  exportTrades: ["Export trades as Excel (.xlsx)", "تصدير الصفقات إلى Excel (.xlsx)", "Exporter les trades en Excel (.xlsx)"],
+  exportProfile: ["Profile statement", "كشف الملف الشخصي", "Extrait profil"],
+  exportLog: ["Trading log", "سجل التداول", "Journal de trading"],
+  exportLogHint: ["Trading log: the chosen account's full history, one sheet per month (ignores the month and date range).", "سجل التداول: السجل الكامل للحساب المختار، ورقة لكل شهر (يتجاهل الشهر ونطاق التاريخ).", "Journal de trading : tout l'historique du compte choisi, une feuille par mois (ignore le mois et la période)."],
   exportFailed: ["Export failed. Please try again.", "فشل التصدير. حاول مرة أخرى.", "Échec de l'export. Réessayez."],
   exportCsvSub: ["Built here in your browser; nothing is uploaded.", "يُنشأ في متصفحك؛ لا يُرسل شيء.", "Généré dans votre navigateur ; rien n'est envoyé."],
   exportMonth: ["Which month", "أي شهر", "Quel mois"],

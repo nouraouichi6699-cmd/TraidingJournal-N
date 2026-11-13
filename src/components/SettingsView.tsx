@@ -28,7 +28,8 @@ import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missing
 import { setPrivacy } from "../usePrivacy";
 import { downloadBlob, tradesToXlsx } from "../lib/exportTrades";
 import { supabase } from "../lib/supabase";
-import type { Account, Lang, Theme, Trade } from "../types";
+import type { CashFlow } from "../lib/cashflow";
+import type { Account, BalancePoint, Lang, Theme, Trade } from "../types";
 
 interface Props {
   t: (k: Key) => string;
@@ -38,6 +39,9 @@ interface Props {
   onTheme: (t: string) => void;
   accounts: Account[];
   trades: Trade[];
+  /** Imported balance history and cash flows, so the trading log can use each account's real balance. */
+  balances?: Record<string, BalancePoint[]>;
+  flows?: CashFlow[];
   onImport: () => void;
   onProfile: () => void;
   /** Where a link into Settings asked to land; absent means Display > Look. */
@@ -55,7 +59,7 @@ const grid = "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(290px,1fr
 /** The sections in dock order. Kept apart from SECTIONS so a link can be checked before the tiles are built. */
 const SECTION_IDS = ["display", "trading", "analysis", "telegram", "security", "data"];
 
-export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts, trades, onImport, onProfile, start }: Props) {
+export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts, trades, balances, flows, onImport, onProfile, start }: Props) {
   const L = stT(lang);
   const s = useSettings();
   const reduce = useReduceMotion();
@@ -140,6 +144,20 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
       return setNote(L("exportFailed"));
     }
     setNote(L("exported").replace("{n}", String(list.length)));
+  };
+
+  // The trading log: the chosen account's whole history, one sheet per month; the month and date range do not apply.
+  const exportLogNow = async () => {
+    if (!scoped.some((x) => /^\d{4}-\d{2}/.test(x.entryTime ?? ""))) return setNote(L("noTrades"));
+    const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
+    const stamp = new Date().toISOString().slice(0, 10);
+    try {
+      const { tradesToStreamLog } = await import("../lib/exportStreamLog");
+      downloadBlob(`mizan-trading-log-${who.replace(/[^\w-]+/g, "-")}-${stamp}.xlsx`, await tradesToStreamLog(scoped, accounts, balances, flows));
+    } catch {
+      return setNote(L("exportFailed"));
+    }
+    setNote(L("exported").replace("{n}", String(scoped.length)));
   };
 
   // One Telegram connection for the whole page: its two topics and the partner and coach cards all read it.
@@ -744,7 +762,7 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const dataTiles: ReactNode = (
     <>
       <Tile title={L("tileExport")}>
-        <Row label={L("exportCsv")} sub={L("exportShort")}>
+        <Row label={L("exportTrades")} sub={`${L("exportShort")} ${L("exportLogHint")}`}>
           <span className="flex flex-wrap items-center gap-2">
             {accountSelect(exportAcc, setExportAcc, L("exportWhich"))}
             <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => { setExportMonth(e.target.value); setExportFrom(""); setExportTo(""); }}>
@@ -759,7 +777,8 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
               {L("dateTo")}
               <input type="date" className={field} value={exportTo} min={exportFrom || undefined} onChange={(e) => { setExportTo(e.target.value); setExportMonth("all"); }} />
             </label>
-            <button type="button" onClick={exportNow} className={btnGold}>{L("download")}</button>
+            <button type="button" onClick={exportNow} className={btnGold}>{L("exportProfile")}</button>
+            <button type="button" onClick={exportLogNow} className={btnGold}>{L("exportLog")}</button>
           </span>
         </Row>
         {note && <p role="status" aria-live="polite" className="text-xs text-muted">{note}</p>}
