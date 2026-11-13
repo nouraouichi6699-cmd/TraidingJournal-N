@@ -64,6 +64,9 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const resolved = resolveTheme(activeId, customs, theme);
   const [exportAcc, setExportAcc] = useState("all");
   const [exportMonth, setExportMonth] = useState("all");
+  // A custom range (YYYY-MM-DD, "" = open); it and the month picker are mutually exclusive.
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -121,12 +124,18 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const monthLabel = (m: string) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleDateString(lang, { month: "long", year: "numeric" });
 
   const exportNow = async () => {
-    const list = month === "all" ? scoped : scoped.filter((x) => monthOf(x) === month);
+    const ranged = !!(exportFrom || exportTo);
+    // Compared as plain YYYY-MM-DD text on the entry date, so no timezone can move a trade across a day.
+    const dayOf = (x: Trade) => (/^\d{4}-\d{2}-\d{2}/.test(x.entryTime ?? "") ? (x.entryTime as string).slice(0, 10) : null);
+    const list = ranged
+      ? scoped.filter((x) => { const d = dayOf(x); return d != null && (!exportFrom || d >= exportFrom) && (!exportTo || d <= exportTo); })
+      : month === "all" ? scoped : scoped.filter((x) => monthOf(x) === month);
+    const tag = ranged ? (exportFrom && exportTo ? `${exportFrom}_to_${exportTo}-` : exportFrom ? `from-${exportFrom}-` : `to-${exportTo}-`) : month === "all" ? "" : `${month}-`;
     if (!list.length) return setNote(L("noTrades"));
     const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
     const stamp = new Date().toISOString().slice(0, 10);
     try {
-      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${month === "all" ? "" : `${month}-`}${stamp}.xlsx`, await tradesToXlsx(list, accounts));
+      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${tag}${stamp}.xlsx`, await tradesToXlsx(list, accounts));
     } catch {
       return setNote(L("exportFailed"));
     }
@@ -738,10 +747,18 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
         <Row label={L("exportCsv")} sub={L("exportShort")}>
           <span className="flex flex-wrap items-center gap-2">
             {accountSelect(exportAcc, setExportAcc, L("exportWhich"))}
-            <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => setExportMonth(e.target.value)}>
+            <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => { setExportMonth(e.target.value); setExportFrom(""); setExportTo(""); }}>
               <option value="all">{L("allTime")}</option>
               {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </select>
+            <label className="flex items-center gap-1.5 text-xs text-muted">
+              {L("dateFrom")}
+              <input type="date" className={field} value={exportFrom} max={exportTo || undefined} onChange={(e) => { setExportFrom(e.target.value); setExportMonth("all"); }} />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-muted">
+              {L("dateTo")}
+              <input type="date" className={field} value={exportTo} min={exportFrom || undefined} onChange={(e) => { setExportTo(e.target.value); setExportMonth("all"); }} />
+            </label>
             <button type="button" onClick={exportNow} className={btnGold}>{L("download")}</button>
           </span>
         </Row>
