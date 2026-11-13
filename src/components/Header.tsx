@@ -5,7 +5,10 @@ import { useIconGlass } from "../useIconGlass";
 import { Calculator, Coins, Delete, Eye, Percent, EyeOff, Globe, Bell, Maximize2, Minimize2, Palette, User, Settings, CalendarDays, Newspaper, ChevronDown, Plus, Pencil, Check, MoreHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import Brand from "./Brand";
+import TradeModeBadge from "./TradeModeBadge";
 import Dropdown from "./Dropdown";
+import { useDashAccount } from "../useDashAccount";
+import { sharedTradeMode } from "../lib/tradeMode";
 import Sessions from "./Sessions";
 import NotificationsPanel from "./NotificationsPanel";
 import { usePrivacy } from "../usePrivacy";
@@ -14,13 +17,15 @@ import type { Interests } from "../useInterests";
 import { languages, stT, themeNames, type Key } from "../i18n";
 import { useActiveTheme, useSettings } from "../useSettings";
 import { openCalculator } from "../useCalculators";
-import type { Lang, Theme } from "../types";
+import type { Account, Lang, Theme } from "../types";
 
 interface Props {
   lang: Lang;
   t: (k: Key) => string;
   theme: Theme;
   name: string;
+  accounts: Account[]; // for the type badge of the account the dashboard is on
+
   avatar: string | null;
   onLang: (l: Lang) => void;
   onTheme: (t: string) => void;
@@ -50,8 +55,12 @@ const generalItems: { key: string; icon: typeof Delete; label: Record<Lang, stri
 const genColor: Record<string, string> = { std: "#94a3b8", fx: "#22c55e", pct: "#f97316" };
 const allCalcs: Record<Lang, string> = { en: "All calculators", ar: "كل الحاسبات", fr: "Toutes les calculatrices" };
 
-export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
+export default function Header({ lang, t, theme, name, accounts, avatar, onLang, onTheme, onProfile, onSettings, onNews, onCalendar, onDashboard, onCharts, interests, calc }: Props) {
   const privacy = usePrivacy();
+  // The badge of the account the dashboard is filtered on; "all" shows one only when every account shares the same mode.
+  const dashAcc = useDashAccount();
+  const current = accounts.find((a) => a.id === dashAcc);
+  const tradeMode = current ? current.tradeMode : sharedTradeMode(accounts);
   const { glass, fill } = useIconGlass();
   const ng = glass ? " mz-no-glass" : ""; // the coloured tile brings its own surface, so the frosted one steps aside
   const dash = useDashEdit();
@@ -77,7 +86,10 @@ export default function Header({ lang, t, theme, name, avatar, onLang, onTheme, 
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-2">
-      <Brand lang={lang} />
+      <div className="flex items-center gap-2">
+        <Brand lang={lang} />
+        <TradeModeBadge mode={tradeMode} lang={lang} />
+      </div>
 
       <p className="hidden font-heading text-base font-semibold 2xl:block">
         {t("greeting")} {name}

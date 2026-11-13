@@ -5,8 +5,12 @@ import { readSettings } from "../useSettings";
 import { useConverted } from "../useConverted";
 import FxWarning from "./FxWarning";
 import { motion } from "motion/react";
-import { GripVertical, LayoutGrid, RotateCcw, Plus, X, Check, Pencil, Info } from "lucide-react";
+import { GripVertical, LayoutGrid, RotateCcw, Plus, X, Check, Pencil, Info, ChevronDown } from "lucide-react";
+import Dropdown from "./Dropdown";
+import TradeModeBadge from "./TradeModeBadge";
+import { sharedTradeMode } from "../lib/tradeMode";
 import { useDashEdit } from "../useDashEdit";
+import { setDashAccount } from "../useDashAccount";
 import { usePrivacy } from "../usePrivacy";
 import { metrics } from "../lib/dashStats";
 import { dayKey } from "../lib/dashStats";
@@ -100,6 +104,9 @@ export default function DashboardView({ lang, accounts: accountsIn, trades: allI
   }, []);
 
   const acc = accounts.some((a) => a.id === filter.acc) ? filter.acc : "all"; // stale saved account falls back to all
+  useEffect(() => { setDashAccount(acc); }, [acc]); // the header shows this account's badge
+  // The badge reads the stored (server-written) mode, from the accounts as they came in: "all" shows one only when every account agrees.
+  const modeOf = (id: string) => (id === "all" ? sharedTradeMode(accountsIn) : accountsIn.find((a) => a.id === id)?.tradeMode);
   const trades = useMemo(() => {
     const from = fromKey(filter.range);
     return all.filter((t) => (acc === "all" || t.accountId === acc) && (!from || (dayKey(t) || "9") >= from));
@@ -157,7 +164,7 @@ export default function DashboardView({ lang, accounts: accountsIn, trades: allI
     tools: TR("Analysis tools — press + to add to your dashboard", "أدوات التحليل — اضغط + لإضافتها إلى لوحتك", "Outils d'analyse — appuyez sur + pour ajouter"),
     all: TR("Everything is already on your dashboard.", "كل الأدوات مضافة إلى لوحتك.", "Tout est déjà sur votre tableau de bord."),
     arrange: TR("Auto-arrange", "ترتيب تلقائي", "Organiser"), hint: TR("Drag any card · pull an edge or corner to resize · cards snap to the grid", "اسحب أي بطاقة · اسحب حافة أو زاوية لتغيير الحجم · تلتصق البطاقات بالشبكة", "Glissez une carte · tirez un bord pour redimensionner · aimantation à la grille"),
-    allAcc: TR("All accounts", "كل الحسابات", "Tous les comptes"),
+    allAcc: TR("All accounts", "كل الحسابات", "Tous les comptes"), account: TR("Account", "الحساب", "Compte"),
     empty: TR("Your dashboard is empty. Press Customize to add tools.", "لوحتك فارغة. اضغط تخصيص لإضافة الأدوات.", "Tableau vide. Appuyez sur Personnaliser."),
   };
 
@@ -168,10 +175,25 @@ export default function DashboardView({ lang, accounts: accountsIn, trades: allI
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="me-2 font-heading text-lg font-semibold">{L(TT.title)}</h1>
           {accounts.length > 0 && (
-            <select aria-label="account" className="field !w-auto !py-1.5 text-sm" value={acc} onChange={(e) => setFilter({ ...filter, acc: e.target.value })}>
-              <option value="all">{L(TT.allAcc)}</option>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            // A menu rather than a <select>, so each account can carry its type badge (an <option> can't).
+            <Dropdown
+              label={L(TT.account)} bare align="start" panelClass="min-w-[220px] max-w-[min(92vw,340px)]"
+              trigger={
+                <span className="field inline-flex !w-auto cursor-pointer items-center gap-2 !py-1.5 text-sm">
+                  <span className="truncate">{acc === "all" ? L(TT.allAcc) : (accounts.find((a) => a.id === acc)?.name ?? acc)}</span>
+                  <TradeModeBadge mode={modeOf(acc)} lang={lang} />
+                  <ChevronDown size={14} className="text-icon" aria-hidden />
+                </span>
+              }
+            >
+              {(close) => [{ id: "all", name: L(TT.allAcc) }, ...accounts].map((a) => (
+                <button key={a.id} type="button" role="menuitemradio" aria-checked={acc === a.id} onClick={() => { setFilter({ ...filter, acc: a.id }); close(); }} className="menu-item">
+                  <span className="min-w-0 flex-1 truncate text-start">{a.name}</span>
+                  <TradeModeBadge mode={modeOf(a.id)} lang={lang} />
+                  {acc === a.id && <Check size={16} className="shrink-0 text-icon" />}
+                </button>
+              ))}
+            </Dropdown>
           )}
           <select aria-label="range" className="field !w-auto !py-1.5 text-sm" value={filter.range} onChange={(e) => setFilter({ ...filter, range: e.target.value })}>
             {RANGES.map((r) => <option key={r} value={r}>{L(rangeLabel[r])}</option>)}

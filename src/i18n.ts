@@ -563,6 +563,10 @@ const dict = {
   imgTooBig: { en: "Image is larger than 2MB.", ar: "الصورة أكبر من 2MB.", fr: "L'image dépasse 2 Mo." },
   econEvents: { en: "Economic events", ar: "الأحداث الاقتصادية", fr: "Événements économiques" },
   econCurrencies: { en: "Currencies", ar: "العملات", fr: "Devises" },
+  // The account-type badge: what MT5 itself reported the account to be (never a user setting).
+  badgeVerified: { en: "Verified", ar: "موثّق", fr: "Vérifié" },
+  badgeDemo: { en: "Demo", ar: "تجريبي", fr: "Démo" },
+  badgeContest: { en: "Contest", ar: "مسابقة", fr: "Concours" },
 } satisfies Dict;
 
 export type Key = keyof typeof dict;

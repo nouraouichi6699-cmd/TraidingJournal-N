@@ -25,7 +25,10 @@ const local = () => {
 
 const n = (v: unknown) => (v == null ? null : Number(v));
 const accTo = (a: Account): Row => ({ id: a.id, platform: a.platform, name: a.name, currency: a.currency, start_balance: a.startBalance, login: a.login ?? null, server: a.server ?? null, created_at_ms: a.createdAt ?? 0 });
-const accFrom = (r: Row): Account => ({ id: r.id as string, platform: r.platform as Account["platform"], name: r.name as string, currency: r.currency as string, startBalance: Number(r.start_balance), ...(r.login ? { login: r.login as string } : {}), ...(r.server ? { server: r.server as string } : {}), createdAt: Number(r.created_at_ms ?? 0) });
+// trade_mode is read, never pushed: accTo leaves it out on purpose, so the app's upserts (merge by id, only the columns
+// sent) can never touch what the MT5 sync wrote (migration 20261113). Anything but the three known values reads as unknown.
+const modeOf = (v: unknown): Account["tradeMode"] => (v === "demo" || v === "contest" || v === "real" ? v : undefined);
+const accFrom = (r: Row): Account => ({ id: r.id as string, platform: r.platform as Account["platform"], name: r.name as string, currency: r.currency as string, startBalance: Number(r.start_balance), ...(r.login ? { login: r.login as string } : {}), ...(r.server ? { server: r.server as string } : {}), ...(modeOf(r.trade_mode) ? { tradeMode: modeOf(r.trade_mode) } : {}), createdAt: Number(r.created_at_ms ?? 0) });
 const trTo = (t: Trade): Row => ({ key: t.key, account_id: t.accountId, no: t.no, symbol: t.symbol, side: t.side, qty: t.qty, entry_time: t.entryTime, entry_price: t.entryPrice, exit_time: t.exitTime, exit_price: t.exitPrice, pnl: t.pnl, return_pct: t.returnPct, commission: t.commission, sl: t.sl ?? null, tp: t.tp ?? null, status: t.status });
 const trFrom = (r: Row): Trade => ({ key: r.key as string, accountId: r.account_id as string, no: Number(r.no), symbol: r.symbol as string, side: r.side as Trade["side"], qty: Number(r.qty), entryTime: r.entry_time as string | null, entryPrice: Number(r.entry_price), exitTime: r.exit_time as string | null, exitPrice: n(r.exit_price), pnl: n(r.pnl), returnPct: n(r.return_pct), commission: Number(r.commission), sl: n(r.sl), tp: n(r.tp), status: r.status as Trade["status"] });
 const bpTo = (a: string, p: BalancePoint): Row => ({ account_id: a, t: p.t, balance: p.balance });

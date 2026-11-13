@@ -9,6 +9,7 @@ import { themeColors } from "./exportTrades";
 import { tradeOutcomeOf } from "./outcome";
 import { pipSize as guessPipSize } from "./pips";
 import { computeStats } from "./stats";
+import { sharedTradeMode, tradeModeWord } from "./tradeMode";
 
 const BODY_PT = 10;
 const PRICE = "#,##0.00###";
@@ -76,6 +77,7 @@ export async function tradesToStreamLog(
   const BAND = "FFD9E1F2";
   const WHITE = "FFFFFFFF";
   const GOLD = "FFFFC000";
+  const GREEN = "FF22C55E", RED = "FFEF4444"; // the account-type word: Verified / Demo, Contest
   type Sheet = ReturnType<typeof wb.addWorksheet>;
   const solid = (color: string) => ({ type: "pattern", pattern: "solid", fgColor: { argb: color } }) as const;
   const RIGHT = { horizontal: "right" } as const;
@@ -90,6 +92,9 @@ export async function tradesToStreamLog(
   const scopeIds = [...new Set(trades.map((t) => t.accountId))];
   const scopeAccounts = scopeIds.map((id) => accounts.find((a) => a.id === id)).filter((a): a is Account => !!a);
   const who = scopeIds.length === 1 ? (name.get(scopeIds[0]) ?? scopeIds[0]) : "All accounts";
+  // The account type is only what the MT5 sync stored on the account; several accounts show one only when they all agree.
+  const tradeMode = sharedTradeMode(scopeAccounts);
+  const kindWord = tradeModeWord(tradeMode);
   // The real balance: each account's latest (imported snapshots, cash flows and realised P&L), summed over the scope.
   const balance = scopeAccounts.reduce((s, a) => s + currentBalance(a, trades.filter((t) => t.accountId === a.id), balances[a.id] ?? [], flows), 0);
 
@@ -117,19 +122,25 @@ export async function tradesToStreamLog(
 
     WIDTHS.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
-    // Title row: "MIZAN" in gold at the left, "Account name : <name>" over the trades table, and "date : <export date>"
-    // at the far right. Row 2 keeps the month, since the title no longer carries it.
+    // Title row: "MIZAN" in gold at the left, "Account name : <name>" over the trades table, the account type beside it
+    // ("Verified" in green for a real MT5 account, "Demo" or "Contest" in red, blank when MT5 never said) and
+    // "date : <export date>" at the far right. Row 2 keeps the month, since the title no longer carries it.
     const TITLE_END = LAST - 3; // the last three columns (K:M) hold the date
+    const KIND_COL = TITLE_END; // J: the account type
     ws.mergeCells(1, 1, 1, C0 - 1);
     const brand = ws.getCell(1, 1);
     brand.value = "MIZAN";
     brand.font = { bold: true, size: 26, color: { argb: GOLD } };
     brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    ws.mergeCells(1, C0, 1, TITLE_END);
+    ws.mergeCells(1, C0, 1, KIND_COL - 1);
     const title = ws.getCell(1, C0);
     title.value = `Account name : ${who}`;
     title.font = { bold: true, size: 14, color: { argb: WHITE } };
     title.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    const kind = ws.getCell(1, KIND_COL);
+    kind.value = kindWord || null;
+    kind.font = { bold: true, size: 12, color: { argb: tradeMode === "real" ? GREEN : RED } };
+    kind.alignment = { vertical: "middle", horizontal: "center" };
     ws.mergeCells(1, TITLE_END + 1, 1, LAST);
     const when = ws.getCell(1, TITLE_END + 1);
     when.value = `date : ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;

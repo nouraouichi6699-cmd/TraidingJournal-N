@@ -109,7 +109,7 @@ export default function DemoDashboard() {
       <Header
         lang={lang} t={t} theme={theme} name="CLIENT" avatar={null} onLang={setLang} onTheme={(id) => { if (id === "dark" || id === "light" || id === "black") setTheme(id); }}
         onProfile={nothing} onSettings={nothing} onNews={nothing} onCalendar={nothing} onDashboard={nothing} onCharts={nothing}
-        interests={noInterests}
+        interests={noInterests} accounts={accounts}
         calc={<SizeCalc lang={lang} accounts={accounts} trades={trades} balances={balances} flows={flows} />}
       />
       <div className="flex">

@@ -2,6 +2,8 @@ export type Theme = "dark" | "light" | "black";
 export type Lang = "en" | "ar" | "fr";
 
 export type Platform = "tradingview" | "mt5";
+/** What MT5 itself says the account is (ACCOUNT_TRADE_MODE), as the MizanSync EA reports it. */
+export type TradeMode = "demo" | "contest" | "real";
 
 export interface Account {
   id: string;
@@ -11,6 +13,8 @@ export interface Account {
   startBalance: number;
   login?: string;
   server?: string;
+  /** Written only by the mt5-sync function (accounts.trade_mode); the app reads it and never edits or pushes it. */
+  tradeMode?: TradeMode;
   createdAt: number;
 }
 
