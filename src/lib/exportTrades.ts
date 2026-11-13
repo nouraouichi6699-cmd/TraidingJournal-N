@@ -70,15 +70,17 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
   const used = new Set<string>(["trades"]);
   type Sheet = ReturnType<typeof wb.addWorksheet>;
   const INK = "FF111827";
-  // Formal statement look: no fills anywhere, only hairline rules. A dark rule under headers, a light one between rows.
-  const RULE_DARK = { style: "thin", color: { argb: INK } } as const;
-  const RULE_LIGHT = { style: "thin", color: { argb: "FFD1D5DB" } } as const;
+  // Blue-header look: solid blue header bands with white bold text, light-blue banding on body rows.
+  const BLUE = "FF2F5597";
+  const BAND = "FFD9E1F2";
+  const WHITE = "FFFFFFFF";
+  const solid = (color: string) => ({ type: "pattern", pattern: "solid", fgColor: { argb: color } }) as const;
   const RIGHT = { horizontal: "right" } as const;
   const headCell = (ws: Sheet, row: number, col: number, v: string, right = false) => {
     const c = ws.getCell(row, col);
     c.value = v;
-    c.font = { bold: true, color: { argb: INK } };
-    c.border = { bottom: RULE_DARK };
+    c.font = { bold: true, color: { argb: WHITE } };
+    c.fill = solid(BLUE);
     if (right) c.alignment = RIGHT;
   };
 
@@ -100,7 +102,7 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     for (let r = h + 1; r <= h + list.length; r++) {
       cols.forEach((c, i) => {
         const cell = ws.getCell(r, c0 + i);
-        cell.border = { bottom: RULE_LIGHT };
+        if ((r - h) % 2 === 0) cell.fill = solid(BAND);
         cell.font = { name: "Calibri", size: BODY_PT };
         if (c.num) cell.alignment = RIGHT;
         if (c.numFmt) cell.numFmt = c.numFmt;
@@ -133,17 +135,16 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     ws.mergeCells(1, 1, 1, titleAt - 1);
     const brand = ws.getCell(1, 1);
     brand.value = "Mizan";
-    // Blackletter ships with Office ("Old English Text MT"); where it is missing the viewer falls back to its default.
-    brand.font = { name: "Old English Text MT", bold: true, size: 22, color: { argb: INK } };
+    brand.font = { bold: true, size: 22, color: { argb: WHITE } };
     brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
     if (title) {
       ws.mergeCells(1, titleAt, 1, last);
       const t = ws.getCell(1, titleAt);
       t.value = title;
-      t.font = { bold: true, size: 20, color: { argb: INK } };
+      t.font = { bold: true, size: 20, color: { argb: WHITE } };
       t.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
     }
-    for (let c = 1; c <= last; c++) ws.getCell(1, c).border = { bottom: RULE_DARK };
+    for (let c = 1; c <= last; c++) ws.getCell(1, c).fill = solid(BLUE);
     ws.getRow(1).height = 36;
     ws.mergeCells(2, 1, 2, last);
     const when = ws.getCell(2, 1);
@@ -167,7 +168,7 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     return c;
   };
 
-  // KPI cards: a label + value pair per metric. `good` null = no polarity, so neutral grey.
+  // KPI cards: a label + value pair per metric. `good` null = no polarity, so the value stays dark.
   const best = trades.filter((t) => t.pnl != null).reduce<Trade | null>((m, t) => (m == null || (t.pnl as number) > (m.pnl as number) ? t : m), null);
   const worst = trades.filter((t) => t.pnl != null).reduce<Trade | null>((m, t) => (m == null || (t.pnl as number) < (m.pnl as number) ? t : m), null);
   // `good` null = no polarity, so the value stays dark; otherwise only the font turns green or red.
@@ -179,7 +180,7 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
     c.alignment = RIGHT;
     const e = put(row, 3, extra ?? null);
     if (extra !== undefined) e.font = { bold: true, color: { argb: INK } };
-    for (let k = 1; k <= 4; k++) main.getCell(row, k).border = { bottom: RULE_LIGHT };
+    for (let k = 1; k <= 4; k++) main.getCell(row, k).fill = solid(BAND);
   };
   ["Metric", "Value"].forEach((hd, i) => headCell(main, HDR, 1 + i, hd, i === 1));
   card(HDR + 1, "Total trades", s.count, "0", null);
@@ -201,7 +202,7 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
       const nc = put(AH + 1 + i, 4, a.net, "#,##0.00");
       nc.font = { color: { argb: argb(a.net >= 0 ? profit : loss) } };
       nc.alignment = RIGHT;
-      for (let k = 1; k <= 4; k++) main.getCell(AH + 1 + i, k).border = { bottom: RULE_LIGHT };
+      if (i % 2 === 0) for (let k = 1; k <= 4; k++) main.getCell(AH + 1 + i, k).fill = solid(BAND);
     });
     if (byAccount.length) {
       // Win rates are stored as 0-1 fractions, so the bar scales over that fixed range.
