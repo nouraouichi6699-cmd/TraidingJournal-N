@@ -13,7 +13,7 @@
 //  3. Drag MizanSync onto any chart and paste the sync key from Mizan (Import page) in its inputs.
 // Keep MT5 open: closed trades reach Mizan within a minute. The status shows in the chart's top-left corner.
 #property copyright   "Mizan"
-#property version     "1.06"
+#property version     "1.07"
 #property description "Sends your trades to your Mizan journal automatically."
 #property description "Read-only: it never opens, changes or closes a trade."
 
@@ -72,6 +72,19 @@ string Num(const double v)
    if(n > 0 && StringGetCharacter(s, n - 1) == '.')
       n--;
    return n > 0 ? StringSubstr(s, 0, n) : "0";
+  }
+
+// The account's real trade mode, for the "verified account type" (MizanSync 1.07+): "demo", "contest" or "real".
+// Anything else MT5 might add later is sent as "" and Mizan treats it as unknown.
+string TradeMode()
+  {
+   switch((ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE))
+     {
+      case ACCOUNT_TRADE_MODE_DEMO:    return "demo";
+      case ACCOUNT_TRADE_MODE_CONTEST: return "contest";
+      case ACCOUNT_TRADE_MODE_REAL:    return "real";
+     }
+   return "";
   }
 
 // Server time as YYYY-MM-DDTHH:MM, like the times of the MT5 report.
@@ -439,6 +452,7 @@ bool Sync(const datetime from)
 
    string head = "{\"token\":\"" + Esc(g_key) + "\",\"now\":\"" + When(TimeCurrent()) + "\",\"login\":\"" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN))
                  + "\",\"server\":\"" + Esc(AccountInfoString(ACCOUNT_SERVER)) + "\",\"currency\":\"" + Esc(AccountInfoString(ACCOUNT_CURRENCY))
+                 + "\",\"tradeMode\":\"" + TradeMode() // (MizanSync 1.07+) older servers and EAs simply ignore / omit it
                  + "\",\"balance\":" + Num(AccountInfoDouble(ACCOUNT_BALANCE)) + ",\"positions\":[";
    long added = 0;
    for(int start = 0; start < total || start == 0; start += BATCH)

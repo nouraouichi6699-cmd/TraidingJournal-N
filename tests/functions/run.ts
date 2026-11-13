@@ -963,6 +963,31 @@ async function main() {
   ok(empRows.length === empCountBefore, "re-sync merges by id (on_conflict), does not duplicate the row");
   ok(empRows[0]?.forecast === "999K", "merged row carries the updated field");
 
+  // ---- 35. mt5-sync: the account's real trade mode (MizanSync 1.07+) lands in accounts.trade_mode ----
+  console.log("35. mt5-sync: trade mode");
+  const acc2 = () => db.accounts.find((a) => a.id === "acc2")!;
+  const sync2 = (extra: Record<string, unknown>) => post(0, { token: KEY2, now: "2026-11-21T10:00", login: "87654321", server: "Broker-Live", currency: "USD", balance: 5000, positions: [], final: true, ...extra });
+  let r35 = await sync2({});
+  ok(r35.ok && acc2().trade_mode == null && acc2().login === "87654321", "older EA (no tradeMode): sync works, login stored, trade_mode left unknown");
+  r35 = await sync2({ tradeMode: "paper" });
+  ok(r35.ok && acc2().trade_mode == null, "unexpected tradeMode value: ignored, sync not refused");
+  r35 = await sync2({ tradeMode: 42 });
+  ok(r35.ok && acc2().trade_mode == null, "non-string tradeMode: ignored, sync not refused");
+  r35 = await sync2({ tradeMode: "demo" });
+  ok(r35.ok && acc2().trade_mode === "demo", "tradeMode demo stored on the account");
+  const touched = acc2().updated_at;
+  r35 = await sync2({ tradeMode: "demo" });
+  ok(r35.ok && acc2().trade_mode === "demo" && acc2().updated_at === touched, "same mode again: nothing rewritten");
+  r35 = await sync2({ tradeMode: "real" });
+  ok(r35.ok && acc2().trade_mode === "real", "a changed mode (real) overwrites the stored one");
+  r35 = await sync2({});
+  ok(r35.ok && acc2().trade_mode === "real", "a later sync without the field keeps the known mode");
+  r35 = await sync2({ tradeMode: "contest" });
+  ok(r35.ok && acc2().trade_mode === "contest", "tradeMode contest stored");
+  await post(0, { token: KEY2, action: "calendar", tradeMode: "demo", events: [calItem("tm-cal")] });
+  ok(acc2().trade_mode === "contest", "the calendar action never touches trade_mode");
+  ok(!("trade_mode" in db.accounts.find((a) => a.id === "acc1")!) || db.accounts.find((a) => a.id === "acc1")!.trade_mode == null, "another account untouched");
+
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);
 }

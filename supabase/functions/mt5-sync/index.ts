@@ -5,6 +5,8 @@
 // duplicates. Closed trades already in the journal are not rewritten, and trades the user deleted stay deleted.
 // An account without a starting balance gets one from MT5 (MizanSync 1.02+): the balance now minus the result of its
 // trades, so the journal's balance matches MT5. A balance set by the user or by a report import is never touched.
+// The account's real MT5 trade mode (MizanSync 1.07+, "tradeMode": demo | contest | real) is kept in accounts.trade_mode;
+// a missing or unexpected value changes nothing (older EAs send none), so the account type is only ever what MT5 reported.
 // A second request shape, action:"calendar" (MizanSync 1.04+), carries the user's MT5 economic calendar history instead
 // of positions: it upserts econ_events_mt5, scoped to the user who owns the key. It never touches trades or the account.
 // Setup once: deploy, and turn "Verify JWT" off (an EA has no Supabase session; the sync key is checked here).
@@ -12,6 +14,7 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 const WHEN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, ID = /^\d{1,20}$/;
 const r2 = (x: number) => Math.round(x * 100) / 100;
+const TRADE_MODES = new Set(["demo", "contest", "real"]); // accounts.trade_mode (migration 20261113)
 
 type Pos = { id: string; symbol: string; type: "buy" | "sell"; volume: number; openTime: string; openPrice: number; closeTime?: string | null; closePrice?: number | null; sl?: number; tp?: number; commission?: number; swap?: number; profit?: number; status: "open" | "closed" };
 const valid = (p: Pos) => !!p && ID.test(String(p.id)) && typeof p.symbol === "string" && p.symbol.length > 0 && p.symbol.length <= 40 && (p.type === "buy" || p.type === "sell")
@@ -63,7 +66,7 @@ Deno.serve(async (req) => {
     const row = found.ok ? ((await found.json()) as { user_id: string; key: string; value: Record<string, unknown> }[])[0] : undefined;
     if (!row) return json({ ok: false, error: "badToken" }, 401);
     const uid = row.user_id, accountId = row.key.slice("mt5-sync:".length);
-    const acc = ((await (await db(`accounts?select=id,login,server,start_balance&id=eq.${accountId}&user_id=eq.${uid}&deleted_at=is.null`)).json()) as { id: string; login: string | null; server: string | null; start_balance: number | null }[])[0];
+    const acc = ((await (await db(`accounts?select=id,login,server,start_balance,trade_mode&id=eq.${accountId}&user_id=eq.${uid}&deleted_at=is.null`)).json()) as { id: string; login: string | null; server: string | null; start_balance: number | null; trade_mode: string | null }[])[0];
     if (!acc) return json({ ok: false, error: "noAccount" }, 404);
 
     // Economic calendar history, scoped to the user (not to this account): never blocks or shares with the trade sync above.
@@ -116,9 +119,13 @@ Deno.serve(async (req) => {
         if (!w.ok) return json({ ok: false, error: `save failed: ${(await w.text()).slice(0, 200)}` }, 500);
       }
     }
-    // remember the MT5 login on the account, and when this key last synced (shown on the Import page).
+    // remember the MT5 login and the real trade mode on the account, and when this key last synced (shown on the Import page).
     // updated_at null = the database's clock (sync_guard); the hash filter leaves a key replaced meanwhile untouched.
-    if (!acc.login && login) await db(`accounts?id=eq.${accountId}&user_id=eq.${uid}`, { method: "PATCH", body: JSON.stringify({ login, server: typeof body.server === "string" ? body.server.slice(0, 80) : acc.server, updated_at: null }) });
+    const tradeMode = TRADE_MODES.has(body.tradeMode) ? (body.tradeMode as string) : null; // MizanSync 1.07+; anything else = unknown, nothing written
+    const accPatch: Record<string, unknown> = {};
+    if (!acc.login && login) Object.assign(accPatch, { login, server: typeof body.server === "string" ? body.server.slice(0, 80) : acc.server });
+    if (tradeMode && tradeMode !== acc.trade_mode) accPatch.trade_mode = tradeMode;
+    if (Object.keys(accPatch).length) await db(`accounts?id=eq.${accountId}&user_id=eq.${uid}`, { method: "PATCH", body: JSON.stringify({ ...accPatch, updated_at: null }) });
     // starting balance from MT5: only on the last request of a sync (all trades written), only when unset or set by us before
     let startAuto = typeof row.value.startAuto === "number" ? row.value.startAuto : null;
     const balance = Number(body.balance), cur = Number(acc.start_balance) || 0;
