@@ -3,11 +3,32 @@
 import type { Account, Trade } from "../types";
 import { computeStats } from "./stats";
 
-const COLUMNS = [
-  "account", "no", "symbol", "side", "qty", "entry_time", "entry_price",
-  "exit_time", "exit_price", "pnl", "return_pct", "commission", "sl", "tp", "status",
-] as const;
-const PNL_COL = COLUMNS.indexOf("pnl") + 1;
+const MONEY = "#,##0.00";
+/** "2026-01-01T10:00" or "2026-01-01 10:00" -> ["2026-01-01", "10:00"]; kept as text so no timezone shifts. */
+const splitStamp = (v: string | null): [string | null, string | null] => {
+  if (!v) return [null, null];
+  const m = /^(\S+?)[T\s]+(.+)$/.exec(v.trim());
+  return m ? [m[1], m[2]] : [v, null];
+};
+
+interface Col { key: string; value: (t: Trade, i: number, accountName: string) => string | number | null; numFmt?: string }
+/** The one place that defines the trades table's columns; the order, count, formats and pnl position all derive from it. */
+const columns = (showAccount: boolean): Col[] => [
+  ...(showAccount ? [{ key: "account", value: (_t: Trade, _i: number, acc: string) => acc }] : []),
+  { key: "no", value: (_t, i) => i + 1 }, // sequential per sheet, not the original trade.no
+  { key: "symbol", value: (t) => t.symbol },
+  { key: "side", value: (t) => t.side },
+  { key: "qty", value: (t) => t.qty },
+  { key: "entry_date", value: (t) => splitStamp(t.entryTime)[0] },
+  { key: "entry_time", value: (t) => splitStamp(t.entryTime)[1] },
+  { key: "entry_price", value: (t) => t.entryPrice, numFmt: MONEY },
+  { key: "exit_date", value: (t) => splitStamp(t.exitTime)[0] },
+  { key: "exit_time", value: (t) => splitStamp(t.exitTime)[1] },
+  { key: "exit_price", value: (t) => t.exitPrice, numFmt: MONEY },
+  { key: "pnl", value: (t) => t.pnl, numFmt: MONEY },
+  { key: "sl", value: (t) => t.sl ?? null, numFmt: MONEY },
+  { key: "tp", value: (t) => t.tp ?? null, numFmt: MONEY },
+];
 
 /** The app's own --profit / --loss, resolved at export time so custom win/loss colours carry through. */
 function themeColors(): { profit: string; loss: string } {
@@ -67,35 +88,32 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
 
   // Writes a trades table whose header sits on `h` and whose first column is `c0`, with the frozen header,
   // autofilter, number formats, zebra stripes, pnl colouring and auto widths all scoped to that range.
-  const fill = (ws: Sheet, list: Trade[], c0 = 1, h = 1) => {
-    COLUMNS.forEach((c, i) => headCell(ws, h, c0 + i, c));
+  const fill = (ws: Sheet, list: Trade[], c0: number, h: number, showAccount: boolean) => {
+    const cols = columns(showAccount);
+    const pnlAt = c0 + cols.findIndex((c) => c.key === "pnl");
+    cols.forEach((c, i) => headCell(ws, h, c0 + i, c.key));
     list.forEach((t, r) => {
-      const vals = [
-        name.get(t.accountId) ?? t.accountId, t.no, t.symbol, t.side, t.qty, t.entryTime, t.entryPrice,
-        t.exitTime, t.exitPrice, t.pnl,
-        // returnPct is stored in percent units (1.25 = 1.25%), so it is divided by 100 for Excel's % format.
-        t.returnPct == null ? null : t.returnPct / 100,
-        t.commission, t.sl ?? null, t.tp ?? null, t.status,
-      ];
-      vals.forEach((v, i) => { ws.getCell(h + 1 + r, c0 + i).value = v; });
+      const acc = name.get(t.accountId) ?? t.accountId;
+      cols.forEach((c, i) => { ws.getCell(h + 1 + r, c0 + i).value = c.value(t, r, acc); });
     });
     ws.views = [{ state: "frozen", ySplit: h }];
-    ws.autoFilter = { from: { row: h, column: c0 }, to: { row: h, column: c0 + COLUMNS.length - 1 } };
-    const col = (n: (typeof COLUMNS)[number]) => c0 + COLUMNS.indexOf(n);
+    ws.autoFilter = { from: { row: h, column: c0 }, to: { row: h, column: c0 + cols.length - 1 } };
     for (let r = h + 1; r <= h + list.length; r++) {
-      // Zebra first, so the pnl tint below overrides it on that one column.
-      if ((r - h) % 2 === 0) for (let i = 0; i < COLUMNS.length; i++) ws.getCell(r, c0 + i).fill = solid(ZEBRA);
-      for (const n of ["entry_price", "exit_price", "pnl", "commission", "sl", "tp"] as const) ws.getCell(r, col(n)).numFmt = "#,##0.00";
-      ws.getCell(r, col("return_pct")).numFmt = "0.00%";
-      const p = ws.getCell(r, c0 + PNL_COL - 1);
+      cols.forEach((c, i) => {
+        const cell = ws.getCell(r, c0 + i);
+        // Zebra first, so the pnl tint below overrides it on that one column.
+        if ((r - h) % 2 === 0) cell.fill = solid(ZEBRA);
+        if (c.numFmt) cell.numFmt = c.numFmt;
+      });
+      const p = ws.getCell(r, pnlAt);
       const v = p.value;
       if (typeof v === "number" && v !== 0) {
         p.fill = solid(tint(v > 0 ? profit : loss));
         p.font = { color: { argb: argb(v > 0 ? profit : loss) }, bold: true };
       }
     }
-    COLUMNS.forEach((c, i) => {
-      let w = c.length;
+    cols.forEach((c, i) => {
+      let w = c.key.length;
       for (let r = h + 1; r <= h + list.length; r++) {
         const val = ws.getCell(r, c0 + i).value;
         const len = typeof val === "number" ? val.toFixed(2).length : String(val ?? "").length;
@@ -103,33 +121,47 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
       }
       ws.getColumn(c0 + i).width = Math.min(40, w + 3);
     });
+    return cols.length;
+  };
+
+  // Brand strip over `last` columns: "Mizan" (row 1), the export date (row 2) and, for a single-account table,
+  // the account's name as a bold title (row 3).
+  const strip = (ws: Sheet, last: number, title?: string) => {
+    ws.mergeCells(1, 1, 1, last);
+    const brand = ws.getCell(1, 1);
+    brand.value = "Mizan";
+    brand.font = { bold: true, size: 22, color: { argb: "FFFFFFFF" } };
+    brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    for (let c = 1; c <= last; c++) ws.getCell(1, c).fill = solid(HEADER_FILL);
+    ws.getRow(1).height = 36;
+    ws.mergeCells(2, 1, 2, last);
+    const when = ws.getCell(2, 1);
+    when.value = `Exported ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
+    when.font = { italic: true, color: { argb: "FF6B7280" } };
+    when.alignment = { horizontal: "left", indent: 1 };
+    if (title) {
+      ws.mergeCells(3, 1, 3, last);
+      const t = ws.getCell(3, 1);
+      t.value = title;
+      t.font = { bold: true, size: 14, color: { argb: INK } };
+      t.alignment = { horizontal: "left", indent: 1 };
+    }
   };
 
   // One sheet: a brand strip (rows 1-2, row 3 blank), then the summary in columns A-D, two gap columns (E, F)
   // and the trades table from G, the two blocks sharing the header row.
-  const C0 = 7, HDR = 4, LAST = C0 + COLUMNS.length - 1;
+  const C0 = 7, HDR = 4;
   const main = wb.addWorksheet("Trades");
   const s = computeStats(trades);
   const byAccount = [...new Set(trades.map((t) => t.accountId))];
+  // One account only (scoped export, or a single account in the app): its name becomes the title, not a column.
+  const single = byAccount.length === 1 ? (name.get(byAccount[0]) ?? byAccount[0]) : undefined;
   const put = (row: number, col: number, v: string | number | null, numFmt?: string) => {
     const c = main.getCell(row, col);
     c.value = v;
     if (numFmt) c.numFmt = numFmt;
     return c;
   };
-
-  main.mergeCells(1, 1, 1, LAST);
-  const brand = main.getCell(1, 1);
-  brand.value = "Mizan";
-  brand.font = { bold: true, size: 22, color: { argb: "FFFFFFFF" } };
-  brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  for (let c = 1; c <= LAST; c++) main.getCell(1, c).fill = solid(HEADER_FILL);
-  main.getRow(1).height = 36;
-  main.mergeCells(2, 1, 2, LAST);
-  const when = main.getCell(2, 1);
-  when.value = `Exported ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
-  when.font = { italic: true, color: { argb: "FF6B7280" } };
-  when.alignment = { horizontal: "left", indent: 1 };
 
   // KPI cards: a tinted label + value pair per metric. `good` null = no polarity, so neutral grey.
   const best = trades.filter((t) => t.pnl != null).reduce<Trade | null>((m, t) => (m == null || (t.pnl as number) > (m.pnl as number) ? t : m), null);
@@ -174,11 +206,14 @@ export async function tradesToXlsx(trades: Trade[], accounts: Account[]): Promis
   [2, 3, 4].forEach((i) => { main.getColumn(i).width = 14; });
   main.getColumn(5).width = 4;
   main.getColumn(6).width = 4;
-  fill(main, trades, C0, HDR);
+  const n = fill(main, trades, C0, HDR, single === undefined);
+  strip(main, C0 + n - 1, single);
 
   if (accounts.length > 1) {
     for (const id of byAccount) {
-      fill(wb.addWorksheet(sheetName(name.get(id) ?? id, used)), trades.filter((t) => t.accountId === id));
+      const ws = wb.addWorksheet(sheetName(name.get(id) ?? id, used));
+      const n = fill(ws, trades.filter((t) => t.accountId === id), 1, HDR, false);
+      strip(ws, n, name.get(id) ?? id);
     }
   }
 
