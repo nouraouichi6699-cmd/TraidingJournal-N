@@ -93,7 +93,10 @@ export async function tradesToStreamLog(
 
   const months = [...new Set(trades.map(monthOf).filter((m): m is string => m != null))].sort().reverse();
   const COLS = ["Contract", "Date", "Long/Short", "Entry price", "Exit price", "Pip", "Exit note", "W/L/BE"];
-  const WIDTHS = [16, 13, 12, 13, 13, 11, 34, 10];
+  // Side by side on one sheet: stats and risk in columns A-D, two gap columns, the trades table from column G. The
+  // header row (HDR) is shared by the stats box and the trades table.
+  const C0 = 7, HDR = 3, LAST = C0 + COLS.length - 1;
+  const WIDTHS = [16, 13, 13, 13, 3, 3, 16, 13, 12, 13, 13, 11, 34, 10];
 
   for (const m of months) {
     const ws = wb.addWorksheet(monthTitle(m));
@@ -105,31 +108,34 @@ export async function tradesToStreamLog(
     });
     const s = computeStats(list);
     const be = s.closed - s.wins - s.losses;
-    const totalPips = Math.round(rows.reduce((sum, r) => sum + (r.pip ?? 0), 0) * 10) / 10;
+    const sumPips = (keep: (p: number) => boolean) => Math.round(rows.reduce((sum, r) => sum + (r.pip != null && keep(r.pip) ? r.pip : 0), 0) * 10) / 10;
+    const winPips = sumPips((p) => p > 0);
+    const losePips = sumPips((p) => p < 0);
+    const totalPips = Math.round(rows.reduce((sum, r) => sum + (r.pip ?? 0), 0) * 10) / 10; // the net: winning + losing
 
     WIDTHS.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     // Brand row: "Mizan" at the left, the account and month as the title over the right-hand columns.
-    ws.mergeCells(1, 1, 1, 2);
+    ws.mergeCells(1, 1, 1, C0 - 1);
     const brand = ws.getCell(1, 1);
     brand.value = "Mizan";
     brand.font = { bold: true, size: 22, color: { argb: WHITE } };
     brand.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    ws.mergeCells(1, 3, 1, COLS.length);
-    const title = ws.getCell(1, 3);
+    ws.mergeCells(1, C0, 1, LAST);
+    const title = ws.getCell(1, C0);
     title.value = `${who} · ${monthTitle(m)}`;
     title.font = { bold: true, size: 20, color: { argb: WHITE } };
     title.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    for (let c = 1; c <= COLS.length; c++) ws.getCell(1, c).fill = solid(BLUE);
+    for (let c = 1; c <= LAST; c++) ws.getCell(1, c).fill = solid(BLUE);
     ws.getRow(1).height = 36;
-    ws.mergeCells(2, 1, 2, COLS.length);
+    ws.mergeCells(2, 1, 2, LAST);
     const when = ws.getCell(2, 1);
     when.value = `Exported ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`;
     when.font = { italic: true, color: { argb: "FF6B7280" } };
     when.alignment = { horizontal: "left", indent: 1 };
 
     // Stats box (A:B).
-    const SH = 4;
+    const SH = HDR;
     headCell(ws, SH, 1, "Stats");
     headCell(ws, SH, 2, "Month", true);
     const stat: [string, number | null, string][] = [
@@ -138,8 +144,11 @@ export async function tradesToStreamLog(
       ["L", s.losses, "0"],
       ["BE", be, "0"],
       ["Win rate", s.winRate == null ? null : s.winRate / 100, "0.0%"],
+      ["Winning pips", winPips, PIPS],
+      ["Losing pips", losePips, PIPS],
       ["Total pips", totalPips, PIPS],
     ];
+    const pipTone: Record<string, number> = { "Winning pips": winPips, "Losing pips": losePips, "Total pips": totalPips };
     stat.forEach(([label, v, fmt], i) => {
       const r = SH + 1 + i;
       const l = ws.getCell(r, 1);
@@ -149,7 +158,7 @@ export async function tradesToStreamLog(
       c.value = v;
       c.numFmt = fmt;
       c.alignment = RIGHT;
-      c.font = { bold: true, color: { argb: label === "Total pips" && v !== 0 ? argb(totalPips > 0 ? profit : loss) : INK } };
+      c.font = { bold: true, color: { argb: label in pipTone && pipTone[label] !== 0 ? argb(pipTone[label] > 0 ? profit : loss) : INK } };
       if (i % 2 === 0) for (let k = 1; k <= 2; k++) ws.getCell(r, k).fill = solid(BAND);
     });
 
@@ -186,9 +195,9 @@ export async function tradesToStreamLog(
       });
     });
 
-    // The trades table.
-    const TH = RH + RISK_LEVELS.length + 2;
-    COLS.forEach((hd, i) => headCell(ws, TH, 1 + i, hd, i === 3 || i === 4 || i === 5));
+    // The trades table, to the right of the stats and risk blocks, on the shared header row.
+    const TH = HDR;
+    COLS.forEach((hd, i) => headCell(ws, TH, C0 + i, hd, i === 3 || i === 4 || i === 5));
     const bold = (color: string) => ({ name: "Calibri", size: BODY_PT, bold: true, color: { argb: argb(color) } });
     rows.forEach(({ t, pip, outcome }, i) => {
       const r = TH + 1 + i;
@@ -197,7 +206,7 @@ export async function tradesToStreamLog(
         notes[t.key] ?? "", outcome == null ? null : outcome === "win" ? "W" : outcome === "loss" ? "L" : "BE",
       ];
       vals.forEach((v, k) => {
-        const c = ws.getCell(r, 1 + k);
+        const c = ws.getCell(r, C0 + k);
         c.value = v === "" ? null : v;
         c.font = { name: "Calibri", size: BODY_PT };
         if (k === 3 || k === 4) { c.numFmt = PRICE; c.alignment = RIGHT; }
@@ -205,10 +214,11 @@ export async function tradesToStreamLog(
         if (k === 7) c.alignment = { horizontal: "center" };
         if (i % 2 === 1) c.fill = solid(BAND);
       });
-      if (pip != null && pip !== 0) ws.getCell(r, 6).font = bold(pip > 0 ? profit : loss);
-      if (outcome === "win" || outcome === "loss") ws.getCell(r, 8).font = bold(outcome === "win" ? profit : loss);
+      if (pip != null && pip !== 0) ws.getCell(r, C0 + 5).font = bold(pip > 0 ? profit : loss);
+      if (outcome === "win" || outcome === "loss") ws.getCell(r, C0 + 7).font = bold(outcome === "win" ? profit : loss);
     });
-    if (rows.length) ws.autoFilter = { from: { row: TH, column: 1 }, to: { row: TH, column: COLS.length } };
+    if (rows.length) ws.autoFilter = { from: { row: TH, column: C0 }, to: { row: TH, column: LAST } };
+    ws.views = [{ state: "frozen", ySplit: HDR }];
   }
 
   const buf = await wb.xlsx.writeBuffer();
