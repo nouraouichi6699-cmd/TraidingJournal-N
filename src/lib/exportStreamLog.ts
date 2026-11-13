@@ -4,12 +4,11 @@
 import type { Account, BalancePoint, Trade } from "../types";
 import type { CashFlow } from "./cashflow";
 import { currentBalance } from "./balance";
-import { pipSizeFor, SIZE_STATE_KEY, symbolSpec } from "./calcCore";
+import { defaultPipSize, pipSizeFor, SIZE_STATE_KEY, symbolSpec } from "./calcCore";
 import { themeColors } from "./exportTrades";
 import { tradeOutcomeOf } from "./outcome";
 import { pipSize as guessPipSize } from "./pips";
 import { computeStats } from "./stats";
-import { readNotes } from "./tradeNotes";
 
 const BODY_PT = 10;
 const PRICE = "#,##0.00###";
@@ -25,7 +24,7 @@ const monthOf = (t: Trade) => (/^\d{4}-(0[1-9]|1[0-2])/.test(t.entryTime ?? "") 
 const dateOf = (t: Trade) => (/^\d{4}-\d{2}-\d{2}/.test(t.entryTime ?? "") ? (t.entryTime as string).slice(0, 10) : null);
 const argb = (hex: string) => `FF${hex.slice(1).toUpperCase()}`;
 
-/** The pip sizes the user typed in the calculators (symbol -> text), which calcCore's pipSizeFor honours. */
+/** The pip sizes the user typed in the calculators (symbol -> text), for symbols that have no built-in size. */
 function typedPipSizes(): Record<string, string> {
   try {
     const p = JSON.parse(localStorage.getItem(SIZE_STATE_KEY) ?? "{}")?.pipSizes;
@@ -37,13 +36,16 @@ function typedPipSizes(): Record<string, string> {
 
 /**
  * Signed pips of a closed trade: the price move in the trade's direction (profit positive, adverse negative), in the
- * symbol's pip size. The size comes from the calculators' pipSizeFor (forex from its spec, gold 0.1, silver 0.01, or
- * the size the user typed for that symbol); a symbol it has no size for falls back to the journal's own pipSize guess
- * (indices 1, oil 0.01 ...), so this agrees with the pips shown in the journal. Null for an open trade.
+ * symbol's pip size, from symbolSpec + pipSizeFor: forex its spec's (0.0001, JPY pairs 0.01), gold 0.1, silver 0.01.
+ * A size typed in the calculators only counts for a symbol with no built-in size (indices, oil ...): for the others it
+ * would silently rescale every pip (a stray 0.01 for gold made 6.58 of price read as 658 pips). A symbol with no size
+ * at all falls back to the journal's own pipSize guess, so this agrees with the pips shown in the journal.
+ * Null for an open trade.
  */
 export function pipsFor(t: Pick<Trade, "symbol" | "side" | "entryPrice" | "exitPrice" | "status">, typed: Record<string, string> = {}): number | null {
   if (t.status !== "closed" || t.exitPrice == null || !Number.isFinite(t.entryPrice) || !Number.isFinite(t.exitPrice)) return null;
-  let size = pipSizeFor(symbolSpec(t.symbol), typed[t.symbol.toUpperCase()]);
+  const sp = symbolSpec(t.symbol);
+  let size = pipSizeFor(sp, defaultPipSize(sp) == null ? typed[t.symbol.toUpperCase()] : undefined);
   if (!(size > 0)) size = guessPipSize(t.symbol);
   const move = t.side === "long" ? t.exitPrice - t.entryPrice : t.entryPrice - t.exitPrice;
   return Math.round((move / size) * 10) / 10;
@@ -62,7 +64,6 @@ export async function tradesToStreamLog(
 ): Promise<Blob> {
   const { default: ExcelJS } = await import("exceljs");
   const { profit, loss } = themeColors();
-  const notes = readNotes();
   const typed = typedPipSizes();
   const name = new Map(accounts.map((a) => [a.id, a.name]));
   const wb = new ExcelJS.Workbook();
@@ -92,11 +93,11 @@ export async function tradesToStreamLog(
   const balance = scopeAccounts.reduce((s, a) => s + currentBalance(a, trades.filter((t) => t.accountId === a.id), balances[a.id] ?? [], flows), 0);
 
   const months = [...new Set(trades.map(monthOf).filter((m): m is string => m != null))].sort().reverse();
-  const COLS = ["Contract", "Date", "Long/Short", "Entry price", "Exit price", "Pip", "Exit note", "W/L/BE"];
+  const COLS = ["Contract", "Date", "Long/Short", "Entry price", "Exit price", "Pip", "W/L/BE"];
   // Side by side on one sheet: stats and risk in columns A-D, two gap columns, the trades table from column G. The
   // header row (HDR) is shared by the stats box and the trades table.
   const C0 = 7, HDR = 3, LAST = C0 + COLS.length - 1;
-  const WIDTHS = [16, 13, 13, 13, 3, 3, 16, 13, 12, 13, 13, 11, 34, 10];
+  const WIDTHS = [16, 13, 13, 13, 3, 3, 16, 13, 12, 13, 13, 11, 10];
 
   for (const m of months) {
     const ws = wb.addWorksheet(monthTitle(m));
@@ -203,19 +204,19 @@ export async function tradesToStreamLog(
       const r = TH + 1 + i;
       const vals: (string | number | null)[] = [
         t.symbol, dateOf(t), t.side === "long" ? "Long" : "Short", t.entryPrice, t.exitPrice, pip,
-        notes[t.key] ?? "", outcome == null ? null : outcome === "win" ? "W" : outcome === "loss" ? "L" : "BE",
+        outcome == null ? null : outcome === "win" ? "W" : outcome === "loss" ? "L" : "BE",
       ];
       vals.forEach((v, k) => {
         const c = ws.getCell(r, C0 + k);
-        c.value = v === "" ? null : v;
+        c.value = v;
         c.font = { name: "Calibri", size: BODY_PT };
         if (k === 3 || k === 4) { c.numFmt = PRICE; c.alignment = RIGHT; }
         if (k === 5) { c.numFmt = PIPS; c.alignment = RIGHT; }
-        if (k === 7) c.alignment = { horizontal: "center" };
+        if (k === 6) c.alignment = { horizontal: "center" };
         if (i % 2 === 1) c.fill = solid(BAND);
       });
       if (pip != null && pip !== 0) ws.getCell(r, C0 + 5).font = bold(pip > 0 ? profit : loss);
-      if (outcome === "win" || outcome === "loss") ws.getCell(r, C0 + 7).font = bold(outcome === "win" ? profit : loss);
+      if (outcome === "win" || outcome === "loss") ws.getCell(r, C0 + 6).font = bold(outcome === "win" ? profit : loss);
     });
     if (rows.length) ws.autoFilter = { from: { row: TH, column: C0 }, to: { row: TH, column: LAST } };
     ws.views = [{ state: "frozen", ySplit: HDR }];
