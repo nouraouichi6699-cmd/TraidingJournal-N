@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, ArrowUpDown, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag } from "lucide-react";
+import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, ArrowUpDown, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag, Gamepad2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import GlassIcon from "./GlassIcon";
 import { useIconGlass } from "../useIconGlass";
@@ -13,6 +13,7 @@ const COLOR: Record<string, string> = {
   dashboard: "#3b82f6", journal: "#22c55e", charts: "#06b6d4", calculators: GOLD, reports: "#94a3b8",
   accounts: "#14b8a6", import: "#f97316", roadmap: "#8b5cf6",
   advisor: "#d946ef", challenges: "#ef4444", strategies: "#ec4899", achievements: "#f59e0b",
+  gloria: "#8b5cf6",
 };
 
 const groups = [
@@ -28,7 +29,7 @@ const groups = [
   },
   {
     id: "g3", label: { en: "Growth", ar: "التطور", fr: "Progression" }, items: [
-      { id: "advisor", icon: CandleIcon }, { id: "challenges", icon: Flag }, { id: "strategies", icon: Target }, { id: "achievements", icon: Trophy },
+      { id: "advisor", icon: CandleIcon }, { id: "challenges", icon: Flag }, { id: "strategies", icon: Target }, { id: "achievements", icon: Trophy }, { id: "gloria", icon: Gamepad2 },
     ]
   },
 ] as const;

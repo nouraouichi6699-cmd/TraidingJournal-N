@@ -40,6 +40,7 @@ const loadNews = () => import("./components/NewsView");
 const loadProfile = () => import("./components/ProfileView");
 const loadSettingsView = () => import("./components/SettingsView");
 const loadCalculators = () => import("./components/CalculatorsView");
+const loadGloria = () => import("./pages/GloriaPage");
 const loadSizeCalc = () => import("./components/SizeCalc"); // the header dropdown's panel: fetched on first open
 
 const AccountsList = lazy(loadAccounts);
@@ -55,6 +56,7 @@ const NewsView = lazy(loadNews);
 const ProfileView = lazy(loadProfile);
 const SettingsView = lazy(loadSettingsView);
 const CalculatorsView = lazy(loadCalculators);
+const GloriaPage = lazy(loadGloria);
 const SizeCalc = lazy(loadSizeCalc);
 const loadAuth = () => import("./components/AuthView"); // signed-out only
 const loadConnect = () => import("./components/ConnectAccountModal"); // only when the modal opens
@@ -310,6 +312,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
               {view === "calendar" && <LazyView t={t} lang={lang}><CalendarView t={t} lang={lang} interests={interests} /></LazyView>}
               {view === "news" && <LazyView t={t} lang={lang}><NewsView t={t} lang={lang} interests={interests} /></LazyView>}
               {view === "calculators" && <LazyView t={t} lang={lang}><CalculatorsView t={t} lang={lang} theme={theme} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} nav={calcNav} onNavDone={() => setCalcNav(null)} /></LazyView>}
+              {view === "gloria" && <LazyView t={t} lang={lang}><GloriaPage /></LazyView>}
               {view === "charts" && <LazyView t={t} lang={lang}><ChartsView t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} onOpenDay={(day, acc) => { setReportsNav({ tab: "daybyday", day, acc }); setView("reports"); }} /></LazyView>}
               {view === "dashboard" && <LazyView t={t} lang={lang}><DashboardView t={t} lang={lang} accounts={accounts} trades={journal.trades} flows={journal.flows} userId={userId} onOpenDay={(day, hotspot) => { setReportsNav({ tab: "daybyday", day, sub: hotspot ? "hotspot" : undefined }); setView("reports"); }} /></LazyView>}
               {view === "reports" && <LazyView t={t} lang={lang}><ReportsView nav={reportsNav} onNavDone={() => setReportsNav(null)} t={t} lang={lang} accounts={accounts} trades={journal.trades} balances={journal.balances} onImport={() => setView("import")} flows={journal.flows} onAddFlow={journal.addFlow} onRemoveFlow={journal.removeFlow} /></LazyView>}

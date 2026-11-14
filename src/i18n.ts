@@ -72,6 +72,7 @@ const dict = {
   challenges: { en: "Challenges", ar: "التحديات", fr: "Challenges" },
   strategies: { en: "Strategies", ar: "الاستراتيجيات", fr: "Stratégies" },
   achievements: { en: "Achievements", ar: "الإنجازات", fr: "Succès" },
+  gloria: { en: "GLORIA", ar: "GLORIA", fr: "GLORIA" },
   importTitle: { en: "Import / Export", ar: "استيراد / تصدير", fr: "Importer / Exporter" },
   importTrades: { en: "Import trades", ar: "استيراد الصفقات", fr: "Importer des trades" },
   pickAccount: { en: "Account", ar: "الحساب", fr: "Compte" },
