@@ -61,7 +61,6 @@ export function useGloriaQuests(userId: string | null | undefined, trades: Trade
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  const readyFor = useRef<string | null>(null);
   const tradesRef = useRef(trades);
   const accountsRef = useRef(accounts);
   tradesRef.current = trades;
@@ -112,13 +111,22 @@ export function useGloriaQuests(userId: string | null | undefined, trades: Trade
 
   // First load for this user: zones/challenges reference data, plus an immediate evaluation (this is also what
   // creates the player's quest rows the first time they open the feature).
+  //
+  // Deliberately gated only by the dependency array below, never by a ref that marks "already started for this
+  // userId" -- that ref used to be set synchronously, before the first await, and React 18 StrictMode (dev only)
+  // mounts every effect, cleans it up, and mounts it again, synchronously, before any of that first mount's
+  // awaited work settles. The ref was already pointing at this userId by the time the surviving second mount
+  // ran, so it bailed out immediately and never fetched anything, while the first (cancelled) mount's fetch
+  // completed later but had its own `cancelled` flag set, so it skipped every state update including
+  // `setLoading(false)` -- "Unrolling the map..." forever, with nothing left to ever clear it. getChallenges/
+  // getZones are cheap, read-only, and safe to issue twice back-to-back (the StrictMode-only cost), and
+  // runEvaluation's single-flight guard already coalesces a duplicate evaluation call, so nothing here actually
+  // needs the ref's protection.
   useEffect(() => {
     if (!userId) {
       setLoading(false);
       return;
     }
-    if (readyFor.current === userId) return;
-    readyFor.current = userId;
     let cancelled = false;
     setLoading(true);
     (async () => {
@@ -141,8 +149,10 @@ export function useGloriaQuests(userId: string | null | undefined, trades: Trade
   }, [userId]);
 
   // Re-evaluate (debounced) whenever the trades or accounts the app is using change, or refresh() is called.
+  // If this fires while the first load above is still in flight, runEvaluation's single-flight guard joins it
+  // instead of starting a second, overlapping evaluation.
   useEffect(() => {
-    if (!userId || readyFor.current !== userId) return;
+    if (!userId) return;
     const timer = setTimeout(() => void runEvaluation(userId), DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps

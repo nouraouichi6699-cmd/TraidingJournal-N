@@ -25,6 +25,13 @@ import { gt } from "../components/gloria/gloriaText";
 
 const EMPTY_RADAR: GloriaRadarStats = { precision: 0, speed: 0, defense: 0, wisdom: 0, recovery: 0, intelligence: 0, power: 0 };
 const CELEBRATE_MS = 6000;
+// Progressive loading, not blocking loading: the map itself (ZONE_VISUALS, drawn entirely client-side) and Zone
+// 1 (never really locked -- see buildMapZones) don't need the network round trip at all, so there is no reason
+// a slow connection -- or a future bug in the fetch -- should leave the player staring at a spinner. The "map
+// still loading" overlay is a courtesy for the (normally sub-second) common case, not a gate: it steps aside on
+// its own after this long even if `loading` is somehow still true, same as showing the map immediately with
+// whatever data is in hand and filling in progress once it arrives.
+const LOADING_OVERLAY_MAX_MS = 2000;
 
 // Which state each zone was in the last time this player saw the map, so a conquest (or a land coming out of the
 // fog) is celebrated exactly once. Per-device convenience only; losing it just replays a celebration.
@@ -82,6 +89,17 @@ export default function GloriaPage({ userId, lang, trades, accounts }: Props) {
   const [celebrate, setCelebrate] = useState<ReadonlySet<number>>(new Set());
   const [reveal, setReveal] = useState<ReadonlySet<number>>(new Set());
 
+  const [overlayTimedOut, setOverlayTimedOut] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setOverlayTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setOverlayTimedOut(true), LOADING_OVERLAY_MAX_MS);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
+  const showLoadingOverlay = loading && !overlayTimedOut;
+
   useEffect(() => {
     // Only trust a real, error-free load that has quest rows; a failed load would otherwise record every zone as
     // locked and replay every conquest next time.
@@ -137,7 +155,7 @@ export default function GloriaPage({ userId, lang, trades, accounts }: Props) {
         celebrate={celebrate}
         reveal={reveal}
         overlay={
-          loading ? (
+          showLoadingOverlay ? (
             <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-amber-100">
               <Loader2 size={16} className="animate-spin" /> {t("loading")}
             </div>

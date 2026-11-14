@@ -104,7 +104,6 @@ export interface MapZone {
 export function buildMapZones(zones: GloriaZone[], challenges: GloriaChallenge[], progress: GloriaQuestProgress[]): MapZone[] {
   const byOrder = new Map(zones.map((z) => [z.orderIndex, z]));
   const progressOf = new Map(progress.map((p) => [p.challengeId, p]));
-  const anyProgress = progress.length > 0;
 
   return ZONE_VISUALS.map((visual) => {
     const zone = byOrder.get(visual.order) ?? null;
@@ -129,8 +128,12 @@ export function buildMapZones(zones: GloriaZone[], challenges: GloriaChallenge[]
     const opened = list.some((c) => c.status !== "locked");
 
     let state: ZoneMapState = cleared ? "completed" : opened ? "active" : "locked";
-    // Before the first evaluation has created any quest rows, the first zone is still the open door.
-    if (!anyProgress && visual.order === 1) state = "active";
+    // Zone 1 is "Available from the start" by design (see gloria_zones.unlock_condition) -- it can never
+    // genuinely be locked. A "locked" result for it only ever means we don't have enough joined data yet (the
+    // zones/challenges reference tables haven't loaded, a fetch hiccuped, or quest rows haven't been seeded for
+    // this user yet), never that it is actually gated. Covers the old, narrower "no progress rows at all yet"
+    // case too, plus the case where progress loaded fine but the zones/challenges reference arrays didn't.
+    if (visual.order === 1 && state === "locked") state = "active";
 
     return { visual, zone, state, challenges: list, done, total, bossReady: regularDone && !!boss && !bossDefeated, bossDefeated };
   });
