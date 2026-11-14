@@ -250,7 +250,7 @@ export default function ImportView({ t, lang, userId, accounts, trades, balances
           <p className="text-sm font-medium">{L("exportTrades")}</p>
           <p className="text-xs text-muted">{L("exportShort")} {L("exportLogHint")}</p>
         </div>
-        <span className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select aria-label={L("exportWhich")} className={field} value={exportAcc} onChange={(e) => setExportAcc(e.target.value)}>
             <option value="all">{L("allAccounts")}</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -269,7 +269,7 @@ export default function ImportView({ t, lang, userId, accounts, trades, balances
           </label>
           <button type="button" onClick={exportNow} className={btnGold}>{L("exportProfile")}</button>
           <button type="button" onClick={exportLogNow} className={btnGold}>{L("exportLog")}</button>
-        </span>
+        </div>
         {exportNote && <p role="status" aria-live="polite" className="text-xs text-muted">{exportNote}</p>}
       </div>
     </section>
