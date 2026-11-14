@@ -1,6 +1,8 @@
 // GLORIA_RPG: wires the challenge engine into whatever trades/accounts the rest of the app is already using.
 // Pass it useJournal().trades and useAccounts().accounts directly -- it does not read its own copy of either,
-// so there is exactly one source of truth for trade data.
+// so there is exactly one source of truth for trade data. Every trade the app has is in scope, demo and
+// contest accounts included (Account.tradeMode is never read here or in the gloria services) -- the game is
+// meant to work the same way on a demo account as a real one, which is also what makes it testable with one.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Account, Trade } from "../types";
 import type { GloriaChallenge, GloriaPlayerStats, GloriaQuestProgress, GloriaZone } from "../types/gloria";

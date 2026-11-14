@@ -27,6 +27,7 @@ import { readAnswers, type RuleAnswer } from "../lib/tradeRules";
 import { readNotes } from "../lib/tradeNotes";
 import { readSettings } from "../useSettings";
 import { getOrCreatePlayerStats, updatePlayerStats } from "./gloriaPlayerService";
+import { assignCharacter, mostRecentTradingMonth } from "./gloriaCharacterService";
 
 // ---------------------------------------------------------------------------
 // Row <-> model
@@ -589,6 +590,23 @@ export function evaluateCondition(conditionType: string, conditionValue: Record<
   return fn ? fn(trades, accounts, conditionValue, ctx) : { completed: false, currentValue: 0, targetValue: 1, progress: 0 };
 }
 
+/**
+ * Same as evaluateCondition, except a throwing evaluator (an edge case in one trade's shape -- e.g. a demo
+ * account's trade missing a field a real one always has) reports "no progress yet" instead of taking the whole
+ * evaluation pass down with it. Without this, one bad trade among many good ones would leave every OTHER
+ * challenge's progress stuck unevaluated too, and the map would look entirely locked even though most of the
+ * data is fine. Used everywhere real trades/accounts reach an evaluator; the seed call (empty arrays) doesn't
+ * need it, but gets it anyway since it's free.
+ */
+export function safeEvaluateCondition(conditionType: string, conditionValue: Record<string, unknown>, trades: Trade[], accounts: Account[], ctx: EvalContext): ConditionResult {
+  try {
+    return evaluateCondition(conditionType, conditionValue, trades, accounts, ctx);
+  } catch (e) {
+    console.error(`[gloria] "${conditionType}" evaluator threw; reporting no progress for this pass`, e);
+    return { completed: false, currentValue: 0, targetValue: 1, progress: 0 };
+  }
+}
+
 const emptyCtx = (questStatus: Record<string, GloriaQuestStatus> = {}): EvalContext => ({ answers: {}, riskPct: 1, manualFlags: {}, questStatus });
 
 // ---------------------------------------------------------------------------
@@ -607,7 +625,7 @@ export async function checkChallengeProgress(userId: string, challengeId: string
     questStatus = Object.fromEntries(progress.map((p) => [p.challengeId, p.status]));
   }
   const ctx: EvalContext = { answers: readAnswers(), riskPct: Number(readSettings().riskPct) || 1, manualFlags: readManualFlags(), questStatus };
-  return evaluateCondition(challenge.conditionType, challenge.conditionValue, trades, accounts, ctx);
+  return safeEvaluateCondition(challenge.conditionType, challenge.conditionValue, trades, accounts, ctx);
 }
 
 /**
@@ -627,7 +645,7 @@ export async function initializePlayerQuests(userId: string): Promise<{ created:
   const now = new Date().toISOString();
   const rows = challenges.map((c) => {
     const active = c.zoneId === firstZone.id && !c.isBossChallenge;
-    const seed = evaluateCondition(c.conditionType, c.conditionValue, [], [], emptyCtx());
+    const seed = safeEvaluateCondition(c.conditionType, c.conditionValue, [], [], emptyCtx());
     return {
       user_id: userId,
       challenge_id: c.id,
@@ -747,7 +765,7 @@ export async function evaluateAllChallenges(userId: string, trades: Trade[], acc
       const challenge = challengesById.get(p.challengeId);
       if (!challenge) continue;
       const ctx: EvalContext = { ...ctxBase, questStatus };
-      const result = evaluateCondition(challenge.conditionType, challenge.conditionValue, trades, accounts, ctx);
+      const result = safeEvaluateCondition(challenge.conditionType, challenge.conditionValue, trades, accounts, ctx);
       const justCompleted = result.completed;
       if (justCompleted || result.currentValue !== p.currentValue || result.targetValue !== p.targetValue) {
         updates.push({
@@ -784,6 +802,11 @@ export async function evaluateAllChallenges(userId: string, trades: Trade[], acc
     if (!unlocked.length) break;
   }
 
-  if (completed.length || unlockedAll.length) await updatePlayerStats(userId, trades, accounts);
+  // Refreshed every call, not just when something newly completed or unlocked: a trader who hasn't finished a
+  // challenge yet (very likely on a first run with only a handful of trades -- real or demo) should still see
+  // their actual XP/rank, Elf Meter, radar and assigned character reflect the trades they do have, not stay at
+  // zero/"no hero" until the first challenge happens to clear.
+  const month = mostRecentTradingMonth(trades);
+  await Promise.all([updatePlayerStats(userId, trades, accounts, month), assignCharacter(userId, month, trades, accounts)]);
   return { evaluated, completed, xpAwarded, unlocked: unlockedAll };
 }

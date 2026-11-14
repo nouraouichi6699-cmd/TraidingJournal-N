@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import type { Account, Trade } from "../types";
 import type { GloriaPlayerStats, GloriaPlayerStatsRow, GloriaRank } from "../types/gloria";
 import { GLORIA_RANK_THRESHOLDS } from "../types/gloria";
-import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats } from "./gloriaCharacterService";
+import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats, mostRecentTradingMonth } from "./gloriaCharacterService";
 
 const fromRow = (r: GloriaPlayerStatsRow): GloriaPlayerStats => ({
   id: r.id,
@@ -36,10 +36,13 @@ export async function getOrCreatePlayerStats(userId: string): Promise<GloriaPlay
   return fromRow(created as GloriaPlayerStatsRow);
 }
 
-const currentMonth = () => new Date().toISOString().slice(0, 7);
-
-/** Recalculates total_xp, current_rank, elf_meter and radar_stats from the XP log and the given month's trades (defaults to this month), and persists the result. */
-export async function updatePlayerStats(userId: string, allTrades: Trade[], accounts: Account[] = [], month: string = currentMonth()): Promise<GloriaPlayerStats> {
+/**
+ * Recalculates total_xp, current_rank, elf_meter and radar_stats from the XP log and the given month's trades,
+ * and persists the result. `month` defaults to mostRecentTradingMonth(allTrades) rather than the literal current
+ * month: a trader (or a demo/test account) with no closed trade yet this month, but real trade history before
+ * it, still gets a live radar/elf meter/hero instead of flatlining at zero until the calendar turns over.
+ */
+export async function updatePlayerStats(userId: string, allTrades: Trade[], accounts: Account[] = [], month: string = mostRecentTradingMonth(allTrades)): Promise<GloriaPlayerStats> {
   const { data: xpRows, error: xpErr } = await supabase.from("gloria_xp_log").select("xp_amount").eq("user_id", userId);
   if (xpErr) throw xpErr;
   const totalXp = (xpRows ?? []).reduce((sum, r) => sum + (r.xp_amount as number), 0);

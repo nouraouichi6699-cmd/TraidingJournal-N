@@ -35,6 +35,19 @@ const closeKey = (t: Trade) => t.exitTime || t.entryTime || "";
 const monthOf = (t: Trade) => closeKey(t).slice(0, 7);
 const isClosedInMonth = (t: Trade, month: string) => t.status === "closed" && t.pnl != null && monthOf(t) === month;
 
+/**
+ * The calendar month to snapshot: "now" if it already has a closed trade, otherwise the most recent month that
+ * does. Without this, a trader (or a demo/test account) whose closed trades are all dated before the current
+ * calendar month would show no hero, a zero Elf Meter and a flat radar all month, even though real trade history
+ * exists -- "now" is just an unlucky default, not a real gate. Exported so the HUD's live preview and
+ * gloriaPlayerService's persisted snapshot resolve to the exact same month.
+ */
+export function mostRecentTradingMonth(allTrades: Trade[], now: string = new Date().toISOString().slice(0, 7)): string {
+  const closedMonths = new Set(allTrades.filter((t) => t.status === "closed" && t.pnl != null).map(monthOf).filter(Boolean));
+  if (!closedMonths.size || closedMonths.has(now)) return now;
+  return [...closedMonths].sort().pop() as string;
+}
+
 const prevMonth = (month: string): string => {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 2, 1));

@@ -1,11 +1,21 @@
 // GLORIA_RPG main screen: player HUD on top, the adventure map below, and the zone panel sliding in over it.
 // Trades/accounts come from the app's single journal (passed in), never from a separate query.
+//
+// TODO(gloria-demo-testing): `trades`/`accounts` below are whatever App.tsx passes in -- today that is
+// `journal.trades`/the full `accounts` list, with NO filtering by Account.tradeMode ("demo" | "contest" | "real").
+// That is deliberate: this feature is meant to come alive on a demo account while testing, exactly like it would
+// for a real one, so do not add a tradeMode/trade_mode filter here, in useGloriaQuests, or in the gloria
+// services -- that would be the one change that silently breaks demo-account testing again. The evaluators
+// already cope with a small trade count (partial progress, not a hard "all or nothing"), and the hero/radar/Elf
+// Meter snapshot now resolves to the most recent month that actually has a closed trade (mostRecentTradingMonth
+// in gloriaCharacterService.ts) rather than the literal calendar month, so a handful of demo trades dated last
+// week still light up the HUD instead of showing "Unawakened" until the month turns over.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, TriangleAlert } from "lucide-react";
 import type { Account, Lang, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { useGloriaQuests } from "../hooks/useGloriaQuests";
-import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats, determineCharacters } from "../services/gloriaCharacterService";
+import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats, determineCharacters, mostRecentTradingMonth } from "../services/gloriaCharacterService";
 import { getRank } from "../services/gloriaPlayerService";
 import GloriaPlayerHUD from "../components/gloria/GloriaPlayerHUD";
 import GloriaMapView from "../components/gloria/GloriaMapView";
@@ -49,9 +59,10 @@ export default function GloriaPage({ userId, lang, trades, accounts }: Props) {
 
   const mapZones = useMemo(() => buildMapZones(zones, challenges, progress), [zones, challenges, progress]);
 
-  // This month's hero, radar and Elf Meter, computed live from the same pure functions the services persist with.
+  // This month's hero, radar and Elf Meter, computed live from the same pure functions -- and the same month
+  // resolution -- that gloriaPlayerService persists with, so this preview and the persisted snapshot agree.
   const hero = useMemo(() => {
-    const month = new Date().toISOString().slice(0, 7);
+    const month = mostRecentTradingMonth(trades);
     const stats = calculateMonthlyStats(trades, month, accounts);
     if (!stats.totalTrades) return { character: null, radar: EMPTY_RADAR, elfMeter: 0 };
     const radar = calculateRadarStats(stats);
