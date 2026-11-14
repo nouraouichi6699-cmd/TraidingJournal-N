@@ -89,9 +89,9 @@ export default function TradeModeBadge({ mode, lang, showMessage = false, classN
   return (
     <span className="group relative inline-flex items-center">
       {badge}
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden max-w-[280px] w-max -translate-x-1/2 whitespace-normal rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-normal text-white shadow-lg group-hover:block">
+      <span className="pointer-events-none absolute left-full top-1/2 z-50 ms-2 hidden max-w-[280px] w-max -translate-y-1/2 whitespace-normal rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-normal text-white shadow-lg group-hover:block">
+        <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-e-zinc-900" />
         {message}
-        <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
       </span>
     </span>
   );
