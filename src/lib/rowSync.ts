@@ -5,6 +5,11 @@ import type { CashFlow } from "./cashflow";
 // Row-based, local-first sync for accounts / trades / balance points.
 // localStorage stays the instant cache; per-row metadata decides what to push and what wins on pull.
 const ACC = "mizan-accounts", JNL = "mizan-journal", META = "mizan-sync-meta", CUR = "mizan-sync-cursor", UID = "mizan-sync-uid";
+const SCHEMA_KEY = "mizan-sync-schema";
+/** Bump when accFrom gains new columns that existing clients may have missed during their last incremental pull.
+ *  maybeResetAccountsCursor clears the accounts cursor + non-pending META entries so the next pull re-fetches
+ *  every account row once and picks up the new columns (e.g. trade_mode added in schema v2). */
+export const PULL_SCHEMA = 2;
 import { startPuller, type PullResult } from "./syncSchedule";
 export const PULLED = "mizan-sync-pulled";
 const DAY = 864e5;
@@ -236,9 +241,37 @@ function fixIds() {
   });
 }
 
+/**
+ * If the stored pull-schema version is behind PULL_SCHEMA, reset the accounts table so the next pull
+ * re-fetches every account row from scratch and picks up new columns accFrom can now read (like trade_mode).
+ *
+ * Specifically: clears the accounts cursor entry (so the pull starts from the beginning) and deletes
+ * per-row META entries for accounts that have no pending push (so the timestamp guard doesn't skip them).
+ * META entries with a pending push are kept: they carry a recent updated_at that still protects local edits.
+ * No local account data, trades, balance_points, cash_flows cursors or META are touched.
+ *
+ * Returns true when a reset happened (once per bump), false when the version was already current.
+ */
+export function maybeResetAccountsCursor(): boolean {
+  if (rd<number>(SCHEMA_KEY, 0) >= PULL_SCHEMA) return false;
+  const cur = rd<Partial<Record<Tbl, string>>>(CUR, {});
+  delete cur.accounts;
+  wr(CUR, cur);
+  const meta = rd<Partial<Meta>>(META, {});
+  if (meta.accounts) {
+    for (const id of Object.keys(meta.accounts)) {
+      if (!meta.accounts[id].p) delete meta.accounts[id];
+    }
+    wr(META, meta);
+  }
+  wr(SCHEMA_KEY, PULL_SCHEMA);
+  return true;
+}
+
 /** Run before the app mounts: drop another user's leftovers, then first sync. */
 export async function initialSync(uid: string): Promise<void> {
   if (rd<string | null>(UID, null) !== uid) { for (const k of [ACC, JNL, META, CUR]) { try { localStorage.removeItem(k); } catch {} } wr(UID, uid); }
+  maybeResetAccountsCursor();
   fixIds();
   await cycle(uid, true);
 }
