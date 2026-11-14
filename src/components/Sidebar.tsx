@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, Upload, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag } from "lucide-react";
+import { LayoutDashboard, PenLine, SquarePlus, LineChart, ClipboardList, ArrowUpDown, Target, Trophy, Route, PanelLeftClose, PanelLeftOpen, Flag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import GlassIcon from "./GlassIcon";
 import { useIconGlass } from "../useIconGlass";
@@ -23,7 +23,7 @@ const groups = [
   },
   {
     id: "g2", label: { en: "Manage", ar: "الإدارة", fr: "Gestion" }, items: [
-      { id: "accounts", icon: SquarePlus }, { id: "import", icon: Upload }, { id: "roadmap", icon: Route },
+      { id: "accounts", icon: SquarePlus }, { id: "import", icon: ArrowUpDown }, { id: "roadmap", icon: Route },
     ]
   },
   {

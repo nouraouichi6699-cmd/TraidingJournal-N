@@ -26,7 +26,6 @@ import { customPair, DEFAULT_CUSTOM_WIN_LOSS, DEFAULT_WIN_LOSS, type WinLossPres
 import { classifyOutcome } from "../lib/outcome";
 import { currenciesOf, FRANKFURTER_CODES, frankfurterUrl, isFrankfurter, missingRates } from "../lib/fx";
 import { setPrivacy } from "../usePrivacy";
-import { downloadBlob, tradesToXlsx } from "../lib/exportTrades";
 import { supabase } from "../lib/supabase";
 import type { CashFlow } from "../lib/cashflow";
 import type { Account, BalancePoint, Lang, Theme, Trade } from "../types";
@@ -66,12 +65,6 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
   const activeId = useActiveTheme();
   const customs = s.customThemes ?? [];
   const resolved = resolveTheme(activeId, customs, theme);
-  const [exportAcc, setExportAcc] = useState("all");
-  const [exportMonth, setExportMonth] = useState("all");
-  // A custom range (YYYY-MM-DD, "" = open); it and the month picker are mutually exclusive.
-  const [exportFrom, setExportFrom] = useState("");
-  const [exportTo, setExportTo] = useState("");
-  const [note, setNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -117,47 +110,6 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
     } finally {
       setFetching(false);
     }
-  };
-
-  // The calendar months (by entry time) that have trades in the chosen scope, newest first.
-  const monthOf = (x: Trade) => (/^\d{4}-\d{2}/.test(x.entryTime ?? "") ? (x.entryTime as string).slice(0, 7) : null);
-  const scoped = useMemo(() => trades.filter((x) => exportAcc === "all" || x.accountId === exportAcc), [trades, exportAcc]);
-  const months = useMemo(() => [...new Set(scoped.map(monthOf).filter((m): m is string => m != null))].sort().reverse(), [scoped]);
-  // Switching account can leave the picked month without trades there, so it quietly falls back to All time.
-  const month = months.includes(exportMonth) ? exportMonth : "all";
-  const monthLabel = (m: string) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleDateString(lang, { month: "long", year: "numeric" });
-
-  const exportNow = async () => {
-    const ranged = !!(exportFrom || exportTo);
-    // Compared as plain YYYY-MM-DD text on the entry date, so no timezone can move a trade across a day.
-    const dayOf = (x: Trade) => (/^\d{4}-\d{2}-\d{2}/.test(x.entryTime ?? "") ? (x.entryTime as string).slice(0, 10) : null);
-    const list = ranged
-      ? scoped.filter((x) => { const d = dayOf(x); return d != null && (!exportFrom || d >= exportFrom) && (!exportTo || d <= exportTo); })
-      : month === "all" ? scoped : scoped.filter((x) => monthOf(x) === month);
-    const tag = ranged ? (exportFrom && exportTo ? `${exportFrom}_to_${exportTo}-` : exportFrom ? `from-${exportFrom}-` : `to-${exportTo}-`) : month === "all" ? "" : `${month}-`;
-    if (!list.length) return setNote(L("noTrades"));
-    const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
-    const stamp = new Date().toISOString().slice(0, 10);
-    try {
-      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${tag}${stamp}.xlsx`, await tradesToXlsx(list, accounts));
-    } catch {
-      return setNote(L("exportFailed"));
-    }
-    setNote(L("exported").replace("{n}", String(list.length)));
-  };
-
-  // The trading log: the chosen account's whole history, one sheet per month; the month and date range do not apply.
-  const exportLogNow = async () => {
-    if (!scoped.some((x) => /^\d{4}-\d{2}/.test(x.entryTime ?? ""))) return setNote(L("noTrades"));
-    const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
-    const stamp = new Date().toISOString().slice(0, 10);
-    try {
-      const { tradesToStreamLog } = await import("../lib/exportStreamLog");
-      downloadBlob(`mizan-trading-log-${who.replace(/[^\w-]+/g, "-")}-${stamp}.xlsx`, await tradesToStreamLog(scoped, accounts, balances, flows));
-    } catch {
-      return setNote(L("exportFailed"));
-    }
-    setNote(L("exported").replace("{n}", String(scoped.length)));
   };
 
   // One Telegram connection for the whole page: its two topics and the partner and coach cards all read it.
@@ -761,28 +713,6 @@ export default function SettingsView({ t, lang, theme, onLang, onTheme, accounts
 
   const dataTiles: ReactNode = (
     <>
-      <Tile title={L("tileExport")}>
-        <Row label={L("exportTrades")} sub={`${L("exportShort")} ${L("exportLogHint")}`}>
-          <span className="flex flex-wrap items-center gap-2">
-            {accountSelect(exportAcc, setExportAcc, L("exportWhich"))}
-            <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => { setExportMonth(e.target.value); setExportFrom(""); setExportTo(""); }}>
-              <option value="all">{L("allTime")}</option>
-              {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
-            </select>
-            <label className="flex items-center gap-1.5 text-xs text-muted">
-              {L("dateFrom")}
-              <input type="date" className={field} value={exportFrom} max={exportTo || undefined} onChange={(e) => { setExportFrom(e.target.value); setExportMonth("all"); }} />
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-muted">
-              {L("dateTo")}
-              <input type="date" className={field} value={exportTo} min={exportFrom || undefined} onChange={(e) => { setExportTo(e.target.value); setExportMonth("all"); }} />
-            </label>
-            <button type="button" onClick={exportNow} className={btnGold}>{L("exportProfile")}</button>
-            <button type="button" onClick={exportLogNow} className={btnGold}>{L("exportLog")}</button>
-          </span>
-        </Row>
-        {note && <p role="status" aria-live="polite" className="text-xs text-muted">{note}</p>}
-      </Tile>
       <Tile title={L("tileSyncAccount")}>
         <Row label={L("mt5Keys")} sub={L("mt5KeysSub")}>
           <button type="button" onClick={onImport} className={btnGhost}>{L("openImport")}</button>

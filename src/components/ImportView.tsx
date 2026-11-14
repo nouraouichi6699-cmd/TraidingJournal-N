@@ -1,20 +1,25 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { parseTradingViewCsv, diagnoseCsv } from "../lib/tradingview";
 import { parseMt5Xlsx, parseMt5Html } from "../lib/mt5";
-import type { Key } from "../i18n";
-import type { Account, Lang } from "../types";
+import { stT, type Key } from "../i18n";
+import type { Account, BalancePoint, Lang, Trade } from "../types";
 import Mt5SyncCard from "./Mt5SyncCard";
 import type { useJournal } from "../useJournal";
 import type { useAccounts } from "../useAccounts";
 import { planLedger, type FileLedger } from "../lib/importLedger";
 import { fmtMoney } from "../lib/money";
+import { downloadBlob, tradesToXlsx } from "../lib/exportTrades";
+import type { CashFlow } from "../lib/cashflow";
 
 interface Props {
   t: (k: Key) => string;
   lang: Lang;
   userId: string;
   accounts: Account[];
+  trades: Trade[];
+  balances?: Record<string, BalancePoint[]>;
+  flows?: CashFlow[];
   journal: ReturnType<typeof useJournal>;
   resolveMt5: ReturnType<typeof useAccounts>["resolveMt5"];
   setStartBalance: ReturnType<typeof useAccounts>["setStartBalance"];
@@ -28,12 +33,59 @@ interface Line {
   details?: string[];
 }
 
-export default function ImportView({ t, lang, userId, accounts, journal, resolveMt5, setStartBalance, onConnect }: Props) {
+export default function ImportView({ t, lang, userId, accounts, trades, balances, flows, journal, resolveMt5, setStartBalance, onConnect }: Props) {
+  const L = stT(lang);
   const [accountId, setAccountId] = useState<string>("");
   const [lines, setLines] = useState<Line[]>([]);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const selected = accounts.find((a) => a.id === accountId) ?? accounts[0];
+
+  // Export state
+  const [exportAcc, setExportAcc] = useState("all");
+  const [exportMonth, setExportMonth] = useState("all");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  const [exportNote, setExportNote] = useState<string | null>(null);
+
+  const monthOf = (x: Trade) => (/^\d{4}-\d{2}/.test(x.entryTime ?? "") ? (x.entryTime as string).slice(0, 7) : null);
+  const scoped = useMemo(() => trades.filter((x) => exportAcc === "all" || x.accountId === exportAcc), [trades, exportAcc]);
+  const months = useMemo(() => [...new Set(scoped.map(monthOf).filter((m): m is string => m != null))].sort().reverse(), [scoped]);
+  const month = months.includes(exportMonth) ? exportMonth : "all";
+  const monthLabel = (m: string) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleDateString(lang, { month: "long", year: "numeric" });
+
+  const field = "field !w-auto !py-1.5 text-sm";
+
+  const exportNow = async () => {
+    const ranged = !!(exportFrom || exportTo);
+    const dayOf = (x: Trade) => (/^\d{4}-\d{2}-\d{2}/.test(x.entryTime ?? "") ? (x.entryTime as string).slice(0, 10) : null);
+    const list = ranged
+      ? scoped.filter((x) => { const d = dayOf(x); return d != null && (!exportFrom || d >= exportFrom) && (!exportTo || d <= exportTo); })
+      : month === "all" ? scoped : scoped.filter((x) => monthOf(x) === month);
+    const tag = ranged ? (exportFrom && exportTo ? `${exportFrom}_to_${exportTo}-` : exportFrom ? `from-${exportFrom}-` : `to-${exportTo}-`) : month === "all" ? "" : `${month}-`;
+    if (!list.length) return setExportNote(L("noTrades"));
+    const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
+    const stamp = new Date().toISOString().slice(0, 10);
+    try {
+      downloadBlob(`mizan-trades-${who.replace(/[^\w-]+/g, "-")}-${tag}${stamp}.xlsx`, await tradesToXlsx(list, accounts));
+    } catch {
+      return setExportNote(L("exportFailed"));
+    }
+    setExportNote(L("exported").replace("{n}", String(list.length)));
+  };
+
+  const exportLogNow = async () => {
+    if (!scoped.some((x) => /^\d{4}-\d{2}/.test(x.entryTime ?? ""))) return setExportNote(L("noTrades"));
+    const who = exportAcc === "all" ? "all-accounts" : (accounts.find((a) => a.id === exportAcc)?.name ?? exportAcc);
+    const stamp = new Date().toISOString().slice(0, 10);
+    try {
+      const { tradesToStreamLog } = await import("../lib/exportStreamLog");
+      downloadBlob(`mizan-trading-log-${who.replace(/[^\w-]+/g, "-")}-${stamp}.xlsx`, await tradesToStreamLog(scoped, accounts, balances, flows));
+    } catch {
+      return setExportNote(L("exportFailed"));
+    }
+    setExportNote(L("exported").replace("{n}", String(scoped.length)));
+  };
 
   const summary = (title: string, r: { added: number; updated: number; skipped: number }, pts = 0) => {
     const details = [
@@ -120,8 +172,11 @@ export default function ImportView({ t, lang, userId, accounts, journal, resolve
     );
   }
 
+  const btnGold = "min-h-[42px] rounded-full bg-primary px-4 text-[13.5px] font-bold text-on-primary transition hover:brightness-95";
+
   return (
-    <section className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="mx-auto flex max-w-2xl flex-col gap-8">
+    <section className="flex flex-col gap-4">
       <h2 className="font-heading text-xl font-semibold">{t("importTitle")}</h2>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         {t("pickAccount")}
@@ -185,5 +240,37 @@ export default function ImportView({ t, lang, userId, accounts, journal, resolve
 
       {selected && <Mt5SyncCard lang={lang} userId={userId} account={selected} />}
     </section>
+
+    <section className="flex flex-col gap-4">
+      <h2 className="font-heading text-xl font-semibold">{L("tileExport")}</h2>
+      <div className="rounded-2xl border border-border bg-surface p-4 flex flex-col gap-3">
+        <div>
+          <p className="text-sm font-medium">{L("exportTrades")}</p>
+          <p className="text-xs text-muted">{L("exportShort")} {L("exportLogHint")}</p>
+        </div>
+        <span className="flex flex-wrap items-center gap-2">
+          <select aria-label={L("exportWhich")} className={field} value={exportAcc} onChange={(e) => setExportAcc(e.target.value)}>
+            <option value="all">{L("allAccounts")}</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => { setExportMonth(e.target.value); setExportFrom(""); setExportTo(""); }}>
+            <option value="all">{L("allTime")}</option>
+            {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          </select>
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            {L("dateFrom")}
+            <input type="date" className={field} value={exportFrom} max={exportTo || undefined} onChange={(e) => { setExportFrom(e.target.value); setExportMonth("all"); }} />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            {L("dateTo")}
+            <input type="date" className={field} value={exportTo} min={exportFrom || undefined} onChange={(e) => { setExportTo(e.target.value); setExportMonth("all"); }} />
+          </label>
+          <button type="button" onClick={exportNow} className={btnGold}>{L("exportProfile")}</button>
+          <button type="button" onClick={exportLogNow} className={btnGold}>{L("exportLog")}</button>
+        </span>
+        {exportNote && <p role="status" aria-live="polite" className="text-xs text-muted">{exportNote}</p>}
+      </div>
+    </section>
+    </div>
   );
 }

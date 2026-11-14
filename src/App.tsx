@@ -319,7 +319,7 @@ function Main({ lang, setLang, theme: deviceTheme, setTheme: setDeviceTheme, ema
               {view === "journal" && <LazyView t={t} lang={lang}><JournalView t={t} lang={lang} accounts={accounts} trades={journal.trades} openKey={openTrade} onOpened={tradeOpened} onOpenReport={(tab) => { setReportsNav({ tab }); setView("reports"); }} /></LazyView>}
               {view === "import" && (
                 <LazyView t={t} lang={lang}>
-                  <ImportView t={t} lang={lang} userId={userId} accounts={accounts} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
+                  <ImportView t={t} lang={lang} userId={userId} accounts={accounts} trades={journal.trades} balances={journal.balances} flows={journal.flows} journal={journal} resolveMt5={resolveMt5} setStartBalance={setStartBalance} onConnect={() => setConnecting(true)} />
                 </LazyView>
               )}
             </motion.div>
