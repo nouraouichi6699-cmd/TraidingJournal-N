@@ -51,7 +51,7 @@ const row = (r: number, from: number, n: number) => Array.from({ length: n }, (_
 eq("brand", v(1, 1), "MIZAN");
 eq("brand is bold gold", [ws.getCell(1, 1).font?.bold, ws.getCell(1, 1).font?.color?.argb, (ws.getCell(1, 1).font?.size ?? 0) >= 20], [true, "FFFFC000", true]);
 eq("account label over the trades table (G)", v(1, 7), "Account name : Main");
-eq("no account type when MT5 never said (J empty)", v(1, 10), null);
+eq("no MT5 mode -> Unverified orange in J", [v(1, 10), ws.getCell(1, 10).font?.color?.argb], ["Unverified", "FFF97316"]);
 eq("date label at the far right of row 1", [v(1, 11), ws.getCell(1, 11).alignment?.horizontal], [`date : ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, "right"]);
 eq("no old title / Exported line", [String(v(1, 7)).includes("·"), v(2, 1)], [false, "November 2026"]);
 eq("stats and trades share header row 3", [row(3, 1, 2), row(3, 7, 7)], [["Stats", "Month"], ["Contract", "Date", "Long/Short", "Entry price", "Exit price", "Pip", "W/L/BE"]]);
@@ -84,11 +84,11 @@ const kindOf = async (accs: Account[], list: Trade[] = trades) => {
 const B: Account = { ...A, id: "b", name: "Second" };
 const bTrades = trades.map((t, i) => ({ ...t, key: `b:${i}`, accountId: "b" }));
 eq("real -> Verified in green, name still in G", await kindOf([{ ...A, tradeMode: "real" }]), ["Verified", "FF22C55E", "Account name : Main"]);
-eq("demo -> Demo in red", await kindOf([{ ...A, tradeMode: "demo" }]), ["Demo", "FFEF4444", "Account name : Main"]);
-eq("contest -> Contest in red", await kindOf([{ ...A, tradeMode: "contest" }]), ["Contest", "FFEF4444", "Account name : Main"]);
+eq("demo -> Demo in blue", await kindOf([{ ...A, tradeMode: "demo" }]), ["Demo", "FF3B82F6", "Account name : Main"]);
+eq("contest -> Contest in blue", await kindOf([{ ...A, tradeMode: "contest" }]), ["Contest", "FF3B82F6", "Account name : Main"]);
 eq("all accounts, both real -> Verified", await kindOf([{ ...A, tradeMode: "real" }, { ...B, tradeMode: "real" }], [...trades, ...bTrades]), ["Verified", "FF22C55E", "Account name : All accounts"]);
-eq("all accounts, real + demo -> nothing", await kindOf([{ ...A, tradeMode: "real" }, { ...B, tradeMode: "demo" }], [...trades, ...bTrades]), [null, null, "Account name : All accounts"]);
-eq("all accounts, one unknown -> nothing", await kindOf([{ ...A, tradeMode: "real" }, B], [...trades, ...bTrades]), [null, null, "Account name : All accounts"]);
+eq("all accounts, real + demo -> Unverified orange (modes differ)", await kindOf([{ ...A, tradeMode: "real" }, { ...B, tradeMode: "demo" }], [...trades, ...bTrades]), ["Unverified", "FFF97316", "Account name : All accounts"]);
+eq("all accounts, one unknown -> Unverified orange", await kindOf([{ ...A, tradeMode: "real" }, B], [...trades, ...bTrades]), ["Unverified", "FFF97316", "Account name : All accounts"]);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

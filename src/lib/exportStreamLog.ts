@@ -77,7 +77,7 @@ export async function tradesToStreamLog(
   const BAND = "FFD9E1F2";
   const WHITE = "FFFFFFFF";
   const GOLD = "FFFFC000";
-  const GREEN = "FF22C55E", RED = "FFEF4444"; // the account-type word: Verified / Demo, Contest
+  const GREEN = "FF22C55E", BLUE_KIND = "FF3B82F6", ORANGE = "FFF97316"; // account-type: Verified / Demo+Contest / Unverified
   type Sheet = ReturnType<typeof wb.addWorksheet>;
   const solid = (color: string) => ({ type: "pattern", pattern: "solid", fgColor: { argb: color } }) as const;
   const RIGHT = { horizontal: "right" } as const;
@@ -123,7 +123,7 @@ export async function tradesToStreamLog(
     WIDTHS.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     // Title row: "MIZAN" in gold at the left, "Account name : <name>" over the trades table, the account type beside it
-    // ("Verified" in green for a real MT5 account, "Demo" or "Contest" in red, blank when MT5 never said) and
+    // ("Verified" green / "Demo"+"Contest" blue / "Unverified" orange, matching the UI badge) and
     // "date : <export date>" at the far right. Row 2 keeps the month, since the title no longer carries it.
     const TITLE_END = LAST - 3; // the last three columns (K:M) hold the date
     const KIND_COL = TITLE_END; // J: the account type
@@ -138,8 +138,8 @@ export async function tradesToStreamLog(
     title.font = { bold: true, size: 14, color: { argb: WHITE } };
     title.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
     const kind = ws.getCell(1, KIND_COL);
-    kind.value = kindWord || null;
-    kind.font = { bold: true, size: 12, color: { argb: tradeMode === "real" ? GREEN : RED } };
+    kind.value = kindWord; // always "Verified" / "Demo" / "Contest" / "Unverified"
+    kind.font = { bold: true, size: 12, color: { argb: tradeMode === "real" ? GREEN : tradeMode ? BLUE_KIND : ORANGE } };
     kind.alignment = { vertical: "middle", horizontal: "center" };
     ws.mergeCells(1, TITLE_END + 1, 1, LAST);
     const when = ws.getCell(1, TITLE_END + 1);

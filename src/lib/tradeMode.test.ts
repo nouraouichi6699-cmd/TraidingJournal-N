@@ -15,7 +15,7 @@ eq("shared: all demo", sharedTradeMode([{ tradeMode: "demo" }, { tradeMode: "dem
 eq("shared: real + demo differ -> nothing", sharedTradeMode([{ tradeMode: "real" }, { tradeMode: "demo" }]), null);
 eq("shared: one unknown spoils it", sharedTradeMode([{ tradeMode: "real" }, {}]), null);
 
-eq("word: real = Verified, demo, contest, unknown blank", [tradeModeWord("real"), tradeModeWord("demo"), tradeModeWord("contest"), tradeModeWord(null), tradeModeWord(undefined)], ["Verified", "Demo", "Contest", "", ""]);
+eq("word: real=Verified, demo=Demo, contest=Contest, null/undefined=Unverified", [tradeModeWord("real"), tradeModeWord("demo"), tradeModeWord("contest"), tradeModeWord(null), tradeModeWord(undefined)], ["Verified", "Demo", "Contest", "Unverified", "Unverified"]);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

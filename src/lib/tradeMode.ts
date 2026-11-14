@@ -14,5 +14,5 @@ export function sharedTradeMode(accounts: readonly Pick<Account, "tradeMode">[])
   return m && accounts.every((a) => (a.tradeMode ?? null) === m) ? m : null;
 }
 
-/** The word the exports print for a mode (English, like the rest of the sheet); "" when unknown. */
-export const tradeModeWord = (m: TradeMode | null | undefined): string => (m === "real" ? "Verified" : m === "demo" ? "Demo" : m === "contest" ? "Contest" : "");
+/** The word the exports print for a mode (English, like the rest of the sheet); "Unverified" when unknown. */
+export const tradeModeWord = (m: TradeMode | null | undefined): string => (m === "real" ? "Verified" : m === "demo" ? "Demo" : m === "contest" ? "Contest" : "Unverified");

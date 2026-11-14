@@ -567,6 +567,7 @@ const dict = {
   badgeVerified: { en: "Verified", ar: "موثّق", fr: "Vérifié" },
   badgeDemo: { en: "Demo", ar: "تجريبي", fr: "Démo" },
   badgeContest: { en: "Contest", ar: "مسابقة", fr: "Concours" },
+  badgeUnverified: { en: "Unverified", ar: "غير موثّق", fr: "Non vérifié" },
 } satisfies Dict;
 
 export type Key = keyof typeof dict;
