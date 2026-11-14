@@ -175,9 +175,11 @@ export default function ImportView({ t, lang, userId, accounts, trades, balances
   const btnGold = "min-h-[42px] rounded-full bg-primary px-4 text-[13.5px] font-bold text-on-primary transition hover:brightness-95";
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8">
+    <div className="mx-auto w-full max-w-6xl px-4 flex flex-col gap-6">
+    <h2 className="font-heading text-xl font-semibold">{t("importTitle")}</h2>
+
+    <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
     <section className="flex flex-col gap-4">
-      <h2 className="font-heading text-xl font-semibold">{t("importTitle")}</h2>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         {t("pickAccount")}
         <select className="field" value={selected?.id} onChange={(e) => setAccountId(e.target.value)}>
@@ -271,6 +273,7 @@ export default function ImportView({ t, lang, userId, accounts, trades, balances
         {exportNote && <p role="status" aria-live="polite" className="text-xs text-muted">{exportNote}</p>}
       </div>
     </section>
+    </div>
     </div>
   );
 }
