@@ -213,7 +213,10 @@ export async function assignCharacter(userId: string, month: string, allTrades: 
   const { error: delErr } = await supabase.from("gloria_character_assignments").delete().eq("user_id", userId).eq("month", monthDate);
   if (delErr) throw delErr;
   const { error: insErr } = await supabase.from("gloria_character_assignments").insert(rows);
-  if (insErr) throw insErr;
+  // 23505 = unique_violation on (user_id, month, character_id): an overlapping call for this same user (two
+  // tabs, or two evaluation passes that raced) already assigned this month between our delete and our insert.
+  // Whoever won assigned the same trade history to the same character, so there is nothing to reconcile.
+  if (insErr && insErr.code !== "23505") throw insErr;
 
   return { ...picked, stats, radar, elfMeter };
 }

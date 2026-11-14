@@ -659,7 +659,10 @@ export async function initializePlayerQuests(userId: string): Promise<{ created:
   });
 
   const { error } = await supabase.from("gloria_quest_progress").insert(rows);
-  if (error) throw error;
+  // 23505 = unique_violation on (user_id, challenge_id): another call for this same user already inserted these
+  // rows a moment ago (two tabs, or an overlapping evaluation pass that the useGloriaQuests single-flight guard
+  // doesn't cover). The rows exist either way, which is all this function promises -- nothing to do, not an error.
+  if (error && error.code !== "23505") throw error;
   await supabase.from("gloria_player_stats").update({ current_zone_id: firstZone.id }).eq("user_id", userId);
   return { created: true };
 }
@@ -806,7 +809,17 @@ export async function evaluateAllChallenges(userId: string, trades: Trade[], acc
   // challenge yet (very likely on a first run with only a handful of trades -- real or demo) should still see
   // their actual XP/rank, Elf Meter, radar and assigned character reflect the trades they do have, not stay at
   // zero/"no hero" until the first challenge happens to clear.
-  const month = mostRecentTradingMonth(trades);
-  await Promise.all([updatePlayerStats(userId, trades, accounts, month), assignCharacter(userId, month, trades, accounts)]);
+  //
+  // Isolated in its own try/catch: XP and quest progress are already durably written above by the time we get
+  // here -- this is a snapshot refresh, not the source of truth. A failure in it (a transient network blip, a
+  // duplicate-assignment race between two overlapping calls) must never bubble up and make the caller think the
+  // whole evaluation failed, which would skip reloading the quest progress that *did* just save successfully and
+  // leave a brand new player looking at a red error banner instead of an unlocked Zone 1.
+  try {
+    const month = mostRecentTradingMonth(trades);
+    await Promise.all([updatePlayerStats(userId, trades, accounts, month), assignCharacter(userId, month, trades, accounts)]);
+  } catch (e) {
+    console.error("[gloria] could not refresh player stats/character this pass", e);
+  }
   return { evaluated, completed, xpAwarded, unlocked: unlockedAll };
 }

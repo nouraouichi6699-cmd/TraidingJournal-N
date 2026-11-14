@@ -15,6 +15,27 @@ const DEBOUNCE_MS = 1200;
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Unwraps the error shapes this hook actually sees. A Supabase/PostgREST failure is a plain {message, code,
+ * details, hint} object, NOT an Error instance -- `e instanceof Error ? e.message : String(e)` silently falls
+ * through to String()'s useless default for it ("[object Object]"), which is exactly what reached the error
+ * banner. This always surfaces a real, readable message (plus the Postgres error code when there is one, e.g.
+ * "(42501)" for an RLS violation) instead.
+ */
+function describeError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object") {
+    const rec = e as Record<string, unknown>;
+    if (typeof rec.message === "string" && rec.message) return typeof rec.code === "string" ? `${rec.message} (${rec.code})` : rec.message;
+    try {
+      return JSON.stringify(e);
+    } catch {
+      /* circular or otherwise unserializable: fall through to String() below */
+    }
+  }
+  return String(e);
+}
+
 export interface GloriaQuestsState {
   challenges: GloriaChallenge[];
   zones: GloriaZone[];
@@ -52,17 +73,41 @@ export function useGloriaQuests(userId: string | null | undefined, trades: Trade
     setPlayerStats(stats);
   };
 
-  const runEvaluation = async (uid: string) => {
-    setEvaluating(true);
-    try {
-      await evaluateAllChallenges(uid, tradesRef.current, accountsRef.current);
-      await loadProgress(uid);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setEvaluating(false);
+  // At most one evaluation in flight at a time. Without this, the first-load effect's immediate call and the
+  // debounced re-evaluate effect (both scheduled on mount) can overlap on a slow connection -- a first-ever run
+  // does several sequential round trips (seed every quest row, then read back XP/stats/character), easily past
+  // the 1200ms debounce. Two concurrent evaluateAllChallenges calls for the same user then race to insert the
+  // same seed rows, and one of them loses with a real Postgres error -- which used to abort before the quest
+  // rows the OTHER call had already saved were ever reloaded, so the player saw an error banner over a map that
+  // still looked untouched. A trailing call is queued (not dropped) so a trade change that arrives mid-evaluation
+  // still gets picked up once the in-flight one finishes.
+  const inFlight = useRef<Promise<void> | null>(null);
+  const pending = useRef(false);
+
+  const runEvaluation = (uid: string): Promise<void> => {
+    if (inFlight.current) {
+      pending.current = true;
+      return inFlight.current;
     }
+    setEvaluating(true);
+    const run = (async () => {
+      try {
+        await evaluateAllChallenges(uid, tradesRef.current, accountsRef.current);
+        await loadProgress(uid);
+        setError(null);
+      } catch (e) {
+        setError(describeError(e));
+      } finally {
+        setEvaluating(false);
+        inFlight.current = null;
+        if (pending.current) {
+          pending.current = false;
+          void runEvaluation(uid);
+        }
+      }
+    })();
+    inFlight.current = run;
+    return run;
   };
 
   // First load for this user: zones/challenges reference data, plus an immediate evaluation (this is also what
@@ -84,7 +129,7 @@ export function useGloriaQuests(userId: string | null | undefined, trades: Trade
         setZones(zs);
         await runEvaluation(userId);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(describeError(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
