@@ -1,6 +1,6 @@
 // Import › MT5 auto-sync: makes the account's sync key for the MizanSync Expert Advisor and shows whether it syncs.
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
-import { Check, Copy, Download, PlugZap } from "lucide-react";
+import { Check, Copy, Download, RefreshCw } from "lucide-react";
 import type { Account, Lang } from "../types";
 import { createSyncKey, readSyncKey, removeSyncKey, type SyncKey } from "../lib/mt5Sync";
 import { SUPABASE_URL } from "../lib/supabase";
@@ -50,6 +50,7 @@ const T = {
 
 const HOST = SUPABASE_URL.replace(/\/+$/, "");
 const STALE = 30 * 60e3; // the EA reports at least every 10 minutes while MT5 is open
+const btnGreen = "rounded-lg border border-green-500/40 px-3 py-1.5 text-xs font-semibold text-green-500 transition-colors hover:bg-green-500/10";
 
 /** "{a}"-style placeholders filled with inline nodes. */
 function fill(text: string, parts: Record<string, ReactNode>) {
@@ -166,14 +167,14 @@ export default function Mt5SyncCard({ lang, userId, account }: { lang: Lang; use
   const status = !key ? null : !key.last ? "waiting" : now - Date.parse(key.last) > STALE ? "paused" : "connected";
 
   return (
-    <section className="rounded-2xl border border-border p-5" aria-busy={busy}>
+    <section className="rounded-xl border border-green-500/15 bg-green-500/5 p-5" aria-busy={busy}>
       <div className="flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary-tint text-icon"><PlugZap size={18} /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-green-500/10 text-green-500"><RefreshCw size={18} /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <h3 className="font-heading text-base font-semibold">{T.title[lang]}</h3>
+            <h3 className="font-heading text-base font-semibold text-green-500">{T.title[lang]}</h3>
             {status && (
-          <span className="inline-flex items-center gap-2 rounded-full border border-border px-2.5 py-0.5 text-xs font-semibold" aria-live="polite">
+          <span className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/5 px-2.5 py-0.5 text-xs font-semibold" aria-live="polite">
             <span className="relative flex h-2 w-2">
               {status === "connected" && <span className="absolute inline-flex h-full w-full rounded-full bg-profit opacity-60 motion-safe:animate-ping" />}
               <span className={`relative inline-flex h-2 w-2 rounded-full ${status === "connected" ? "bg-profit" : status === "waiting" ? "border-[1.5px] border-[var(--icon)] motion-safe:animate-pulse" : "bg-[var(--muted)]"}`} />
@@ -196,7 +197,7 @@ export default function Mt5SyncCard({ lang, userId, account }: { lang: Lang; use
       )}
 
       {mt5 && state === null && (
-        <button type="button" disabled={busy} onClick={make} className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-opacity disabled:opacity-50">
+        <button type="button" disabled={busy} onClick={make} className="mt-4 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:brightness-95 disabled:opacity-50">
           {T.create[lang]}
         </button>
       )}
@@ -225,18 +226,18 @@ export default function Mt5SyncCard({ lang, userId, account }: { lang: Lang; use
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border p-3 text-sm">
               <span className="me-auto">{ask === "new" ? T.confirmNew[lang] : T.confirmOff[lang]}</span>
               <button type="button" onClick={() => setAsk(null)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:text-text">{T.cancel[lang]}</button>
-              <button type="button" disabled={busy} onClick={ask === "new" ? make : off} className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${ask === "off" ? "bg-loss text-white" : "bg-primary text-on-primary"}`}>
+              <button type="button" disabled={busy} onClick={ask === "new" ? make : off} className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${ask === "off" ? "bg-loss text-white" : "bg-green-600 text-white"}`}>
                 {ask === "new" ? T.newKey[lang] : T.off[lang]}
               </button>
             </div>
           ) : (
             <div className="mt-3 flex flex-wrap gap-2">
               {fresh ? (
-                <button type="button" onClick={() => { setFresh(null); setSteps(false); }} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:text-text">{T.done[lang]}</button>
+                <button type="button" onClick={() => { setFresh(null); setSteps(false); }} className={btnGreen}>{T.done[lang]}</button>
               ) : (
-                <button type="button" aria-expanded={steps} onClick={() => setSteps((s) => !s)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:text-text">{T.steps[lang]}</button>
+                <button type="button" aria-expanded={steps} onClick={() => setSteps((s) => !s)} className={btnGreen}>{T.steps[lang]}</button>
               )}
-              <button type="button" onClick={() => setAsk("new")} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:text-text">{T.newKey[lang]}</button>
+              <button type="button" onClick={() => setAsk("new")} className={btnGreen}>{T.newKey[lang]}</button>
               <button type="button" onClick={() => setAsk("off")} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-loss hover:border-[var(--loss)]">{T.off[lang]}</button>
             </div>
           )}

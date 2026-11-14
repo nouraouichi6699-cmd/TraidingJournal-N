@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { UploadCloud } from "lucide-react";
+import { ArrowUpDown, Download, Upload, UploadCloud } from "lucide-react";
 import { parseTradingViewCsv, diagnoseCsv } from "../lib/tradingview";
 import { parseMt5Xlsx, parseMt5Html } from "../lib/mt5";
 import { stT, type Key } from "../i18n";
@@ -53,8 +53,6 @@ export default function ImportView({ t, lang, userId, accounts, trades, balances
   const months = useMemo(() => [...new Set(scoped.map(monthOf).filter((m): m is string => m != null))].sort().reverse(), [scoped]);
   const month = months.includes(exportMonth) ? exportMonth : "all";
   const monthLabel = (m: string) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleDateString(lang, { month: "long", year: "numeric" });
-
-  const field = "field !w-auto !py-1.5 text-sm";
 
   const exportNow = async () => {
     const ranged = !!(exportFrom || exportTo);
@@ -172,108 +170,140 @@ export default function ImportView({ t, lang, userId, accounts, trades, balances
     );
   }
 
-  const btnGold = "min-h-[42px] rounded-full bg-primary px-4 text-[13.5px] font-bold text-on-primary transition hover:brightness-95";
+  const btnGold = "min-h-[42px] flex-1 rounded-full bg-[#d4a843] px-4 text-[13.5px] font-bold text-[#1f1703] transition hover:brightness-95";
+  const btnGoldOutline = "min-h-[42px] flex-1 rounded-full border border-[#d4a843]/55 px-4 text-[13.5px] font-semibold text-[#d4a843] transition hover:bg-[#d4a843]/10";
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 flex flex-col gap-6">
-    <h2 className="font-heading text-xl font-semibold">{t("importTitle")}</h2>
+    <div className="mx-auto w-full max-w-6xl px-4">
+      <h2 className="flex items-center gap-2 font-heading text-xl font-semibold">
+        <ArrowUpDown size={20} strokeWidth={2} className="text-icon" />
+        {t("importTitle")}
+      </h2>
 
-    <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-    <section className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1.5 text-sm font-medium">
-        {t("pickAccount")}
-        <select className="field" value={selected?.id} onChange={(e) => setAccountId(e.target.value)}>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="flex flex-col gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-500">
+              <Upload size={18} />
+            </span>
+            <h3 className="font-heading text-base font-semibold text-blue-500">{t("importTrades")}</h3>
+          </div>
 
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => input.current?.click()}
-        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          handle(e.dataTransfer.files);
-        }}
-        className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
-          over ? "border-icon bg-primary-tint" : "border-border hover:border-icon"
-        }`}
-      >
-        <UploadCloud size={34} className="text-icon" strokeWidth={1.6} />
-        <p className="font-semibold">{t("dropHint")}</p>
-        <p className="text-sm text-muted">{t("importHelp2")}</p>
-        <input
-          ref={input}
-          type="file"
-          accept=".csv,.xlsx,.html,.htm,text/csv,text/html"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files) handle(e.target.files);
-            e.target.value = "";
-          }}
-        />
-      </div>
-
-      {lines.length > 0 && (
-        <ul className="flex flex-col gap-2" aria-live="polite">
-          {lines.map((l, i) => (
-            <li key={i} className="rounded-xl border border-border bg-surface px-4 py-3 text-sm">
-              <p className="truncate font-medium" dir="ltr">{l.name}</p>
-              <p className={l.ok ? "text-icon" : "text-loss"}>{l.text}</p>
-              {l.details?.map((d, j) => (
-                <p key={j} className="text-xs text-muted">{d}</p>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            {t("pickAccount")}
+            <select className="field" value={selected?.id} onChange={(e) => setAccountId(e.target.value)}>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
               ))}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {selected && <Mt5SyncCard lang={lang} userId={userId} account={selected} />}
-    </section>
-
-    <section className="flex flex-col gap-4">
-      <h2 className="font-heading text-xl font-semibold">{L("tileExport")}</h2>
-      <div className="rounded-2xl border border-border bg-surface p-4 flex flex-col gap-3">
-        <div>
-          <p className="text-sm font-medium">{L("exportTrades")}</p>
-          <p className="text-xs text-muted">{L("exportShort")} {L("exportLogHint")}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select aria-label={L("exportWhich")} className={field} value={exportAcc} onChange={(e) => setExportAcc(e.target.value)}>
-            <option value="all">{L("allAccounts")}</option>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          <select aria-label={L("exportMonth")} className={field} value={month} onChange={(e) => { setExportMonth(e.target.value); setExportFrom(""); setExportTo(""); }}>
-            <option value="all">{L("allTime")}</option>
-            {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
-          </select>
-          <label className="flex items-center gap-1.5 text-xs text-muted">
-            {L("dateFrom")}
-            <input type="date" className={field} value={exportFrom} max={exportTo || undefined} onChange={(e) => { setExportFrom(e.target.value); setExportMonth("all"); }} />
+            </select>
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted">
-            {L("dateTo")}
-            <input type="date" className={field} value={exportTo} min={exportFrom || undefined} onChange={(e) => { setExportTo(e.target.value); setExportMonth("all"); }} />
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => input.current?.click()}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              handle(e.dataTransfer.files);
+            }}
+            className={`flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+              over ? "border-blue-500 bg-blue-500/10" : "border-blue-500/40 hover:border-blue-500"
+            }`}
+          >
+            <UploadCloud size={34} className="text-blue-500" strokeWidth={1.6} />
+            <p className="font-semibold">{t("dropHint")}</p>
+            <p className="text-sm text-muted">{t("importHelp2")}</p>
+            <input
+              ref={input}
+              type="file"
+              accept=".csv,.xlsx,.html,.htm,text/csv,text/html"
+              multiple
+              hidden
+              onChange={(e) => {
+                if (e.target.files) handle(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </div>
+
+          {lines.length > 0 && (
+            <ul className="flex flex-col gap-2" aria-live="polite">
+              {lines.map((l, i) => (
+                <li key={i} className="rounded-xl border border-border bg-surface px-4 py-3 text-sm">
+                  <p className="truncate font-medium" dir="ltr">{l.name}</p>
+                  <p className={l.ok ? "text-icon" : "text-loss"}>{l.text}</p>
+                  {l.details?.map((d, j) => (
+                    <p key={j} className="text-xs text-muted">{d}</p>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-[#d4a843]">
+              <Download size={18} />
+            </span>
+            <h3 className="font-heading text-base font-semibold text-[#d4a843]">{L("tileExport")}</h3>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium">{L("exportTrades")}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted">{L("exportShort")} {L("exportLogHint")}</p>
+          </div>
+
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            {L("exportWhich")}
+            <select className="field" value={exportAcc} onChange={(e) => setExportAcc(e.target.value)}>
+              <option value="all">{L("allAccounts")}</option>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </label>
-          <button type="button" onClick={exportNow} className={btnGold}>{L("exportProfile")}</button>
-          <button type="button" onClick={exportLogNow} className={btnGold}>{L("exportLog")}</button>
-        </div>
-        {exportNote && <p role="status" aria-live="polite" className="text-xs text-muted">{exportNote}</p>}
+
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            {L("exportMonth")}
+            <select className="field" value={month} onChange={(e) => { setExportMonth(e.target.value); setExportFrom(""); setExportTo(""); }}>
+              <option value="all">{L("allTime")}</option>
+              {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1.5 text-xs text-muted">
+              {L("dateFrom")}
+              <input type="date" className="field" value={exportFrom} max={exportTo || undefined} onChange={(e) => { setExportFrom(e.target.value); setExportMonth("all"); }} />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs text-muted">
+              {L("dateTo")}
+              <input type="date" className="field" value={exportTo} min={exportFrom || undefined} onChange={(e) => { setExportTo(e.target.value); setExportMonth("all"); }} />
+            </label>
+          </div>
+
+          <div className="mt-auto flex flex-wrap gap-2">
+            <button type="button" onClick={exportNow} className={btnGold}>{L("exportProfile")}</button>
+            <button type="button" onClick={exportLogNow} className={btnGoldOutline}>{L("exportLog")}</button>
+          </div>
+
+          {exportNote && <p role="status" aria-live="polite" className="text-xs text-muted">{exportNote}</p>}
+        </section>
       </div>
-    </section>
-    </div>
+
+      {selected && (
+        <div className="mt-4">
+          <Mt5SyncCard lang={lang} userId={userId} account={selected} />
+        </div>
+      )}
     </div>
   );
 }

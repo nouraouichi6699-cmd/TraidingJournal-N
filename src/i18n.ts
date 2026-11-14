@@ -73,6 +73,7 @@ const dict = {
   strategies: { en: "Strategies", ar: "الاستراتيجيات", fr: "Stratégies" },
   achievements: { en: "Achievements", ar: "الإنجازات", fr: "Succès" },
   importTitle: { en: "Import / Export", ar: "استيراد / تصدير", fr: "Importer / Exporter" },
+  importTrades: { en: "Import trades", ar: "استيراد الصفقات", fr: "Importer des trades" },
   pickAccount: { en: "Account", ar: "الحساب", fr: "Compte" },
   noTvAccount: { en: "Connect a TradingView account first.", ar: "اربط حساب TradingView أولًا.", fr: "Connectez d'abord un compte TradingView." },
   dropHint: { en: "Drop CSV, XLSX or HTML files here or click to choose", ar: "اسحب ملفات CSV أو XLSX أو HTML هنا أو انقر للاختيار", fr: "Déposez des fichiers CSV, XLSX ou HTML ici ou cliquez pour choisir" },
