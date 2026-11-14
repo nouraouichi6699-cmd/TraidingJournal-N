@@ -1,0 +1,132 @@
+/* GLORIA_RPG adventure map. Every animation is CSS (transform / opacity / stroke-dashoffset only), so the map
+   stays on the compositor and never runs JS per frame. Everything is scoped under .gz-root. */
+
+.gz-root {
+  --gz-ocean-1: #0b4f73;
+  --gz-ocean-2: #072a40;
+  --gz-ink: #1c1917;
+  --gz-gold: #eab308;
+  --gz-gold-2: #ca8a04;
+}
+[data-theme="light"] .gz-root {
+  --gz-ocean-1: #1d7fb0;
+  --gz-ocean-2: #0d4a6e;
+}
+
+.gz-map-frame { background: var(--gz-ocean-2); }
+
+/* ---- ambient world ------------------------------------------------------------------------------------- */
+
+@keyframes gz-wave { from { transform: translateX(0); } to { transform: translateX(-40px); } }
+@keyframes gz-wave-r { from { transform: translateX(-40px); } to { transform: translateX(0); } }
+.gz-wave { animation: gz-wave 5s linear infinite; }
+.gz-wave-r { animation: gz-wave-r 6.5s linear infinite; }
+.gz-wave-slow { animation-duration: 9s; }
+
+@keyframes gz-foam { to { stroke-dashoffset: -60; } }
+.gz-foam { animation: gz-foam 7s linear infinite; }
+
+@keyframes gz-cloud { from { transform: translateX(-320px); } to { transform: translateX(1520px); } }
+.gz-cloud { animation: gz-cloud linear infinite; will-change: transform; }
+
+@keyframes gz-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
+.gz-bob { animation: gz-bob 3.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+
+@keyframes gz-sway { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(8deg); } }
+.gz-sway { animation: gz-sway 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+
+@keyframes gz-flag { 0%, 100% { transform: scaleX(1) skewY(0deg); } 50% { transform: scaleX(0.82) skewY(6deg); } }
+.gz-flag { animation: gz-flag 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: left center; }
+
+@keyframes gz-smoke {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  15% { opacity: 0.75; }
+  100% { transform: translate(18px, -90px) scale(1.9); opacity: 0; }
+}
+.gz-smoke { animation: gz-smoke 5s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes gz-lava { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.gz-lava { animation: gz-lava 2.2s ease-in-out infinite; }
+@keyframes gz-lava-flow { to { stroke-dashoffset: -36; } }
+.gz-lava-flow { animation: gz-lava-flow 2.4s linear infinite; }
+
+@keyframes gz-glow { 0%, 100% { opacity: 0.45; transform: scale(0.94); } 50% { opacity: 0.95; transform: scale(1.06); } }
+.gz-glow { animation: gz-glow 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes gz-spin { to { transform: rotate(360deg); } }
+.gz-rays { animation: gz-spin 48s linear infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes gz-shimmer { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.6; } }
+.gz-shimmer { animation: gz-shimmer 3s ease-in-out infinite; }
+
+@keyframes gz-twinkle { 0%, 100% { opacity: 0; transform: scale(0.4); } 50% { opacity: 1; transform: scale(1); } }
+.gz-twinkle { animation: gz-twinkle 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes gz-fog { 0%, 100% { transform: translate(-14px, 0); } 50% { transform: translate(14px, -4px); } }
+.gz-fog { animation: gz-fog 11s ease-in-out infinite; }
+.gz-fog-b { animation-duration: 15s; animation-direction: reverse; }
+
+@keyframes gz-march { to { stroke-dashoffset: -28; } }
+.gz-march { animation: gz-march 1.1s linear infinite; }
+
+/* A locked land is frozen in time under its fog: pausing its animations also lets the grayscale filter be
+   painted once instead of every frame. The fog above it keeps moving. */
+.gz-terrain { transition: filter 1.2s ease; }
+.gz-terrain--locked { filter: grayscale(0.9) brightness(0.5) contrast(0.9); }
+.gz-terrain--locked * { animation-play-state: paused !important; }
+@keyframes gz-reveal { from { filter: grayscale(1) brightness(0.5); } to { filter: none; } }
+.gz-terrain--reveal { animation: gz-reveal 2.4s ease-out both; }
+
+/* ---- zone nodes ---------------------------------------------------------------------------------------- */
+
+.gz-node { cursor: pointer; outline: none; }
+.gz-node-body { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.gz-node:hover .gz-node-body,
+.gz-node:focus-visible .gz-node-body { transform: scale(1.1); }
+.gz-node:focus-visible .gz-focus { opacity: 1; }
+.gz-focus { opacity: 0; transition: opacity 0.2s; }
+
+.gz-tip { opacity: 0; transform: translateY(6px); transition: opacity 0.2s, transform 0.2s; pointer-events: none; }
+.gz-node:hover .gz-tip,
+.gz-node:focus-visible .gz-tip { opacity: 1; transform: translateY(0); }
+
+.gz-node--locked .gz-scene { filter: grayscale(1) brightness(0.55); }
+.gz-node--locked .gz-scene * { animation-play-state: paused !important; }
+
+@keyframes gz-pulse { 0% { transform: scale(1); opacity: 0.85; } 100% { transform: scale(1.55); opacity: 0; } }
+.gz-pulse { animation: gz-pulse 2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.gz-pulse-2 { animation-delay: 1s; }
+
+@keyframes gz-marker { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.gz-marker { animation: gz-marker 1.3s ease-in-out infinite; }
+
+@keyframes gz-shine { 0%, 62% { transform: translateX(-90px) rotate(25deg); } 100% { transform: translateX(90px) rotate(25deg); } }
+.gz-shine { animation: gz-shine 4.5s ease-in-out infinite; }
+
+@keyframes gz-boss { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+.gz-boss { animation: gz-boss 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes gz-boss-ring { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(2); opacity: 0; } }
+.gz-boss-ring { animation: gz-boss-ring 1s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+
+/* One-shot celebration the first time a zone is seen conquered. */
+@keyframes gz-burst { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+/* Resting opacity 0, so with motion turned off the one-shot effects simply never show. */
+.gz-burst { opacity: 0; animation: gz-burst 1.4s ease-out 3 both; transform-box: fill-box; transform-origin: center; }
+@keyframes gz-banner { 0% { transform: translateY(10px); opacity: 0; } 15%, 80% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+.gz-banner { opacity: 0; animation: gz-banner 4.2s ease-out both; }
+
+/* ---- HUD ----------------------------------------------------------------------------------------------- */
+
+@keyframes gz-xp-sheen { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.gz-xp-sheen { animation: gz-xp-sheen 3.2s ease-in-out infinite; }
+
+@keyframes gz-boss-card { 0%, 100% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55), 0 0 18px rgba(239, 68, 68, 0.15); } 50% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.95), 0 0 30px rgba(239, 68, 68, 0.4); } }
+.gz-boss-card--active { animation: gz-boss-card 1.8s ease-in-out infinite; }
+
+/* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .gz-root *, .gz-panel * { animation: none !important; transition: none !important; }
+}
+[data-reduce-motion="1"] .gz-root *,
+[data-reduce-motion="1"] .gz-panel * { animation: none !important; transition: none !important; }
