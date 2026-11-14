@@ -88,7 +88,7 @@ export default function Header({ lang, t, theme, name, accounts, avatar, onLang,
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-2">
       <div className="flex items-center gap-2">
         <Brand lang={lang} />
-        <TradeModeBadge mode={tradeMode} lang={lang} />
+        <TradeModeBadge mode={tradeMode} lang={lang} showMessage />
       </div>
 
       <p className="hidden font-heading text-base font-semibold 2xl:block">

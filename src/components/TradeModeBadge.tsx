@@ -44,12 +44,11 @@ const IconUnverified = () => (
   </svg>
 );
 
-export default function TradeModeBadge({ mode, lang, className = "" }: { mode?: TradeMode | null; lang: Lang; className?: string }) {
+export default function TradeModeBadge({ mode, lang, showMessage = false, className = "" }: { mode?: TradeMode | null; lang: Lang; showMessage?: boolean; className?: string }) {
   const t = makeT(lang);
   const real = mode === "real";
   const known = mode === "demo" || mode === "contest";
   const label = t(real ? "badgeVerified" : mode === "demo" ? "badgeDemo" : mode === "contest" ? "badgeContest" : "badgeUnverified");
-  const tooltip = tradeModeTooltip(mode);
   const colorCls = real
     ? "bg-green-500/15 text-green-500 border-green-500/30"
     : known
@@ -57,18 +56,22 @@ export default function TradeModeBadge({ mode, lang, className = "" }: { mode?: 
     : "bg-orange-500/15 text-orange-500 border-orange-500/30";
   const Icon = real ? IconVerified : mode === "contest" ? IconContest : mode === "demo" ? IconDemo : IconUnverified;
   return (
-    <span
-      role="img"
-      aria-label={label}
-      data-trade-mode={mode ?? "unknown"}
-      className={`group relative inline-flex shrink-0 cursor-default items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-px text-[11px] font-semibold leading-4 ${colorCls} ${className}`}
-    >
-      <Icon />
-      {label}
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden max-w-[280px] w-max -translate-x-1/2 whitespace-normal rounded-lg bg-zinc-900 px-3 py-2 text-[12px] font-normal leading-normal text-white shadow-lg group-hover:block">
-        {tooltip}
-        <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+    <>
+      <span
+        role="img"
+        aria-label={label}
+        title={label}
+        data-trade-mode={mode ?? "unknown"}
+        className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-px text-[11px] font-semibold leading-4 ${colorCls} ${className}`}
+      >
+        <Icon />
+        {label}
       </span>
-    </span>
+      {showMessage && (
+        <span className="ms-2 text-xs text-zinc-400 dark:text-zinc-500">
+          {tradeModeTooltip(mode)}
+        </span>
+      )}
+    </>
   );
 }
