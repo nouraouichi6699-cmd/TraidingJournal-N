@@ -16,3 +16,11 @@ export function sharedTradeMode(accounts: readonly Pick<Account, "tradeMode">[])
 
 /** The word the exports print for a mode (English, like the rest of the sheet); "Unverified" when unknown. */
 export const tradeModeWord = (m: TradeMode | null | undefined): string => (m === "real" ? "Verified" : m === "demo" ? "Demo" : m === "contest" ? "Contest" : "Unverified");
+
+/** Hover tooltip for the badge — explains what the mode means. */
+export function tradeModeTooltip(m: TradeMode | null | undefined): string {
+  if (m === "real") return "This account is linked to a real MT5 account with verified data. Your trades carry full credibility.";
+  if (m === "contest") return "This account is linked to an MT5 trading contest. Show your skills and compete!";
+  if (m === "demo") return "This account is linked to a demo MT5 account. Great for practice and strategy testing.";
+  return "This account has no MT5 verification yet. Link your MT5 account to verify your trades and build credibility.";
+}
