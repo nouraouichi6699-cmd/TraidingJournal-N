@@ -5,32 +5,29 @@
 // (top-centre), exit (top-end), the circular mini-map (bottom-start) that travels back to the world map, and the
 // guide button (bottom-end) that slides in GloriaGuidePanel -- the zone's challenges, the rules and the roster.
 //
-// Escape closes the guide first: while it is open a capture-phase listener swallows the key, so GloriaPage's
-// own Escape handler (land → world map → exit) only runs once the guide is closed. Colours are explicit
+// The land's gates are wired to the game: the entry gate opens GloriaWelcomeModal (the zone's flavour text), the
+// boss gate opens the guide on its Challenges tab, and the exit gate travels back to the world map once the boss
+// is defeated -- before that it only raises a "Defeat the boss first!" GloriaToast.
+//
+// Escape closes the welcome card, then the guide: while either is open a capture-phase listener swallows the key,
+// so GloriaPage's own Escape handler (land → world map → exit) only runs once both are closed. Colours are explicit
 // light-on-dark (not theme tokens) because game mode is always a dark screen.
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BookOpen, X } from "lucide-react";
 import type { Lang } from "../../types";
-import type { MapZone, ZoneTheme } from "./gloriaZones";
-import { getZoneLand } from "./gloriaLands";
+import { ZONE_ICON, type MapZone } from "./gloriaZones";
+import { getZoneLand, type LandGateId } from "./gloriaLands";
 import GloriaLandCanvas from "./GloriaLandCanvas";
 import GloriaMiniMap from "./GloriaMiniMap";
-import GloriaGuidePanel from "./GloriaGuidePanel";
+import GloriaGuidePanel, { type GuideTab } from "./GloriaGuidePanel";
+import GloriaWelcomeModal from "./GloriaWelcomeModal";
+import GloriaToast from "./GloriaToast";
 import "./gloria.css";
 
 const EXIT_TEXT: Record<Lang, string> = { en: "Exit game", ar: "الخروج من اللعبة", fr: "Quitter le jeu" };
 const COMING_SOON: Record<Lang, string> = { en: "Coming Soon", ar: "قريباً", fr: "Bientôt disponible" };
 const GUIDE_TEXT: Record<Lang, string> = { en: "Guide", ar: "دليل", fr: "Guide" };
-
-const THEME_ICON: Record<ZoneTheme, string> = {
-  oasis: "🏝️",
-  forest: "🌲",
-  mountain: "⛰️",
-  sea: "🌊",
-  castle: "🏰",
-  volcano: "🌋",
-  throne: "👑",
-};
+const BOSS_FIRST_TEXT: Record<Lang, string> = { en: "Defeat the boss first!", ar: "اهزم الزعيم أولاً!", fr: "Battez d'abord le boss !" };
 
 interface Props {
   mz: MapZone;
@@ -47,18 +44,39 @@ interface Props {
 export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "" }: Props) {
   const { visual } = mz;
   const land = getZoneLand(visual.theme);
-  const icon = THEME_ICON[visual.theme];
+  const icon = ZONE_ICON[visual.theme];
   const worldMapRef = useRef<HTMLButtonElement>(null);
   const guideBtnRef = useRef<HTMLButtonElement>(null);
   const guideCloseRef = useRef<HTMLButtonElement>(null);
   const guideId = useId();
   const [guideOpen, setGuideOpen] = useState(false);
+  const [guideTab, setGuideTab] = useState<GuideTab>("challenges");
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  // A fresh id per toast restarts it when the same gate is clicked again while it is still showing.
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
 
-  // Arriving in a land: focus the way back (the mini-map), with the guide closed.
+  // Arriving in a land: focus the way back (the mini-map), with the guide, welcome card and toast closed.
   useEffect(() => {
     setGuideOpen(false);
+    setWelcomeOpen(false);
+    setToast(null);
     worldMapRef.current?.focus({ preventScroll: true });
   }, [visual.order]);
+
+  const openGuide = useCallback((tab: GuideTab) => {
+    setGuideTab(tab);
+    setGuideOpen(true);
+  }, []);
+
+  const onGateClick = useCallback(
+    (gate: LandGateId) => {
+      if (gate === "entry") setWelcomeOpen(true);
+      else if (gate === "boss") openGuide("challenges");
+      else if (mz.bossDefeated) onWorldMap();
+      else setToast((t) => ({ id: (t?.id ?? 0) + 1, message: BOSS_FIRST_TEXT[lang] }));
+    },
+    [mz.bossDefeated, onWorldMap, openGuide, lang],
+  );
 
   const closeGuide = useCallback(() => {
     setGuideOpen(false);
@@ -72,8 +90,9 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
 
   // Escape closes the guide before anything else. Capture phase on window runs ahead of GloriaPage's bubble-phase
   // window listener, and stopImmediatePropagation keeps that one from also leaving the land.
+  // The welcome card has its own listener and comes first.
   useEffect(() => {
-    if (!guideOpen) return;
+    if (!guideOpen || welcomeOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
@@ -82,13 +101,13 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [guideOpen, closeGuide]);
+  }, [guideOpen, welcomeOpen, closeGuide]);
 
   return (
     <section aria-label={visual.name[lang]} className={`gz-land relative h-full overflow-hidden text-stone-100 ${className}`}>
       {land ? (
         <div className="h-full w-full overflow-hidden bg-black">
-          <GloriaLandCanvas land={land} lang={lang} />
+          <GloriaLandCanvas land={land} lang={lang} onGateClick={onGateClick} bossDefeated={mz.bossDefeated} />
         </div>
       ) : (
         <div
@@ -105,14 +124,24 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
 
       <GloriaMiniMap ref={worldMapRef} mz={mz} lang={lang} onWorldMap={onWorldMap} />
 
-      {guideOpen && <GloriaGuidePanel id={guideId} mz={mz} lang={lang} onClose={closeGuide} closeRef={guideCloseRef} />}
+      {guideOpen && (
+        <GloriaGuidePanel
+          id={guideId}
+          mz={mz}
+          lang={lang}
+          onClose={closeGuide}
+          closeRef={guideCloseRef}
+          tab={guideTab}
+          onTabChange={setGuideTab}
+        />
+      )}
 
       {/* guide button: bottom-end, mirroring the mini-map. Sits above the panel; on wide screens it steps aside to
           the panel's edge so it never covers the panel's content. */}
       <button
         ref={guideBtnRef}
         type="button"
-        onClick={() => (guideOpen ? closeGuide() : setGuideOpen(true))}
+        onClick={() => (guideOpen ? closeGuide() : openGuide("challenges"))}
         aria-label={GUIDE_TEXT[lang]}
         aria-expanded={guideOpen}
         aria-controls={guideOpen ? guideId : undefined}
@@ -134,6 +163,12 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
         <span aria-hidden>{icon}</span>
         <span className="truncate">{visual.name[lang]}</span>
       </div>
+
+      {toast && (
+        <GloriaToast key={toast.id} message={toast.message} dir={lang === "ar" ? "rtl" : "ltr"} onDone={() => setToast(null)} />
+      )}
+
+      {welcomeOpen && <GloriaWelcomeModal zone={visual} lang={lang} onClose={() => setWelcomeOpen(false)} />}
 
       {onExitGame && (
         <button

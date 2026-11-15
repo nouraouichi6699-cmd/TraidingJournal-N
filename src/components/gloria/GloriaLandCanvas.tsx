@@ -30,9 +30,10 @@ interface Props {
   lang?: Lang;
   /** Reserved for the challenge locations (not drawn yet). */
   activeChallengeId?: string;
-  /** Makes the gates clickable. The exit gate stays inert while it is locked. */
+  /** Makes the gates clickable. The locked exit stays clickable too (dimmed and still), so the caller can say why
+   *  it won't open. */
   onGateClick?: (gate: LandGateId) => void;
-  /** The exit gate is locked (dimmed, still ring, not clickable) until the boss is beaten. */
+  /** The exit gate is locked (dimmed, still ring) until the boss is beaten. */
   bossDefeated?: boolean;
 }
 
@@ -101,7 +102,8 @@ function GateRing({
   const { color } = GATE_STYLE[gate.id];
   const loc = lang === "ar" ? "ar" : "en";
   const name = gate.label[loc];
-  const interactive = !!onClick && !locked;
+  // A locked gate still takes clicks when there is a handler: the land view answers with "defeat the boss first".
+  const interactive = !!onClick;
   const ariaLabel = locked ? `${name} (${LOCKED_TEXT[loc]})` : name;
   // Hover shows the label for a mouse; touch and pen have no hover, so a tap toggles it instead.
   const pointerType = useRef("mouse");

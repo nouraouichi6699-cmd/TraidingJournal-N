@@ -1,8 +1,8 @@
 // GLORIA_RPG: the land view's guide -- a codex panel that slides in from the land's end edge, opened by the
 // floating guide button (GloriaLandView). Three tabs: the current zone's challenges + boss, the game rules, and
-// the character roster. It floats over the land (absolute), above the land art but under the cloud curtain
+// the character roster. The land view owns the selected tab, so the boss gate can open the guide on Challenges. It floats over the land (absolute), above the land art but under the cloud curtain
 // (.gz-tc is z-30). Colours are explicit light-on-dark because game mode is always a dark screen.
-import { useId, useRef, useState, type CSSProperties, type KeyboardEvent, type Ref } from "react";
+import { useId, useRef, type CSSProperties, type KeyboardEvent, type Ref } from "react";
 import { Crosshair, HeartPulse, Lock, Shield, Shuffle, Skull, Sparkles, Sword, WandSparkles, X, Zap } from "lucide-react";
 import type { Lang } from "../../types";
 import type { GloriaCharacterLevel, GloriaQuestStatus, GloriaRank } from "../../types/gloria";
@@ -13,7 +13,8 @@ import { Bar, STATUS_ICON, XpChip, zoneDetail } from "./gloriaChallengeUi";
 import { CHARACTER_INFO, gt, LEVEL_TEXT, QUEST_STATUS_TEXT, RANK_TEXT } from "./gloriaText";
 
 type L = Record<Lang, string>;
-type Tab = "challenges" | "rules" | "characters";
+export type GuideTab = "challenges" | "rules" | "characters";
+type Tab = GuideTab;
 const TABS: Tab[] = ["challenges", "rules", "characters"];
 
 const TAB_TEXT: Record<Tab, L> = {
@@ -131,10 +132,12 @@ interface Props {
   /** Lets the land view move focus into the panel when it opens. */
   closeRef?: Ref<HTMLButtonElement>;
   id?: string;
+  /** The selected tab (owned by the land view). */
+  tab: GuideTab;
+  onTabChange: (tab: GuideTab) => void;
 }
 
-export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id }: Props) {
-  const [tab, setTab] = useState<Tab>("challenges");
+export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id, tab, onTabChange: setTab }: Props) {
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ challenges: null, rules: null, characters: null });
   const baseId = useId();
   const rtl = lang === "ar";

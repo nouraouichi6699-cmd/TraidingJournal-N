@@ -278,12 +278,31 @@
 .gz-guide { animation: gz-guide-in 400ms ease-out; }
 .gz-guide-btn:hover, .gz-guide-btn:focus-visible { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 0 18px rgba(245, 158, 11, 0.45); }
 
+/* ---- welcome card (GloriaWelcomeModal): the backdrop fades in, the card fades and grows from 0.95 ------ */
+@keyframes gz-welcome-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gz-welcome-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.gz-welcome-backdrop { animation: gz-welcome-fade 200ms ease-out; }
+.gz-welcome { animation: gz-welcome-in 200ms ease-out; }
+
+/* ---- toast (GloriaToast): slides up + fades in, holds, slides down + fades out, all over --gz-toast-ms ---- */
+@keyframes gz-toast {
+  0% { opacity: 0; transform: translateY(12px); }
+  10%, 88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(12px); }
+}
+.gz-toast { animation: gz-toast var(--gz-toast-ms, 2000ms) ease-out both; }
+
 /* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   .gz-root *, .gz-panel *, .gz-land * { animation: none !important; transition: none !important; }
   .gz-ambient { display: none; }
+  /* the welcome card and toast simply appear and disappear (they live in .gz-land, but say so explicitly) */
+  .gz-welcome-backdrop, .gz-welcome, .gz-toast { animation: none !important; }
 }
+[data-reduce-motion="1"] .gz-welcome-backdrop,
+[data-reduce-motion="1"] .gz-welcome,
+[data-reduce-motion="1"] .gz-toast { animation: none !important; }
 [data-reduce-motion="1"] .gz-root *,
 [data-reduce-motion="1"] .gz-panel *,
 [data-reduce-motion="1"] .gz-land * { animation: none !important; transition: none !important; }

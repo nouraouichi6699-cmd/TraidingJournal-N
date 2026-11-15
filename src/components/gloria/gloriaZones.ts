@@ -15,6 +15,8 @@ export interface ZoneVisual {
   theme: ZoneTheme;
   name: Record<Lang, string>;
   blurb: Record<Lang, string>;
+  /** Welcome text shown when the player steps onto the land's entry gate; zoneFlavorText falls back to the blurb. */
+  flavorText?: Record<Lang, string>;
   /** Where the zone's medallion sits on the 832×1248 portrait map, and where the journey path passes through. */
   node: { x: number; y: number };
   /** Main colour + accent, from the design palette. */
@@ -42,6 +44,11 @@ export const ZONE_VISUALS: ZoneVisual[] = [
       en: "The trees grow close and the path is easy to lose. Only the plan leads out.",
       ar: "الأشجار متلاصقة والطريق سهل الضياع. وحدها الخطة تقودك إلى الخارج.",
       fr: "Les arbres sont serrés et le chemin se perd vite. Seul le plan mène à la sortie.",
+    },
+    flavorText: {
+      en: "Welcome to Verdantia, the fertile heartland. Master the discipline of consistent trading, like farmers who harvest only when the crop is ripe.",
+      ar: "مرحباً بك في فيردانتيا، الأرض الخصبة. أتقن انضباط التداول المستمر، كالفلاحين الذين يحصدون فقط عندما ينضج المحصول.",
+      fr: "Bienvenue à Verdantia, le cœur fertile du royaume. Maîtrisez la discipline d'un trading régulier, comme les fermiers qui ne récoltent que lorsque la moisson est mûre.",
     },
   },
   {
@@ -90,6 +97,22 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
 ];
+
+/** Each zone theme's emoji, used on its land (name badge, welcome modal, "coming soon" placeholder). */
+export const ZONE_ICON: Record<ZoneTheme, string> = {
+  oasis: "🏝️",
+  forest: "🌲",
+  mountain: "⛰️",
+  sea: "🌊",
+  castle: "🏰",
+  volcano: "🌋",
+  throne: "👑",
+};
+
+/** The zone's welcome text, or its map blurb when it has none of its own yet. */
+export function zoneFlavorText(visual: ZoneVisual, lang: Lang): string {
+  return (visual.flavorText ?? visual.blurb)[lang];
+}
 
 export interface MapZone {
   visual: ZoneVisual;
