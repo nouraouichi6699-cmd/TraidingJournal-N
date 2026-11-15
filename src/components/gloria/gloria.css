@@ -177,6 +177,10 @@
 .gz-torch-glow { animation: gz-glow 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .gz-shimmer-slow { animation: gz-shimmer 3.4s ease-in-out infinite; }
 
+/* ---- mini-map (GloriaMiniMap): the current-zone dot's radar ping ------------------------------------ */
+@keyframes gz-minimap-ping { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(3); opacity: 0; } }
+.gz-minimap-ping { animation: gz-minimap-ping 1.4s ease-out infinite; }
+
 /* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {

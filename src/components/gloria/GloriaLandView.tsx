@@ -1,13 +1,14 @@
 // GLORIA_RPG: the land view -- what fills the whole game area once you travel INTO a zone (GloriaPage dives
 // into the map and swaps to this under a cloud curtain). The land is drawn as a pixel-art tile map by
 // GloriaLandCanvas from the zone's LandDefinition (gloriaLands). Zones without a land yet show a "Coming soon"
-// placeholder in their colour. Floating chrome: "World Map" (top-start), zone name (top-centre), exit (top-end).
+// placeholder in their colour. The land fills the area edge to edge; all chrome floats over it: zone name
+// (top-centre), exit (top-end), and the circular mini-map (bottom-start) that travels back to the world map.
 //
 // The challenge cards + boss card are kept below as GloriaLandChallenges but are not rendered for now -- they
 // come back as a sidebar beside the land. Colours are explicit light-on-dark (not theme tokens) because game
 // mode is always a dark screen.
 import { useEffect, useRef } from "react";
-import { Lock, Map as MapIcon, Skull, X } from "lucide-react";
+import { Lock, Skull, X } from "lucide-react";
 import type { Lang } from "../../types";
 import type { GloriaQuestStatus } from "../../types/gloria";
 import type { MapZone, ZoneTheme } from "./gloriaZones";
@@ -15,6 +16,7 @@ import { Bar, STATUS_ICON, XpChip, zoneDetail } from "./gloriaChallengeUi";
 import { gt, QUEST_STATUS_TEXT } from "./gloriaText";
 import { getZoneLand } from "./gloriaLands";
 import GloriaLandCanvas from "./GloriaLandCanvas";
+import GloriaMiniMap from "./GloriaMiniMap";
 import "./gloria.css";
 
 const STATUS_TONE: Record<GloriaQuestStatus, string> = {
@@ -24,7 +26,6 @@ const STATUS_TONE: Record<GloriaQuestStatus, string> = {
   failed: "text-red-400",
 };
 
-const WORLD_MAP_TEXT: Record<Lang, string> = { en: "World Map", ar: "خريطة العالم", fr: "Carte du monde" };
 const EXIT_TEXT: Record<Lang, string> = { en: "Exit game", ar: "الخروج من اللعبة", fr: "Quitter le jeu" };
 const COMING_SOON: Record<Lang, string> = { en: "Coming Soon", ar: "قريباً", fr: "Bientôt disponible" };
 
@@ -56,7 +57,7 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
   const icon = THEME_ICON[visual.theme];
   const worldMapRef = useRef<HTMLButtonElement>(null);
 
-  // Arriving in a land: focus the way back.
+  // Arriving in a land: focus the way back (the mini-map).
   useEffect(() => {
     worldMapRef.current?.focus({ preventScroll: true });
   }, [visual.order]);
@@ -64,7 +65,7 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
   return (
     <section aria-label={visual.name[lang]} className={`gz-land relative h-full overflow-hidden text-stone-100 ${className}`}>
       {land ? (
-        <div className="flex h-full w-full items-center justify-center overflow-auto bg-black/95">
+        <div className="h-full w-full overflow-hidden bg-black">
           <GloriaLandCanvas land={land} />
         </div>
       ) : (
@@ -80,17 +81,7 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
         </div>
       )}
 
-      <button
-        ref={worldMapRef}
-        type="button"
-        onClick={onWorldMap}
-        title={`${WORLD_MAP_TEXT[lang]} (Esc)`}
-        className="absolute start-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-black/60 px-3 py-2 text-sm font-bold text-amber-200 backdrop-blur-sm transition-colors hover:bg-black/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
-      >
-        <MapIcon size={16} className="shrink-0" aria-hidden />
-        <span className="hidden sm:inline">{WORLD_MAP_TEXT[lang]}</span>
-        <span className="sr-only sm:hidden">{WORLD_MAP_TEXT[lang]}</span>
-      </button>
+      <GloriaMiniMap ref={worldMapRef} mz={mz} lang={lang} onWorldMap={onWorldMap} />
 
       {/* zone name badge */}
       <div className="pointer-events-none absolute left-1/2 top-3 flex max-w-[50%] -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-sm font-bold text-amber-100 backdrop-blur-sm">

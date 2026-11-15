@@ -134,7 +134,7 @@ export default function GloriaLandCanvas({ land }: { land: LandDefinition }) {
   return (
     <svg
       viewBox={`${-PAD} ${-PAD} ${w + PAD * 2} ${h + PAD * 2}`}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="xMidYMid slice"
       className="block h-full w-full"
       style={{ imageRendering: "pixelated", willChange: "transform" }}
       role="img"
