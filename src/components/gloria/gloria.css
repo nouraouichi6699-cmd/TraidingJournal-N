@@ -123,10 +123,45 @@
 @keyframes gz-boss-card { 0%, 100% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55), 0 0 18px rgba(239, 68, 68, 0.15); } 50% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.95), 0 0 30px rgba(239, 68, 68, 0.4); } }
 .gz-boss-card--active { animation: gz-boss-card 1.8s ease-in-out infinite; }
 
+/* ---- land view: world map shrinks to a mini-nav, the land slides in beside it ------------------------- */
+
+.gz-split { --gz-mini-w: 220px; }
+@media (max-width: 640px) { .gz-split { --gz-mini-w: 112px; } }
+
+.gz-map-container { width: 100%; transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1); }
+.gz-map-container--mini { width: var(--gz-mini-w); }
+
+/* Brief dim over the map while it changes size, so the resize reads as a camera move. */
+@keyframes gz-dim { 0% { opacity: 0; } 40% { opacity: 0.55; } 100% { opacity: 0; } }
+.gz-map-dim { opacity: 0; animation: gz-dim 500ms ease-out both; pointer-events: none; }
+
+.gz-land-pane { position: absolute; top: 0; bottom: 0; inset-inline-start: var(--gz-mini-w); inset-inline-end: 0; overflow: hidden; }
+
+@keyframes gz-slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes gz-slide-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+@keyframes gz-slide-in-rtl { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes gz-slide-out-rtl { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-100%); opacity: 0; } }
+.gz-land-enter { animation: gz-slide-in 400ms ease-out forwards; }
+.gz-land-exit { animation: gz-slide-out 400ms ease-in forwards; }
+[dir="rtl"] .gz-land-enter { animation-name: gz-slide-in-rtl; }
+[dir="rtl"] .gz-land-exit { animation-name: gz-slide-out-rtl; }
+
+/* Pulsing highlight around the zone whose land is open. */
+@keyframes gz-active-ring { 0% { transform: scale(1); opacity: 0.95; } 100% { transform: scale(1.45); opacity: 0; } }
+.gz-active-ring { animation: gz-active-ring 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.gz-active-ring-2 { animation-delay: 0.8s; }
+.gz-active-halo { animation: gz-glow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
 /* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .gz-root *, .gz-panel * { animation: none !important; transition: none !important; }
+  .gz-root *, .gz-panel *, .gz-land * { animation: none !important; transition: none !important; }
+  .gz-map-container, .gz-land-enter, .gz-land-exit, .gz-map-dim { animation: none !important; transition: none !important; }
 }
 [data-reduce-motion="1"] .gz-root *,
-[data-reduce-motion="1"] .gz-panel * { animation: none !important; transition: none !important; }
+[data-reduce-motion="1"] .gz-panel *,
+[data-reduce-motion="1"] .gz-land *,
+[data-reduce-motion="1"] .gz-map-container,
+[data-reduce-motion="1"] .gz-land-enter,
+[data-reduce-motion="1"] .gz-land-exit,
+[data-reduce-motion="1"] .gz-map-dim { animation: none !important; transition: none !important; }

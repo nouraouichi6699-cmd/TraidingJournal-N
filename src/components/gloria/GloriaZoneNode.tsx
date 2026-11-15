@@ -98,10 +98,14 @@ interface Props {
   lang: Lang;
   /** Plays the one-shot "conquered" celebration. */
   celebrate?: boolean;
+  /** This zone's land is open in the land view: draws a pulsing highlight ring. */
+  active?: boolean;
+  /** Mini-map mode: no name ribbon or tooltip, and a slightly larger medallion so it stays tappable. */
+  mini?: boolean;
   onOpen: (mz: MapZone) => void;
 }
 
-export default function GloriaZoneNode({ mz, lang, celebrate, onOpen }: Props) {
+export default function GloriaZoneNode({ mz, lang, celebrate, active, mini, onOpen }: Props) {
   const t = gt(lang);
   const { visual, state, done, total, bossReady } = mz;
   const { x, y } = visual.node;
@@ -124,14 +128,15 @@ export default function GloriaZoneNode({ mz, lang, celebrate, onOpen }: Props) {
   };
 
   return (
-    <g transform={`translate(${x} ${y})`}>
+    <g transform={`translate(${x} ${y})${mini ? " scale(1.6)" : ""}`}>
       <g
-        className={`gz-node gz-node--${state} sfx-hover`}
+        className={`gz-node gz-node--${state}${active ? " gz-node--active" : ""} sfx-hover`}
         data-sfx="zone-hover"
         data-sfx-click="zone-open"
         role="button"
         tabIndex={0}
         aria-label={`${name}: ${stateLabel}, ${done}/${total} ${t("quests")}`}
+        aria-current={active ? "location" : undefined}
         onClick={() => onOpen(mz)}
         onKeyDown={onKey}
       >
@@ -148,6 +153,14 @@ export default function GloriaZoneNode({ mz, lang, celebrate, onOpen }: Props) {
 
         {/* generous invisible hit target */}
         <circle r={56} fill="transparent" />
+
+        {active && (
+          <g pointerEvents="none">
+            <circle r={58} fill={visual.color} opacity={0.22} className="gz-active-halo" />
+            <circle r={56} fill="none" stroke="#fde68a" strokeWidth={4} className="gz-active-ring" />
+            <circle r={56} fill="none" stroke="#fde68a" strokeWidth={4} className="gz-active-ring gz-active-ring-2" />
+          </g>
+        )}
 
         <g className="gz-node-body">
           {state === "active" && (
@@ -223,6 +236,7 @@ export default function GloriaZoneNode({ mz, lang, celebrate, onOpen }: Props) {
         </g>
 
         {/* name ribbon + progress */}
+        {!mini && (
         <g transform="translate(0 60)">
           <path
             d={`M${-ribbonW / 2 - 10} 2 L${-ribbonW / 2} -11 H${ribbonW / 2} L${ribbonW / 2 + 10} 2 L${ribbonW / 2} 13 H${-ribbonW / 2} Z`}
@@ -243,9 +257,11 @@ export default function GloriaZoneNode({ mz, lang, celebrate, onOpen }: Props) {
             </g>
           )}
         </g>
+        )}
 
         {/* hover tooltip */}
         {/* CSS transforms replace an element's transform attribute, so every animated group is nested inside its positioned one. */}
+        {!mini && (
         <g transform="translate(0 -122)">
           <g className="gz-tip">
           <rect x={-104} y={-30} width={208} height={58} rx={10} fill="rgba(15,23,42,0.94)" stroke={visual.color} strokeWidth={1.5} />
@@ -256,6 +272,7 @@ export default function GloriaZoneNode({ mz, lang, celebrate, onOpen }: Props) {
           <text y={21} textAnchor="middle" fontSize={10.5} fontWeight={700} fill={bossReady ? "#fca5a5" : "#facc15"}>{hint}</text>
           </g>
         </g>
+        )}
 
         {celebrate && (
           <g pointerEvents="none">

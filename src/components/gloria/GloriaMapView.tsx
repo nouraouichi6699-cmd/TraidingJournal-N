@@ -81,15 +81,19 @@ interface Props {
   celebrate?: ReadonlySet<number>;
   reveal?: ReadonlySet<number>;
   overlay?: ReactNode;
+  /** Compact mini-map (land view navigation): fills its narrow container, no labels or loading text. */
+  mini?: boolean;
+  /** Order of the zone whose land is open; its medallion gets a pulsing highlight ring. */
+  activeZone?: number | null;
 }
 
-export default function GloriaMapView({ zones, lang, onOpenZone, celebrate, reveal, overlay }: Props) {
+export default function GloriaMapView({ zones, lang, onOpenZone, celebrate, reveal, overlay, mini, activeZone }: Props) {
   return (
-    <div className="gz-root w-full overflow-x-auto">
+    <div className={`gz-root w-full ${mini ? "gz-root--mini" : "overflow-x-auto"}`}>
       <div
-        className="gz-map-frame relative mx-auto aspect-[2/3] w-full min-w-[360px] overflow-hidden rounded-2xl border border-border shadow-xl"
+        className={`gz-map-frame relative mx-auto aspect-[2/3] w-full overflow-hidden border border-border shadow-xl ${mini ? "rounded-xl" : "min-w-[360px] rounded-2xl"}`}
         style={{
-          maxWidth: "max(420px, calc((100vh - 12.5rem) * 0.667))",
+          maxWidth: mini ? undefined : "max(420px, calc((100vh - 12.5rem) * 0.667))",
           backgroundImage: "url(/gloria-map.jpg)",
           backgroundSize: "cover",
           backgroundPosition: "center",
@@ -122,11 +126,19 @@ export default function GloriaMapView({ zones, lang, onOpenZone, celebrate, reve
 
           {/* zone medallions */}
           {zones.map((mz) => (
-            <GloriaZoneNode key={mz.visual.theme} mz={mz} lang={lang} celebrate={celebrate?.has(mz.visual.order)} onOpen={onOpenZone} />
+            <GloriaZoneNode
+              key={mz.visual.theme}
+              mz={mz}
+              lang={lang}
+              celebrate={celebrate?.has(mz.visual.order)}
+              active={activeZone === mz.visual.order}
+              mini={mini}
+              onOpen={onOpenZone}
+            />
           ))}
         </svg>
 
-        {overlay && <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">{overlay}</div>}
+        {overlay && !mini && <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">{overlay}</div>}
       </div>
     </div>
   );

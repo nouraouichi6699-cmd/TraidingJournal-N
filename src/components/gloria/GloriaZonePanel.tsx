@@ -6,43 +6,17 @@ import { Check, Lock, Skull, Swords, X } from "lucide-react";
 import type { Lang } from "../../types";
 import type { GloriaQuestStatus } from "../../types/gloria";
 import { ZoneScene } from "./GloriaZoneNode";
-import { challengeText, type MapZone } from "./gloriaZones";
+import type { MapZone } from "./gloriaZones";
+import { Bar, STATUS_ICON, XpChip, zoneDetail } from "./gloriaChallengeUi";
 import { gt, QUEST_STATUS_TEXT, ZONE_STATE_TEXT } from "./gloriaText";
 import "./gloria.css";
 
-const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-const STATUS_ICON: Record<GloriaQuestStatus, typeof Lock> = { locked: Lock, active: Swords, completed: Check, failed: X };
 const STATUS_TONE: Record<GloriaQuestStatus, string> = {
   locked: "text-muted",
   active: "text-text",
   completed: "text-profit",
   failed: "text-loss",
 };
-
-function Bar({ value, target, color }: { value: number; target: number; color: string }) {
-  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  return (
-    <div className="mt-2 flex items-center gap-2">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-black/25 ring-1 ring-inset ring-white/5">
-        <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: color }} />
-      </div>
-      {target > 0 && (
-        <span dir="ltr" className="shrink-0 font-mono text-[11px] tabular-nums text-muted">
-          {num(Math.min(value, target))}/{num(target)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function XpChip({ xp, big }: { xp: number; big?: boolean }) {
-  return (
-    <span dir="ltr" className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/15 font-bold text-amber-400 ring-1 ring-amber-400/30 ${big ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-[11px]"}`}>
-      +{xp} XP
-    </span>
-  );
-}
 
 interface Props {
   mz: MapZone | null;
@@ -98,12 +72,8 @@ export default function GloriaZonePanel({ mz, prev, lang, onClose }: Props) {
 
 function PanelBody({ mz, prev, lang, onClose, closeRef, t }: Props & { mz: MapZone; closeRef: RefObject<HTMLButtonElement>; t: ReturnType<typeof gt> }) {
   const { visual, zone, state, done, total } = mz;
-  const regular = mz.challenges.filter((c) => !c.challenge.isBossChallenge);
-  const boss = mz.challenges.find((c) => c.challenge.isBossChallenge) ?? null;
+  const { regular, boss, bossName, text, zoneFill } = zoneDetail(mz, lang);
   const ar = lang === "ar";
-  const text = (en: string, arText: string) => challengeText(ar ? arText || en : en, zone, visual, lang);
-  const bossName = zone ? (ar ? zone.bossNameAr || zone.bossName : zone.bossName) : null;
-  const zoneFill = `linear-gradient(90deg, ${visual.color}, ${visual.accent})`;
 
   return (
     <>
