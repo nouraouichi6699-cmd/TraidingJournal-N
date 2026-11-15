@@ -181,6 +181,11 @@
 @keyframes gz-minimap-ping { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(3); opacity: 0; } }
 .gz-minimap-ping { animation: gz-minimap-ping 1.4s ease-out infinite; }
 
+/* ---- guide (GloriaGuidePanel): slides in from the land's end edge; --gz-guide-from flips for RTL ---- */
+@keyframes gz-guide-in { from { transform: translateX(var(--gz-guide-from, 100%)); } to { transform: translateX(0); } }
+.gz-guide { animation: gz-guide-in 400ms ease-out; }
+.gz-guide-btn:hover, .gz-guide-btn:focus-visible { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 0 18px rgba(245, 158, 11, 0.45); }
+
 /* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
