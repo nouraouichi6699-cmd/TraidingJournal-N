@@ -1,5 +1,5 @@
 // GLORIA_RPG: the land view -- what fills the whole game area once you travel INTO a zone (GloriaPage dives
-// into the map and swaps to this under a cloud curtain). The land is drawn as a pixel-art tile map by
+// into the map and swaps to this under a cloud curtain). The land (a painted image with clickable gates) is drawn by
 // GloriaLandCanvas from the zone's LandDefinition (gloriaLands). Zones without a land yet show a "Coming soon"
 // placeholder in their colour. The land fills the area edge to edge; all chrome floats over it: zone name
 // (top-centre), exit (top-end), the circular mini-map (bottom-start) that travels back to the world map, and the
@@ -88,7 +88,7 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
     <section aria-label={visual.name[lang]} className={`gz-land relative h-full overflow-hidden text-stone-100 ${className}`}>
       {land ? (
         <div className="h-full w-full overflow-hidden bg-black">
-          <GloriaLandCanvas land={land} />
+          <GloriaLandCanvas land={land} lang={lang} />
         </div>
       ) : (
         <div

@@ -1,8 +1,11 @@
-// GLORIA_RPG lands: the tile-map data behind each zone's land view (rendered by GloriaLandCanvas).
+// GLORIA_RPG lands: the data behind each zone's land view (rendered by GloriaLandCanvas).
 //
-// A land is a grid of terrain tiles plus a list of objects (trees, rocks, torches...) placed on tiles. Everything
-// that looks "random" -- grass shade, tree variety, jitter -- comes from a deterministic hash of the tile position,
-// so a land looks identical on every render and every device.
+// A land is a painted pixel-art image (public/) plus the interactive spots on it -- the gates -- placed in
+// percentages of the image, so they stay on the same landmark however the image is scaled or cropped.
+//
+// The older tile-map fields (terrain grid, objects, palette, fireflies) are still filled for Verdantia but no longer
+// rendered; they stay optional until a later cleanup removes them. Everything "random" in them comes from a
+// deterministic hash of the tile position.
 //
 // Only Verdantia (the forest zone) has a land so far; getZoneLand returns null for the others.
 import type { ZoneTheme } from "./gloriaZones";
@@ -37,17 +40,35 @@ export interface LandObject {
   seed?: number;
 }
 
+export type LandGateId = "entry" | "boss" | "exit";
+
+export interface LandGate {
+  id: LandGateId;
+  /** Position as a percentage (0-100) of the image width. */
+  x: number;
+  /** Position as a percentage (0-100) of the image height. */
+  y: number;
+  label: { ar: string; en: string };
+}
+
 export interface LandDefinition {
   id: string;
-  cols: number;
-  rows: number;
+  /** Path of the land image under public/, e.g. "/gloria-land-verdantia.jpg". */
+  image: string;
+  /** The image's natural pixel size. The gate overlay uses it as its viewBox so it crops exactly like the image. */
+  imageSize: { w: number; h: number };
+  gates: LandGate[];
+
+  // ── legacy tile map: no longer rendered, kept until a later cleanup ──
+  cols?: number;
+  rows?: number;
   /** terrain[row][col] */
-  terrain: TerrainType[][];
+  terrain?: TerrainType[][];
   /** Up to 3 shades per terrain type; tiles pick one by position hash. */
-  palette: Record<TerrainType, string[]>;
-  objects: LandObject[];
+  palette?: Record<TerrainType, string[]>;
+  objects?: LandObject[];
   /** Tile positions of the drifting fireflies. */
-  fireflies: { col: number; row: number }[];
+  fireflies?: { col: number; row: number }[];
 }
 
 /** Deterministic 0..1 hash of a tile position (+ salt for independent draws on the same tile). */
@@ -128,12 +149,22 @@ function growForest(terrain: TerrainType[][]): LandObject[] {
   return out;
 }
 
+const VERDANTIA_IMAGE = "/gloria-land-verdantia.jpg";
+const VERDANTIA_IMAGE_SIZE = { w: 1248, h: 832 };
+
 function buildVerdantia(): LandDefinition {
   const cols = 24;
   const terrain = parseTerrain(VERDANTIA_MAP, cols);
   const props: LandObject[] = VERDANTIA_PROPS.map(([type, col, row], i) => ({ type, col, row, seed: i * 37 + col * 7 + row }));
   return {
     id: "verdantia",
+    image: VERDANTIA_IMAGE,
+    imageSize: VERDANTIA_IMAGE_SIZE,
+    gates: [
+      { id: "entry", x: 50, y: 92, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
+      { id: "boss", x: 50, y: 35, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+      { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+    ],
     cols,
     rows: VERDANTIA_MAP.length,
     terrain,
