@@ -15,17 +15,20 @@ export interface ZoneVisual {
   theme: ZoneTheme;
   name: Record<Lang, string>;
   blurb: Record<Lang, string>;
-  /** Where the zone's medallion sits on the 1200x800 map, and where the journey path passes through. */
+  /** Where the zone's medallion sits on the 832×1248 portrait map, and where the journey path passes through. */
   node: { x: number; y: number };
   /** Main colour + accent, from the design palette. */
   color: string;
   accent: string;
 }
 
+// Zone positions are mapped to the 832×1248 portrait world-map image (`/gloria-map.jpg`).
+// The journey goes bottom-to-top: Solmara (warm coast) → Verdantia (green towers) → Aurelia (golden temple)
+// → Heartlands (central castle) → Drakemar (dark rocky village) → Frostfell (snowy mountains) → Throne (top).
 export const ZONE_VISUALS: ZoneVisual[] = [
   {
-    order: 1, theme: "oasis", node: { x: 240, y: 675 }, color: "#4ade80", accent: "#38bdf8",
-    name: { en: "Oasis of Beginning", ar: "واحة البداية", fr: "Oasis du Commencement" },
+    order: 1, theme: "oasis", node: { x: 416, y: 1060 }, color: "#4ade80", accent: "#38bdf8",
+    name: { en: "Solmara", ar: "سولمارا", fr: "Solmara" },
     blurb: {
       en: "Every legend starts by the water. Build the habits that keep a trader alive.",
       ar: "كل أسطورة تبدأ عند الماء. ابنِ العادات التي تُبقي المتداول على قيد الحياة.",
@@ -33,8 +36,8 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 2, theme: "forest", node: { x: 545, y: 655 }, color: "#15803d", accent: "#166534",
-    name: { en: "Forest of Discipline", ar: "غابة الانضباط", fr: "Forêt de la Discipline" },
+    order: 2, theme: "forest", node: { x: 390, y: 820 }, color: "#15803d", accent: "#166534",
+    name: { en: "Verdantia", ar: "فيردانتيا", fr: "Verdantia" },
     blurb: {
       en: "The trees grow close and the path is easy to lose. Only the plan leads out.",
       ar: "الأشجار متلاصقة والطريق سهل الضياع. وحدها الخطة تقودك إلى الخارج.",
@@ -42,8 +45,8 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 3, theme: "mountain", node: { x: 905, y: 640 }, color: "#78716c", accent: "#f5f5f4",
-    name: { en: "Analysis Mountain", ar: "جبل التحليل", fr: "Montagne de l'Analyse" },
+    order: 3, theme: "mountain", node: { x: 230, y: 590 }, color: "#78716c", accent: "#f5f5f4",
+    name: { en: "Aurelia", ar: "أوريليا", fr: "Aurelia" },
     blurb: {
       en: "From the summit every chart looks clearer. The climb is paid for in data.",
       ar: "من القمة يبدو كل رسم بياني أوضح. ثمن الصعود يُدفع بالبيانات.",
@@ -51,8 +54,8 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 4, theme: "sea", node: { x: 975, y: 360 }, color: "#0ea5e9", accent: "#06b6d4",
-    name: { en: "Risk Sea", ar: "بحر المخاطر", fr: "Mer des Risques" },
+    order: 4, theme: "sea", node: { x: 500, y: 470 }, color: "#0ea5e9", accent: "#06b6d4",
+    name: { en: "Heartlands", ar: "هارتلاندز", fr: "Heartlands" },
     blurb: {
       en: "Calm water hides deep currents. Size every voyage so one storm can't sink you.",
       ar: "المياه الهادئة تخفي تيارات عميقة. اضبط حجم كل رحلة كي لا تُغرقك عاصفة واحدة.",
@@ -60,8 +63,8 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 5, theme: "castle", node: { x: 615, y: 470 }, color: "#a8a29e", accent: "#eab308",
-    name: { en: "Strategy Castle", ar: "قلعة الاستراتيجية", fr: "Château de la Stratégie" },
+    order: 5, theme: "castle", node: { x: 630, y: 360 }, color: "#a8a29e", accent: "#eab308",
+    name: { en: "Drakemar", ar: "دريكمار", fr: "Drakemar" },
     blurb: {
       en: "Walls are built one stone at a time. Here an edge becomes a system.",
       ar: "الأسوار تُبنى حجراً بعد حجر. هنا تتحول الميزة إلى نظام.",
@@ -69,8 +72,8 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 6, theme: "volcano", node: { x: 290, y: 445 }, color: "#ef4444", accent: "#f97316",
-    name: { en: "Mastery Volcano", ar: "بركان الإتقان", fr: "Volcan de la Maîtrise" },
+    order: 6, theme: "volcano", node: { x: 360, y: 260 }, color: "#ef4444", accent: "#f97316",
+    name: { en: "Frostfell", ar: "فروستفيل", fr: "Frostfell" },
     blurb: {
       en: "Greed burns hotter than lava. Keep your head where the ground itself is on fire.",
       ar: "الطمع يحرق أكثر من الحمم. حافظ على هدوئك حيث تشتعل الأرض نفسها.",
@@ -78,8 +81,8 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 7, theme: "throne", node: { x: 620, y: 200 }, color: "#eab308", accent: "#fef08a",
-    name: { en: "Throne of Mizan", ar: "عرش الميزان", fr: "Trône de Mizan" },
+    order: 7, theme: "throne", node: { x: 416, y: 110 }, color: "#eab308", accent: "#fef08a",
+    name: { en: "Throne of Gloria", ar: "عرش غلوريا", fr: "Trône de Gloria" },
     blurb: {
       en: "Edge, risk and emotion in perfect balance. Few have ever sat here.",
       ar: "الميزة والمخاطرة والعاطفة في توازن تام. قلة فقط جلسوا هنا.",

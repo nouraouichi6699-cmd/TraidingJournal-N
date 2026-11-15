@@ -13,7 +13,7 @@
   --gz-ocean-2: #0d4a6e;
 }
 
-.gz-map-frame { background: var(--gz-ocean-2); }
+.gz-map-frame { background: var(--gz-ocean-2); background-size: cover; background-position: center; }
 
 /* ---- ambient world ------------------------------------------------------------------------------------- */
 
