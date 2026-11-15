@@ -19,11 +19,11 @@ const VB = `0 0 ${VB_W} ${VB_H}`;
 /** Control points for the curved road between consecutive zones (index = zone order minus 2). */
 const ROAD_CTRL: [number, number][] = [
   [480, 910],   // 1→2: Solmara → Verdantia
-  [200, 680],   // 2→3: Verdantia → Aurelia (sweeps left)
-  [220, 360],   // 3→4: Aurelia → Heartlands (arcs up-left)
-  [560, 340],   // 4→5: Heartlands → Drakemar (bows right)
-  [520, 230],   // 5→6: Drakemar → Frostfell (long diagonal)
-  [400, 130],   // 6→7: Frostfell → Throne
+  [150, 680],   // 2→3: Verdantia → Aurelia (sweeps far left)
+  [160, 360],   // 3→4: Aurelia → Heartlands (arcs through left coast)
+  [620, 340],   // 4→5: Heartlands → Drakemar (bows far right)
+  [520, 240],   // 5→6: Drakemar → Frostfell (long diagonal)
+  [350, 130],   // 6→7: Frostfell → Throne
 ];
 
 function Road({ from, to, ctrl, target, source }: { from: [number, number]; to: [number, number]; ctrl: [number, number]; target: ZoneMapState; source: ZoneMapState }) {
@@ -51,10 +51,10 @@ function Road({ from, to, ctrl, target, source }: { from: [number, number]; to: 
 const FOG_ZONES: Record<string, { cx: number; cy: number; rx: number; ry: number }> = {
   oasis:    { cx: 416, cy: 1060, rx: 180, ry: 120 },
   forest:   { cx: 365, cy: 755,  rx: 190, ry: 120 },
-  mountain: { cx: 148, cy: 460,  rx: 170, ry: 120 },
+  mountain: { cx: 62,  cy: 460,  rx: 170, ry: 120 },
   sea:      { cx: 400, cy: 365,  rx: 160, ry: 120 },
-  castle:   { cx: 635, cy: 395,  rx: 150, ry: 110 },
-  volcano:  { cx: 255, cy: 175,  rx: 170, ry: 130 },
+  castle:   { cx: 735, cy: 395,  rx: 150, ry: 110 },
+  volcano:  { cx: 135, cy: 200,  rx: 170, ry: 130 },
   throne:   { cx: 416, cy: 110,  rx: 160, ry: 100 },
 };
 
