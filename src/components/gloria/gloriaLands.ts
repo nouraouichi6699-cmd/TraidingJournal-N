@@ -77,6 +77,8 @@ export type SpriteDirection = "south" | "south-east" | "east" | "north-east" | "
  * - `animation` without `animationInterval`: that animation loops forever.
  * - `animation` with `animationInterval`: idle by default; every animationInterval to 4/3 of it (ms, picked at
  *   random each time) the animation plays once, then the character settles back to idle.
+ * - `patrol`: the character walks from (x, y) through the waypoints and loops back to the first, turning to face
+ *   where it is heading; `direction` is then only its facing when motion is reduced.
  */
 export interface LandSprite {
   id: string;
@@ -92,6 +94,10 @@ export interface LandSprite {
   frameDuration?: number;
   /** Makes `animation` intermittent: the minimum wait between plays, in ms. */
   animationInterval?: number;
+  /** Waypoints to walk between, in the same % coordinates as x/y; after the last it heads back to the first. */
+  patrol?: { x: number; y: number }[];
+  /** Patrol speed in painting pixels per second (default 8). */
+  speed?: number;
 }
 
 export interface LandDefinition {
@@ -224,10 +230,16 @@ const VERDANTIA_AMBIENCE: LandAmbience = {
 
 /** Standing on the painted figures they bring to life (feet positions on the 1248x832 painting). */
 const VERDANTIA_SPRITES: LandSprite[] = [
-  // reaper walking through the west wheat (212, 607)
-  { id: "farmer-wheat", type: "farmer", x: 17, y: 73, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150 },
-  // gardener at the east vegetable plot's fence, looking over the field (1036, 566)
-  { id: "farmer-fence", type: "farmer", x: 83, y: 68, scale: 1.2, direction: "south-east" },
+  // reaper walking a loop through the west wheat rows (212, 607 -> 300, 607 -> 300, 566 -> 212, 566)
+  {
+    id: "farmer-wheat", type: "farmer", x: 17, y: 73, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 17, y: 73 }, { x: 24, y: 73 }, { x: 24, y: 68 }, { x: 17, y: 68 }],
+  },
+  // gardener walking the east vegetable plot's fence (1036, 566 -> 1036, 607 -> 986, 607 -> 986, 566)
+  {
+    id: "farmer-fence", type: "farmer", x: 83, y: 68, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 83, y: 68 }, { x: 83, y: 73 }, { x: 79, y: 73 }, { x: 79, y: 68 }],
+  },
   // horse in the stable yard, rearing up every 6-8s (200, 291)
   { id: "horse", type: "horse", x: 16, y: 35, scale: 1.3, direction: "east", animation: "rear", frameDuration: 120, animationInterval: 6000 },
 ];
