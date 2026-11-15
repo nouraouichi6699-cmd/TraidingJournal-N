@@ -1,8 +1,8 @@
 // GLORIA_RPG: the animated characters standing on a land (the land's `sprites`), drawn by GloriaLandCanvas
 // between the painting and the ambient layer.
 //
-// The layer is a box sized and offset exactly like the cropped painting (object-cover, centred), clipped to the
-// land view, so each sprite's image percentages land on the same painted spot at any screen shape.
+// The layer is a box sized and offset exactly like the letterboxed painting (object-contain, centred), clipped to
+// the land view, so each sprite's image percentages land on the same painted spot at any screen shape.
 //
 // Each LandSprite names a character sheet (public/sprites/<type>/), a facing and an animation; planSprite turns
 // that into frame lists. A sheet only has the directions PixelLab generated, so a missing facing is mirrored from
@@ -271,7 +271,8 @@ interface Props {
   /** The painting's natural size. */
   w: number;
   h: number;
-  /** The crop: screen px per image px, and the image point at the container's top-left corner. */
+  /** The fit: screen px per image px, and the image point at the container's top-left corner (ox/oy go
+   *  negative where a letterbox bar sits). */
   view: { s: number; ox: number; oy: number };
 }
 
