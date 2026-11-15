@@ -152,6 +152,17 @@
 .gz-active-ring-2 { animation-delay: 0.8s; }
 .gz-active-halo { animation: gz-glow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 
+/* ---- land canvas ambience (GloriaLandCanvas) ---------------------------------------------------------- */
+@keyframes gz-firefly {
+  0%, 100% { transform: translate(0, 0); opacity: 0.2; }
+  25% { transform: translate(9px, -7px); opacity: 1; }
+  50% { transform: translate(-5px, -14px); opacity: 0.45; }
+  75% { transform: translate(-11px, -4px); opacity: 0.95; }
+}
+.gz-firefly { animation: gz-firefly 6s ease-in-out infinite; transform-box: fill-box; }
+.gz-torch-glow { animation: gz-glow 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.gz-shimmer-slow { animation: gz-shimmer 3.4s ease-in-out infinite; }
+
 /* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
