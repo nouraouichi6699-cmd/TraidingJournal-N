@@ -51,6 +51,25 @@ export interface LandGate {
   label: { ar: string; en: string };
 }
 
+/**
+ * Ambient life drawn over a land's painting (GloriaLandCanvas). Every position and size is a percentage (0-100) of
+ * the image width (x, w, size) or height (y, h), pinned to the landmark it animates.
+ */
+export interface LandAmbience {
+  /** Chimney tops that puff smoke. */
+  smoke?: { x: number; y: number }[];
+  /** Wheat-field strips that sway in the breeze: top-left corner and size. */
+  wheat?: { x: number; y: number; w: number; h: number }[];
+  /** Birds crossing the sky: height, seconds per loop, start delay (s), 1 = left to right, -1 = right to left. */
+  birds?: { y: number; duration: number; delay: number; dir: 1 | -1 }[];
+  /** Windmill hub and sail length (size, % of the image width). */
+  windmill?: { x: number; y: number; size: number };
+  /** The horse's hooves, where its dust puffs up. */
+  horse?: { x: number; y: number };
+  /** Farmers at work: chaff flying up from a harvest, or dust at a walker's feet, every `period` seconds. */
+  farmers?: { x: number; y: number; kind: "harvest" | "walk"; period: number }[];
+}
+
 export interface LandDefinition {
   id: string;
   /** Path of the land image under public/, e.g. "/gloria-land-verdantia.jpg". */
@@ -58,6 +77,8 @@ export interface LandDefinition {
   /** The image's natural pixel size. The gate overlay uses it as its viewBox so it crops exactly like the image. */
   imageSize: { w: number; h: number };
   gates: LandGate[];
+  /** Optional ambient animations over the painting. */
+  ambience?: LandAmbience;
 
   // ── legacy tile map: no longer rendered, kept until a later cleanup ──
   cols?: number;
@@ -152,6 +173,34 @@ function growForest(terrain: TerrainType[][]): LandObject[] {
 const VERDANTIA_IMAGE = "/gloria-land-verdantia.jpg";
 const VERDANTIA_IMAGE_SIZE = { w: 1248, h: 832 };
 
+/** Measured on the 1248x832 painting (pixel positions noted alongside). */
+const VERDANTIA_AMBIENCE: LandAmbience = {
+  smoke: [
+    { x: 55.7, y: 14.4 }, //  castle, front-right tower roof (695, 120) -- clear of the exit ring and zone badge
+    { x: 43.75, y: 36.7 }, // west cottage chimney (546, 305)
+    { x: 58.2, y: 37.7 }, //  middle cottage chimney (726, 314)
+    { x: 68.7, y: 39.9 }, //  east cottage chimney (857, 332)
+  ],
+  wheat: [
+    { x: 5.0, y: 52.9, w: 17.3, h: 12.3 }, //  west field, top block (62-278, 440-542)
+    { x: 5.0, y: 66.3, w: 24.0, h: 16.2 }, //  west field, middle (62-362, 552-687)
+    { x: 29.2, y: 74.8, w: 16.4, h: 8.4 }, //  south-west field, top (365-570, 622-692)
+    { x: 23.4, y: 83.2, w: 22.1, h: 10.6 }, // south-west field, bottom (292-568, 692-780)
+    { x: 55.0, y: 76.2, w: 19.1, h: 18.0 }, // south-east field (686-924, 634-784)
+  ],
+  birds: [
+    { y: 5, duration: 13, delay: 0, dir: 1 },
+    { y: 8.5, duration: 10, delay: 4, dir: -1 },
+    { y: 11, duration: 15, delay: 8, dir: 1 },
+  ],
+  windmill: { x: 86.9, y: 21.0, size: 6.4 }, // hub (1084, 175), sails ~80px
+  horse: { x: 16.4, y: 36.4 }, //               hooves (205, 303), stable yard
+  farmers: [
+    { x: 17.1, y: 72.5, kind: "harvest", period: 3 }, // reaper in the west wheat (213, 603)
+    { x: 83.1, y: 69.7, kind: "walk", period: 4 }, //    gardener in the east vegetable plot (1037, 580)
+  ],
+};
+
 function buildVerdantia(): LandDefinition {
   const cols = 24;
   const terrain = parseTerrain(VERDANTIA_MAP, cols);
@@ -165,6 +214,7 @@ function buildVerdantia(): LandDefinition {
       { id: "boss", x: 50, y: 35, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
       { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
+    ambience: VERDANTIA_AMBIENCE,
     cols,
     rows: VERDANTIA_MAP.length,
     terrain,

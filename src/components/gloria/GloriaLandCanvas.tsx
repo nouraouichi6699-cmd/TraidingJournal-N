@@ -13,11 +13,15 @@
 // sit. So each ring is clamped into the visible part of the image (and below the zone-name badge floating at
 // the top of the land view): a gate on the edge of the land stays on the edge of the screen.
 //
+// Under the rings, an ambient layer brings the painting to life (the land's `ambience` data): chimney smoke, wheat
+// swaying in the breeze, birds crossing the sky, the windmill's sails turning, dust kicked up by a restless
+// horse and the farmers at work. It lives in the same viewBox, so it is placed in image percentages and crops/scales with the art.
+//
 // The image fades in once it has loaded (the overlay with it). All motion is CSS keyframes in gloria.css, which
-// the app's reduced-motion rules switch off.
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+// the app's reduced-motion rules switch off (the ambient layer is hidden altogether then).
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { Lang } from "../../types";
-import type { LandDefinition, LandGate, LandGateId } from "./gloriaLands";
+import type { LandAmbience, LandDefinition, LandGate, LandGateId } from "./gloriaLands";
 import "./gloria.css";
 
 interface Props {
@@ -28,19 +32,20 @@ interface Props {
   activeChallengeId?: string;
   /** Makes the gates clickable. The exit gate stays inert while it is locked. */
   onGateClick?: (gate: LandGateId) => void;
-  /** The exit gate is locked (grey, dimmed ring, not clickable) until the boss is beaten. */
+  /** The exit gate is locked (dimmed, still ring, not clickable) until the boss is beaten. */
   bossDefeated?: boolean;
 }
 
 /** Ring colour and size (rx/ry in the 1000-unit marker space; ry squashes the ring flat onto the ground). */
 const GATE_STYLE: Record<LandGateId, { color: string; rx: number; ry: number }> = {
-  entry: { color: "#f59e0b", rx: 45, ry: 18 },
+  entry: { color: "#4ade80", rx: 45, ry: 18 },
   boss: { color: "#ef4444", rx: 55, ry: 22 },
-  exit: { color: "#4ade80", rx: 45, ry: 18 },
+  exit: { color: "#a855f7", rx: 45, ry: 18 },
 };
-const LOCKED_COLOR = "#9ca3af";
+/** Glow blur (marker units); the filter region and GLOW_PAD leave room for about 3x this. */
+const GLOW_BLUR = 6;
 /** Room around the ring for its blurred glow and the pulse's 1.05 scale, in marker units. */
-const GLOW_PAD = 14;
+const GLOW_PAD = 20;
 
 interface VisibleBox {
   x0: number;
@@ -93,7 +98,7 @@ function GateRing({
   onToggle: () => void;
 }) {
   const { rx, ry } = GATE_STYLE[gate.id];
-  const color = locked ? LOCKED_COLOR : GATE_STYLE[gate.id].color;
+  const { color } = GATE_STYLE[gate.id];
   const loc = lang === "ar" ? "ar" : "en";
   const name = gate.label[loc];
   const interactive = !!onClick && !locked;
@@ -129,13 +134,142 @@ function GateRing({
           ry={ry}
           fill="none"
           stroke={color}
-          strokeOpacity={0.4}
+          strokeOpacity={0.55}
           strokeWidth={6}
           filter={`url(#${glowId})`}
           pointerEvents="none"
         />
-        <ellipse className="gz-ring-body" rx={rx} ry={ry} fill={color} fillOpacity={0.1} stroke={color} strokeOpacity={0.7} strokeWidth={2} />
+        <ellipse className="gz-ring-body" rx={rx} ry={ry} fill={color} fillOpacity={0.15} stroke={color} strokeOpacity={0.85} strokeWidth={2.5} />
       </g>
+    </g>
+  );
+}
+
+/** CSS custom properties are not in CSSProperties' keys; this lets them ride along in a style object. */
+type VarStyle = CSSProperties & Record<`--${string}`, string>;
+
+/** Puffs per chimney, staggered evenly over one rise (2 keeps the whole layer under 30 animated elements). */
+const SMOKE_PUFFS = 2;
+
+/** Each burst's particles: where they fly to (image px) and their radius. */
+const DUST_PARTICLES: Record<"horse" | "harvest" | "walk", [dx: number, dy: number, r: number][]> = {
+  horse: [[-9, -3, 2], [-4, -8, 3], [4, -8, 2], [9, -3, 3]],
+  harvest: [[-6, -14, 2], [1, -18, 2], [7, -12, 2]],
+  walk: [[-7, -2, 2], [7, -2, 2]],
+};
+
+/** One burst of tiny particles from (x, y), repeating every `period` seconds. */
+function DustBurst({ x, y, kind, period }: { x: number; y: number; kind: keyof typeof DUST_PARTICLES; period: number }) {
+  return (
+    <>
+      {DUST_PARTICLES[kind].map(([dx, dy, r], i) => (
+        <circle
+          key={i}
+          className={kind === "horse" ? "gz-horse-dust" : "gz-farmer-dust"}
+          cx={x}
+          cy={y}
+          r={r}
+          style={
+            {
+              animationDuration: `${period}s`,
+              animationDelay: `${i * 0.08}s`,
+              "--gz-dust-dx": `${dx}px`,
+              "--gz-dust-dy": `${dy}px`,
+            } as VarStyle
+          }
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * The land's ambient life, drawn in image pixels (the viewBox) from the percentages in `ambience`. Purely
+ * decorative: hidden from assistive tech and from the pointer, every element animated by a gloria.css keyframe.
+ */
+function AmbientLayer({ ambience, w, h, wheatFill }: { ambience: LandAmbience; w: number; h: number; wheatFill: string }) {
+  const X = (pct: number) => (pct / 100) * w;
+  const Y = (pct: number) => (pct / 100) * h;
+  const { smoke = [], wheat = [], birds = [], windmill, horse, farmers = [] } = ambience;
+  return (
+    <g className="gz-ambient" aria-hidden="true">
+      {/* wheat: faint golden sheens over the fields, each swaying on its own beat */}
+      {wheat.map((f, i) => (
+        <rect
+          key={`wheat-${i}`}
+          className="gz-wheat"
+          x={X(f.x)}
+          y={Y(f.y)}
+          width={X(f.w)}
+          height={Y(f.h)}
+          fill={wheatFill}
+          style={{ animationDuration: `${(2.5 + ((i * 0.37) % 1)).toFixed(2)}s`, animationDelay: `${-i * 0.6}s` }}
+        />
+      ))}
+
+      {/* windmill: four translucent sails turning over the painted ones */}
+      {windmill && (
+        <g transform={`translate(${X(windmill.x)} ${Y(windmill.y)})`}>
+          <g className="gz-windmill">
+            {[0, 90, 180, 270].map((a) => {
+              const len = X(windmill.size);
+              const half = len * 0.12;
+              return <polygon key={a} points={`0,0 ${-half},${-len} ${half},${-len}`} transform={`rotate(${a})`} />;
+            })}
+          </g>
+        </g>
+      )}
+
+      {/* horse: dust bursts from its hooves every few seconds, as if it stamped; farmers: chaff flying up from
+          the harvest, or a scuff of dust as they walk */}
+      {horse && <DustBurst x={X(horse.x)} y={Y(horse.y)} kind="horse" period={4.5} />}
+      {farmers.map((f, i) => (
+        <DustBurst key={`farmer-${i}`} x={X(f.x)} y={Y(f.y)} kind={f.kind} period={f.period} />
+      ))}
+
+      {/* chimney smoke: puffs rise, drift and fade, staggered so each chimney smokes steadily */}
+      {smoke.flatMap((c, ci) => {
+        const dur = 3.2 + (ci % 3) * 0.4;
+        return Array.from({ length: SMOKE_PUFFS }, (_, pi) => (
+          <circle
+            key={`smoke-${ci}-${pi}`}
+            className="gz-smoke-puff"
+            cx={X(c.x)}
+            cy={Y(c.y)}
+            r={3 + ((ci + pi) % 3)}
+            style={
+              {
+                animationDuration: `${dur.toFixed(1)}s`,
+                animationDelay: `${(-(pi * dur) / SMOKE_PUFFS - ci * 0.5).toFixed(2)}s`,
+                "--gz-smoke-dx": `${[-7, 5, 9, -4][(ci + pi) % 4]}px`,
+              } as VarStyle
+            }
+          />
+        ));
+      })}
+
+      {/* birds: tiny flapping Vs gliding across the sky, each on its own loop */}
+      {birds.map((b, i) => {
+        const from = b.dir === 1 ? -20 : w + 20;
+        const to = b.dir === 1 ? w + 20 : -20;
+        return (
+          <g key={`bird-${i}`} transform={`translate(0 ${Y(b.y)})`}>
+            <g
+              className="gz-bird"
+              style={
+                {
+                  animationDuration: `${b.duration}s`,
+                  animationDelay: `${b.delay}s`,
+                  "--gz-bird-from": `${from}px`,
+                  "--gz-bird-to": `${to}px`,
+                } as VarStyle
+              }
+            >
+              <path className="gz-bird-wings" d="M-4 -1.5 L0 1.5 L4 -1.5" style={{ animationDelay: `${-i * 0.15}s` }} />
+            </g>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -148,7 +282,9 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   const [box, setBox] = useState<{ cw: number; ch: number } | null>(null);
   // The tooltip stays mounted after it closes (open: false) so it can fade out.
   const [tip, setTip] = useState<TipState | null>(null);
-  const glowId = `gz-ring-glow-${useId().replace(/:/g, "")}`;
+  const uid = useId().replace(/:/g, "");
+  const glowId = `gz-ring-glow-${uid}`;
+  const wheatId = `gz-wheat-${uid}`;
 
   // Track the container size to know which part of the image the crop leaves visible.
   useEffect(() => {
@@ -279,9 +415,15 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         <defs>
           {/* region padded well past the ring: the default 10% would clip the blur on the flat ellipse */}
           <filter id={glowId} x="-50%" y="-120%" width="200%" height="340%">
-            <feGaussianBlur stdDeviation={4} />
+            <feGaussianBlur stdDeviation={GLOW_BLUR} />
           </filter>
+          <linearGradient id={wheatId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#fde68a" stopOpacity={0} />
+            <stop offset="0.5" stopColor="#fde68a" stopOpacity={0.08} />
+            <stop offset="1" stopColor="#fde68a" stopOpacity={0} />
+          </linearGradient>
         </defs>
+        {land.ambience && <AmbientLayer ambience={land.ambience} w={w} h={h} wheatFill={`url(#${wheatId})`} />}
         {rings.map(({ gate, px, py, locked }) => (
           <GateRing
             key={gate.id}
