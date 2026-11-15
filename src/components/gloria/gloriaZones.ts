@@ -45,7 +45,7 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 3, theme: "mountain", node: { x: 230, y: 590 }, color: "#78716c", accent: "#f5f5f4",
+    order: 3, theme: "mountain", node: { x: 190, y: 540 }, color: "#78716c", accent: "#f5f5f4",
     name: { en: "Aurelia", ar: "أوريليا", fr: "Aurelia" },
     blurb: {
       en: "From the summit every chart looks clearer. The climb is paid for in data.",
@@ -54,7 +54,7 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 4, theme: "sea", node: { x: 500, y: 470 }, color: "#0ea5e9", accent: "#06b6d4",
+    order: 4, theme: "sea", node: { x: 460, y: 420 }, color: "#0ea5e9", accent: "#06b6d4",
     name: { en: "Heartlands", ar: "هارتلاندز", fr: "Heartlands" },
     blurb: {
       en: "Calm water hides deep currents. Size every voyage so one storm can't sink you.",
@@ -63,7 +63,7 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 5, theme: "castle", node: { x: 630, y: 360 }, color: "#a8a29e", accent: "#eab308",
+    order: 5, theme: "castle", node: { x: 680, y: 390 }, color: "#a8a29e", accent: "#eab308",
     name: { en: "Drakemar", ar: "دريكمار", fr: "Drakemar" },
     blurb: {
       en: "Walls are built one stone at a time. Here an edge becomes a system.",
@@ -72,7 +72,7 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 6, theme: "volcano", node: { x: 360, y: 260 }, color: "#ef4444", accent: "#f97316",
+    order: 6, theme: "volcano", node: { x: 340, y: 190 }, color: "#ef4444", accent: "#f97316",
     name: { en: "Frostfell", ar: "فروستفيل", fr: "Frostfell" },
     blurb: {
       en: "Greed burns hotter than lava. Keep your head where the ground itself is on fire.",
