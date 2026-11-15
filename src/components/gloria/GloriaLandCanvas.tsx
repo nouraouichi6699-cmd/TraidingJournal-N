@@ -1,6 +1,8 @@
-// GLORIA_RPG: draws a land (gloriaLands) as two layers:
+// GLORIA_RPG: draws a land (gloriaLands) as layers, bottom to top:
 //   1. the land's painted pixel-art image, filling the container (object-cover, centred)
-//   2. an SVG overlay with the interactive spots: the entry, boss and exit gates.
+//   2. its animated characters (GloriaLandSprites): farmers and a horse, frame-by-frame pixel-art sprites
+//   3. an SVG overlay with the ambient life and the interactive spots: the entry, boss and exit gates
+//   4. the gate tooltip.
 //
 // The overlay's viewBox is the image's natural pixel size and it uses preserveAspectRatio "xMidYMid slice", which
 // crops exactly like the image's object-cover + centre. So a gate placed at (x%, y%) of the image always sits on
@@ -14,14 +16,16 @@
 // the top of the land view): a gate on the edge of the land stays on the edge of the screen.
 //
 // Under the rings, an ambient layer brings the painting to life (the land's `ambience` data): chimney smoke, wheat
-// swaying in the breeze, birds crossing the sky, the windmill's sails turning, dust kicked up by a restless
-// horse and the farmers at work. It lives in the same viewBox, so it is placed in image percentages and crops/scales with the art.
+// swaying in the breeze, birds crossing the sky and the windmill's sails turning. It lives in the same viewBox,
+// so it is placed in image percentages and crops/scales with the art.
 //
-// The image fades in once it has loaded (the overlay with it). All motion is CSS keyframes in gloria.css, which
-// the app's reduced-motion rules switch off (the ambient layer is hidden altogether then).
+// The image fades in once it has loaded (the overlay with it). Ambient motion is CSS keyframes in gloria.css, which
+// the app's reduced-motion rules switch off (the ambient layer is hidden altogether then); sprites hold their
+// first frame under reduced motion.
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { Lang } from "../../types";
 import type { LandAmbience, LandDefinition, LandGate, LandGateId } from "./gloriaLands";
+import GloriaLandSprites from "./GloriaLandSprites";
 import "./gloria.css";
 
 interface Props {
@@ -153,38 +157,6 @@ type VarStyle = CSSProperties & Record<`--${string}`, string>;
 /** Puffs per chimney, staggered evenly over one rise (2 keeps the whole layer under 30 animated elements). */
 const SMOKE_PUFFS = 2;
 
-/** Each burst's particles: where they fly to (image px) and their radius. */
-const DUST_PARTICLES: Record<"horse" | "harvest" | "walk", [dx: number, dy: number, r: number][]> = {
-  horse: [[-9, -3, 2], [-4, -8, 3], [4, -8, 2], [9, -3, 3]],
-  harvest: [[-6, -14, 2], [1, -18, 2], [7, -12, 2]],
-  walk: [[-7, -2, 2], [7, -2, 2]],
-};
-
-/** One burst of tiny particles from (x, y), repeating every `period` seconds. */
-function DustBurst({ x, y, kind, period }: { x: number; y: number; kind: keyof typeof DUST_PARTICLES; period: number }) {
-  return (
-    <>
-      {DUST_PARTICLES[kind].map(([dx, dy, r], i) => (
-        <circle
-          key={i}
-          className={kind === "horse" ? "gz-horse-dust" : "gz-farmer-dust"}
-          cx={x}
-          cy={y}
-          r={r}
-          style={
-            {
-              animationDuration: `${period}s`,
-              animationDelay: `${i * 0.08}s`,
-              "--gz-dust-dx": `${dx}px`,
-              "--gz-dust-dy": `${dy}px`,
-            } as VarStyle
-          }
-        />
-      ))}
-    </>
-  );
-}
-
 /**
  * The land's ambient life, drawn in image pixels (the viewBox) from the percentages in `ambience`. Purely
  * decorative: hidden from assistive tech and from the pointer, every element animated by a gloria.css keyframe.
@@ -192,7 +164,7 @@ function DustBurst({ x, y, kind, period }: { x: number; y: number; kind: keyof t
 function AmbientLayer({ ambience, w, h, wheatFill }: { ambience: LandAmbience; w: number; h: number; wheatFill: string }) {
   const X = (pct: number) => (pct / 100) * w;
   const Y = (pct: number) => (pct / 100) * h;
-  const { smoke = [], wheat = [], birds = [], windmill, horse, farmers = [] } = ambience;
+  const { smoke = [], wheat = [], birds = [], windmill } = ambience;
   return (
     <g className="gz-ambient" aria-hidden="true">
       {/* wheat: faint golden sheens over the fields, each swaying on its own beat */}
@@ -221,13 +193,6 @@ function AmbientLayer({ ambience, w, h, wheatFill }: { ambience: LandAmbience; w
           </g>
         </g>
       )}
-
-      {/* horse: dust bursts from its hooves every few seconds, as if it stamped; farmers: chaff flying up from
-          the harvest, or a scuff of dust as they walk */}
-      {horse && <DustBurst x={X(horse.x)} y={Y(horse.y)} kind="horse" period={4.5} />}
-      {farmers.map((f, i) => (
-        <DustBurst key={`farmer-${i}`} x={X(f.x)} y={Y(f.y)} kind={f.kind} period={f.period} />
-      ))}
 
       {/* chimney smoke: puffs rise, drift and fade, staggered so each chimney smokes steadily */}
       {smoke.flatMap((c, ci) => {
@@ -406,6 +371,8 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         draggable={false}
         onLoad={() => setLoaded(true)}
       />
+
+      {land.sprites && view && <GloriaLandSprites sprites={land.sprites} w={w} h={h} view={view} />}
 
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"

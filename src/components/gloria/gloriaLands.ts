@@ -64,10 +64,34 @@ export interface LandAmbience {
   birds?: { y: number; duration: number; delay: number; dir: 1 | -1 }[];
   /** Windmill hub and sail length (size, % of the image width). */
   windmill?: { x: number; y: number; size: number };
-  /** The horse's hooves, where its dust puffs up. */
-  horse?: { x: number; y: number };
-  /** Farmers at work: chaff flying up from a harvest, or dust at a walker's feet, every `period` seconds. */
-  farmers?: { x: number; y: number; kind: "harvest" | "walk"; period: number }[];
+}
+
+/** One of the eight facings PixelLab renders a character in. */
+export type SpriteDirection = "south" | "south-east" | "east" | "north-east" | "north" | "north-west" | "west" | "south-west";
+
+/**
+ * A pixel-art character standing on a land (drawn by GloriaLandSprites from the frames in public/sprites/<type>/).
+ * x and y are percentages (0-100) of the image width/height and mark where the character stands -- its feet.
+ *
+ * - No `animation` (or "idle"): the idle frame for `direction`, still.
+ * - `animation` without `animationInterval`: that animation loops forever.
+ * - `animation` with `animationInterval`: idle by default; every animationInterval to 4/3 of it (ms, picked at
+ *   random each time) the animation plays once, then the character settles back to idle.
+ */
+export interface LandSprite {
+  id: string;
+  type: "farmer" | "horse" | "npc";
+  x: number;
+  y: number;
+  /** Size multiplier: 1 draws one sprite pixel per painting pixel. */
+  scale?: number;
+  /** Facing while idle (and of the animation, when the sheet has it in that direction). */
+  direction: SpriteDirection;
+  animation?: "idle" | "walk" | "rear";
+  /** Milliseconds per animation frame (default 150). */
+  frameDuration?: number;
+  /** Makes `animation` intermittent: the minimum wait between plays, in ms. */
+  animationInterval?: number;
 }
 
 export interface LandDefinition {
@@ -79,6 +103,8 @@ export interface LandDefinition {
   gates: LandGate[];
   /** Optional ambient animations over the painting. */
   ambience?: LandAmbience;
+  /** Animated characters standing on the land, drawn between the painting and the ambient layer. */
+  sprites?: LandSprite[];
 
   // ── legacy tile map: no longer rendered, kept until a later cleanup ──
   cols?: number;
@@ -194,12 +220,17 @@ const VERDANTIA_AMBIENCE: LandAmbience = {
     { y: 11, duration: 15, delay: 8, dir: 1 },
   ],
   windmill: { x: 86.9, y: 21.0, size: 6.4 }, // hub (1084, 175), sails ~80px
-  horse: { x: 16.4, y: 36.4 }, //               hooves (205, 303), stable yard
-  farmers: [
-    { x: 17.1, y: 72.5, kind: "harvest", period: 3 }, // reaper in the west wheat (213, 603)
-    { x: 83.1, y: 69.7, kind: "walk", period: 4 }, //    gardener in the east vegetable plot (1037, 580)
-  ],
 };
+
+/** Standing on the painted figures they bring to life (feet positions on the 1248x832 painting). */
+const VERDANTIA_SPRITES: LandSprite[] = [
+  // reaper walking through the west wheat (212, 607)
+  { id: "farmer-wheat", type: "farmer", x: 17, y: 73, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150 },
+  // gardener at the east vegetable plot's fence, looking over the field (1036, 566)
+  { id: "farmer-fence", type: "farmer", x: 83, y: 68, scale: 1.2, direction: "south-east" },
+  // horse in the stable yard, rearing up every 6-8s (200, 291)
+  { id: "horse", type: "horse", x: 16, y: 35, scale: 1.3, direction: "east", animation: "rear", frameDuration: 120, animationInterval: 6000 },
+];
 
 function buildVerdantia(): LandDefinition {
   const cols = 24;
@@ -215,6 +246,7 @@ function buildVerdantia(): LandDefinition {
       { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     ambience: VERDANTIA_AMBIENCE,
+    sprites: VERDANTIA_SPRITES,
     cols,
     rows: VERDANTIA_MAP.length,
     terrain,
