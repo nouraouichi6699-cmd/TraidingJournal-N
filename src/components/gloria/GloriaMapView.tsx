@@ -18,12 +18,12 @@ const VB = `0 0 ${VB_W} ${VB_H}`;
 
 /** Control points for the curved road between consecutive zones (index = zone order minus 2). */
 const ROAD_CTRL: [number, number][] = [
-  [470, 940],   // 1→2: Solmara → Verdantia (mid 403,940; nudged right)
-  [270, 760],   // 2→3: Verdantia → Aurelia (mid 290,680; sags down on the long westward leg)
-  [325, 420],   // 3→4: Aurelia → Heartlands (mid 325,480; arcs up)
-  [570, 455],   // 4→5: Heartlands → Drakemar (mid 570,405; dips down)
-  [570, 245],   // 5→6: Drakemar → Frostfell (mid 510,290; bows right on the long diagonal)
-  [430, 165],   // 6→7: Frostfell → Throne (mid 378,150; bows right)
+  [480, 910],   // 1→2: Solmara → Verdantia
+  [200, 680],   // 2→3: Verdantia → Aurelia (sweeps left)
+  [220, 360],   // 3→4: Aurelia → Heartlands (arcs up-left)
+  [560, 340],   // 4→5: Heartlands → Drakemar (bows right)
+  [520, 230],   // 5→6: Drakemar → Frostfell (long diagonal)
+  [400, 130],   // 6→7: Frostfell → Throne
 ];
 
 function Road({ from, to, ctrl, target, source }: { from: [number, number]; to: [number, number]; ctrl: [number, number]; target: ZoneMapState; source: ZoneMapState }) {
@@ -50,12 +50,12 @@ function Road({ from, to, ctrl, target, source }: { from: [number, number]; to: 
 
 const FOG_ZONES: Record<string, { cx: number; cy: number; rx: number; ry: number }> = {
   oasis:    { cx: 416, cy: 1060, rx: 180, ry: 120 },
-  forest:   { cx: 390, cy: 820, rx: 190, ry: 120 },
-  mountain: { cx: 190, cy: 540, rx: 170, ry: 120 },
-  sea:      { cx: 460, cy: 420, rx: 160, ry: 120 },
-  castle:   { cx: 680, cy: 390, rx: 150, ry: 110 },
-  volcano:  { cx: 340, cy: 190, rx: 170, ry: 130 },
-  throne:   { cx: 416, cy: 110, rx: 160, ry: 100 },
+  forest:   { cx: 365, cy: 755,  rx: 190, ry: 120 },
+  mountain: { cx: 148, cy: 460,  rx: 170, ry: 120 },
+  sea:      { cx: 400, cy: 365,  rx: 160, ry: 120 },
+  castle:   { cx: 635, cy: 395,  rx: 150, ry: 110 },
+  volcano:  { cx: 255, cy: 175,  rx: 170, ry: 130 },
+  throne:   { cx: 416, cy: 110,  rx: 160, ry: 100 },
 };
 
 function Fog({ theme }: { theme: string }) {
