@@ -123,28 +123,42 @@
 @keyframes gz-boss-card { 0%, 100% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55), 0 0 18px rgba(239, 68, 68, 0.15); } 50% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.95), 0 0 30px rgba(239, 68, 68, 0.4); } }
 .gz-boss-card--active { animation: gz-boss-card 1.8s ease-in-out infinite; }
 
-/* ---- land view: world map shrinks to a mini-nav, the land slides in beside it ------------------------- */
+/* ---- zone entry: the camera dives into the zone, then the cloud curtain (GloriaCloudTransition) ------- */
 
-.gz-split { --gz-mini-w: 220px; }
-@media (max-width: 640px) { .gz-split { --gz-mini-w: 112px; } }
+/* transform-origin is set inline at the zone's medallion. Only the zoomed state carries the transition, so
+   dropping the class while the map is hidden snaps it back to scale(1) without animating. */
+.gz-map-frame--zoom {
+  transform: scale(5);
+  opacity: 0.7;
+  transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 600ms ease;
+  will-change: transform, opacity;
+}
 
-.gz-map-container { width: 100%; transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1); }
-.gz-map-container--mini { width: var(--gz-mini-w); }
+.gz-tc { position: absolute; inset: 0; z-index: 30; overflow: hidden; pointer-events: none; }
+.gz-tc-cloud {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(30px);
+  will-change: transform, opacity;
+  animation-fill-mode: both;
+}
+.gz-tc--in .gz-tc-cloud { animation-name: gz-tc-in; animation-timing-function: ease-out; }
+.gz-tc--out .gz-tc-cloud { animation-name: gz-tc-out; animation-timing-function: ease-in; }
+@keyframes gz-tc-in {
+  from { transform: translate(var(--gz-tc-from-x), var(--gz-tc-from-y)) rotate(var(--gz-tc-rot)); opacity: var(--gz-tc-op); }
+  to { transform: translate(0, 0) rotate(var(--gz-tc-rot)); opacity: var(--gz-tc-op); }
+}
+@keyframes gz-tc-out {
+  from { transform: translate(0, 0) rotate(var(--gz-tc-rot)); opacity: var(--gz-tc-op); }
+  to { transform: translate(var(--gz-tc-to-x), var(--gz-tc-to-y)) rotate(var(--gz-tc-rot)); opacity: 0; }
+}
 
-/* Brief dim over the map while it changes size, so the resize reads as a camera move. */
-@keyframes gz-dim { 0% { opacity: 0; } 40% { opacity: 0.55; } 100% { opacity: 0; } }
-.gz-map-dim { opacity: 0; animation: gz-dim 500ms ease-out both; pointer-events: none; }
-
-.gz-land-pane { position: absolute; top: 0; bottom: 0; inset-inline-start: var(--gz-mini-w); inset-inline-end: 0; overflow: hidden; }
-
-@keyframes gz-slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes gz-slide-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
-@keyframes gz-slide-in-rtl { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes gz-slide-out-rtl { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-100%); opacity: 0; } }
-.gz-land-enter { animation: gz-slide-in 400ms ease-out forwards; }
-.gz-land-exit { animation: gz-slide-out 400ms ease-in forwards; }
-[dir="rtl"] .gz-land-enter { animation-name: gz-slide-in-rtl; }
-[dir="rtl"] .gz-land-exit { animation-name: gz-slide-out-rtl; }
+.gz-tc-veil { position: absolute; inset: 0; background: #f5f5f5; will-change: opacity; }
+@keyframes gz-tc-veil-in { 0%, 35% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes gz-tc-veil-out { from { opacity: 1; } to { opacity: 0; } }
+.gz-tc--in .gz-tc-veil { animation: gz-tc-veil-in var(--gz-tc-ms) ease-in both; }
+/* Lifts faster than the clouds leave, so the land shows through as they part. */
+.gz-tc--out .gz-tc-veil { animation: gz-tc-veil-out calc(var(--gz-tc-ms) * 0.55) ease-out both; }
 
 /* Pulsing highlight around the zone whose land is open. */
 @keyframes gz-active-ring { 0% { transform: scale(1); opacity: 0.95; } 100% { transform: scale(1.45); opacity: 0; } }
@@ -159,7 +173,7 @@
   50% { transform: translate(-5px, -14px); opacity: 0.45; }
   75% { transform: translate(-11px, -4px); opacity: 0.95; }
 }
-.gz-firefly { animation: gz-firefly 6s ease-in-out infinite; transform-box: fill-box; }
+.gz-firefly { animation: gz-firefly 6s ease-in-out infinite; transform-box: fill-box; will-change: transform, opacity; }
 .gz-torch-glow { animation: gz-glow 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .gz-shimmer-slow { animation: gz-shimmer 3.4s ease-in-out infinite; }
 
@@ -167,12 +181,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .gz-root *, .gz-panel *, .gz-land * { animation: none !important; transition: none !important; }
-  .gz-map-container, .gz-land-enter, .gz-land-exit, .gz-map-dim { animation: none !important; transition: none !important; }
 }
 [data-reduce-motion="1"] .gz-root *,
 [data-reduce-motion="1"] .gz-panel *,
-[data-reduce-motion="1"] .gz-land *,
-[data-reduce-motion="1"] .gz-map-container,
-[data-reduce-motion="1"] .gz-land-enter,
-[data-reduce-motion="1"] .gz-land-exit,
-[data-reduce-motion="1"] .gz-map-dim { animation: none !important; transition: none !important; }
+[data-reduce-motion="1"] .gz-land * { animation: none !important; transition: none !important; }

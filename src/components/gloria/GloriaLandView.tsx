@@ -1,13 +1,13 @@
-// GLORIA_RPG: the land view -- what fills the screen once you travel INTO a zone. The world map shrinks to a
-// mini-nav beside it (see GloriaPage); this side is the land itself, drawn as a pixel-art tile map by
+// GLORIA_RPG: the land view -- what fills the whole game area once you travel INTO a zone (GloriaPage dives
+// into the map and swaps to this under a cloud curtain). The land is drawn as a pixel-art tile map by
 // GloriaLandCanvas from the zone's LandDefinition (gloriaLands). Zones without a land yet show a "Coming soon"
-// placeholder in their colour.
+// placeholder in their colour. Floating chrome: "World Map" (top-start), zone name (top-centre), exit (top-end).
 //
 // The challenge cards + boss card are kept below as GloriaLandChallenges but are not rendered for now -- they
 // come back as a sidebar beside the land. Colours are explicit light-on-dark (not theme tokens) because game
 // mode is always a dark screen.
 import { useEffect, useRef } from "react";
-import { Lock, Skull, X } from "lucide-react";
+import { Lock, Map as MapIcon, Skull, X } from "lucide-react";
 import type { Lang } from "../../types";
 import type { GloriaQuestStatus } from "../../types/gloria";
 import type { MapZone, ZoneTheme } from "./gloriaZones";
@@ -24,7 +24,8 @@ const STATUS_TONE: Record<GloriaQuestStatus, string> = {
   failed: "text-red-400",
 };
 
-const BACK_TEXT: Record<Lang, string> = { en: "Back to the world map", ar: "العودة إلى خريطة العالم", fr: "Retour à la carte du monde" };
+const WORLD_MAP_TEXT: Record<Lang, string> = { en: "World Map", ar: "خريطة العالم", fr: "Carte du monde" };
+const EXIT_TEXT: Record<Lang, string> = { en: "Exit game", ar: "الخروج من اللعبة", fr: "Quitter le jeu" };
 const COMING_SOON: Record<Lang, string> = { en: "Coming Soon", ar: "قريباً", fr: "Bientôt disponible" };
 
 const THEME_ICON: Record<ZoneTheme, string> = {
@@ -42,19 +43,22 @@ interface Props {
   /** The zone before this one, named in the "how to unlock" line. */
   prev: MapZone | null;
   lang: Lang;
-  onClose: () => void;
+  /** Travel back to the world map (cloud transition). */
+  onWorldMap: () => void;
+  /** Leave game mode entirely. */
+  onExitGame?: () => void;
   className?: string;
 }
 
-export default function GloriaLandView({ mz, lang, onClose, className = "" }: Props) {
+export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "" }: Props) {
   const { visual } = mz;
   const land = getZoneLand(visual.theme);
   const icon = THEME_ICON[visual.theme];
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const worldMapRef = useRef<HTMLButtonElement>(null);
 
-  // Arriving in a land (or switching lands from the mini-map): focus the way back.
+  // Arriving in a land: focus the way back.
   useEffect(() => {
-    closeRef.current?.focus({ preventScroll: true });
+    worldMapRef.current?.focus({ preventScroll: true });
   }, [visual.order]);
 
   return (
@@ -76,22 +80,35 @@ export default function GloriaLandView({ mz, lang, onClose, className = "" }: Pr
         </div>
       )}
 
+      <button
+        ref={worldMapRef}
+        type="button"
+        onClick={onWorldMap}
+        title={`${WORLD_MAP_TEXT[lang]} (Esc)`}
+        className="absolute start-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-black/60 px-3 py-2 text-sm font-bold text-amber-200 backdrop-blur-sm transition-colors hover:bg-black/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+      >
+        <MapIcon size={16} className="shrink-0" aria-hidden />
+        <span className="hidden sm:inline">{WORLD_MAP_TEXT[lang]}</span>
+        <span className="sr-only sm:hidden">{WORLD_MAP_TEXT[lang]}</span>
+      </button>
+
       {/* zone name badge */}
-      <div className="pointer-events-none absolute start-3 top-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-sm font-bold text-amber-100 backdrop-blur-sm">
+      <div className="pointer-events-none absolute left-1/2 top-3 flex max-w-[50%] -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-sm font-bold text-amber-100 backdrop-blur-sm">
         <span aria-hidden>{icon}</span>
-        <span>{visual.name[lang]}</span>
+        <span className="truncate">{visual.name[lang]}</span>
       </div>
 
-      <button
-        ref={closeRef}
-        type="button"
-        onClick={onClose}
-        aria-label={BACK_TEXT[lang]}
-        title={`${BACK_TEXT[lang]} (Esc)`}
-        className="absolute end-3 top-3 rounded-full border border-white/15 bg-black/55 p-1.5 text-stone-300 backdrop-blur-sm transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
-      >
-        <X size={18} />
-      </button>
+      {onExitGame && (
+        <button
+          type="button"
+          onClick={onExitGame}
+          aria-label={EXIT_TEXT[lang]}
+          title={EXIT_TEXT[lang]}
+          className="absolute end-3 top-3 z-10 rounded-full border border-white/15 bg-black/55 p-1.5 text-stone-300 backdrop-blur-sm transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+        >
+          <X size={18} />
+        </button>
+      )}
     </section>
   );
 }

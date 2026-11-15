@@ -1,15 +1,16 @@
 // GLORIA_RPG: full-screen game mode. Takes over the entire viewport via React portal,
 // hiding the dashboard sidebar/header beneath a fixed overlay.
 //   - Top bar: pixel MIZAN logo (gold) + player name | exit button
-//   - Center: the adventure map (fills available space). Clicking a zone travels INTO that land: the map
-//     shrinks to a mini-nav on the inline-start side and GloriaLandView slides in to fill the rest.
+//   - Center: the adventure map (fills available space). Clicking a zone travels INTO that land: the camera
+//     zooms into the zone, clouds sweep across (GloriaCloudTransition), and the land takes the whole center.
+//     "World Map" / Esc travels back under the clouds.
 //   - Bottom bar: slim player HUD (character, rank, XP, Elf Meter, radar)
 //   - Fade-in entry transition from black
 //
 // TODO(gloria-demo-testing): see the old file's note -- no tradeMode filter; demo accounts are intentional.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, LogOut, Maximize2, TriangleAlert } from "lucide-react";
+import { Loader2, LogOut, TriangleAlert } from "lucide-react";
 import type { Account, Lang, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { useGloriaQuests } from "../hooks/useGloriaQuests";
@@ -18,15 +19,21 @@ import { getRank } from "../services/gloriaPlayerService";
 import GloriaPlayerHUD from "../components/gloria/GloriaPlayerHUD";
 import GloriaMapView from "../components/gloria/GloriaMapView";
 import GloriaLandView from "../components/gloria/GloriaLandView";
+import GloriaCloudTransition, { prefersReducedMotion } from "../components/gloria/GloriaCloudTransition";
 import { buildMapZones, type MapZone, type ZoneMapState } from "../components/gloria/gloriaZones";
 import { gt } from "../components/gloria/gloriaText";
 
 const EMPTY_RADAR: GloriaRadarStats = { precision: 0, speed: 0, defense: 0, wisdom: 0, recovery: 0, intelligence: 0, power: 0 };
 const CELEBRATE_MS = 6000;
 const LOADING_OVERLAY_MAX_MS = 2000;
-/** Matches .gz-land-exit in gloria.css: how long the land view stays mounted while it slides out. */
-const LAND_EXIT_MS = 400;
-const WORLD_MAP_TEXT: Record<Lang, string> = { en: "World map", ar: "خريطة العالم", fr: "Carte du monde" };
+/** How far into the 600ms zoom (.gz-map-frame--zoom) the clouds start closing in. */
+const ZOOM_CLOUDS_DELAY_MS = 400;
+
+/**
+ * map → entering (zoom, clouds in, swap to land, clouds out) → land → exiting (clouds in, swap to map,
+ * clouds out) → map. Zone clicks and Esc are ignored mid-transition.
+ */
+type GamePhase = "map" | "entering" | "land" | "exiting";
 
 const seenKey = (userId: string) => `mizan-gloria-seen-${userId}`;
 function readSeen(userId: string): Record<number, ZoneMapState> | null {
@@ -71,30 +78,53 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
   const totalXp = playerStats?.totalXp ?? 0;
   const rank = playerStats?.currentRank ?? getRank(totalXp);
 
-  // Land view: null = full world map; a zone order = split mode (mini-map + that land).
+  // ── Zone entry / exit state machine ──
+  const [phase, setPhase] = useState<GamePhase>("map");
   const [activeLand, setActiveLand] = useState<number | null>(null);
-  // Keeps the last land mounted while it slides out after returning to the full map.
-  const [exitingLand, setExitingLand] = useState<number | null>(null);
-  useEffect(() => {
-    if (activeLand != null) { setExitingLand(activeLand); return; }
-    const timer = window.setTimeout(() => setExitingLand(null), LAND_EXIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [activeLand]);
-  const split = activeLand != null;
-  const landOrder = activeLand ?? exitingLand;
-  const land = landOrder != null ? mapZones.find((z) => z.visual.order === landOrder) ?? null : null;
-  const prev = landOrder != null ? mapZones.find((z) => z.visual.order === landOrder - 1) ?? null : null;
-  const onOpenZone = useCallback((mz: MapZone) => setActiveLand(mz.visual.order), []);
-  const onCloseLand = useCallback(() => setActiveLand(null), []);
+  /** The zone node (map viewBox units) the camera dives into; null = map at scale 1. */
+  const [zoomOrigin, setZoomOrigin] = useState<{ x: number; y: number } | null>(null);
+  /** Which scene is mounted. It flips mid-phase, while the clouds fully cover the game area. */
+  const [scene, setScene] = useState<"map" | "land">("map");
+  const [cloudsIn, setCloudsIn] = useState(false);
 
-  // Re-keys the brief dim overlay each time the map switches between full and mini.
-  const [dimKey, setDimKey] = useState(0);
-  const prevSplit = useRef(split);
+  const land = activeLand != null ? mapZones.find((z) => z.visual.order === activeLand) ?? null : null;
+  const prev = activeLand != null ? mapZones.find((z) => z.visual.order === activeLand - 1) ?? null : null;
+
+  const onOpenZone = useCallback(
+    (mz: MapZone) => {
+      if (phase !== "map") return;
+      setActiveLand(mz.visual.order);
+      if (!prefersReducedMotion()) setZoomOrigin({ x: mz.visual.node.x, y: mz.visual.node.y });
+      setPhase("entering");
+    },
+    [phase],
+  );
+  const onWorldMap = useCallback(() => {
+    if (phase === "land") setPhase("exiting");
+  }, [phase]);
+
+  // Entering: clouds close in partway through the zoom. Exiting: straight away.
   useEffect(() => {
-    if (prevSplit.current === split) return;
-    prevSplit.current = split;
-    setDimKey((k) => k + 1);
-  }, [split]);
+    if (phase !== "entering" && phase !== "exiting") return;
+    const delay = phase === "entering" && !prefersReducedMotion() ? ZOOM_CLOUDS_DELAY_MS : 0;
+    const timer = window.setTimeout(() => setCloudsIn(true), delay);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
+
+  const onCloudsCovered = () => {
+    if (phase === "entering") {
+      setScene("land");
+      setZoomOrigin(null); // the map is hidden now; snap it back to scale 1 for the return trip
+    } else if (phase === "exiting") {
+      setScene("map");
+      setActiveLand(null);
+    }
+    setCloudsIn(false);
+  };
+  const onCloudsCleared = () => {
+    if (phase === "entering") setPhase("land");
+    else if (phase === "exiting") setPhase("map");
+  };
 
   const [celebrate, setCelebrate] = useState<ReadonlySet<number>>(new Set());
   const [reveal, setReveal] = useState<ReadonlySet<number>>(new Set());
@@ -137,16 +167,16 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  // Escape steps back out: land view → world map → exit the game
+  // Escape steps back out: land → world map → exit the game (ignored mid-transition)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (activeLand != null) setActiveLand(null);
-      else onExit?.();
+      if (phase === "land") setPhase("exiting");
+      else if (phase === "map") onExit?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onExit, activeLand]);
+  }, [onExit, phase]);
 
   // Lock body scroll while game mode is open
   useEffect(() => {
@@ -198,61 +228,41 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
         </button>
       </div>
 
-      {/* ── center: the adventure map, or mini-map + land view ── */}
-      <div className="gz-split relative flex min-h-0 flex-1 overflow-hidden">
-        <div className={`gz-map-container relative h-full shrink-0 ${split ? "gz-map-container--mini border-e border-amber-500/20 bg-black/60" : ""}`}>
-          <div className={`h-full ${split ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"}`}>
-            {error && (
-              <div role="alert" className="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-                <TriangleAlert size={16} className="shrink-0" />
-                <span className="font-semibold">{t("error")}</span>
-                <span className="truncate text-xs opacity-80">{error}</span>
-              </div>
-            )}
-
-            {split && (
-              <div className="p-2">
-                <button
-                  type="button"
-                  onClick={onCloseLand}
-                  title={`${WORLD_MAP_TEXT[lang]} (Esc)`}
-                  aria-label={WORLD_MAP_TEXT[lang]}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-500/25 hover:text-amber-100"
-                >
-                  <Maximize2 size={14} className="shrink-0" />
-                  <span className="hidden truncate sm:inline">{WORLD_MAP_TEXT[lang]}</span>
-                </button>
-              </div>
-            )}
-
-            <div className={split ? "px-2 pb-2" : undefined}>
-              <GloriaMapView
-                zones={mapZones}
-                lang={lang}
-                onOpenZone={onOpenZone}
-                celebrate={celebrate}
-                reveal={reveal}
-                mini={split}
-                activeZone={activeLand}
-                overlay={
-                  showLoadingOverlay ? (
-                    <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-amber-100">
-                      <Loader2 size={16} className="animate-spin" /> {t("loading")}
-                    </div>
-                  ) : null
-                }
-              />
+      {/* ── center: the adventure map or a land, full size, with the cloud curtain on top ── */}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className={`h-full ${zoomOrigin ? "overflow-hidden" : "overflow-auto"}`} hidden={scene !== "map"}>
+          {error && (
+            <div role="alert" className="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              <TriangleAlert size={16} className="shrink-0" />
+              <span className="font-semibold">{t("error")}</span>
+              <span className="truncate text-xs opacity-80">{error}</span>
             </div>
-          </div>
+          )}
 
-          {dimKey > 0 && <div key={dimKey} className="gz-map-dim absolute inset-0 bg-black" aria-hidden />}
+          <GloriaMapView
+            zones={mapZones}
+            lang={lang}
+            onOpenZone={onOpenZone}
+            celebrate={celebrate}
+            reveal={reveal}
+            zoomOrigin={zoomOrigin}
+            overlay={
+              showLoadingOverlay ? (
+                <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-amber-100">
+                  <Loader2 size={16} className="animate-spin" /> {t("loading")}
+                </div>
+              ) : null
+            }
+          />
         </div>
 
-        {land && (
-          <div key={land.visual.order} className={`gz-land-pane ${split ? "gz-land-enter" : "gz-land-exit"}`}>
-            <GloriaLandView mz={land} prev={prev} lang={lang} onClose={onCloseLand} />
+        {scene === "land" && land && (
+          <div className="absolute inset-0">
+            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} />
           </div>
         )}
+
+        <GloriaCloudTransition active={cloudsIn} onFullyCovered={onCloudsCovered} onFullyCleared={onCloudsCleared} />
       </div>
 
       {/* ── bottom bar: slim player HUD ── */}

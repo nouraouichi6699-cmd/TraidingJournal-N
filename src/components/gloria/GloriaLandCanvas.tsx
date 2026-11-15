@@ -3,6 +3,9 @@
 //   4. ambient fireflies.
 // All variation is a deterministic hash of the tile position, so the land never "reshuffles" between renders.
 // Not interactive yet -- purely a scene.
+//
+// Kept light for full-screen display: each row's runs of same-terrain tiles are merged into one rect, details
+// go on only every third tile, glows are gradient circles (no SVG filters), and all motion is CSS keyframes.
 import { useMemo, type ComponentType, type ReactNode } from "react";
 import { hash2, TILE, type LandDefinition, type LandObject, type LandObjectType, type TerrainType } from "./gloriaLands";
 import {
@@ -45,6 +48,9 @@ function tileShade(land: LandDefinition, t: TerrainType, col: number, row: numbe
   const shades = land.palette[t];
   return shades[Math.floor(hash2(col, row, 10) * shades.length)];
 }
+
+/** Layer 2 is sparse: only every third tile (in a diagonal-ish scatter) gets details. */
+const hasDetails = (col: number, row: number) => (row * 7 + col) % 3 === 0;
 
 /** Layer 2: tiny pixel details on a tile. */
 function tileDetails(t: TerrainType, col: number, row: number, x: number, y: number): ReactNode[] {
@@ -100,14 +106,20 @@ export default function GloriaLandCanvas({ land }: { land: LandDefinition }) {
   const { tiles, details, objects } = useMemo(() => {
     const tiles: ReactNode[] = [];
     const details: ReactNode[] = [];
-    land.terrain.forEach((line, row) =>
+    land.terrain.forEach((line, row) => {
+      const y = row * TILE;
+      // Layer 1: one rect per horizontal run of the same terrain, shaded by the run's first tile.
+      let start = 0;
+      for (let col = 1; col <= line.length; col++) {
+        if (col < line.length && line[col] === line[start]) continue;
+        const t = line[start];
+        tiles.push(<rect key={`${start}-${row}`} x={start * TILE} y={y} width={(col - start) * TILE} height={TILE} fill={tileShade(land, t, start, row)} {...CRISP} />);
+        start = col;
+      }
       line.forEach((t, col) => {
-        const x = col * TILE;
-        const y = row * TILE;
-        tiles.push(<rect key={`${col}-${row}`} x={x} y={y} width={TILE} height={TILE} fill={tileShade(land, t, col, row)} {...CRISP} />);
-        details.push(...tileDetails(t, col, row, x, y));
-      }),
-    );
+        if (hasDetails(col, row)) details.push(...tileDetails(t, col, row, col * TILE, y));
+      });
+    });
     // Depth sort: lower on screen = drawn later = on top.
     const objects = [...land.objects]
       .map((o) => ({ o, ...objectPos(o) }))
@@ -124,24 +136,26 @@ export default function GloriaLandCanvas({ land }: { land: LandDefinition }) {
       viewBox={`${-PAD} ${-PAD} ${w + PAD * 2} ${h + PAD * 2}`}
       preserveAspectRatio="xMidYMid meet"
       className="block h-full w-full"
-      style={{ imageRendering: "pixelated" }}
+      style={{ imageRendering: "pixelated", willChange: "transform" }}
       role="img"
       aria-label={land.id}
     >
       <LandArtDefs />
-      <rect x={-PAD} y={-PAD} width={w + PAD * 2} height={h + PAD * 2} fill="#0a0f08" />
-      <g>{tiles}</g>
-      <g>{details}</g>
-      <g>{objects}</g>
-      {/* darken the forest rim so the clearing reads as the focus */}
-      <rect x={0} y={0} width={w} height={h} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth={6} />
-      <g aria-hidden>
-        {land.fireflies.map((f, i) => (
-          <g key={i} className="gz-firefly" style={{ animationDelay: `${i * 1.3}s`, animationDuration: `${5 + i * 0.9}s` }}>
-            <circle cx={f.col * TILE + TILE / 2} cy={f.row * TILE + TILE / 2} r={7} fill="url(#gz-firefly-glow)" />
-            <rect x={f.col * TILE + TILE / 2 - 1} y={f.row * TILE + TILE / 2 - 1} width={2} height={2} fill="#fefce8" {...CRISP} />
-          </g>
-        ))}
+      <g shapeRendering="optimizeSpeed">
+        <rect x={-PAD} y={-PAD} width={w + PAD * 2} height={h + PAD * 2} fill="#0a0f08" />
+        <g>{tiles}</g>
+        <g>{details}</g>
+        <g>{objects}</g>
+        {/* darken the forest rim so the clearing reads as the focus */}
+        <rect x={0} y={0} width={w} height={h} fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth={6} />
+        <g aria-hidden>
+          {land.fireflies.map((f, i) => (
+            <g key={i} className="gz-firefly" style={{ animationDelay: `${i * 1.3}s`, animationDuration: `${5 + i * 0.9}s` }}>
+              <circle cx={f.col * TILE + TILE / 2} cy={f.row * TILE + TILE / 2} r={7} fill="url(#gz-firefly-glow)" />
+              <rect x={f.col * TILE + TILE / 2 - 1} y={f.row * TILE + TILE / 2 - 1} width={2} height={2} fill="#fefce8" {...CRISP} />
+            </g>
+          ))}
+        </g>
       </g>
     </svg>
   );

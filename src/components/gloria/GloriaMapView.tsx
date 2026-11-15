@@ -4,6 +4,9 @@
 // The image (`/gloria-map.jpg`) is a static illustrated world map. The interactive layer is a single SVG
 // whose viewBox matches the image's native pixel dimensions (832 × 1248), so percentage-based zone
 // positions translate 1:1 between the image and the overlay.
+//
+// Entering a zone: GloriaPage passes `zoomOrigin` (the zone's node, in viewBox units) and the frame dives in
+// 5x around it (CSS .gz-map-frame--zoom) while the cloud curtain closes over it.
 import { memo, type ReactNode } from "react";
 import type { Lang } from "../../types";
 import GloriaZoneNode from "./GloriaZoneNode";
@@ -81,22 +84,22 @@ interface Props {
   celebrate?: ReadonlySet<number>;
   reveal?: ReadonlySet<number>;
   overlay?: ReactNode;
-  /** Compact mini-map (land view navigation): fills its narrow container, no labels or loading text. */
-  mini?: boolean;
-  /** Order of the zone whose land is open; its medallion gets a pulsing highlight ring. */
-  activeZone?: number | null;
+  /** While entering a zone: the point (viewBox units) the camera zooms into. null = no zoom. */
+  zoomOrigin?: { x: number; y: number } | null;
 }
 
-export default function GloriaMapView({ zones, lang, onOpenZone, celebrate, reveal, overlay, mini, activeZone }: Props) {
+export default function GloriaMapView({ zones, lang, onOpenZone, celebrate, reveal, overlay, zoomOrigin }: Props) {
   return (
-    <div className={`gz-root w-full ${mini ? "gz-root--mini" : "overflow-x-auto"}`}>
+    // While zooming the frame may spill past this box: the dive fills the whole game area (clipped by GloriaPage).
+    <div className={`gz-root w-full ${zoomOrigin ? "" : "overflow-x-auto"}`}>
       <div
-        className={`gz-map-frame relative mx-auto aspect-[2/3] w-full overflow-hidden border border-border shadow-xl ${mini ? "rounded-xl" : "min-w-[360px] rounded-2xl"}`}
+        className={`gz-map-frame relative mx-auto aspect-[2/3] w-full min-w-[360px] overflow-hidden rounded-2xl border border-border shadow-xl ${zoomOrigin ? "gz-map-frame--zoom pointer-events-none" : ""}`}
         style={{
-          maxWidth: mini ? undefined : "max(420px, calc((100vh - 12.5rem) * 0.667))",
+          maxWidth: "max(420px, calc((100vh - 12.5rem) * 0.667))",
           backgroundImage: "url(/gloria-map.jpg)",
           backgroundSize: "cover",
           backgroundPosition: "center",
+          transformOrigin: zoomOrigin ? `${(zoomOrigin.x / VB_W) * 100}% ${(zoomOrigin.y / VB_H) * 100}%` : undefined,
         }}
       >
         {/* Interactive SVG overlay: zone nodes, roads, fog — all on top of the background image */}
@@ -131,14 +134,12 @@ export default function GloriaMapView({ zones, lang, onOpenZone, celebrate, reve
               mz={mz}
               lang={lang}
               celebrate={celebrate?.has(mz.visual.order)}
-              active={activeZone === mz.visual.order}
-              mini={mini}
               onOpen={onOpenZone}
             />
           ))}
         </svg>
 
-        {overlay && !mini && <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">{overlay}</div>}
+        {overlay && <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">{overlay}</div>}
       </div>
     </div>
   );
