@@ -1,17 +1,15 @@
-// GLORIA_RPG main screen: player HUD on top, the adventure map below, and the zone panel sliding in over it.
-// Trades/accounts come from the app's single journal (passed in), never from a separate query.
+// GLORIA_RPG: full-screen game mode. Takes over the entire viewport via React portal,
+// hiding the dashboard sidebar/header beneath a fixed overlay.
+//   - Top bar: pixel MIZAN logo (gold) + player name | exit button
+//   - Center: the adventure map (fills available space)
+//   - Bottom bar: slim player HUD (character, rank, XP, Elf Meter, radar)
+//   - Zone panel slides in over the map when a zone is tapped
+//   - Fade-in entry transition from black
 //
-// TODO(gloria-demo-testing): `trades`/`accounts` below are whatever App.tsx passes in -- today that is
-// `journal.trades`/the full `accounts` list, with NO filtering by Account.tradeMode ("demo" | "contest" | "real").
-// That is deliberate: this feature is meant to come alive on a demo account while testing, exactly like it would
-// for a real one, so do not add a tradeMode/trade_mode filter here, in useGloriaQuests, or in the gloria
-// services -- that would be the one change that silently breaks demo-account testing again. The evaluators
-// already cope with a small trade count (partial progress, not a hard "all or nothing"), and the hero/radar/Elf
-// Meter snapshot now resolves to the most recent month that actually has a closed trade (mostRecentTradingMonth
-// in gloriaCharacterService.ts) rather than the literal calendar month, so a handful of demo trades dated last
-// week still light up the HUD instead of showing "Unawakened" until the month turns over.
+// TODO(gloria-demo-testing): see the old file's note -- no tradeMode filter; demo accounts are intentional.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Loader2, LogOut, TriangleAlert } from "lucide-react";
 import type { Account, Lang, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { useGloriaQuests } from "../hooks/useGloriaQuests";
@@ -25,16 +23,8 @@ import { gt } from "../components/gloria/gloriaText";
 
 const EMPTY_RADAR: GloriaRadarStats = { precision: 0, speed: 0, defense: 0, wisdom: 0, recovery: 0, intelligence: 0, power: 0 };
 const CELEBRATE_MS = 6000;
-// Progressive loading, not blocking loading: the map itself (ZONE_VISUALS, drawn entirely client-side) and Zone
-// 1 (never really locked -- see buildMapZones) don't need the network round trip at all, so there is no reason
-// a slow connection -- or a future bug in the fetch -- should leave the player staring at a spinner. The "map
-// still loading" overlay is a courtesy for the (normally sub-second) common case, not a gate: it steps aside on
-// its own after this long even if `loading` is somehow still true, same as showing the map immediately with
-// whatever data is in hand and filling in progress once it arrives.
 const LOADING_OVERLAY_MAX_MS = 2000;
 
-// Which state each zone was in the last time this player saw the map, so a conquest (or a land coming out of the
-// fog) is celebrated exactly once. Per-device convenience only; losing it just replays a celebration.
 const seenKey = (userId: string) => `mizan-gloria-seen-${userId}`;
 function readSeen(userId: string): Record<number, ZoneMapState> | null {
   try {
@@ -47,9 +37,7 @@ function readSeen(userId: string): Record<number, ZoneMapState> | null {
 function writeSeen(userId: string, seen: Record<number, ZoneMapState>) {
   try {
     localStorage.setItem(seenKey(userId), JSON.stringify(seen));
-  } catch {
-    /* storage unavailable: celebrations simply replay */
-  }
+  } catch { /* storage unavailable */ }
 }
 
 interface Props {
@@ -57,17 +45,17 @@ interface Props {
   lang: Lang;
   trades: Trade[];
   accounts: Account[];
+  playerName?: string;
+  onExit?: () => void;
 }
 
-export default function GloriaPage({ userId, lang, trades, accounts }: Props) {
+export default function GloriaPage({ userId, lang, trades, accounts, playerName, onExit }: Props) {
   const t = gt(lang);
   const quests = useGloriaQuests(userId, trades, accounts);
   const { zones, challenges, progress, playerStats, loading, evaluating, error, refresh } = quests;
 
   const mapZones = useMemo(() => buildMapZones(zones, challenges, progress), [zones, challenges, progress]);
 
-  // This month's hero, radar and Elf Meter, computed live from the same pure functions -- and the same month
-  // resolution -- that gloriaPlayerService persists with, so this preview and the persisted snapshot agree.
   const hero = useMemo(() => {
     const month = mostRecentTradingMonth(trades);
     const stats = calculateMonthlyStats(trades, month, accounts);
@@ -91,18 +79,13 @@ export default function GloriaPage({ userId, lang, trades, accounts }: Props) {
 
   const [overlayTimedOut, setOverlayTimedOut] = useState(false);
   useEffect(() => {
-    if (!loading) {
-      setOverlayTimedOut(false);
-      return;
-    }
+    if (!loading) { setOverlayTimedOut(false); return; }
     const timer = window.setTimeout(() => setOverlayTimedOut(true), LOADING_OVERLAY_MAX_MS);
     return () => window.clearTimeout(timer);
   }, [loading]);
   const showLoadingOverlay = loading && !overlayTimedOut;
 
   useEffect(() => {
-    // Only trust a real, error-free load that has quest rows; a failed load would otherwise record every zone as
-    // locked and replay every conquest next time.
     if (loading || error || !progress.length) return;
     const seen = readSeen(userId);
     if (!seen) return;
@@ -117,53 +100,123 @@ export default function GloriaPage({ userId, lang, trades, accounts }: Props) {
     if (revealed.size) setReveal(revealed);
   }, [mapZones, loading, error, progress.length, userId]);
 
-  // Its own effect, so a later re-evaluation re-running the one above can't cancel the reset.
   useEffect(() => {
     if (!celebrate.size && !reveal.size) return;
-    const timer = window.setTimeout(() => {
-      setCelebrate(new Set());
-      setReveal(new Set());
-    }, CELEBRATE_MS);
+    const timer = window.setTimeout(() => { setCelebrate(new Set()); setReveal(new Set()); }, CELEBRATE_MS);
     return () => window.clearTimeout(timer);
   }, [celebrate, reveal]);
 
-  return (
-    <div className="flex flex-col gap-3">
-      <GloriaPlayerHUD
-        lang={lang}
-        character={hero.character}
-        totalXp={totalXp}
-        rank={rank}
-        elfMeter={hero.elfMeter}
-        radar={hero.radar}
-        evaluating={evaluating}
-        onRefresh={refresh}
-      />
+  // ── Game-mode specific hooks ──
 
-      {error && (
-        <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-loss">
-          <TriangleAlert size={16} className="shrink-0" />
-          <span className="font-semibold">{t("error")}</span>
-          <span className="truncate text-xs opacity-80">{error}</span>
+  // Fade-in entry animation
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  // Escape key exits the game
+  useEffect(() => {
+    if (!onExit) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onExit(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onExit]);
+
+  // Lock body scroll while game mode is open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const gameScreen = (
+    <div
+      className="fixed inset-0 z-[100] flex flex-col bg-black transition-opacity duration-700"
+      style={{ opacity: entered ? 1 : 0 }}
+    >
+      {/* ── top bar: pixel MIZAN logo + player name | exit ── */}
+      <div className="flex shrink-0 items-center justify-between px-4 py-2 bg-black/90 border-b border-amber-500/20 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <img
+            src="/logo.png"
+            alt="Mizan"
+            className="h-8 w-8"
+            style={{ imageRendering: "pixelated", filter: "sepia(1) saturate(3) hue-rotate(10deg) brightness(1.1)" }}
+          />
+          <span
+            className="font-bold tracking-widest"
+            style={{
+              background: "linear-gradient(135deg, #facc15, #f59e0b)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              fontFamily: "'Press Start 2P', 'Courier New', monospace",
+              fontSize: "13px",
+              letterSpacing: "0.15em",
+            }}
+          >
+            MIZAN
+          </span>
+          {playerName && (
+            <span className="text-xs font-medium text-amber-200/60 max-w-[120px] truncate">
+              {playerName}
+            </span>
+          )}
         </div>
-      )}
+        <button
+          type="button"
+          onClick={onExit}
+          className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-500/25 hover:text-amber-100"
+          title="Exit (Esc)"
+        >
+          <LogOut size={14} />
+          {lang === "ar" ? "خروج" : "Exit"}
+        </button>
+      </div>
 
-      <GloriaMapView
-        zones={mapZones}
-        lang={lang}
-        onOpenZone={onOpenZone}
-        celebrate={celebrate}
-        reveal={reveal}
-        overlay={
-          showLoadingOverlay ? (
-            <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-amber-100">
-              <Loader2 size={16} className="animate-spin" /> {t("loading")}
-            </div>
-          ) : null
-        }
-      />
+      {/* ── center: the adventure map ── */}
+      <div className="relative min-h-0 flex-1 overflow-auto">
+        {error && (
+          <div role="alert" className="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            <TriangleAlert size={16} className="shrink-0" />
+            <span className="font-semibold">{t("error")}</span>
+            <span className="truncate text-xs opacity-80">{error}</span>
+          </div>
+        )}
 
-      <GloriaZonePanel mz={open} prev={prev} lang={lang} onClose={onClose} />
+        <GloriaMapView
+          zones={mapZones}
+          lang={lang}
+          onOpenZone={onOpenZone}
+          celebrate={celebrate}
+          reveal={reveal}
+          overlay={
+            showLoadingOverlay ? (
+              <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-amber-100">
+                <Loader2 size={16} className="animate-spin" /> {t("loading")}
+              </div>
+            ) : null
+          }
+        />
+
+        <GloriaZonePanel mz={open} prev={prev} lang={lang} onClose={onClose} />
+      </div>
+
+      {/* ── bottom bar: slim player HUD ── */}
+      <div className="shrink-0 border-t border-amber-500/20 bg-black/90 backdrop-blur-sm">
+        <GloriaPlayerHUD
+          lang={lang}
+          character={hero.character}
+          totalXp={totalXp}
+          rank={rank}
+          elfMeter={hero.elfMeter}
+          radar={hero.radar}
+          evaluating={evaluating}
+          onRefresh={refresh}
+        />
+      </div>
     </div>
   );
+
+  // Portal to document.body → sits above sidebar/header z-index layers
+  return createPortal(gameScreen, document.body);
 }
