@@ -177,12 +177,13 @@
 .gz-torch-glow { animation: gz-glow 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 .gz-shimmer-slow { animation: gz-shimmer 3.4s ease-in-out infinite; }
 
-/* ---- land gates (GloriaLandCanvas): gentle float; clickable gates brighten on hover / keyboard focus -------- */
-@keyframes gz-gate-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-.gz-gate { animation: gz-gate-float 2.6s ease-in-out infinite; }
-.gz-gate-ring-2 { animation-delay: 0.5s; }
-.gz-gate--interactive { cursor: pointer; outline: none; transition: filter 150ms ease-out; }
-.gz-gate--interactive:hover, .gz-gate--interactive:focus-visible { filter: brightness(1.2) drop-shadow(0 0 6px rgba(253, 230, 138, 0.8)); }
+/* ---- land gates (GloriaLandCanvas): ground rings with a gentle breathing pulse ---------------------------- */
+@keyframes gloria-ring-pulse { 0%, 100% { transform: scale(0.95); } 50% { transform: scale(1.05); } }
+.gz-ring { animation: gloria-ring-pulse 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; transition: filter 150ms ease-out; }
+.gz-ring:hover, .gz-ring:focus-visible { filter: brightness(1.35); }
+.gz-ring--interactive { cursor: pointer; outline: none; }
+/* the locked exit: grey, dim and still -- it wakes up once the boss falls */
+.gz-ring--locked { animation: none; opacity: 0.45; }
 
 /* ---- mini-map (GloriaMiniMap): the current-zone dot's radar ping ------------------------------------ */
 @keyframes gz-minimap-ping { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(3); opacity: 0; } }

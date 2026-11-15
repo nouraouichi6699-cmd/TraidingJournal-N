@@ -4,16 +4,18 @@
 //
 // The overlay's viewBox is the image's natural pixel size and it uses preserveAspectRatio "xMidYMid slice", which
 // crops exactly like the image's object-cover + centre. So a gate placed at (x%, y%) of the image always sits on
-// the same landmark, whatever the screen shape. Gate markers are drawn in a 1000-unit space scaled to the image
-// width, so they keep their size relative to the art.
+// the same landmark, whatever the screen shape. Gates are drawn as RPG-style ground rings -- flat glowing
+// ellipses -- in a 1000-unit space scaled to the image width, so they keep their size relative to the art. They
+// carry no permanent label: hovering (mouse), focusing (keyboard) or tapping (touch) a ring shows a small tooltip
+// above it, as plain HTML so its text stays a crisp 12px whatever the image scale.
 //
 // On screens shaped differently from the image, the crop can cut off the edges where the entry and exit gates
-// sit. So each marker is clamped into the visible part of the image (and below the zone-name badge floating at
+// sit. So each ring is clamped into the visible part of the image (and below the zone-name badge floating at
 // the top of the land view): a gate on the edge of the land stays on the edge of the screen.
 //
 // The image fades in once it has loaded (the overlay with it). All motion is CSS keyframes in gloria.css, which
 // the app's reduced-motion rules switch off.
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { Lang } from "../../types";
 import type { LandDefinition, LandGate, LandGateId } from "./gloriaLands";
 import "./gloria.css";
@@ -26,15 +28,19 @@ interface Props {
   activeChallengeId?: string;
   /** Makes the gates clickable. The exit gate stays inert while it is locked. */
   onGateClick?: (gate: LandGateId) => void;
-  /** The exit gate is locked (padlock, not clickable) until the boss is beaten. */
+  /** The exit gate is locked (grey, dimmed ring, not clickable) until the boss is beaten. */
   bossDefeated?: boolean;
 }
 
-const GATE_STYLE: Record<LandGateId, { color: string; glow: string; r: number }> = {
-  entry: { color: "#f59e0b", glow: "#fcd34d", r: 17 },
-  boss: { color: "#dc2626", glow: "#fb923c", r: 26 },
-  exit: { color: "#16a34a", glow: "#86efac", r: 17 },
+/** Ring colour and size (rx/ry in the 1000-unit marker space; ry squashes the ring flat onto the ground). */
+const GATE_STYLE: Record<LandGateId, { color: string; rx: number; ry: number }> = {
+  entry: { color: "#f59e0b", rx: 45, ry: 18 },
+  boss: { color: "#ef4444", rx: 55, ry: 22 },
+  exit: { color: "#4ade80", rx: 45, ry: 18 },
 };
+const LOCKED_COLOR = "#9ca3af";
+/** Room around the ring for its blurred glow and the pulse's 1.05 scale, in marker units. */
+const GLOW_PAD = 14;
 
 interface VisibleBox {
   x0: number;
@@ -46,89 +52,54 @@ interface VisibleBox {
 /** Screen-pixel safe areas: the top keeps clear of the land view's zone-name badge. */
 const SAFE_TOP_PX = 56;
 const SAFE_EDGE_PX = 8;
+/** Tooltip: gap to the ring and the room it needs above it (one line of 12px text + padding). */
+const TIP_GAP_PX = 6;
+const TIP_ROOM_PX = 30;
 
 /** Clamp v into [lo, hi]; when the range is empty (tiny screen) fall back to its middle. */
 const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)));
 
 const LOCKED_TEXT = { ar: "مغلقة حتى هزيمة الزعيم", en: "Locked until the boss is defeated" };
 
-/** Door / arch, centred on 0,0. */
-const DoorIcon = () => (
-  <g>
-    <path d="M-7 9 V-1 A7 7 0 0 1 7 -1 V9 Z" fill="#fef3c7" />
-    <path d="M-4 9 V0 A4 4 0 0 1 4 0 V9 Z" fill="#78350f" />
-    <rect x={1.5} y={3} width={1.6} height={1.6} fill="#fcd34d" />
-  </g>
-);
+interface TipState {
+  id: LandGateId;
+  open: boolean;
+}
 
-/** Arrow up, centred on 0,0. */
-const ArrowUpIcon = () => <path d="M0 -10 L9 0 H3.5 V10 H-3.5 V0 H-9 Z" fill="#dcfce7" />;
-
-/** Crossed swords, centred on 0,0. */
-const SwordsIcon = () => (
-  <g strokeLinecap="round">
-    {[45, -45].map((deg) => (
-      <g key={deg} transform={`rotate(${deg})`}>
-        <line x1={0} y1={-16} x2={0} y2={7} stroke="#fee2e2" strokeWidth={3.2} />
-        <line x1={-6} y1={7} x2={6} y2={7} stroke="#fbbf24" strokeWidth={3} />
-        <line x1={0} y1={8} x2={0} y2={14} stroke="#92400e" strokeWidth={3.4} />
-      </g>
-    ))}
-  </g>
-);
-
-/** Small padlock, centred on 0,0. */
-const LockIcon = () => (
-  <g>
-    <circle r={9} fill="#1c1917" stroke="#a8a29e" strokeWidth={1.5} />
-    <path d="M-3.2 -1 V-3.4 A3.2 3.2 0 0 1 3.2 -3.4 V-1" fill="none" stroke="#e7e5e4" strokeWidth={1.8} />
-    <rect x={-4.6} y={-1.2} width={9.2} height={6.6} rx={1.2} fill="#e7e5e4" />
-  </g>
-);
-
-function GateMarker({
+function GateRing({
   gate,
   lang,
   scale,
-  cx,
-  cy,
-  visible,
+  px,
+  py,
   locked,
+  glowId,
   onClick,
+  onShow,
+  onHide,
+  onToggle,
 }: {
   gate: LandGate;
   lang: Lang;
   scale: number;
-  cx: number;
-  cy: number;
-  /** The visible part of the image in viewBox units, already inset by the screen-edge safe areas. */
-  visible: VisibleBox | null;
+  /** Ring centre in viewBox units, already clamped into the visible part of the image. */
+  px: number;
+  py: number;
   locked: boolean;
+  glowId: string;
   onClick?: () => void;
+  onShow: () => void;
+  onHide: () => void;
+  onToggle: () => void;
 }) {
-  const { color, glow, r } = GATE_STYLE[gate.id];
-  const isBoss = gate.id === "boss";
+  const { rx, ry } = GATE_STYLE[gate.id];
+  const color = locked ? LOCKED_COLOR : GATE_STYLE[gate.id].color;
   const loc = lang === "ar" ? "ar" : "en";
   const name = gate.label[loc];
-  const text = isBoss ? `⚔️ ${name}` : name;
-  const fontSize = isBoss ? 15 : 12;
-  // SVG text can't be measured before render; a per-glyph estimate is close enough for a short badge.
-  const badgeW = Math.round(text.length * fontSize * 0.58 + 18);
-  const badgeH = fontSize + 10;
-  const badgeY = r + 10;
   const interactive = !!onClick && !locked;
   const ariaLabel = locked ? `${name} (${LOCKED_TEXT[loc]})` : name;
-
-  // Keep the whole marker -- glow on top, label below -- inside the visible part of the image.
-  let px = cx;
-  let py = cy;
-  if (visible) {
-    const above = r * 1.9 * scale;
-    const below = (badgeY + badgeH) * scale;
-    const side = Math.max(r * 1.9, badgeW / 2) * scale;
-    px = clamp(cx, visible.x0 + side, visible.x1 - side);
-    py = clamp(cy, visible.y0 + above, visible.y1 - below);
-  }
+  // Hover shows the label for a mouse; touch and pen have no hover, so a tap toggles it instead.
+  const pointerType = useRef("mouse");
 
   const onKeyDown = (e: KeyboardEvent<SVGGElement>) => {
     if (e.key !== "Enter" && e.key !== " ") return;
@@ -139,57 +110,31 @@ function GateMarker({
   return (
     <g transform={`translate(${px} ${py}) scale(${scale})`}>
       <g
-        className={`gz-gate ${interactive ? "gz-gate--interactive" : ""}`}
-        style={{ animationDelay: `${gate.y * -0.03}s`, pointerEvents: interactive ? "auto" : "none" }}
+        className={`gz-ring ${interactive ? "gz-ring--interactive" : ""} ${locked ? "gz-ring--locked" : ""}`}
+        style={{ animationDelay: `${gate.y * -0.02}s`, pointerEvents: "auto" }}
+        onPointerDown={(e) => (pointerType.current = e.pointerType)}
+        onPointerEnter={(e) => e.pointerType === "mouse" && onShow()}
+        onPointerLeave={(e) => e.pointerType === "mouse" && onHide()}
+        onClick={() => {
+          if (pointerType.current !== "mouse") onToggle();
+          if (interactive) onClick?.();
+        }}
         {...(interactive
-          ? { role: "button", tabIndex: 0, "aria-label": ariaLabel, onClick, onKeyDown }
+          ? { role: "button", tabIndex: 0, "aria-label": ariaLabel, onKeyDown, onFocus: onShow, onBlur: onHide }
           : { role: "img", "aria-label": ariaLabel })}
       >
-        {/* soft glow + pulsing rings */}
-        <circle r={r * 1.9} fill={glow} opacity={0.18} />
-        <circle r={r} fill="none" stroke={glow} strokeWidth={isBoss ? 3 : 2} className={isBoss ? "gz-boss-ring" : "gz-pulse"} />
-        <circle r={r} fill="none" stroke={glow} strokeWidth={isBoss ? 3 : 2} className={isBoss ? "gz-boss-ring gz-gate-ring-2" : "gz-pulse gz-pulse-2"} />
-        {isBoss && <circle r={r + 7} fill="none" stroke={color} strokeWidth={2} strokeDasharray="5 5" opacity={0.85} />}
-
-        {/* core badge */}
-        <circle r={r} fill={color} stroke="#0c0a09" strokeOpacity={0.6} strokeWidth={2.5} />
-        <circle r={r - 3.5} fill="none" stroke="#fff" strokeOpacity={0.3} strokeWidth={1.5} />
-        {gate.id === "entry" && <DoorIcon />}
-        {gate.id === "exit" && <g opacity={locked ? 0.45 : 1}><ArrowUpIcon /></g>}
-        {isBoss && <SwordsIcon />}
-        {locked && (
-          <g transform={`translate(${r * 0.75} ${-r * 0.75})`}>
-            <LockIcon />
-          </g>
-        )}
-
-        {/* label */}
-        <g transform={`translate(0 ${badgeY})`}>
-          <rect
-            x={-badgeW / 2}
-            y={0}
-            width={badgeW}
-            height={badgeH}
-            rx={badgeH / 2}
-            fill="#0c0a09"
-            fillOpacity={0.72}
-            stroke={glow}
-            strokeOpacity={0.45}
-            strokeWidth={1}
-          />
-          <text
-            x={0}
-            y={badgeH / 2}
-            dominantBaseline="central"
-            textAnchor="middle"
-            fontSize={fontSize}
-            fontWeight={700}
-            fill={isBoss ? "#fecaca" : "#fef3c7"}
-            direction={loc === "ar" ? "rtl" : "ltr"}
-          >
-            {text}
-          </text>
-        </g>
+        {/* outer glow: a blurred copy of the ring */}
+        <ellipse
+          rx={rx}
+          ry={ry}
+          fill="none"
+          stroke={color}
+          strokeOpacity={0.4}
+          strokeWidth={6}
+          filter={`url(#${glowId})`}
+          pointerEvents="none"
+        />
+        <ellipse className="gz-ring-body" rx={rx} ry={ry} fill={color} fillOpacity={0.1} stroke={color} strokeOpacity={0.7} strokeWidth={2} />
       </g>
     </g>
   );
@@ -201,6 +146,9 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   const wrapRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [box, setBox] = useState<{ cw: number; ch: number } | null>(null);
+  // The tooltip stays mounted after it closes (open: false) so it can fade out.
+  const [tip, setTip] = useState<TipState | null>(null);
+  const glowId = `gz-ring-glow-${useId().replace(/:/g, "")}`;
 
   // Track the container size to know which part of the image the crop leaves visible.
   useEffect(() => {
@@ -219,25 +167,84 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   // A new land starts hidden; an image already in the cache may have finished before onLoad was attached.
   useEffect(() => {
     setLoaded(!!imgRef.current?.complete && (imgRef.current?.naturalWidth ?? 0) > 0);
+    setTip(null);
   }, [land.image]);
 
-  // Markers are drawn in a 1000-unit space spanning the image width.
+  // Rings are drawn in a 1000-unit space spanning the image width.
   const scale = w / 1000;
 
-  // "slice" scales the image by the larger ratio and centres it; s converts screen px to viewBox units.
+  // "slice" scales the image by the larger ratio and centres it; s converts screen px to viewBox units and
+  // (ox, oy) is the image point at the container's top-left corner.
+  let view: { s: number; ox: number; oy: number } | null = null;
   let visible: VisibleBox | null = null;
   if (box && box.cw > 0 && box.ch > 0) {
     const s = Math.max(box.cw / w, box.ch / h);
     const visW = box.cw / s;
     const visH = box.ch / s;
-    const x0 = (w - visW) / 2;
-    const y0 = (h - visH) / 2;
+    const ox = (w - visW) / 2;
+    const oy = (h - visH) / 2;
+    view = { s, ox, oy };
     visible = {
-      x0: x0 + SAFE_EDGE_PX / s,
-      x1: x0 + visW - SAFE_EDGE_PX / s,
-      y0: y0 + SAFE_TOP_PX / s,
-      y1: y0 + visH - SAFE_EDGE_PX / s,
+      x0: ox + SAFE_EDGE_PX / s,
+      x1: ox + visW - SAFE_EDGE_PX / s,
+      y0: oy + SAFE_TOP_PX / s,
+      y1: oy + visH - SAFE_EDGE_PX / s,
     };
+  }
+
+  // Ring centres, kept (with their glow) inside the visible part of the image.
+  const rings = land.gates.map((gate) => {
+    const { rx, ry } = GATE_STYLE[gate.id];
+    let px = (gate.x / 100) * w;
+    let py = (gate.y / 100) * h;
+    if (visible) {
+      const sideX = (rx + GLOW_PAD) * scale;
+      const sideY = (ry + GLOW_PAD) * scale;
+      px = clamp(px, visible.x0 + sideX, visible.x1 - sideX);
+      py = clamp(py, visible.y0 + sideY, visible.y1 - sideY);
+    }
+    return { gate, px, py, ry, locked: gate.id === "exit" && !bossDefeated };
+  });
+
+  const showTip = (id: LandGateId) => setTip({ id, open: true });
+  const hideTip = (id: LandGateId) => setTip((t) => (t && t.id === id ? { ...t, open: false } : t));
+  const toggleTip = (id: LandGateId) => setTip((t) => (t && t.id === id && t.open ? { ...t, open: false } : { id, open: true }));
+
+  // A tap on the land outside every ring closes an open tooltip.
+  const onWrapPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!(e.target as Element).closest?.(".gz-ring")) setTip((t) => (t && t.open ? { ...t, open: false } : t));
+  };
+
+  // Tooltip position in container pixels: centred above its ring, or below it when the zone badge leaves no room.
+  const tipRing = tip ? rings.find((r) => r.gate.id === tip.id) : undefined;
+  let tipEl = null;
+  if (tip && tipRing && view) {
+    const loc = lang === "ar" ? "ar" : "en";
+    const left = (tipRing.px - view.ox) * view.s;
+    const ringTop = (tipRing.py - tipRing.ry * scale - view.oy) * view.s;
+    const ringBottom = (tipRing.py + tipRing.ry * scale - view.oy) * view.s;
+    const above = ringTop - TIP_GAP_PX - TIP_ROOM_PX >= SAFE_TOP_PX;
+    tipEl = (
+      <div
+        role="tooltip"
+        dir={loc === "ar" ? "rtl" : "ltr"}
+        className="pointer-events-none absolute whitespace-nowrap text-center leading-tight text-white"
+        style={{
+          left,
+          top: above ? ringTop - TIP_GAP_PX : ringBottom + TIP_GAP_PX,
+          transform: `translate(-50%, ${above ? "-100%" : "0"})`,
+          background: "rgba(0, 0, 0, 0.75)",
+          fontSize: 12,
+          borderRadius: 6,
+          padding: "4px 10px",
+          opacity: tip.open ? 1 : 0,
+          transition: "opacity 150ms ease-out",
+        }}
+      >
+        {tipRing.gate.label[loc]}
+        {tipRing.locked && <div style={{ fontSize: 10, opacity: 0.7 }}>{LOCKED_TEXT[loc]}</div>}
+      </div>
+    );
   }
 
   return (
@@ -245,6 +252,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
       ref={wrapRef}
       className="relative h-full w-full transition-opacity duration-300 ease-out"
       style={{ opacity: loaded ? 1 : 0 }}
+      onPointerDown={onWrapPointerDown}
     >
       <img
         ref={imgRef}
@@ -268,21 +276,32 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         role="group"
         aria-label={land.id}
       >
-        {land.gates.map((gate) => (
-          <GateMarker
+        <defs>
+          {/* region padded well past the ring: the default 10% would clip the blur on the flat ellipse */}
+          <filter id={glowId} x="-50%" y="-120%" width="200%" height="340%">
+            <feGaussianBlur stdDeviation={4} />
+          </filter>
+        </defs>
+        {rings.map(({ gate, px, py, locked }) => (
+          <GateRing
             key={gate.id}
             gate={gate}
             lang={lang}
             scale={scale}
-            cx={(gate.x / 100) * w}
-            cy={(gate.y / 100) * h}
-            visible={visible}
-            locked={gate.id === "exit" && !bossDefeated}
+            px={px}
+            py={py}
+            locked={locked}
+            glowId={glowId}
             onClick={onGateClick ? () => onGateClick(gate.id) : undefined}
+            onShow={() => showTip(gate.id)}
+            onHide={() => hideTip(gate.id)}
+            onToggle={() => toggleTip(gate.id)}
           />
         ))}
         {/* challenge locations: to come */}
       </svg>
+
+      {tipEl}
     </div>
   );
 }
