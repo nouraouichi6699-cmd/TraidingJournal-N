@@ -246,10 +246,15 @@ const VERDANTIA_SPRITES: LandSprite[] = [
   },
   // horse in the stable yard, rearing up every 6-8s (200, 291)
   { id: "horse", type: "horse", x: 16, y: 35, scale: 1.3, direction: "east", animation: "rear", frameDuration: 120, animationInterval: 6000 },
-  // guard pacing the dirt path in front of the castle gate, a short steady beat (620, 300 -> 660, 300)
+  // guard pacing the dirt path right at the castle doors, clear of the boss gate's ring marker below (602, 233 -> 641, 233)
   {
-    id: "guard-gate", type: "guard", x: 49.7, y: 36, scale: 0.8, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
-    patrol: [{ x: 49.7, y: 36 }, { x: 52.9, y: 36 }],
+    id: "guard-gate", type: "guard", x: 48.2, y: 28, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 48.2, y: 28 }, { x: 51.4, y: 28 }],
+  },
+  // guard pacing the path junction just south-west of the windmill (918, 316 -> 973, 316)
+  {
+    id: "guard-windmill", type: "guard", x: 73.5, y: 38, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }],
   },
 ];
 
