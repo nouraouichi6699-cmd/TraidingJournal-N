@@ -66,6 +66,12 @@ const SHEETS: Partial<Record<LandSprite["type"], SpriteSheet>> = {
       walk: { west: numbered("/sprites/guard/walk-w", 8) },
     },
   },
+  "boss-serpent": {
+    // the generator produced the same pose for every rotation, so only south was kept; pick()'s anyDirection
+    // fallback shows it for every facing since it's the sheet's only entry
+    idle: { south: "/sprites/boss-serpent/idle-south.png" },
+    animations: {},
+  },
 };
 
 /** A direction's frames from a per-direction table: as is, mirrored from the opposite side, or (with

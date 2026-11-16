@@ -82,7 +82,7 @@ export type SpriteDirection = "south" | "south-east" | "east" | "north-east" | "
  */
 export interface LandSprite {
   id: string;
-  type: "farmer" | "horse" | "guard" | "npc";
+  type: "farmer" | "horse" | "guard" | "boss-serpent" | "npc";
   x: number;
   y: number;
   /** Size multiplier: 1 draws one sprite pixel per painting pixel. */
@@ -255,6 +255,11 @@ const VERDANTIA_SPRITES: LandSprite[] = [
   {
     id: "guard-windmill", type: "guard", x: 73.5, y: 38, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
     patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }],
+  },
+  // the Hesitation Serpent looming over the boss gate, feet planted at the gate's ring (50, 35) so it rises
+  // above the ring rather than sitting on top of it; stationary, always facing south toward the player
+  {
+    id: "boss-serpent", type: "boss-serpent", x: 50, y: 35, scale: 1.3, coreSize: 252, direction: "south",
   },
 ];
 
