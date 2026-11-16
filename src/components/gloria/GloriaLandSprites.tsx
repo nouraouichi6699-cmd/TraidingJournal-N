@@ -59,6 +59,13 @@ const SHEETS: Partial<Record<LandSprite["type"], SpriteSheet>> = {
     idle: idleFrames("horse"),
     animations: { rear: { south: numbered("/sprites/horse/rear", 12) } },
   },
+  guard: {
+    idle: idleFrames("guard"),
+    animations: {
+      // only a walk-west sheet exists; east is mirrored from it via pick()'s MIRROR fallback
+      walk: { west: numbered("/sprites/guard/walk-w", 8) },
+    },
+  },
 };
 
 /** A direction's frames from a per-direction table: as is, mirrored from the opposite side, or (with
@@ -241,9 +248,10 @@ function LandSpriteActor({ sprite, landWidth, landHeight }: { sprite: LandSprite
     const look = patrolPlan[patrol.facing];
     const scale = sprite.scale ?? 1;
     const frameDuration = sprite.frameDuration ?? 150;
+    const coreSize = sprite.coreSize ?? 32;
     if (look.walk) {
       return (
-        <GloriaSprite x={patrol.x} y={patrol.y} scale={scale} landWidth={landWidth}
+        <GloriaSprite x={patrol.x} y={patrol.y} scale={scale} coreSize={coreSize} landWidth={landWidth}
           frames={look.walk.value} frameDuration={frameDuration} flipX={look.walk.flipX} />
       );
     }
@@ -251,13 +259,13 @@ function LandSpriteActor({ sprite, landWidth, landHeight }: { sprite: LandSprite
     const up = Math.floor(patrol.now / (frameDuration * 2)) % 2;
     const bob = ((up * scale) / landHeight) * 100;
     return (
-      <GloriaSprite x={patrol.x} y={patrol.y - bob} scale={scale} landWidth={landWidth}
+      <GloriaSprite x={patrol.x} y={patrol.y - bob} scale={scale} coreSize={coreSize} landWidth={landWidth}
         frames={look.idle.value} flipX={look.idle.flipX} />
     );
   }
 
   if (!plan) return null;
-  const common = { x: sprite.x, y: sprite.y, scale: sprite.scale ?? 1, landWidth };
+  const common = { x: sprite.x, y: sprite.y, scale: sprite.scale ?? 1, coreSize: sprite.coreSize ?? 32, landWidth };
   const looping = plan.action && !plan.intermittent;
   const playingOnce = plan.action && plan.intermittent && acting && !reduced;
 

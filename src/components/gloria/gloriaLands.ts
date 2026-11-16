@@ -82,11 +82,13 @@ export type SpriteDirection = "south" | "south-east" | "east" | "north-east" | "
  */
 export interface LandSprite {
   id: string;
-  type: "farmer" | "horse" | "npc";
+  type: "farmer" | "horse" | "guard" | "npc";
   x: number;
   y: number;
   /** Size multiplier: 1 draws one sprite pixel per painting pixel. */
   scale?: number;
+  /** The character's core size in sprite pixels (default 32); larger frames are padding around it. */
+  coreSize?: number;
   /** Facing while idle (and of the animation, when the sheet has it in that direction). */
   direction: SpriteDirection;
   animation?: "idle" | "walk" | "rear";
@@ -244,6 +246,11 @@ const VERDANTIA_SPRITES: LandSprite[] = [
   },
   // horse in the stable yard, rearing up every 6-8s (200, 291)
   { id: "horse", type: "horse", x: 16, y: 35, scale: 1.3, direction: "east", animation: "rear", frameDuration: 120, animationInterval: 6000 },
+  // guard pacing the dirt path in front of the castle gate, a short steady beat (620, 300 -> 660, 300)
+  {
+    id: "guard-gate", type: "guard", x: 49.7, y: 36, scale: 0.8, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 49.7, y: 36 }, { x: 52.9, y: 36 }],
+  },
 ];
 
 function buildVerdantia(): LandDefinition {
