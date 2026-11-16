@@ -46,7 +46,14 @@ const numbered = (prefix: string, count: number) => Array.from({ length: count }
 const SHEETS: Partial<Record<LandSprite["type"], SpriteSheet>> = {
   farmer: {
     idle: idleFrames("farmer"),
-    animations: { walk: { "south-east": numbered("/sprites/farmer/walk-se", 8) } },
+    animations: {
+      walk: {
+        "south-east": numbered("/sprites/farmer/walk-se", 8),
+        east: numbered("/sprites/farmer/walk-e", 8),
+        north: numbered("/sprites/farmer/walk-n", 8),
+        south: numbered("/sprites/farmer/walk-s", 8),
+      },
+    },
   },
   horse: {
     idle: idleFrames("horse"),
@@ -126,8 +133,11 @@ function planPatrol(sprite: LandSprite): PatrolPlan | null {
     const idle = pick(sheet.idle, dir, true);
     if (!idle) return null;
     let walk = walkTable ? pick(walkTable, dir, false) : null;
-    // a sideways leg walks on the diagonal frames, angled a little toward the viewer
-    if (!walk && walkTable && (dir === "east" || dir === "west")) walk = pick(walkTable, dir === "east" ? "south-east" : "south-west", false);
+    // no north-east/north-west walk asset: reuse north's (flipped for north-west), close enough at this sprite scale
+    if (!walk && walkTable && (dir === "north-east" || dir === "north-west")) {
+      const north = pick(walkTable, "north", false);
+      if (north) walk = { value: north.value, flipX: dir === "north-west", facing: dir };
+    }
     out[dir] = { walk: walk && { value: walk.value, flipX: walk.flipX }, idle: { value: [idle.value], flipX: idle.flipX } };
   }
   return out;
