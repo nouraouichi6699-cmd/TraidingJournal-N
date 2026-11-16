@@ -256,10 +256,10 @@ const VERDANTIA_SPRITES: LandSprite[] = [
     id: "guard-windmill", type: "guard", x: 73.5, y: 38, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
     patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }],
   },
-  // the Hesitation Serpent looming over the boss gate, feet planted at the gate's ring (50, 35) so it rises
-  // above the ring rather than sitting on top of it; stationary, always facing south toward the player
+  // the Hesitation Serpent coiled inside the boss gate's ring marker, clear of the guard patrolling the gate
+  // doors above it; stationary, always facing south toward the player
   {
-    id: "boss-serpent", type: "boss-serpent", x: 50, y: 35, scale: 1.3, coreSize: 252, direction: "south",
+    id: "boss-serpent", type: "boss-serpent", x: 50, y: 42, scale: 0.5, coreSize: 252, direction: "south",
   },
 ];
 
