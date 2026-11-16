@@ -5,12 +5,13 @@
 // facingOf): a sheet only has the walk directions PixelLab drew (here, just west, like the guard's own sheet --
 // east is mirrored from it), and a direction with no walk frames shows its idle pose with a one-pixel step bob
 // instead. Movement reads the live set of held arrow keys every rAF tick and steps the hero at HERO_SPEED painting
-// px/sec along the resulting (normalized, so diagonals aren't faster) direction, clamped to the image's edges;
-// releasing every movement key settles it back to idle facing whichever way it last moved.
+// px/sec along the resulting (normalized, so diagonals aren't faster) direction, clamped to the image's edges and
+// stopped by the active land's `obstacles`; releasing every movement key settles it back to idle facing whichever
+// way it last moved.
 import { useEffect, useRef, useState } from "react";
 import GloriaSprite, { preloadSpriteFrames } from "./GloriaSprite";
 import { facingOf, idleFrames, numbered, planWalkTable, type SpriteSheet } from "./GloriaLandSprites";
-import type { SpriteDirection } from "./gloriaLands";
+import type { LandObstacle, SpriteDirection } from "./gloriaLands";
 
 /** The current placeholder hero sheet is the guard's own sprite, recolored blue, until the real PixelLab-generated
  *  Warrior art lands (public/sprites/hero/): same layout, so only a walk-west sheet exists and east mirrors it. */
@@ -35,7 +36,37 @@ const ARROW_TO_AXIS: Record<string, [number, number]> = {
   ArrowRight: [1, 0],
 };
 
+// The hero collides with its feet only, so it can stand right in front of a wall with its head overlapping it
+const FOOT_HALF_W = 7; // painting px either side of the feet
+const FOOT_DEPTH = 6; // painting px the footprint reaches up from the feet
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** True when the hero's footprint, with its feet at (x, y) in image percentages, overlaps any obstacle. */
+export function footprintBlocked(
+  x: number, y: number, obstacles: readonly LandObstacle[], landWidth: number, landHeight: number,
+): boolean {
+  const hw = (FOOT_HALF_W / landWidth) * 100;
+  const depth = (FOOT_DEPTH / landHeight) * 100;
+  return obstacles.some((o) => x + hw > o.x && x - hw < o.x + o.w && y > o.y && y - depth < o.y + o.h);
+}
+
+/**
+ * One movement step from (x, y) by (dx, dy), all in image percentages: X and Y are tried separately, so pushing
+ * diagonally into a wall still slides along it. A hero already overlapping an obstacle (spawned or resized into
+ * one) moves freely until it is out, rather than being stuck there.
+ */
+export function stepHero(
+  x: number, y: number, dx: number, dy: number, obstacles: readonly LandObstacle[], landWidth: number, landHeight: number,
+): HeroPoint {
+  const free = (px: number, py: number) =>
+    !footprintBlocked(px, py, obstacles, landWidth, landHeight) || footprintBlocked(x, y, obstacles, landWidth, landHeight);
+  const nx = clamp(x + dx, 0, 100);
+  if (free(nx, y)) x = nx;
+  const ny = clamp(y + dy, 0, 100);
+  if (free(x, ny)) y = ny;
+  return { x, y };
+}
 
 /** True while the event's target is a place the arrow keys should type instead of move the hero. */
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -66,9 +97,13 @@ interface Props {
   start: HeroPoint;
   landWidth: number;
   landHeight: number;
+  /** The active land's solid scenery. */
+  obstacles?: readonly LandObstacle[];
 }
 
-export default function GloriaHeroSprite({ start, landWidth, landHeight }: Props) {
+const NO_OBSTACLES: readonly LandObstacle[] = [];
+
+export default function GloriaHeroSprite({ start, landWidth, landHeight, obstacles = NO_OBSTACLES }: Props) {
   const live = useRef<LiveHero>({ x: start.x, y: start.y, facing: "north" });
   const [frame, setFrame] = useState<HeroFrame>({ ...live.current, moving: false, now: 0 });
   const keysDown = useRef<Set<string>>(new Set());
@@ -107,8 +142,10 @@ export default function GloriaHeroSprite({ start, landWidth, landHeight }: Props
       vy /= len;
       p.facing = facingOf(vx, vy);
       const budget = HERO_SPEED * dt;
-      p.x = clamp(p.x + ((vx * budget) / landWidth) * 100, 0, 100);
-      p.y = clamp(p.y + ((vy * budget) / landHeight) * 100, 0, 100);
+      const next = stepHero(p.x, p.y, ((vx * budget) / landWidth) * 100, ((vy * budget) / landHeight) * 100,
+        obstacles, landWidth, landHeight);
+      p.x = next.x;
+      p.y = next.y;
       setFrame({ ...p, moving: true, now });
       raf = requestAnimationFrame(tick);
     };
@@ -140,7 +177,7 @@ export default function GloriaHeroSprite({ start, landWidth, landHeight }: Props
       keysDown.current.clear();
       cancelAnimationFrame(raf);
     };
-  }, [landWidth, landHeight]);
+  }, [landWidth, landHeight, obstacles]);
 
   const look = HERO_PLAN?.[frame.facing];
   if (!look) return null;

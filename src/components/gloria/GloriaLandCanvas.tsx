@@ -420,7 +420,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
 
       {view && (
         <GloriaLandSprites sprites={land.sprites ?? []} w={w} h={h} view={view}>
-          <GloriaHeroSprite key={land.id} start={heroStart} landWidth={w} landHeight={h} />
+          <GloriaHeroSprite key={land.id} start={heroStart} landWidth={w} landHeight={h} obstacles={land.obstacles} />
         </GloriaLandSprites>
       )}
 

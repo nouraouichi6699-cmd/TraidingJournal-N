@@ -107,6 +107,28 @@ export interface LandSprite {
   speed?: number;
 }
 
+/**
+ * Solid scenery the player's hero can't walk into (buildings, walls, fences, trees, water), as an axis-aligned box
+ * in percentages of the image: x and w of its width, y and h of its height. Open ground -- grass, paths, crop
+ * fields -- is simply everywhere no obstacle covers.
+ */
+export interface LandObstacle {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Turns [x, y, w, h] boxes measured in painting pixels into percentage obstacles for an image of `size`. */
+function obstaclesFromPixels(size: { w: number; h: number }, boxes: [number, number, number, number][]): LandObstacle[] {
+  return boxes.map(([x, y, w, h]) => ({
+    x: (x / size.w) * 100,
+    y: (y / size.h) * 100,
+    w: (w / size.w) * 100,
+    h: (h / size.h) * 100,
+  }));
+}
+
 export interface LandDefinition {
   id: string;
   /** Path of the land image under public/, e.g. "/gloria-land-verdantia.jpg". */
@@ -118,6 +140,8 @@ export interface LandDefinition {
   ambience?: LandAmbience;
   /** Animated characters standing on the land, drawn between the painting and the ambient layer. */
   sprites?: LandSprite[];
+  /** Solid scenery blocking the player's hero; none means it can roam the whole image. */
+  obstacles?: LandObstacle[];
 
   // ── legacy tile map: no longer rendered, kept until a later cleanup ──
   cols?: number;
@@ -271,6 +295,102 @@ const VERDANTIA_SPRITES: LandSprite[] = [
   },
 ];
 
+/** Measured with a pixel-grid overlay on the 1248x832 painting: [x, y, w, h] in painting px. Fences keep their gate
+ *  leaves open (entry path 605-640px, windmill path 952-982px); crop fields and paths are left walkable. */
+const VERDANTIA_OBSTACLES = obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [
+  // castle and the cliff ledges of its plateau (the path up to the doors runs ~585-668px between them)
+  [400, 0, 440, 226],
+  [376, 30, 22, 270],
+  [372, 245, 180, 50],
+  [690, 262, 170, 35],
+  // barn and its yard fences (the yard opens south through the gate at 180-203px and the lane at 267-326px)
+  [57, 150, 269, 130],
+  [45, 160, 12, 290],
+  [326, 160, 13, 180],
+  [45, 328, 135, 29],
+  [203, 328, 64, 29],
+  [337, 312, 128, 25],
+  // woodcutter's shed below the barn and its fence
+  [60, 363, 57, 77],
+  [113, 363, 137, 30],
+  // village houses: small, west, middle and east cottages, then the two houses flanking the well
+  [365, 335, 80, 115],
+  [465, 285, 110, 135],
+  [652, 295, 113, 130],
+  [765, 312, 115, 22],
+  [777, 310, 118, 130],
+  [340, 460, 45, 25],
+  [380, 460, 160, 125],
+  [697, 447, 155, 143],
+  // the well
+  [582, 445, 78, 90],
+  // north-east yard: hay pen, shed, windmill and their fences
+  [900, 112, 85, 83],
+  [870, 170, 15, 145],
+  [890, 205, 70, 95],
+  [995, 220, 11, 92],
+  [1025, 160, 125, 140],
+  [905, 334, 47, 26],
+  [982, 334, 266, 26],
+  [1040, 367, 87, 60],
+  [1132, 335, 68, 95],
+  // fenced vegetable garden: four sides, the corn inside stays walkable
+  [957, 460, 255, 20],
+  [1202, 460, 12, 240],
+  [957, 677, 257, 23],
+  [957, 460, 15, 105],
+  // southern fields: the entry path's gate posts and side fences, field-plot fences and gate posts
+  [573, 620, 32, 30],
+  [640, 620, 33, 30],
+  [573, 620, 11, 185],
+  [663, 620, 11, 185],
+  [673, 732, 99, 15],
+  [762, 732, 11, 70],
+  [673, 788, 82, 16],
+  [900, 620, 28, 30],
+  [944, 760, 11, 72],
+  [910, 798, 45, 30],
+  [55, 700, 140, 28],
+  [200, 782, 133, 28],
+  [465, 707, 110, 20],
+  // the two ponds
+  [60, 740, 130, 92],
+  [1090, 740, 125, 75],
+  // trees (trunk and lower canopy) inside the village
+  [350, 195, 32, 50],
+  [330, 390, 32, 55],
+  [752, 268, 32, 35],
+  [905, 390, 30, 50],
+  [995, 370, 30, 50],
+  [868, 535, 32, 50],
+  [1172, 190, 32, 45],
+  // tree-lined west and east borders
+  [0, 150, 40, 682],
+  [1215, 150, 33, 682],
+  // north-west woods: rock ledges, trees and boulders
+  [0, 65, 55, 85],
+  [50, 10, 75, 55],
+  [125, 0, 85, 30],
+  [10, 40, 25, 30],
+  [52, 115, 30, 35],
+  [120, 60, 30, 55],
+  [170, 75, 30, 50],
+  [215, 30, 30, 50],
+  [305, 20, 30, 50],
+  [342, 60, 28, 55],
+  [250, 55, 30, 25],
+  [295, 105, 50, 45],
+  // north-east ridge, its trees and boulders
+  [960, 0, 288, 75],
+  [1140, 75, 108, 60],
+  [915, 40, 35, 40],
+  [872, 80, 32, 35],
+  // boulders and trees along the south edge
+  [950, 715, 30, 35],
+  [1010, 740, 55, 65],
+  [750, 805, 32, 27],
+]);
+
 function buildVerdantia(): LandDefinition {
   const cols = 24;
   const terrain = parseTerrain(VERDANTIA_MAP, cols);
@@ -286,6 +406,7 @@ function buildVerdantia(): LandDefinition {
     ],
     ambience: VERDANTIA_AMBIENCE,
     sprites: VERDANTIA_SPRITES,
+    obstacles: VERDANTIA_OBSTACLES,
     cols,
     rows: VERDANTIA_MAP.length,
     terrain,
