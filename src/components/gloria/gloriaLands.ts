@@ -230,15 +230,15 @@ const VERDANTIA_AMBIENCE: LandAmbience = {
 
 /** Standing on the painted figures they bring to life (feet positions on the 1248x832 painting). */
 const VERDANTIA_SPRITES: LandSprite[] = [
-  // reaper walking a loop through the west wheat rows (212, 607 -> 300, 607 -> 300, 566 -> 212, 566)
+  // reaper patrolling the dirt yard beside the stable, bordering the wheat field (292, 394 -> 305, 394 -> 305, 422 -> 292, 422)
   {
-    id: "farmer-wheat", type: "farmer", x: 17, y: 73, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150,
-    patrol: [{ x: 17, y: 73 }, { x: 24, y: 73 }, { x: 24, y: 68 }, { x: 17, y: 68 }],
+    id: "farmer-wheat", type: "farmer", x: 23.4, y: 47.4, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 23.4, y: 47.4 }, { x: 24.4, y: 47.4 }, { x: 24.4, y: 50.7 }, { x: 23.4, y: 50.7 }],
   },
-  // gardener walking the east vegetable plot's fence (1036, 566 -> 1036, 607 -> 986, 607 -> 986, 566)
+  // gardener patrolling the dirt path along the vegetable garden's west fence (925, 505 -> 935, 505 -> 935, 615 -> 925, 615)
   {
-    id: "farmer-fence", type: "farmer", x: 83, y: 68, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150,
-    patrol: [{ x: 83, y: 68 }, { x: 83, y: 73 }, { x: 79, y: 73 }, { x: 79, y: 68 }],
+    id: "farmer-fence", type: "farmer", x: 74.1, y: 60.7, scale: 1.2, direction: "south-east", animation: "walk", frameDuration: 150,
+    patrol: [{ x: 74.1, y: 60.7 }, { x: 74.9, y: 60.7 }, { x: 74.9, y: 73.9 }, { x: 74.1, y: 73.9 }],
   },
   // horse in the stable yard, rearing up every 6-8s (200, 291)
   { id: "horse", type: "horse", x: 16, y: 35, scale: 1.3, direction: "east", animation: "rear", frameDuration: 120, animationInterval: 6000 },
