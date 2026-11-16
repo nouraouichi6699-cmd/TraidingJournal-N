@@ -1,19 +1,18 @@
 // GLORIA_RPG: draws a land (gloriaLands) as layers, bottom to top:
-//   1. the land's painted pixel-art image, filling the container (object-cover, centred)
+//   1. the land's painted pixel-art image, shown in full (object-contain, centred, letterboxed in black)
 //   2. its animated characters (GloriaLandSprites): farmers and a horse, frame-by-frame pixel-art sprites
 //   3. an SVG overlay with the ambient life and the interactive spots: the entry, boss and exit gates
 //   4. the gate tooltip.
 //
-// The overlay's viewBox is the image's natural pixel size and it uses preserveAspectRatio "xMidYMid slice", which
-// crops exactly like the image's object-cover + centre. So a gate placed at (x%, y%) of the image always sits on
+// The overlay's viewBox is the image's natural pixel size and it uses preserveAspectRatio "xMidYMid meet", which
+// scales exactly like the image's object-contain + centre. So a gate placed at (x%, y%) of the image always sits on
 // the same landmark, whatever the screen shape. Gates are drawn as RPG-style ground rings -- flat glowing
 // ellipses -- in a 1000-unit space scaled to the image width, so they keep their size relative to the art. They
 // carry no permanent label: hovering (mouse), focusing (keyboard) or tapping (touch) a ring shows a small tooltip
 // above it, as plain HTML so its text stays a crisp 12px whatever the image scale.
 //
-// On screens shaped differently from the image, the crop can cut off the edges where the entry and exit gates
-// sit. So each ring is clamped into the visible part of the image (and below the zone-name badge floating at
-// the top of the land view): a gate on the edge of the land stays on the edge of the screen.
+// On screens taller than the image the full image is shown with black letterbox bars above/below; on wider screens
+// bars appear left/right. All gates stay inside the image area, so no ring is ever hidden behind a bar.
 //
 // Under the rings, an ambient layer brings the painting to life (the land's `ambience` data): chimney smoke, wheat
 // swaying in the breeze, birds crossing the sky and the windmill's sails turning. It lives in the same viewBox,
@@ -276,12 +275,12 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   // Rings are drawn in a 1000-unit space spanning the image width.
   const scale = w / 1000;
 
-  // "slice" scales the image by the larger ratio and centres it; s converts screen px to viewBox units and
-  // (ox, oy) is the image point at the container's top-left corner.
+  // "meet" scales the image by the smaller ratio and centres it; s converts screen px to viewBox units and
+  // (ox, oy) is the image point at the container's top-left corner (negative where a letterbox bar sits).
   let view: { s: number; ox: number; oy: number } | null = null;
   let visible: VisibleBox | null = null;
   if (box && box.cw > 0 && box.ch > 0) {
-    const s = Math.max(box.cw / w, box.ch / h);
+    const s = Math.min(box.cw / w, box.ch / h);
     const visW = box.cw / s;
     const visH = box.ch / s;
     const ox = (w - visW) / 2;
@@ -353,7 +352,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   return (
     <div
       ref={wrapRef}
-      className="relative h-full w-full transition-opacity duration-300 ease-out"
+      className="relative h-full w-full bg-black transition-opacity duration-300 ease-out"
       style={{ opacity: loaded ? 1 : 0 }}
       onPointerDown={onWrapPointerDown}
     >
@@ -362,7 +361,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         key={land.image}
         src={land.image}
         alt={land.id}
-        className="block h-full w-full select-none object-cover object-center"
+        className="block h-full w-full select-none object-contain object-center"
         style={{ imageRendering: "auto" }}
         width={w}
         height={h}
@@ -377,7 +376,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="xMidYMid meet"
         role="group"
         aria-label={land.id}
       >

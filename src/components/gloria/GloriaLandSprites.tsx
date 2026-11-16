@@ -1,15 +1,20 @@
 // GLORIA_RPG: the animated characters standing on a land (the land's `sprites`), drawn by GloriaLandCanvas
 // between the painting and the ambient layer.
 //
-// The layer is a box sized and offset exactly like the cropped painting (object-cover, centred), clipped to the
-// land view, so each sprite's image percentages land on the same painted spot at any screen shape.
+// The layer is a box sized and offset exactly like the letterboxed painting (object-contain, centred), clipped to
+// the land view, so each sprite's image percentages land on the same painted spot at any screen shape.
 //
 // Each LandSprite names a character sheet (public/sprites/<type>/), a facing and an animation; planSprite turns
 // that into frame lists. A sheet only has the directions PixelLab generated, so a missing facing is mirrored from
 // its opposite side when possible (a south-west walk is the south-east one flipped), otherwise the animation plays
 // in the direction the sheet has. When an intermittent animation faces elsewhere than the idle pose (the horse
 // idles facing east but rears facing south), it turns through the idle poses in between on the way in and out.
-import { useEffect, useMemo, useState } from "react";
+//
+// A sprite with a `patrol` walks its waypoint loop (usePatrol): requestAnimationFrame moves it `speed` painting
+// pixels per second and turns it to the nearest of the eight facings of its heading. While walking it plays its
+// walk frames when the sheet has them for that heading (an east or west leg borrows the south-east / south-west
+// walk, the sheets' only walk frames); otherwise it shows that facing's idle pose with a one-pixel step bob.
+import { useEffect, useMemo, useRef, useState } from "react";
 import GloriaSprite, { preloadSpriteFrames, useReducedMotion } from "./GloriaSprite";
 import type { LandSprite, SpriteDirection } from "./gloriaLands";
 
@@ -107,15 +112,112 @@ function planSprite(sprite: LandSprite): SpritePlan | null {
   };
 }
 
-function LandSpriteActor({ sprite, landWidth }: { sprite: LandSprite; landWidth: number }) {
+type Frames = { value: string[]; flipX: boolean };
+
+/** How a patrolling sprite looks heading each way: its walk frames, or (null) the idle pose with a step bob. */
+type PatrolPlan = Record<SpriteDirection, { walk: Frames | null; idle: Frames }>;
+
+function planPatrol(sprite: LandSprite): PatrolPlan | null {
+  const sheet = SHEETS[sprite.type];
+  if (!sheet || !sprite.patrol?.length) return null;
+  const walkTable = sprite.animation && sprite.animation !== "idle" ? sheet.animations[sprite.animation] : undefined;
+  const out = {} as PatrolPlan;
+  for (const dir of DIRECTIONS) {
+    const idle = pick(sheet.idle, dir, true);
+    if (!idle) return null;
+    let walk = walkTable ? pick(walkTable, dir, false) : null;
+    // a sideways leg walks on the diagonal frames, angled a little toward the viewer
+    if (!walk && walkTable && (dir === "east" || dir === "west")) walk = pick(walkTable, dir === "east" ? "south-east" : "south-west", false);
+    out[dir] = { walk: walk && { value: walk.value, flipX: walk.flipX }, idle: { value: [idle.value], flipX: idle.flipX } };
+  }
+  return out;
+}
+
+const DEFAULT_PATROL_SPEED = 8; // painting px per second
+/** A waypoint counts as reached within this distance, in % of the painting. */
+const ARRIVE_PCT = 0.3;
+
+/** The nearest of the eight facings to a heading in painting pixels (y grows downward). */
+function facingOf(dx: number, dy: number): SpriteDirection {
+  const deg = (Math.atan2(dy, dx) * 180) / Math.PI; // 0 = east, 90 = south
+  const i = Math.round((90 - deg) / 45);
+  return DIRECTIONS[((i % 8) + 8) % 8];
+}
+
+interface PatrolFrame {
+  x: number;
+  y: number;
+  facing: SpriteDirection;
+  /** rAF timestamp of this position, for the step bob. */
+  now: number;
+}
+
+/** Walks `sprite.patrol` while `active`, returning the live position and facing (null when not patrolling).
+ *  The position lives in a ref, so pausing (reduced motion) and resuming picks up where the walk left off. */
+function usePatrol(sprite: LandSprite, landWidth: number, landHeight: number, active: boolean): PatrolFrame | null {
+  const path = sprite.patrol;
+  const live = useRef({ x: sprite.x, y: sprite.y, facing: sprite.direction, target: 0 });
+  const [frame, setFrame] = useState<PatrolFrame | null>(null);
+  const speed = sprite.speed ?? DEFAULT_PATROL_SPEED;
+
+  useEffect(() => {
+    if (!active || !path?.length) {
+      setFrame(null);
+      return;
+    }
+    const p = live.current;
+    let raf = 0;
+    let last: number | null = null;
+    const tick = (now: number) => {
+      // a hidden tab pauses rAF: clamp the step so the walker doesn't jump on return
+      const dt = last === null ? 0 : Math.min((now - last) / 1000, 0.1);
+      last = now;
+      let budget = speed * dt; // painting px left to walk this frame
+      for (let guard = 0; guard <= path.length; guard++) {
+        const t = path[p.target % path.length];
+        const dxPct = t.x - p.x;
+        const dyPct = t.y - p.y;
+        const dx = (dxPct / 100) * landWidth;
+        const dy = (dyPct / 100) * landHeight;
+        const dist = Math.hypot(dx, dy);
+        if (Math.hypot(dxPct, dyPct) < ARRIVE_PCT || dist <= budget) {
+          if (dist <= budget) {
+            p.x = t.x;
+            p.y = t.y;
+            budget -= dist;
+          }
+          p.target = (p.target + 1) % path.length;
+          continue;
+        }
+        p.facing = facingOf(dx, dy);
+        if (budget > 0) {
+          p.x += ((dx / dist) * budget * 100) / landWidth;
+          p.y += ((dy / dist) * budget * 100) / landHeight;
+        }
+        break;
+      }
+      setFrame({ x: p.x, y: p.y, facing: p.facing, now });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, path, speed, landWidth, landHeight]);
+
+  return frame;
+}
+
+function LandSpriteActor({ sprite, landWidth, landHeight }: { sprite: LandSprite; landWidth: number; landHeight: number }) {
   const reduced = useReducedMotion();
   const plan = useMemo(() => planSprite(sprite), [sprite]);
+  const patrolPlan = useMemo(() => planPatrol(sprite), [sprite]);
+  const patrol = usePatrol(sprite, landWidth, landHeight, !!patrolPlan && !reduced);
   const [acting, setActing] = useState(false);
 
-  // Preload every frame up front, so the first intermittent play swaps frames without a blank.
+  // Preload every frame up front, so the first intermittent play (or a patrol turn) swaps frames without a blank.
   useEffect(() => {
     if (plan) void preloadSpriteFrames(plan.all);
-  }, [plan]);
+    if (patrolPlan) void preloadSpriteFrames(Object.values(patrolPlan).flatMap((d) => [...(d.walk?.value ?? []), ...d.idle.value]));
+  }, [plan, patrolPlan]);
 
   // Intermittent animation: wait animationInterval..4/3 of it, play once (onAnimationEnd ends it), repeat.
   const interval = sprite.animationInterval ?? 0;
@@ -124,6 +226,25 @@ function LandSpriteActor({ sprite, landWidth }: { sprite: LandSprite; landWidth:
     const t = window.setTimeout(() => setActing(true), interval * (1 + Math.random() / 3));
     return () => window.clearTimeout(t);
   }, [plan, reduced, acting, interval]);
+
+  if (patrol && patrolPlan) {
+    const look = patrolPlan[patrol.facing];
+    const scale = sprite.scale ?? 1;
+    const frameDuration = sprite.frameDuration ?? 150;
+    if (look.walk) {
+      return (
+        <GloriaSprite x={patrol.x} y={patrol.y} scale={scale} landWidth={landWidth}
+          frames={look.walk.value} frameDuration={frameDuration} flipX={look.walk.flipX} />
+      );
+    }
+    // no walk frames this way: the facing's idle pose, lifted one sprite pixel on every other step
+    const up = Math.floor(patrol.now / (frameDuration * 2)) % 2;
+    const bob = ((up * scale) / landHeight) * 100;
+    return (
+      <GloriaSprite x={patrol.x} y={patrol.y - bob} scale={scale} landWidth={landWidth}
+        frames={look.idle.value} flipX={look.idle.flipX} />
+    );
+  }
 
   if (!plan) return null;
   const common = { x: sprite.x, y: sprite.y, scale: sprite.scale ?? 1, landWidth };
@@ -150,7 +271,8 @@ interface Props {
   /** The painting's natural size. */
   w: number;
   h: number;
-  /** The crop: screen px per image px, and the image point at the container's top-left corner. */
+  /** The fit: screen px per image px, and the image point at the container's top-left corner (ox/oy go
+   *  negative where a letterbox bar sits). */
   view: { s: number; ox: number; oy: number };
 }
 
@@ -163,7 +285,7 @@ export default function GloriaLandSprites({ sprites, w, h, view }: Props) {
         style={{ left: -view.ox * view.s, top: -view.oy * view.s, width: w * view.s, height: h * view.s }}
       >
         {sprites.map((sprite) => (
-          <LandSpriteActor key={sprite.id} sprite={sprite} landWidth={w} />
+          <LandSpriteActor key={sprite.id} sprite={sprite} landWidth={w} landHeight={h} />
         ))}
       </div>
     </div>
