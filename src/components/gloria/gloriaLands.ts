@@ -298,7 +298,27 @@ function buildVerdantia(): LandDefinition {
   };
 }
 
-const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = { forest: buildVerdantia() };
+// ── Solmara ───────────────────────────────────────────────────────────────────────────────────────────────
+// Desert oasis market (zone 1, theme "oasis"). Background only so far: no terrain grid, palette, or sprites yet
+// -- NPCs/animals follow in a later pass, same as Verdantia's farmer/horse/guard were added after its background.
+const SOLMARA_IMAGE = "/gloria-land-solmara.jpg";
+const SOLMARA_IMAGE_SIZE = { w: 1248, h: 832 };
+
+function buildSolmara(): LandDefinition {
+  return {
+    id: "solmara",
+    image: SOLMARA_IMAGE,
+    imageSize: SOLMARA_IMAGE_SIZE,
+    gates: [
+      { id: "entry", x: 50, y: 94, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
+      { id: "boss", x: 51, y: 34, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+      { id: "exit", x: 51, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+    ],
+    sprites: [],
+  };
+}
+
+const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = { forest: buildVerdantia(), oasis: buildSolmara() };
 
 /** The land for a zone theme, or null when that zone's land hasn't been built yet. */
 export function getZoneLand(theme: ZoneTheme): LandDefinition | null {
