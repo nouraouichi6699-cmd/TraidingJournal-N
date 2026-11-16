@@ -371,8 +371,10 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         onLoad={() => setLoaded(true)}
       />
 
-      {land.sprites && view && <GloriaLandSprites sprites={land.sprites} w={w} h={h} view={view} />}
-
+      {/* Gate rings paint before the sprites below, so a ground ring sits under a character standing on it
+          (the boss serpent, notably) instead of its outline cutting across their body. The ring's own pointer
+          events still work: the sprite layer above it is pointer-events-none throughout, so clicks and hovers
+          pass straight through to the ring. */}
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         viewBox={`0 0 ${w} ${h}`}
@@ -410,6 +412,8 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         ))}
         {/* challenge locations: to come */}
       </svg>
+
+      {land.sprites && view && <GloriaLandSprites sprites={land.sprites} w={w} h={h} view={view} />}
 
       {tipEl}
     </div>
