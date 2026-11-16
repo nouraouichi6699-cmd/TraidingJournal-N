@@ -21,9 +21,10 @@
 // The image fades in once it has loaded (the overlay with it). Ambient motion is CSS keyframes in gloria.css, which
 // the app's reduced-motion rules switch off (the ambient layer is hidden altogether then); sprites hold their
 // first frame under reduced motion.
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import type { Lang } from "../../types";
 import type { LandAmbience, LandDefinition, LandGate, LandGateId } from "./gloriaLands";
+import GloriaHeroSprite, { type HeroPoint } from "./GloriaHeroSprite";
 import GloriaLandSprites from "./GloriaLandSprites";
 import "./gloria.css";
 
@@ -248,6 +249,8 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   const [box, setBox] = useState<{ cw: number; ch: number } | null>(null);
   // The tooltip stays mounted after it closes (open: false) so it can fade out.
   const [tip, setTip] = useState<TipState | null>(null);
+  // Where the player last clicked to walk to; null means the hero just stands at its current spot.
+  const [heroTarget, setHeroTarget] = useState<HeroPoint | null>(null);
   const uid = useId().replace(/:/g, "");
   const glowId = `gz-ring-glow-${uid}`;
   const wheatId = `gz-wheat-${uid}`;
@@ -270,6 +273,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
   useEffect(() => {
     setLoaded(!!imgRef.current?.complete && (imgRef.current?.naturalWidth ?? 0) > 0);
     setTip(null);
+    setHeroTarget(null);
   }, [land.image]);
 
   // Rings are drawn in a 1000-unit space spanning the image width.
@@ -317,6 +321,21 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
     if (!(e.target as Element).closest?.(".gz-ring")) setTip((t) => (t && t.open ? { ...t, open: false } : t));
   };
 
+  // The entry gate is the hero's spawn point; it starts standing there every time the land mounts.
+  const entryGate = land.gates.find((g) => g.id === "entry");
+  const heroStart: HeroPoint = { x: entryGate?.x ?? 50, y: entryGate?.y ?? 92 };
+
+  // Click/tap anywhere on the land to walk there -- except a gate ring, which handles its own click (opening its
+  // modal/panel) and must not also move the hero.
+  const onLandClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (!view || (e.target as Element).closest?.(".gz-ring")) return;
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const imgX = view.ox + (e.clientX - rect.left) / view.s;
+    const imgY = view.oy + (e.clientY - rect.top) / view.s;
+    setHeroTarget({ x: clamp((imgX / w) * 100, 0, 100), y: clamp((imgY / h) * 100, 0, 100) });
+  };
+
   // Tooltip position in container pixels: centred above its ring, or below it when the zone badge leaves no room.
   const tipRing = tip ? rings.find((r) => r.gate.id === tip.id) : undefined;
   let tipEl = null;
@@ -355,6 +374,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
       className="relative h-full w-full bg-black transition-opacity duration-300 ease-out"
       style={{ opacity: loaded ? 1 : 0 }}
       onPointerDown={onWrapPointerDown}
+      onClick={onLandClick}
     >
       <img
         ref={imgRef}
@@ -413,7 +433,11 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
         {/* challenge locations: to come */}
       </svg>
 
-      {land.sprites && view && <GloriaLandSprites sprites={land.sprites} w={w} h={h} view={view} />}
+      {view && (
+        <GloriaLandSprites sprites={land.sprites ?? []} w={w} h={h} view={view}>
+          <GloriaHeroSprite key={land.id} start={heroStart} target={heroTarget} landWidth={w} landHeight={h} />
+        </GloriaLandSprites>
+      )}
 
       {tipEl}
     </div>

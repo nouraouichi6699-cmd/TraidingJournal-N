@@ -14,13 +14,13 @@
 // pixels per second and turns it to the nearest of the eight facings of its heading. While walking it plays its
 // walk frames when the sheet has them for that heading (an east or west leg borrows the south-east / south-west
 // walk, the sheets' only walk frames); otherwise it shows that facing's idle pose with a one-pixel step bob.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import GloriaSprite, { preloadSpriteFrames, useReducedMotion } from "./GloriaSprite";
 import type { LandSprite, SpriteDirection } from "./gloriaLands";
 
 type Animation = Exclude<NonNullable<LandSprite["animation"]>, "idle">;
 
-interface SpriteSheet {
+export interface SpriteSheet {
   idle: Partial<Record<SpriteDirection, string>>;
   animations: Partial<Record<Animation, Partial<Record<SpriteDirection, string[]>>>>;
 }
@@ -38,9 +38,11 @@ const MIRROR: Record<SpriteDirection, SpriteDirection> = {
   "south-west": "south-east",
 };
 
-const idleFrames = (type: string) =>
+/** Builds a sheet's idle table from the naming convention every character under public/sprites/ follows -- shared
+ *  with GloriaHeroSprite, which defines its own sheet the same way since the player's hero isn't a land `sprite`. */
+export const idleFrames = (type: string) =>
   Object.fromEntries(DIRECTIONS.map((d) => [d, `/sprites/${type}/idle-${d}.png`])) as Record<SpriteDirection, string>;
-const numbered = (prefix: string, count: number) => Array.from({ length: count }, (_, i) => `${prefix}-${i}.png`);
+export const numbered = (prefix: string, count: number) => Array.from({ length: count }, (_, i) => `${prefix}-${i}.png`);
 
 /** What each character sheet in public/sprites holds (32x32 idles; animation frames are 48x48, padded). */
 const SHEETS: Partial<Record<LandSprite["type"], SpriteSheet>> = {
@@ -132,15 +134,16 @@ function planSprite(sprite: LandSprite): SpritePlan | null {
   };
 }
 
-type Frames = { value: string[]; flipX: boolean };
+export type Frames = { value: string[]; flipX: boolean };
 
 /** How a patrolling sprite looks heading each way: its walk frames, or (null) the idle pose with a step bob. */
-type PatrolPlan = Record<SpriteDirection, { walk: Frames | null; idle: Frames }>;
+export type PatrolPlan = Record<SpriteDirection, { walk: Frames | null; idle: Frames }>;
 
-function planPatrol(sprite: LandSprite): PatrolPlan | null {
-  const sheet = SHEETS[sprite.type];
-  if (!sheet || !sprite.patrol?.length) return null;
-  const walkTable = sprite.animation && sprite.animation !== "idle" ? sheet.animations[sprite.animation] : undefined;
+/** How every one of the eight facings looks for a sheet's animation: shared by patrolling land sprites and the
+ *  player's own click-to-move hero (GloriaHeroSprite), which walks the same way but toward a clicked point
+ *  instead of a fixed waypoint loop. */
+export function planWalkTable(sheet: SpriteSheet, animKey?: Animation): PatrolPlan | null {
+  const walkTable = animKey ? sheet.animations[animKey] : undefined;
   const out = {} as PatrolPlan;
   for (const dir of DIRECTIONS) {
     const idle = pick(sheet.idle, dir, true);
@@ -156,12 +159,20 @@ function planPatrol(sprite: LandSprite): PatrolPlan | null {
   return out;
 }
 
+function planPatrol(sprite: LandSprite): PatrolPlan | null {
+  const sheet = SHEETS[sprite.type];
+  if (!sheet || !sprite.patrol?.length) return null;
+  const animKey = sprite.animation && sprite.animation !== "idle" ? sprite.animation : undefined;
+  return planWalkTable(sheet, animKey);
+}
+
 const DEFAULT_PATROL_SPEED = 8; // painting px per second
 /** A waypoint counts as reached within this distance, in % of the painting. */
 const ARRIVE_PCT = 0.3;
 
-/** The nearest of the eight facings to a heading in painting pixels (y grows downward). */
-function facingOf(dx: number, dy: number): SpriteDirection {
+/** The nearest of the eight facings to a heading in painting pixels (y grows downward). Shared with
+ *  GloriaHeroSprite's click-to-move, which turns the player the same way a patrolling sprite turns. */
+export function facingOf(dx: number, dy: number): SpriteDirection {
   const deg = (Math.atan2(dy, dx) * 180) / Math.PI; // 0 = east, 90 = south
   const i = Math.round((90 - deg) / 45);
   return DIRECTIONS[((i % 8) + 8) % 8];
@@ -298,10 +309,13 @@ interface Props {
   /** The fit: screen px per image px, and the image point at the container's top-left corner (ox/oy go
    *  negative where a letterbox bar sits). */
   view: { s: number; ox: number; oy: number };
+  /** Extra content placed in the same image-percentage box, e.g. the player's own hero sprite (GloriaHeroSprite),
+   *  which isn't one of the land's own ambient `sprites` but still needs to ride along with the art the same way. */
+  children?: ReactNode;
 }
 
-export default function GloriaLandSprites({ sprites, w, h, view }: Props) {
-  if (sprites.length === 0) return null;
+export default function GloriaLandSprites({ sprites, w, h, view, children }: Props) {
+  if (sprites.length === 0 && !children) return null;
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       <div
@@ -311,6 +325,7 @@ export default function GloriaLandSprites({ sprites, w, h, view }: Props) {
         {sprites.map((sprite) => (
           <LandSpriteActor key={sprite.id} sprite={sprite} landWidth={w} landHeight={h} />
         ))}
+        {children}
       </div>
     </div>
   );
