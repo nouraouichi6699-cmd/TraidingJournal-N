@@ -26,7 +26,7 @@ const HERO_ALL_FRAMES = [
 ];
 
 const HERO_SPEED = 90; // painting px/sec -- the player's primary control, so it should feel brisk and immediate
-const HERO_SCALE = 1.8;
+const HERO_SCALE = 1.2; // ~1.3x the guard/farmer's own 0.9-1.2 scale -- noticeably the lead character, not oversized
 
 const ARROW_TO_AXIS: Record<string, [number, number]> = {
   ArrowUp: [0, -1],

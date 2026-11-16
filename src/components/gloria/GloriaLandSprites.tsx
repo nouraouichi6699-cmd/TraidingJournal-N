@@ -10,8 +10,12 @@
 // in the direction the sheet has. When an intermittent animation faces elsewhere than the idle pose (the horse
 // idles facing east but rears facing south), it turns through the idle poses in between on the way in and out.
 //
-// A sprite with a `patrol` walks its waypoint loop (usePatrol): requestAnimationFrame moves it `speed` painting
-// pixels per second and turns it to the nearest of the eight facings of its heading. While walking it plays its
+// A sprite with a `patrol` walks its waypoints (usePatrol): requestAnimationFrame moves it `speed` painting pixels
+// per second strictly along the segments connecting them, in order -- it is never free to cut across open ground
+// toward some other point, only to interpolate along the one line the designer traced over the art -- and turns
+// it to the nearest of the eight facings of its heading. `pathMode: "pingpong"` (the guards) stops and reverses at
+// the last waypoint instead of jumping back to the first, so a dead-end path is retraced rather than skipped;
+// the default "loop" (the farmers) heads straight back to the first, closing a circuit. While walking it plays its
 // walk frames when the sheet has them for that heading (an east or west leg borrows the south-east / south-west
 // walk, the sheets' only walk frames); otherwise it shows that facing's idle pose with a one-pixel step bob.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -190,7 +194,8 @@ interface PatrolFrame {
  *  The position lives in a ref, so pausing (reduced motion) and resuming picks up where the walk left off. */
 function usePatrol(sprite: LandSprite, landWidth: number, landHeight: number, active: boolean): PatrolFrame | null {
   const path = sprite.patrol;
-  const live = useRef({ x: sprite.x, y: sprite.y, facing: sprite.direction, target: 0 });
+  const pingpong = sprite.pathMode === "pingpong";
+  const live = useRef({ x: sprite.x, y: sprite.y, facing: sprite.direction, target: 0, dir: 1 as 1 | -1 });
   const [frame, setFrame] = useState<PatrolFrame | null>(null);
   const speed = sprite.speed ?? DEFAULT_PATROL_SPEED;
 
@@ -208,7 +213,10 @@ function usePatrol(sprite: LandSprite, landWidth: number, landHeight: number, ac
       last = now;
       let budget = speed * dt; // painting px left to walk this frame
       for (let guard = 0; guard <= path.length; guard++) {
-        const t = path[p.target % path.length];
+        // always the next waypoint on the fixed polyline -- never a point off it -- so the walker is clamped to
+        // the segments the designer traced over the art, not free to cut across open ground between them
+        const targetIndex = pingpong ? p.target : p.target % path.length;
+        const t = path[targetIndex];
         const dxPct = t.x - p.x;
         const dyPct = t.y - p.y;
         const dx = (dxPct / 100) * landWidth;
@@ -220,7 +228,14 @@ function usePatrol(sprite: LandSprite, landWidth: number, landHeight: number, ac
             p.y = t.y;
             budget -= dist;
           }
-          p.target = (p.target + 1) % path.length;
+          if (pingpong) {
+            // hit the end of the path: stop and reverse rather than jumping back to the start
+            if (p.target === path.length - 1) p.dir = -1;
+            else if (p.target === 0) p.dir = 1;
+            p.target += p.dir;
+          } else {
+            p.target = (p.target + 1) % path.length;
+          }
           continue;
         }
         p.facing = facingOf(dx, dy);
@@ -235,7 +250,7 @@ function usePatrol(sprite: LandSprite, landWidth: number, landHeight: number, ac
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, path, speed, landWidth, landHeight]);
+  }, [active, path, pingpong, speed, landWidth, landHeight]);
 
   return frame;
 }

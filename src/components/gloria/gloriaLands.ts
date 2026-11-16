@@ -96,8 +96,13 @@ export interface LandSprite {
   frameDuration?: number;
   /** Makes `animation` intermittent: the minimum wait between plays, in ms. */
   animationInterval?: number;
-  /** Waypoints to walk between, in the same % coordinates as x/y; after the last it heads back to the first. */
+  /** Waypoints to walk between, in the same % coordinates as x/y -- always the straight segments connecting them
+   *  in order, never a free 2D path, so the walker can't drift off the line they trace over the art. */
   patrol?: { x: number; y: number }[];
+  /** How `patrol` is walked once the last waypoint is reached: "loop" (default) heads straight back to the
+   *  first, tracing a circuit (the farmer's rectangular rounds); "pingpong" retraces the same segments back to the
+   *  first and bounces there too, so a dead-end path (a guard pacing a short stretch) is retraced, not skipped. */
+  pathMode?: "loop" | "pingpong";
   /** Patrol speed in painting pixels per second (default 8). */
   speed?: number;
 }
@@ -246,15 +251,18 @@ const VERDANTIA_SPRITES: LandSprite[] = [
   },
   // horse in the stable yard, rearing up every 6-8s (200, 291)
   { id: "horse", type: "horse", x: 16, y: 35, scale: 1.3, direction: "east", animation: "rear", frameDuration: 120, animationInterval: 6000 },
-  // guard pacing the dirt path right at the castle doors, clear of the boss gate's ring marker below (602, 233 -> 641, 233)
+  // guard pacing the dirt path right at the castle doors, clear of the boss gate's ring marker below (602, 233 -> 641, 233);
+  // re-measured against the live painting: the path there runs ~555-680px wide at this height, well clear of the
+  // grass edges and the flanking buildings, so a straight back-and-forth segment stays on it
   {
     id: "guard-gate", type: "guard", x: 48.2, y: 28, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
-    patrol: [{ x: 48.2, y: 28 }, { x: 51.4, y: 28 }],
+    patrol: [{ x: 48.2, y: 28 }, { x: 51.4, y: 28 }], pathMode: "pingpong",
   },
-  // guard pacing the path junction just south-west of the windmill (918, 316 -> 973, 316)
+  // guard pacing the path junction just south-west of the windmill (918, 316 -> 973, 316); re-measured: the open
+  // dirt yard there runs ~895-990px wide, clear of the house wall above and the fence gate below
   {
     id: "guard-windmill", type: "guard", x: 73.5, y: 38, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
-    patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }],
+    patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }], pathMode: "pingpong",
   },
   // the Hesitation Serpent coiled inside the boss gate's ring marker, clear of the guard patrolling the gate
   // doors above it; stationary, always facing south toward the player
