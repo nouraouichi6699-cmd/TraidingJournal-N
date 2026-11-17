@@ -433,6 +433,88 @@ function buildVerdantia(): LandDefinition {
 const SOLMARA_IMAGE = "/gloria-land-solmara.jpg";
 const SOLMARA_IMAGE_SIZE = { w: 1248, h: 832 };
 
+/** Measured with a pixel-grid overlay on the 1248x832 painting: [x, y, w, h] in painting px. Boxes reach down to a
+ *  structure's base (the hero collides with its feet only, so its head may overlap the wall above). The sand
+ *  paths, the arena in front of the castle (y ~215-400) and the bottom entry path (x ~475-810 between the two
+ *  gate walls) stay open; small pots, jars and lantern hangers are left walkable. */
+const SOLMARA_OBSTACLES = obstaclesFromPixels(SOLMARA_IMAGE_SIZE, [
+  // the castle gate building: towers, the arched gatehouse (opening included) and the two wing walls
+  [357, 0, 533, 214],
+  [270, 85, 90, 108],
+  [888, 80, 128, 140],
+  // the oasis pool and its stone rim, as stacked bands from the north bridge down to the south rim
+  [555, 405, 165, 40],
+  [505, 445, 275, 30],
+  [388, 475, 462, 30],
+  [362, 505, 515, 75],
+  [375, 580, 485, 60],
+  [415, 640, 360, 40],
+  [500, 680, 240, 36],
+  // palm trunks rising from the rim on its north side
+  [528, 415, 30, 40],
+  [478, 440, 25, 40],
+  [720, 395, 25, 55],
+  [785, 430, 22, 60],
+  // west market: the three flat-roofed buildings, the awning stall, the wall with the flag post
+  [10, 268, 135, 152],
+  [147, 248, 128, 170],
+  [200, 170, 125, 120],
+  [337, 162, 45, 65],
+  [265, 305, 105, 115],
+  [370, 285, 60, 100],
+  // west market stalls: blue/white striped cart, red/white striped cart, the loaded table
+  [0, 405, 158, 122],
+  [32, 512, 102, 140],
+  [8, 578, 28, 72],
+  [195, 470, 63, 62],
+  // south-west wall and gate pillars (the entry path opens between x 475 and 810)
+  [0, 640, 78, 78],
+  [82, 650, 100, 110],
+  [100, 715, 235, 75],
+  [332, 735, 80, 40],
+  [410, 715, 40, 75],
+  // south-east wall and gate pillars
+  [812, 680, 34, 108],
+  [842, 745, 63, 45],
+  [905, 728, 215, 58],
+  // east side: the ruined tower building and its walls, the flag post and the palm beside it
+  [925, 215, 100, 140],
+  [855, 270, 72, 60],
+  [1025, 268, 110, 87],
+  [1130, 295, 118, 60],
+  [1180, 350, 68, 75],
+  [826, 310, 26, 72],
+  [865, 335, 30, 55],
+  // east tents and stalls
+  [960, 325, 140, 132],
+  [1085, 330, 95, 95],
+  [1150, 385, 98, 95],
+  [1045, 455, 155, 130],
+  [1020, 520, 22, 50],
+  [1198, 480, 38, 135],
+  [1000, 592, 65, 53],
+  [1048, 635, 30, 87],
+  [942, 635, 105, 105],
+  [875, 685, 57, 52],
+  [1080, 590, 135, 132],
+  [1180, 678, 22, 60],
+  [1220, 658, 26, 40],
+  // watchtower pillars
+  [52, 190, 55, 58],
+  [1105, 110, 95, 150],
+  // rock cliffs along the north-west, north-east and both bottom corners
+  [0, 0, 165, 190],
+  [0, 190, 105, 60],
+  [125, 95, 85, 85],
+  [175, 8, 125, 100],
+  [940, 0, 308, 190],
+  [1100, 185, 148, 95],
+  [0, 735, 135, 97],
+  [135, 780, 130, 52],
+  [1000, 745, 248, 87],
+  [1190, 720, 58, 30],
+]);
+
 function buildSolmara(): LandDefinition {
   return {
     id: "solmara",
@@ -444,6 +526,7 @@ function buildSolmara(): LandDefinition {
       { id: "exit", x: 51, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     sprites: [],
+    obstacles: SOLMARA_OBSTACLES,
   };
 }
 
