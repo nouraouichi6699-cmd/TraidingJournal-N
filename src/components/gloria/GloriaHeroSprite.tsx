@@ -20,11 +20,14 @@ import { facingOf, idleFrames, numbered, planWalkTable, type SpriteSheet } from 
 import type { LandObstacle, SpriteDirection } from "./gloriaLands";
 import { GATE_REARM_FACTOR, inGateZone, type TriggerGateId } from "./gloriaGateTriggers";
 
-/** The current placeholder hero sheet is the guard's own sprite, recolored blue, until the real PixelLab-generated
- *  Warrior art lands (public/sprites/hero/): same layout, so only a walk-west sheet exists and east mirrors it. */
+/** The hero's Warrior sheet (public/sprites/warrior/): eight 48x48 idle rotations and a west-walk loop of 64x64
+ *  frames, so only west has walk frames and east mirrors them. The walk frames are the same art at the same pixel
+ *  scale, just on a larger canvas (8px of air each side of the 48px core): GloriaSprite centres every frame on the
+ *  same 48px core box (coreSize below), so idle and walk neither change size nor shift when the hero starts or
+ *  stops. Don't give the walk frames their own coreSize. */
 const HERO_SHEET: SpriteSheet = {
-  idle: idleFrames("hero"),
-  animations: { walk: { west: numbered("/sprites/hero/walk-w", 8) } },
+  idle: idleFrames("warrior"),
+  animations: { walk: { west: numbered("/sprites/warrior/walk-w", 8) } },
 };
 // one table covers both looks per facing: `.idle` doesn't depend on the animation key, only `.walk` does
 const HERO_PLAN = planWalkTable(HERO_SHEET, "walk");
