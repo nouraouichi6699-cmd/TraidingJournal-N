@@ -11,8 +11,8 @@ import type { ZoneTheme } from "./gloriaZones";
 import { footprintBlocked, stepHero } from "./GloriaHeroSprite";
 import { findInsideSpawn, findOutsideStart, GATE_REARM_FACTOR, gateRadiusPx, inGateZone, isTriggerGate, type Pt } from "./gloriaGateTriggers";
 
-// every theme that has a land today: Verdantia, Solmara, Heartlands, Aurelia
-const THEMES: ZoneTheme[] = ["forest", "oasis", "sea", "mountain"];
+// every theme that has a land today: Verdantia, Solmara, Heartlands, Aurelia, Drakemar
+const THEMES: ZoneTheme[] = ["forest", "oasis", "sea", "mountain", "castle"];
 // one entry per scene: a single-scene land is just its own scene
 const SCENES: { base: LandDefinition; land: LandDefinition; sceneId?: string }[] = THEMES.flatMap((t) => {
   const base = getZoneLand(t)!;
@@ -156,6 +156,33 @@ for (const { base, land, sceneId } of SCENES) {
     ["jackal statue pedestal", 220, 235], ["mummy sarcophagus", 170, 700],
   ];
   for (const [name, x, y] of solid) check(!at(x, y), `aurelia/interior: ${name} (${x}, ${y}) blocks the hero`);
+}
+
+// ── Drakemar's interior: yard, gate passage, stage steps and both rooms are walkable; walls and furniture hold ──
+{
+  const land = getLandScene(getZoneLand("castle")!, "interior");
+  const { w, h } = land.imageSize;
+  const pt = (x: number, y: number): Pt => ({ x: (x / w) * 100, y: (y / h) * 100 }); // painting px -> image %
+  const canReach = reachableFrom(land, land.start!);
+  const at = (x: number, y: number) => canReach(pt(x, y));
+
+  const open: [string, number, number][] = [
+    ["the open yard", 620, 450], ["the yard in front of the stage steps (boss spot)", 624, 233], ["the stage steps", 624, 195],
+    ["the stage deck", 624, 100], ["the stage deck, far west", 470, 120], ["the yard, north-west corner", 230, 200],
+    ["the yard, north-east corner", 1000, 180], ["the armory floor", 160, 550], ["the armory floor, north", 150, 440],
+    ["the armory doorway", 300, 545], ["the barracks floor", 1050, 550], ["the barracks floor, north", 1060, 430],
+    ["the barracks doorway", 935, 545], ["the gate passage", 624, 740], ["the path outside the gate", 624, 810],
+  ];
+  for (const [name, x, y] of open) check(at(x, y), `drakemar/interior: ${name} (${x}, ${y}) is walkable from the entry`);
+  const solid: [string, number, number][] = [
+    ["the black void north-west", 80, 150], ["the black void north-east", 1170, 150], ["the black void south", 300, 810],
+    ["the north wall left of the stage", 300, 80], ["the stage back wall", 624, 20], ["the stage's front rail", 480, 185],
+    ["the stage's west rail", 435, 120], ["the armory's top wall", 150, 350], ["the armory's yard-side wall", 298, 450],
+    ["the barracks' top wall", 1100, 350], ["the barracks' yard-side wall", 935, 450], ["the south wall, west of the gate", 300, 730],
+    ["the south wall, east of the gate", 900, 730], ["a barracks bed", 1150, 430], ["an armory crate", 70, 510],
+    ["a sparring ring post", 342, 350], ["an archery target", 280, 150],
+  ];
+  for (const [name, x, y] of solid) check(!at(x, y), `drakemar/interior: ${name} (${x}, ${y}) blocks the hero`);
 }
 
 console.log(failures === 0 ? "\nAll gate trigger checks passed." : `\n${failures} check(s) FAILED.`);

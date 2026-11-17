@@ -848,11 +848,95 @@ function buildAurelia(): LandDefinition {
   };
 }
 
+// ── Drakemar ──────────────────────────────────────────────────────────────────────────────────────────────
+// The sea fortress (zone 5, theme "castle"): the second TWO-SCENE land, built on the same pattern as Aurelia. It opens
+// on the exterior -- the fort on its rocky island, an approach view with no scenery to collide with -- and walking
+// into the fort's main gate carries the hero into the interior, the training yard. Backgrounds, scene transition,
+// gates and obstacles only so far; NPCs follow in a later pass.
+const DRAKEMAR_EXTERIOR_IMAGE = "/gloria-land-drakemar-exterior.jpg";
+const DRAKEMAR_INTERIOR_IMAGE = "/gloria-land-drakemar-interior.jpg";
+const DRAKEMAR_EXTERIOR_SIZE = { w: 1248, h: 832 };
+const DRAKEMAR_INTERIOR_SIZE = { w: 1248, h: 832 };
+
+/** Measured with a pixel-grid overlay on the 1248x832 interior painting: [x, y, w, h] in painting px. Boxes reach down
+ *  to a structure's base, since the hero collides with its feet only. The central yard (x ~312-925), the gate passage
+ *  (x ~580-668), the steps up to the stage (x 583-665) and the doorways into the armory and barracks (y ~517-575 on
+ *  their yard-side walls) stay open, as does the floor inside both rooms. The stage deck is open too; only its rails
+ *  block. The sparring ring's roped sides are decoration; only its four corner posts block. */
+const DRAKEMAR_INTERIOR_OBSTACLES = obstaclesFromPixels(DRAKEMAR_INTERIOR_SIZE, [
+  // the black void and the outer stone walls: north-west corner, north-east corner, south of the fort, and the two
+  // room sides below the corner voids
+  [0, 0, 176, 297], [1075, 0, 173, 297], [0, 297, 48, 483], [1198, 297, 50, 483],
+  [0, 780, 502, 52], [745, 780, 503, 52],
+  // north wall of the yard on either side of the stage (brick face down to the floor, y ~140), the archery targets
+  // and the weapon racks standing against it
+  [0, 0, 430, 140], [822, 0, 253, 140],
+  [192, 140, 172, 22], [884, 140, 70, 20], [972, 140, 92, 20],
+  // stage: the back wall and rail, the side rails, and the front rail and fascia either side of the steps (the deck
+  // and the steps themselves stay walkable)
+  [428, 0, 394, 46], [428, 48, 14, 165], [808, 48, 16, 165], [428, 150, 155, 62], [665, 150, 157, 62],
+  // west edge of the yard: the arrow stand, the barrels, the bow rack
+  [178, 168, 26, 50], [178, 218, 64, 76], [244, 242, 20, 50],
+  // east edge of the yard: the spear rack with its shields, the plank leaning on the wall
+  [958, 215, 110, 80], [1030, 183, 32, 52],
+  // armory (west room): the top wall and its weapon racks, the yard-side wall either side of the doorway, crates,
+  // barrel and bench against the west and south walls
+  [22, 297, 290, 113], [55, 410, 65, 30], [205, 410, 68, 32],
+  [285, 297, 27, 220], [283, 575, 29, 125],
+  [52, 478, 44, 95], [52, 578, 44, 64], [54, 650, 100, 46], [236, 608, 42, 87],
+  // barracks (east room): the top wall, the yard-side wall either side of the doorway, beds, nightstands, footlocker
+  [922, 297, 303, 113], [922, 297, 28, 218], [922, 575, 28, 125],
+  [958, 398, 88, 95], [958, 610, 46, 86], [1012, 650, 32, 42],
+  [1108, 405, 84, 57], [1108, 482, 84, 56], [1108, 632, 84, 56],
+  // south wall, either side of the gate: walls, gate pillars and the open door leaves (the passage x 580-668 stays open)
+  [22, 690, 558, 92], [668, 690, 557, 92],
+  // sparring ring corner posts (the roped sides are walk-through decoration)
+  [335, 330, 16, 34], [487, 330, 16, 34], [335, 450, 16, 36], [487, 450, 16, 36],
+  // training dummies, weapon racks and benches in the yard, the barrels and crate by the south-east wall
+  [326, 630, 32, 56], [368, 625, 36, 58], [826, 350, 34, 52], [870, 328, 44, 160],
+  [440, 657, 58, 34], [750, 657, 58, 34], [848, 600, 70, 98], [822, 648, 26, 45],
+]);
+
+function buildDrakemar(): LandDefinition {
+  return {
+    id: "drakemar",
+    // first scene: the exterior. No obstacles -- just the approach to the fort.
+    image: DRAKEMAR_EXTERIOR_IMAGE,
+    imageSize: DRAKEMAR_EXTERIOR_SIZE,
+    // the hero starts on the causeway at the foot of the island
+    start: { x: 50, y: 90 },
+    gates: [
+      // the fort's main gate (the only gate here): reaching it carries the hero into the training yard
+      { id: "entry", x: 50, y: 22, label: { ar: "بوابة الحصن", en: "Fort Gate" }, to: { scene: "interior" } },
+    ],
+    sprites: [],
+    scenes: {
+      interior: {
+        image: DRAKEMAR_INTERIOR_IMAGE,
+        imageSize: DRAKEMAR_INTERIOR_SIZE,
+        // the open double gate at the bottom of the yard, where the hero arrives from the exterior
+        start: { x: 50, y: 89 },
+        gates: [
+          // spawn point only: the hero is already inside, so walking back over it does nothing
+          { id: "entry", x: 50, y: 89, label: { ar: "بوابة الدخول", en: "Entry Gate" }, spawnOnly: true },
+          // open yard floor just below the steps up to the stage
+          { id: "boss", x: 50, y: 28, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+          // on the sparring stage, up the steps: a dead end, with no separate exit door painted
+          { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+        ],
+        sprites: [],
+        obstacles: DRAKEMAR_INTERIOR_OBSTACLES,
+      },
+    },
+  };
+}
+
 const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = {
   forest: buildVerdantia(),
   oasis: buildSolmara(),
   sea: buildHeartlands(),
   mountain: buildAurelia(),
+  castle: buildDrakemar(),
 };
 
 /** The land for a zone theme, or null when that zone's land hasn't been built yet. */
