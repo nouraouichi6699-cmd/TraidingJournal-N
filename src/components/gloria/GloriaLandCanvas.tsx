@@ -334,8 +334,14 @@ export default function GloriaLandCanvas({
   // defines them gets the behaviour; the exit zone is locked until the boss is beaten.
   const heroSetup = useMemo(() => {
     const blocked = (p: { x: number; y: number }) => footprintBlocked(p.x, p.y, land.obstacles ?? [], w, h);
-    return { start: land.start ?? findOutsideStart(land, blocked), spawn: findInsideSpawn(land, blocked) };
-  }, [land, w, h]);
+    // Carried in by a portal, the hero arrives on the scene's own entry gate -- the way back through the door it came
+    // from (the exterior's entry is the trigger in front of the main gate). The opening scene uses its `start`.
+    const arrival = arrived ? land.gates.find((g) => g.id === "entry") : undefined;
+    return {
+      start: arrival ? { x: arrival.x, y: arrival.y } : (land.start ?? findOutsideStart(land, blocked)),
+      spawn: findInsideSpawn(land, blocked),
+    };
+  }, [land, w, h, arrived]);
   const heroGates = useMemo<HeroGateZone[]>(
     () =>
       land.gates
