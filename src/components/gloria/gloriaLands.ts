@@ -538,31 +538,44 @@ function buildSolmara(): LandDefinition {
 const HEARTLANDS_IMAGE = "/gloria-land-heartlands.jpg";
 const HEARTLANDS_IMAGE_SIZE = { w: 1024, h: 1024 };
 
-/** Measured with a pixel-grid overlay on the 1024x1024 painting: [x, y, w, h] in painting px. Boxes reach down to a
- *  structure's base (the hero collides with its feet only). Left walkable: the cobble road from the castle doors down
- *  to the market stairs (x ~440-590), the stairs and boss courtyard (x ~482-545, y ~395-470), the market square
- *  between the houses and stalls, the entry path through the south gate arch (x ~482-541), the dirt paths, and the
- *  two stone bridges' decks. The castle's door corridor (x 487-545) is open so the hero can reach the exit gate. */
+/** Measured with a pixel-grid overlay on the 1024x1024 painting: [x, y, w, h] in painting px. Boxes hug only solid
+ *  structures (walls, towers, houses, stalls, water, cliffs, rocks, tree trunks and dense forest edges) and reach down
+ *  to a structure's base, since the hero collides with its feet only. Left walkable: the cobble road from the castle
+ *  doors down to the market stairs (x ~440-590), the grass ledge either side of that road, the stairs between their
+ *  pillars (x ~482-545), the whole market square and the lanes between its stalls, the south gate arch and entry path
+ *  (x ~482-541), the dirt paths along both river banks, the bridge decks, and the grass under tree canopies (only the
+ *  trunk base of a lone tree blocks). The castle's door corridor (x 487-545) is open so the hero can reach the exit gate. */
 const HEARTLANDS_OBSTACLES = obstaclesFromPixels(HEARTLANDS_IMAGE_SIZE, [
-  // castle: left wing (towers, walls, inner courtyard), keep either side of its door corridor, right wing
-  [245, 0, 195, 330],
+  // castle: left wing (towers, walls, inner courtyard), keep either side of its door corridor, right wing; the wing
+  // walls end at y ~306 and only the tower bases reach y ~332, so the grass ledge below them stays open
+  [245, 0, 195, 306],
+  [245, 306, 47, 26],
+  [392, 306, 42, 26],
   [440, 0, 47, 245],
   [487, 0, 58, 150],
   [545, 0, 240, 250],
-  [590, 245, 195, 85],
+  [590, 245, 195, 61],
+  [590, 306, 40, 26],
+  [720, 306, 52, 26],
+  // trunks of the two big trees on the castle's south ledge
+  [393, 330, 30, 22],
+  [595, 328, 30, 22],
   // castle moat: cliff and water along the castle's south ledge (the road at x ~467-558 crosses it)
-  [255, 360, 212, 36],
-  [558, 358, 200, 44],
+  [255, 358, 212, 40],
+  [558, 358, 202, 42],
+  // the two small pools where the moat meets the road
+  [448, 338, 20, 22],
+  [556, 338, 18, 22],
   // market wall, north side: corner towers, wall runs and the pillars flanking the stairs (stairs stay open)
   [255, 370, 50, 95],
-  [305, 395, 165, 60],
+  [305, 418, 160, 32],
   [462, 392, 20, 70],
   [545, 392, 18, 70],
-  [563, 415, 160, 40],
+  [563, 418, 160, 32],
   [722, 370, 48, 95],
   // market wall, east and west sides
-  [262, 460, 28, 300],
-  [738, 460, 28, 300],
+  [264, 460, 26, 300],
+  [738, 460, 26, 300],
   // market wall, south side: corner towers, wall runs and the pillars flanking the gate arch (the arch stays open)
   [245, 755, 52, 135],
   [297, 805, 125, 70],
@@ -573,50 +586,55 @@ const HEARTLANDS_OBSTACLES = obstaclesFromPixels(HEARTLANDS_IMAGE_SIZE, [
   [602, 805, 135, 70],
   [730, 755, 55, 135],
   // houses inside the market wall
-  [296, 432, 76, 108],
-  [410, 448, 66, 70],
-  [548, 448, 78, 74],
-  [660, 435, 75, 105],
+  [296, 432, 74, 110],
+  [411, 452, 64, 68],
+  [548, 452, 78, 70],
+  [661, 437, 72, 103],
   [296, 598, 72, 102],
   [662, 596, 74, 104],
-  [287, 714, 78, 100],
-  [662, 714, 80, 100],
+  [289, 716, 76, 98],
+  [662, 716, 78, 98],
   // market stalls
-  [408, 526, 64, 60],
-  [560, 526, 65, 60],
-  [304, 550, 64, 50],
-  [660, 550, 64, 50],
-  [377, 610, 65, 60],
-  [583, 610, 64, 60],
-  [387, 684, 65, 62],
-  [571, 684, 65, 62],
+  [408, 526, 62, 58],
+  [562, 526, 62, 58],
+  [306, 552, 60, 50],
+  [662, 552, 60, 50],
+  [379, 612, 60, 58],
+  [585, 612, 59, 58],
+  [388, 686, 62, 58],
+  [573, 686, 62, 58],
   // fountain
-  [460, 580, 102, 92],
+  [462, 598, 98, 74],
   // trees on the market square
-  [372, 432, 45, 70],
-  [638, 438, 38, 62],
-  [462, 684, 30, 48],
-  [532, 684, 32, 48],
-  [370, 748, 48, 60],
-  [606, 748, 46, 56],
+  [372, 440, 40, 58],
+  [632, 442, 40, 54],
+  [463, 700, 28, 30],
+  [533, 700, 28, 30],
+  [372, 765, 42, 34],
+  [608, 765, 42, 34],
   // river, west bank: waterfall and cliff, then the channel in bands between the two bridges (decks stay open)
   [95, 0, 140, 100],
   [100, 100, 145, 100],
+  [128, 238, 34, 25],
   [160, 245, 80, 25],
   [155, 270, 90, 55],
-  [175, 325, 90, 118],
-  [175, 482, 75, 30],
-  [82, 515, 160, 95],
-  [160, 610, 80, 140],
-  [205, 556, 58, 195],
-  // harbour: the west-bank house, cargo barrels, crane, both piers, the sailboat and the rowboat, then the open bay
+  [165, 325, 100, 118],
+  [158, 480, 100, 32],
+  [80, 528, 158, 82],
+  [160, 610, 42, 142],
+  [198, 562, 24, 140],
+  // west bank trees on the city side of the river, by the lower bridge's east end
+  [222, 610, 38, 32],
+  [240, 655, 24, 22],
+  // harbour: the west-bank house, cargo barrels, crane, the piers (solid wood), the boats, then the open bay
   [86, 592, 72, 90],
-  [30, 672, 125, 50],
-  [155, 625, 45, 35],
-  [20, 722, 180, 36],
-  [170, 690, 28, 160],
-  [50, 725, 110, 105],
-  [200, 748, 32, 62],
+  [30, 678, 60, 42],
+  [100, 680, 52, 40],
+  [158, 622, 40, 18],
+  [20, 722, 180, 26],
+  [170, 690, 26, 145],
+  [50, 748, 112, 88],
+  [200, 752, 34, 62],
   [0, 550, 38, 130],
   [0, 760, 240, 120],
   // river and cliffs south of the city, and the treeline and peaks along the bottom edge (the entry path stays open)
@@ -626,38 +644,47 @@ const HEARTLANDS_OBSTACLES = obstaclesFromPixels(HEARTLANDS_IMAGE_SIZE, [
   [765, 392, 40, 40],
   [772, 432, 55, 40],
   [784, 465, 70, 40],
-  [800, 505, 85, 42],
+  [800, 505, 88, 60],
   [829, 744, 135, 45],
   [828, 790, 135, 110],
   [800, 880, 125, 80],
-  // east bridge: parapets either side of the deck, and the river east of it
+  // east bridge: parapets either side of the deck, and the cliff and river east of it
   [884, 552, 14, 85],
   [929, 552, 13, 85],
-  [938, 582, 86, 48],
+  [938, 562, 86, 68],
   // farmland: wheat fields and their fences, hay bales, the windmill, the east cottages
   [814, 133, 112, 120],
   [850, 92, 105, 42],
-  [808, 250, 110, 30],
+  [925, 136, 60, 12],
+  [818, 252, 102, 28],
   [925, 293, 99, 120],
-  [930, 190, 75, 85],
+  [938, 196, 70, 68],
   [830, 285, 72, 97],
   [893, 402, 65, 62],
   [962, 465, 62, 76],
   [798, 612, 68, 78],
-  // trees along the east bank of the city wall
-  [760, 530, 70, 85],
-  [762, 600, 28, 55],
-  [762, 650, 38, 45],
-  [762, 712, 58, 68],
-  [852, 700, 50, 55],
-  [898, 690, 42, 50],
+  // trunks of the trees along the east bank of the city wall and around the south-east cottage
+  [772, 485, 20, 20],
+  [772, 570, 26, 20],
+  [822, 592, 24, 20],
+  [765, 640, 22, 35],
+  [772, 745, 40, 35],
+  [866, 742, 26, 24],
+  [908, 722, 24, 26],
+  [952, 655, 26, 22],
+  [995, 660, 26, 25],
+  // trees on the farmland's west edge, between the castle's east tower and the fields
+  [780, 160, 22, 18],
+  [775, 235, 30, 22],
+  [783, 310, 24, 18],
   // mountains and tree borders: north-west, north-east, north edge, east edge, south-east
   [0, 0, 95, 235],
   [0, 190, 35, 110],
   [0, 355, 40, 60],
-  [790, 0, 145, 55],
-  [935, 0, 89, 120],
+  [775, 0, 170, 95],
+  [940, 0, 84, 115],
   [995, 100, 29, 90],
+  [995, 405, 29, 50],
   [940, 735, 84, 230],
   // west cottages, their trees, and the trees by the west bridge
   [45, 242, 68, 85],
