@@ -79,7 +79,7 @@ export const ZONE_VISUALS: ZoneVisual[] = [
     },
   },
   {
-    order: 6, theme: "volcano", node: { x: 135, y: 200 }, color: "#ef4444", accent: "#f97316",
+    order: 6, theme: "volcano", node: { x: 640, y: 150 }, color: "#ef4444", accent: "#f97316",
     name: { en: "Frostfell", ar: "فروستفيل", fr: "Frostfell" },
     blurb: {
       en: "Greed burns hotter than lava. Keep your head where the ground itself is on fire.",
