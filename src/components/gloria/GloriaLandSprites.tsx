@@ -158,6 +158,11 @@ export function planWalkTable(sheet: SpriteSheet, animKey?: Animation): PatrolPl
       const north = pick(walkTable, "north", false);
       if (north) walk = { value: north.value, flipX: dir === "north-west", facing: dir };
     }
+    // likewise south-east/south-west reuse south's (flipped for south-west) when the sheet has no diagonal walk
+    if (!walk && walkTable && (dir === "south-east" || dir === "south-west")) {
+      const south = pick(walkTable, "south", false);
+      if (south) walk = { value: south.value, flipX: dir === "south-west", facing: dir };
+    }
     out[dir] = { walk: walk && { value: walk.value, flipX: walk.flipX }, idle: { value: [idle.value], flipX: idle.flipX } };
   }
   return out;

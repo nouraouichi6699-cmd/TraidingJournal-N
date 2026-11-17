@@ -20,14 +20,21 @@ import { facingOf, idleFrames, numbered, planWalkTable, type SpriteSheet } from 
 import type { LandObstacle, SpriteDirection } from "./gloriaLands";
 import { GATE_REARM_FACTOR, inGateZone, type TriggerGateId } from "./gloriaGateTriggers";
 
-/** The hero's Warrior sheet (public/sprites/warrior/): eight 48x48 idle rotations and a west-walk loop of 64x64
- *  frames, so only west has walk frames and east mirrors them. The walk frames are the same art at the same pixel
+/** The hero's Warrior sheet (public/sprites/warrior/): eight 48x48 idle rotations and west/north/south walk loops
+ *  of 8 64x64 frames each (same frameDuration for all), so east mirrors west and the diagonals fall back to the
+ *  north/south loops in planWalkTable (flipped for the west-leaning ones). The walk frames are the same art at the same pixel
  *  scale, just on a larger canvas (8px of air each side of the 48px core): GloriaSprite centres every frame on the
  *  same 48px core box (coreSize below), so idle and walk neither change size nor shift when the hero starts or
  *  stops. Don't give the walk frames their own coreSize. */
 const HERO_SHEET: SpriteSheet = {
   idle: idleFrames("warrior"),
-  animations: { walk: { west: numbered("/sprites/warrior/walk-w", 8) } },
+  animations: {
+    walk: {
+      west: numbered("/sprites/warrior/walk-w", 8),
+      north: numbered("/sprites/warrior/walk-n", 8),
+      south: numbered("/sprites/warrior/walk-s", 8),
+    },
+  },
 };
 // one table covers both looks per facing: `.idle` doesn't depend on the animation key, only `.walk` does
 const HERO_PLAN = planWalkTable(HERO_SHEET, "walk");
