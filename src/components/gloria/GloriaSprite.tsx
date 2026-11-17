@@ -39,6 +39,9 @@ export interface GloriaSpriteProps {
   coreSize?: number;
   /** The land image's natural width in pixels, so sprite pixels match painting pixels (see top comment). */
   landWidth?: number;
+  /** Fade to this opacity (default 1), easing over `fadeMs` -- the hero's gate transitions. */
+  opacity?: number;
+  fadeMs?: number;
 }
 
 /** Tracks the OS reduced-motion setting and the app's own switch (data-reduce-motion on <html>). */
@@ -121,6 +124,8 @@ export default function GloriaSprite({
   flipX = false,
   coreSize = 32,
   landWidth,
+  opacity = 1,
+  fadeMs = 0,
 }: GloriaSpriteProps) {
   const reduced = useReducedMotion();
   const ready = useFramesReady(frames);
@@ -181,6 +186,7 @@ export default function GloriaSprite({
         aspectRatio: "1 / 1",
         transform: `translate(-50%, -100%)${flipX ? " scaleX(-1)" : ""}`,
         willChange: "transform",
+        ...(opacity !== 1 || fadeMs > 0 ? { opacity, transition: `opacity ${fadeMs}ms ease-in-out` } : null),
       }}
     >
       <img

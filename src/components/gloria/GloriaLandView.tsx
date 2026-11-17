@@ -5,9 +5,11 @@
 // (top-centre), exit (top-end), the circular mini-map (bottom-start) that travels back to the world map, and the
 // guide button (bottom-end) that slides in GloriaGuidePanel -- the zone's challenges, the rules and the roster.
 //
-// The land's gates are wired to the game: the entry gate opens GloriaWelcomeModal (the zone's flavour text), the
-// boss gate opens the guide on its Challenges tab, and the exit gate travels back to the world map once the boss
-// is defeated -- before that it only raises a "Defeat the boss first!" GloriaToast.
+// The land's gates are wired to the game: clicking the entry gate opens GloriaWelcomeModal (the zone's flavour
+// text), the boss gate opens the guide on its Challenges tab, and the exit gate travels back to the world map once
+// the boss is defeated -- before that it only raises a "Defeat the boss first!" GloriaToast. The entry and exit
+// are also trigger zones the hero walks into (gloriaGateTriggers): the entry respawns it inside the city, the exit
+// does what clicking it does. The boss gate is click-only.
 //
 // Escape closes the welcome card, then the guide: while either is open a capture-phase listener swallows the key,
 // so GloriaPage's own Escape handler (land → world map → exit) only runs once both are closed. Colours are explicit
@@ -17,6 +19,7 @@ import { BookOpen, X } from "lucide-react";
 import type { Lang } from "../../types";
 import { ZONE_ICON, type MapZone } from "./gloriaZones";
 import { getZoneLand, type LandGateId } from "./gloriaLands";
+import type { TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandCanvas from "./GloriaLandCanvas";
 import GloriaMiniMap from "./GloriaMiniMap";
 import GloriaGuidePanel, { type GuideTab } from "./GloriaGuidePanel";
@@ -78,6 +81,16 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
     [mz.bossDefeated, onWorldMap, openGuide, lang],
   );
 
+  // The hero walked into a trigger zone (the canvas has already faded it out where that applies). Reaching the exit
+  // does what clicking it does: the world map once the boss is beaten, the "defeat the boss first" toast before.
+  // Reaching the entry needs nothing here: the hero has been respawned inside the city.
+  const onGateReach = useCallback(
+    (gate: TriggerGateId) => {
+      if (gate === "exit") onGateClick("exit");
+    },
+    [onGateClick],
+  );
+
   const closeGuide = useCallback(() => {
     setGuideOpen(false);
     guideBtnRef.current?.focus({ preventScroll: true });
@@ -107,7 +120,13 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
     <section aria-label={visual.name[lang]} className={`gz-land relative h-full overflow-hidden text-stone-100 ${className}`}>
       {land ? (
         <div className="h-full w-full overflow-hidden bg-black">
-          <GloriaLandCanvas land={land} lang={lang} onGateClick={onGateClick} bossDefeated={mz.bossDefeated} />
+          <GloriaLandCanvas
+            land={land}
+            lang={lang}
+            onGateClick={onGateClick}
+            onGateReach={onGateReach}
+            bossDefeated={mz.bossDefeated}
+          />
         </div>
       ) : (
         <div

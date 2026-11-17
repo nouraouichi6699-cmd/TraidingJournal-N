@@ -402,7 +402,8 @@ function buildVerdantia(): LandDefinition {
     gates: [
       { id: "entry", x: 50, y: 92, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
       { id: "boss", x: 50, y: 35, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
-      { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+      // on the castle's front door (the castle's solid box ends at y 226, so the hero can stand right below it)
+      { id: "exit", x: 50, y: 24.6, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     ambience: VERDANTIA_AMBIENCE,
     sprites: VERDANTIA_SPRITES,
@@ -523,7 +524,8 @@ function buildSolmara(): LandDefinition {
     gates: [
       { id: "entry", x: 50, y: 94, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
       { id: "boss", x: 51, y: 34, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
-      { id: "exit", x: 51, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+      // at the foot of the gatehouse arch (its solid box ends at y 214, so the hero can stand right below it)
+      { id: "exit", x: 51, y: 24, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     sprites: [],
     obstacles: SOLMARA_OBSTACLES,
