@@ -11,13 +11,14 @@
 //
 // Entry and exit gates are trigger zones (gloriaGateTriggers): when the hero's feet come within a gate's radius the
 // hero fades out and either reappears at the inside spawn (entry) or hands over to `onGateReach` (exit, which
-// opens the world map). A fired gate stays disarmed until the hero has walked clear of it, and every transition
+// opens the world map). A gate that is a scene portal (`to`) fades the hero out and hands over to `onSceneChange`
+// instead: the land view swaps in the next scene, whose hero mounts fresh (`arrive` fades it in). A fired gate stays disarmed until the hero has walked clear of it, and every transition
 // locks the controls until it is over, so neither can loop.
 import { useEffect, useRef, useState } from "react";
 import GloriaSprite, { preloadSpriteFrames } from "./GloriaSprite";
 import { prefersReducedMotion } from "./GloriaCloudTransition";
 import { facingOf, idleFrames, numbered, planWalkTable, type SpriteSheet } from "./GloriaLandSprites";
-import type { LandObstacle, SpriteDirection } from "./gloriaLands";
+import type { LandObstacle, LandSceneId, SceneTransition, SpriteDirection } from "./gloriaLands";
 import { GATE_REARM_FACTOR, inGateZone, type TriggerGateId } from "./gloriaGateTriggers";
 
 /** The hero's Warrior sheet (public/sprites/warrior/): eight 48x48 idle rotations and west/north/south walk loops
@@ -116,6 +117,8 @@ export interface HeroGateZone {
   y: number;
   /** A locked gate still reports the hero's arrival (so the caller can say why) but does no fade. */
   locked?: boolean;
+  /** A scene portal: reaching it fades the hero out and calls `onSceneChange` instead of respawning. */
+  to?: SceneTransition;
 }
 
 const FADE_MS = 350;
@@ -136,25 +139,37 @@ interface Props {
   /** The hero reached a gate: right away for a locked gate, after the fade-out for an unlocked exit, and after the
    *  respawn for the entry. */
   onGateReach?: (gate: TriggerGateId) => void;
+  /** The hero walked into a scene portal; the caller swaps the land to that scene (and this hero is replaced). */
+  onSceneChange?: (scene: LandSceneId) => void;
+  /** The hero fades in on mount: it has just arrived from another scene. */
+  arrive?: boolean;
 }
 
 const NO_OBSTACLES: readonly LandObstacle[] = [];
 const NO_GATES: readonly HeroGateZone[] = [];
 
 export default function GloriaHeroSprite({
-  start, landWidth, landHeight, obstacles = NO_OBSTACLES, gates = NO_GATES, insideSpawn, onGateReach,
+  start, landWidth, landHeight, obstacles = NO_OBSTACLES, gates = NO_GATES, insideSpawn, onGateReach, onSceneChange,
+  arrive = false,
 }: Props) {
   const live = useRef<LiveHero>({ x: start.x, y: start.y, facing: "north" });
   const [frame, setFrame] = useState<HeroFrame>({ ...live.current, moving: false, now: 0 });
-  const [fade, setFade] = useState<{ opacity: number; ms: number }>({ opacity: 1, ms: 0 });
+  const [fade, setFade] = useState<{ opacity: number; ms: number }>({ opacity: arrive ? 0 : 1, ms: 0 });
   const keysDown = useRef<Set<string>>(new Set());
   // the latest gate props, read by the long-lived movement loop below without re-subscribing it on every render
-  const gateProps = useRef({ gates, insideSpawn, onGateReach });
-  gateProps.current = { gates, insideSpawn, onGateReach };
+  const gateProps = useRef({ gates, insideSpawn, onGateReach, onSceneChange });
+  gateProps.current = { gates, insideSpawn, onGateReach, onSceneChange };
 
   useEffect(() => {
     void preloadSpriteFrames(HERO_ALL_FRAMES);
   }, []);
+
+  // Arriving from another scene: appear with a fade instead of popping in.
+  useEffect(() => {
+    if (!arrive) return;
+    const id = requestAnimationFrame(() => setFade({ opacity: 1, ms: prefersReducedMotion() ? 0 : FADE_MS }));
+    return () => cancelAnimationFrame(id);
+  }, [arrive]);
 
   // Track the held arrow keys and drive the hero from them. The rAF loop only runs while a key is actually held --
   // it sleeps as soon as the last one releases instead of re-rendering forever at rest -- and a keydown wakes it
@@ -201,7 +216,17 @@ export default function GloriaHeroSprite({
         busy = true;
         keysDown.current.clear();
         setFade({ opacity: 0, ms });
-        if (g.id === "entry") {
+        if (g.to) {
+          const scene = g.to.scene;
+          later(() => {
+            gateProps.current.onSceneChange?.(scene);
+            // the land view is about to swap this hero for the next scene's; only if it isn't does the hero come back
+            later(() => {
+              setFade({ opacity: 1, ms });
+              later(settle, ms);
+            }, EXIT_RECOVER_MS);
+          }, ms);
+        } else if (g.id === "entry") {
           later(() => {
             if (spawn) {
               p.x = spawn.x;

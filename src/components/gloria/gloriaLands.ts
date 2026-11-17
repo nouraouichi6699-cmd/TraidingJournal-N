@@ -49,6 +49,19 @@ export interface LandGate {
   /** Position as a percentage (0-100) of the image height. */
   y: number;
   label: { ar: string; en: string };
+  /** Makes this a scene portal: reaching it (or clicking it) switches the land to that scene, whose `start` is
+   *  where the hero appears, instead of respawning inside the same scene. See LandDefinition.scenes. */
+  to?: SceneTransition;
+  /** The gate only marks where the hero spawns (its ring stays clickable) and never fires on proximity -- the
+   *  entry of a scene the hero was carried into by a portal. */
+  spawnOnly?: boolean;
+}
+
+export type LandSceneId = string;
+
+/** Where a scene portal leads: the id of one of the land's extra `scenes`. */
+export interface SceneTransition {
+  scene: LandSceneId;
 }
 
 /**
@@ -129,8 +142,11 @@ function obstaclesFromPixels(size: { w: number; h: number }, boxes: [number, num
   }));
 }
 
-export interface LandDefinition {
-  id: string;
+/**
+ * Everything that belongs to one painted background: the image and what sits on it. A single-scene land is just one
+ * of these (its LandDefinition); a multi-scene land adds more under `LandDefinition.scenes`.
+ */
+export interface LandScene {
   /** Path of the land image under public/, e.g. "/gloria-land-verdantia.jpg". */
   image: string;
   /** The image's natural pixel size. The gate overlay uses it as its viewBox so it crops exactly like the image. */
@@ -142,6 +158,20 @@ export interface LandDefinition {
   sprites?: LandSprite[];
   /** Solid scenery blocking the player's hero; none means it can roam the whole image. */
   obstacles?: LandObstacle[];
+  /** Where the hero starts standing (image percentages) -- on arrival from a portal, or on opening the land when
+   *  this is its first scene. Without it, the hero starts just outside the entry gate (findOutsideStart). */
+  start?: { x: number; y: number };
+}
+
+export interface LandDefinition extends LandScene {
+  id: string;
+  /**
+   * Further scenes of a multi-scene land, by id. The land's own scene fields above are the FIRST scene -- the one the
+   * land opens on -- and a gate with `to: { scene }` leads into one of these. Absent for a single-scene land
+   * (Verdantia, Solmara, Heartlands), which is the whole of the model for them. Read the active scene through
+   * getLandScene, never `scenes` directly.
+   */
+  scenes?: Record<LandSceneId, LandScene>;
 
   // ── legacy tile map: no longer rendered, kept until a later cleanup ──
   cols?: number;
@@ -714,13 +744,140 @@ function buildHeartlands(): LandDefinition {
   };
 }
 
+// ── Aurelia ───────────────────────────────────────────────────────────────────────────────────────────────
+// The Egyptian temple (zone 3, theme "mountain"): the first TWO-SCENE land. It opens on the exterior -- pyramids and
+// the temple facade, an approach view with no scenery to collide with -- and walking into the temple doorway carries
+// the hero into the interior, a corridor-and-chambers painting. The land's own scene fields are the exterior; the
+// interior sits under `scenes` (see LandDefinition). Backgrounds, scene transition, gates and obstacles only so far;
+// NPCs follow in a later pass.
+const AURELIA_EXTERIOR_IMAGE = "/gloria-land-aurelia-exterior.jpg";
+const AURELIA_INTERIOR_IMAGE = "/gloria-land-aurelia-interior.jpg";
+const AURELIA_EXTERIOR_SIZE = { w: 1248, h: 832 };
+const AURELIA_INTERIOR_SIZE = { w: 1248, h: 832 };
+
+/** Measured on the 1248x832 interior painting. The central corridor (x ~545-705, from the bottom edge up to the boss
+ *  hall) is entirely clear, as is the open floor in front of the throne. The side chambers stay enterable: only
+ *  their walls, back-wall faces and furniture block, and the floor inside them is open. Statues and pedestals block
+ *  down to their base, since the hero collides with its feet only; small props (coin piles, pots' shadows, bones)
+ *  are left walkable. */
+const AURELIA_INTERIOR_OBSTACLES = obstaclesFromPixels(AURELIA_INTERIOR_SIZE, [
+  // black void and the stone rims that fence it: the void is every dark area of the painting (the outside, the pits and
+  // the maze's dark gaps), and each box reaches ~16-20px into the stone rim around it, so wall rims block while the
+  // floor they enclose stays open (every chamber stays enterable with a few pixels to spare)
+  [0, 0, 388, 28], [860, 0, 388, 28], [0, 28, 384, 44], [864, 28, 384, 40],
+  [868, 68, 380, 8], [0, 72, 380, 4], [0, 76, 368, 4], [880, 76, 368, 4],
+  [0, 80, 96, 32], [1152, 80, 96, 28], [1156, 108, 92, 36], [0, 112, 92, 32],
+  [0, 144, 88, 44], [1160, 144, 88, 40], [1164, 184, 84, 40], [0, 188, 84, 40],
+  [1168, 224, 80, 48], [0, 228, 80, 36], [316, 232, 36, 4], [316, 236, 60, 16],
+  [872, 236, 64, 36], [276, 252, 100, 20], [0, 264, 76, 16], [388, 268, 36, 4],
+  [468, 268, 36, 4], [272, 272, 252, 4], [720, 272, 228, 28], [1172, 272, 76, 16],
+  [264, 276, 260, 4], [0, 280, 212, 52], [264, 280, 264, 32], [1064, 288, 184, 36],
+  [720, 300, 252, 8], [720, 308, 296, 16], [264, 312, 60, 4], [452, 312, 76, 4],
+  [252, 316, 72, 4], [452, 316, 72, 40], [248, 320, 76, 12], [720, 324, 52, 28],
+  [912, 324, 104, 24], [1068, 324, 180, 24], [0, 332, 80, 4], [136, 332, 48, 4],
+  [248, 332, 72, 32], [0, 336, 76, 40], [912, 348, 64, 12], [1104, 348, 144, 4],
+  [724, 352, 48, 4], [1168, 352, 80, 12], [448, 356, 76, 12], [728, 356, 44, 4],
+  [916, 360, 64, 44], [1172, 364, 76, 48], [444, 368, 80, 56], [0, 376, 72, 68],
+  [912, 404, 68, 4], [908, 408, 72, 12], [1176, 412, 72, 36], [908, 420, 76, 24],
+  [444, 424, 76, 4], [392, 428, 128, 40], [0, 444, 68, 24], [920, 444, 68, 28],
+  [1180, 448, 68, 68], [264, 452, 108, 4], [264, 456, 116, 32], [0, 468, 64, 28],
+  [476, 468, 36, 4], [924, 472, 64, 4], [728, 476, 260, 20], [260, 488, 120, 4],
+  [76, 492, 36, 4], [140, 492, 36, 4], [260, 492, 112, 16], [0, 496, 176, 12],
+  [728, 496, 264, 24], [0, 508, 216, 44], [232, 508, 140, 16], [1184, 516, 64, 20],
+  [728, 520, 148, 4], [884, 520, 108, 4], [232, 524, 92, 28], [728, 524, 52, 20],
+  [936, 524, 56, 16], [1008, 536, 36, 4], [1068, 536, 36, 4], [1164, 536, 84, 4],
+  [936, 540, 312, 32], [728, 544, 56, 32], [0, 552, 64, 24], [940, 572, 308, 16],
+  [0, 576, 60, 44], [732, 576, 52, 4], [1188, 588, 60, 40], [0, 620, 56, 48],
+  [1192, 628, 56, 44], [0, 668, 52, 32], [1196, 672, 52, 36], [0, 700, 48, 44],
+  [472, 700, 36, 4], [732, 700, 48, 4], [424, 704, 88, 8], [732, 704, 76, 4],
+  [732, 708, 112, 4], [1200, 708, 48, 52], [376, 712, 136, 64], [732, 712, 144, 20],
+  [732, 732, 148, 4], [736, 736, 144, 40], [0, 744, 44, 32], [1204, 760, 44, 16],
+  [0, 776, 512, 44], [736, 776, 512, 40], [740, 816, 508, 16], [0, 820, 508, 12],
+  // boss hall: the back wall, the two Anubis statues on their pedestals, the pharaoh on his throne (the dais steps and the floor in front stay open)
+  [388, 0, 470, 150], [418, 150, 54, 66], [776, 150, 56, 66], [585, 150, 82, 58],
+  // north-west and north-east rooms: the back walls with their pillars, and the jackal statues' pedestals
+  [98, 85, 290, 120], [862, 85, 290, 120], [192, 204, 58, 52], [1012, 195, 58, 60],
+  // west maze: the north chamber's back wall and pillar block, the two free-standing wall blocks, the pillar-and-banner stack, the south-west chamber's back wall, sarcophagus and urns, and the north-west chamber's back wall, chest and urn
+  [330, 320, 140, 80], [262, 360, 70, 80], [410, 470, 120, 82], [413, 560, 115, 108],
+  [240, 530, 150, 165], [68, 550, 135, 100], [108, 660, 138, 72], [75, 640, 35, 45],
+  [70, 725, 32, 42], [322, 742, 32, 30], [78, 325, 140, 105], [120, 408, 52, 68],
+  [88, 425, 28, 35],
+  // east maze: the north chamber's back wall, pillars and urns, the far-east chamber's back wall, chest and urns, then the south chambers' back walls, sarcophagus and urns
+  [715, 355, 70, 95], [775, 330, 140, 95], [780, 400, 32, 38], [875, 408, 28, 34],
+  [978, 340, 30, 110], [1045, 355, 125, 90], [1058, 428, 55, 70], [995, 495, 35, 42],
+  [1135, 498, 32, 36], [722, 525, 215, 108], [788, 602, 26, 32], [897, 605, 30, 36],
+  [885, 730, 48, 45], [930, 590, 255, 85], [1003, 685, 135, 72], [1145, 672, 32, 42],
+  [1146, 735, 30, 34],
+  // the outer walls' thicker inner rims (west and east sides, and the chambers' bottom walls)
+  [58, 62, 42, 225], [52, 320, 40, 190], [28, 538, 42, 250], [28, 762, 365, 30],
+  [1150, 62, 44, 230], [1165, 285, 38, 265], [975, 525, 230, 28], [1178, 570, 42, 215],
+  [885, 765, 335, 28],
+]);
+
+function buildAurelia(): LandDefinition {
+  return {
+    id: "aurelia",
+    // first scene: the exterior. No obstacles -- just the approach to the temple.
+    image: AURELIA_EXTERIOR_IMAGE,
+    imageSize: AURELIA_EXTERIOR_SIZE,
+    // the hero starts at the foot of the paved approach, below the temple steps
+    start: { x: 50, y: 90 },
+    gates: [
+      // the temple's dark doorway (the only gate here): reaching it carries the hero into the interior
+      { id: "entry", x: 50, y: 50, label: { ar: "مدخل المعبد", en: "Temple Entrance" }, to: { scene: "interior" } },
+    ],
+    sprites: [],
+    scenes: {
+      interior: {
+        image: AURELIA_INTERIOR_IMAGE,
+        imageSize: AURELIA_INTERIOR_SIZE,
+        // the bottom of the central corridor, where the hero arrives from the exterior
+        start: { x: 50, y: 95 },
+        gates: [
+          // spawn point only: the hero is already inside, so walking back over it does nothing
+          { id: "entry", x: 50, y: 95, label: { ar: "بوابة الدخول", en: "Entry Gate" }, spawnOnly: true },
+          // open floor just below the dais steps
+          { id: "boss", x: 50, y: 30, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+          // at the pharaoh's feet: the throne's solid box ends at y 208, so the hero can stand right below it
+          { id: "exit", x: 50, y: 23.5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+        ],
+        sprites: [],
+        obstacles: AURELIA_INTERIOR_OBSTACLES,
+      },
+    },
+  };
+}
+
 const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = {
   forest: buildVerdantia(),
   oasis: buildSolmara(),
   sea: buildHeartlands(),
+  mountain: buildAurelia(),
 };
 
 /** The land for a zone theme, or null when that zone's land hasn't been built yet. */
 export function getZoneLand(theme: ZoneTheme): LandDefinition | null {
   return LANDS[theme] ?? null;
+}
+
+/**
+ * The land as it looks in one of its scenes: a LandDefinition whose scene fields (image, gates, obstacles, ...) are
+ * that scene's. With no `sceneId`, or for an id the land doesn't have (a single-scene land never does), it is the land
+ * itself -- the very same object, so single-scene lands are untouched. A scene never inherits another scene's
+ * ambience, sprites or obstacles.
+ */
+export function getLandScene(land: LandDefinition, sceneId?: LandSceneId): LandDefinition {
+  const scene = sceneId ? land.scenes?.[sceneId] : undefined;
+  if (!scene) return land;
+  return {
+    ...land,
+    scenes: undefined,
+    image: scene.image,
+    imageSize: scene.imageSize,
+    gates: scene.gates,
+    ambience: scene.ambience,
+    sprites: scene.sprites,
+    obstacles: scene.obstacles,
+    start: scene.start,
+  };
 }

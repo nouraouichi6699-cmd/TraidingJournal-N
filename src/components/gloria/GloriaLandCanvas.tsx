@@ -23,7 +23,7 @@
 // first frame under reduced motion.
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { Lang } from "../../types";
-import type { LandAmbience, LandDefinition, LandGate, LandGateId } from "./gloriaLands";
+import type { LandAmbience, LandDefinition, LandGate, LandGateId, LandSceneId } from "./gloriaLands";
 import GloriaHeroSprite, { footprintBlocked, type HeroGateZone } from "./GloriaHeroSprite";
 import { findInsideSpawn, findOutsideStart, isTriggerGate, type TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandSprites from "./GloriaLandSprites";
@@ -41,6 +41,11 @@ interface Props {
   /** The hero walked into the entry or exit gate's trigger zone (see gloriaGateTriggers). Called at once for a
    *  locked exit, after the fade-out for an open one, and after the respawn inside the city for the entry. */
   onGateReach?: (gate: TriggerGateId) => void;
+  /** The hero walked into (or the player clicked) a scene portal -- a gate with `to`. The caller swaps `land` for
+   *  that scene (getLandScene); the hero here fades out first. */
+  onSceneChange?: (scene: LandSceneId) => void;
+  /** The land was just entered from another scene, so the hero fades in on arrival. */
+  arrived?: boolean;
   /** The exit gate is locked (dimmed, still ring) until the boss is beaten. */
   bossDefeated?: boolean;
 }
@@ -245,7 +250,9 @@ function AmbientLayer({ ambience, w, h, wheatFill }: { ambience: LandAmbience; w
   );
 }
 
-export default function GloriaLandCanvas({ land, lang = "en", onGateClick, onGateReach, bossDefeated = false }: Props) {
+export default function GloriaLandCanvas({
+  land, lang = "en", onGateClick, onGateReach, onSceneChange, arrived = false, bossDefeated = false,
+}: Props) {
   const { w, h } = land.imageSize;
   const imgRef = useRef<HTMLImageElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -327,13 +334,13 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, onGat
   // defines them gets the behaviour; the exit zone is locked until the boss is beaten.
   const heroSetup = useMemo(() => {
     const blocked = (p: { x: number; y: number }) => footprintBlocked(p.x, p.y, land.obstacles ?? [], w, h);
-    return { start: findOutsideStart(land, blocked), spawn: findInsideSpawn(land, blocked) };
+    return { start: land.start ?? findOutsideStart(land, blocked), spawn: findInsideSpawn(land, blocked) };
   }, [land, w, h]);
   const heroGates = useMemo<HeroGateZone[]>(
     () =>
       land.gates
-        .filter((g): g is LandGate & { id: TriggerGateId } => isTriggerGate(g.id))
-        .map((g) => ({ id: g.id, x: g.x, y: g.y, locked: g.id === "exit" && !bossDefeated })),
+        .filter((g): g is LandGate & { id: TriggerGateId } => isTriggerGate(g.id) && !g.spawnOnly)
+        .map((g) => ({ id: g.id, x: g.x, y: g.y, locked: g.id === "exit" && !bossDefeated, to: g.to })),
     [land, bossDefeated],
   );
 
@@ -424,7 +431,13 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, onGat
             py={py}
             locked={locked}
             glowId={glowId}
-            onClick={onGateClick ? () => onGateClick(gate.id) : undefined}
+            onClick={
+              gate.to && onSceneChange
+                ? () => onSceneChange(gate.to!.scene) // clicking a portal walks through it
+                : onGateClick
+                  ? () => onGateClick(gate.id)
+                  : undefined
+            }
             onShow={() => showTip(gate.id)}
             onHide={() => hideTip(gate.id)}
             onToggle={() => toggleTip(gate.id)}
@@ -436,7 +449,7 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, onGat
       {view && (
         <GloriaLandSprites sprites={land.sprites ?? []} w={w} h={h} view={view}>
           <GloriaHeroSprite
-            key={land.id}
+            key={`${land.id}:${land.image}`}
             start={heroSetup.start}
             landWidth={w}
             landHeight={h}
@@ -444,6 +457,8 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, onGat
             gates={heroGates}
             insideSpawn={heroSetup.spawn}
             onGateReach={onGateReach}
+            onSceneChange={onSceneChange}
+            arrive={arrived}
           />
         </GloriaLandSprites>
       )}

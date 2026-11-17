@@ -11,6 +11,10 @@
 // are also trigger zones the hero walks into (gloriaGateTriggers): the entry respawns it inside the city, the exit
 // does what clicking it does. The boss gate is click-only.
 //
+// A multi-scene land (Aurelia: temple exterior, then interior) opens on its first scene; a gate with `to` is a portal
+// -- walking into it or clicking it swaps the land to that scene (getLandScene), where the hero starts at the scene's
+// own `start`. The scene is view state, keyed to the zone so travelling away and back reopens the first scene.
+//
 // Escape closes the welcome card, then the guide: while either is open a capture-phase listener swallows the key,
 // so GloriaPage's own Escape handler (land → world map → exit) only runs once both are closed. Colours are explicit
 // light-on-dark (not theme tokens) because game mode is always a dark screen.
@@ -18,7 +22,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BookOpen, X } from "lucide-react";
 import type { Lang } from "../../types";
 import { ZONE_ICON, type MapZone } from "./gloriaZones";
-import { getZoneLand, type LandGateId } from "./gloriaLands";
+import { getLandScene, getZoneLand, type LandGateId, type LandSceneId } from "./gloriaLands";
 import type { TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandCanvas from "./GloriaLandCanvas";
 import GloriaMiniMap from "./GloriaMiniMap";
@@ -46,7 +50,12 @@ interface Props {
 
 export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "" }: Props) {
   const { visual } = mz;
-  const land = getZoneLand(visual.theme);
+  const baseLand = getZoneLand(visual.theme);
+  // The active scene, remembered with the zone it belongs to: another zone (or coming back) always starts on the
+  // first scene. A land without scenes never has one.
+  const [scene, setScene] = useState<{ order: number; id: LandSceneId } | null>(null);
+  const sceneId = scene?.order === visual.order ? scene.id : undefined;
+  const land = baseLand ? getLandScene(baseLand, sceneId) : null;
   const icon = ZONE_ICON[visual.theme];
   const worldMapRef = useRef<HTMLButtonElement>(null);
   const guideBtnRef = useRef<HTMLButtonElement>(null);
@@ -65,6 +74,16 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
     setToast(null);
     worldMapRef.current?.focus({ preventScroll: true });
   }, [visual.order]);
+
+  // Leaving the zone forgets its scene, so coming back reopens the first one even if this view stays mounted.
+  useEffect(() => () => setScene(null), [visual.order]);
+
+  // Warm the cache with the other scenes' paintings so a portal swaps instantly instead of fading in from black.
+  useEffect(() => {
+    for (const s of Object.values(baseLand?.scenes ?? {})) new Image().src = s.image;
+  }, [baseLand]);
+
+  const enterScene = useCallback((id: LandSceneId) => setScene({ order: visual.order, id }), [visual.order]);
 
   const openGuide = useCallback((tab: GuideTab) => {
     setGuideTab(tab);
@@ -125,6 +144,8 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
             lang={lang}
             onGateClick={onGateClick}
             onGateReach={onGateReach}
+            onSceneChange={enterScene}
+            arrived={!!sceneId}
             bossDefeated={mz.bossDefeated}
           />
         </div>
