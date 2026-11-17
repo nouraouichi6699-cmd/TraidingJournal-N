@@ -402,7 +402,8 @@ function buildVerdantia(): LandDefinition {
     gates: [
       { id: "entry", x: 50, y: 92, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
       { id: "boss", x: 50, y: 35, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
-      { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+      // on the castle's front door (the castle's solid box ends at y 226, so the hero can stand right below it)
+      { id: "exit", x: 50, y: 24.6, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     ambience: VERDANTIA_AMBIENCE,
     sprites: VERDANTIA_SPRITES,
@@ -523,14 +524,201 @@ function buildSolmara(): LandDefinition {
     gates: [
       { id: "entry", x: 50, y: 94, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
       { id: "boss", x: 51, y: 34, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
-      { id: "exit", x: 51, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+      // at the foot of the gatehouse arch (its solid box ends at y 214, so the hero can stand right below it)
+      { id: "exit", x: 51, y: 24, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     sprites: [],
     obstacles: SOLMARA_OBSTACLES,
   };
 }
 
-const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = { forest: buildVerdantia(), oasis: buildSolmara() };
+// ── Heartlands ────────────────────────────────────────────────────────────────────────────────────────────
+// The walled capital (zone 4, theme "sea"): a castle in the north, a river wrapping the city, a market square inside
+// the city walls and a harbour on the west bank. Square 1024x1024 painting -- unlike the 1248x832 Verdantia and
+// Solmara -- so its imageSize is declared here and nothing may assume a fixed aspect ratio. Background, gates and
+// obstacles only so far; NPCs follow in a later pass.
+const HEARTLANDS_IMAGE = "/gloria-land-heartlands.jpg";
+const HEARTLANDS_IMAGE_SIZE = { w: 1024, h: 1024 };
+
+/** Measured with a pixel-grid overlay on the 1024x1024 painting: [x, y, w, h] in painting px. Boxes hug only solid
+ *  structures (walls, towers, houses, stalls, water, cliffs, rocks, tree trunks and dense forest edges) and reach down
+ *  to a structure's base, since the hero collides with its feet only. Left walkable: the cobble road from the castle
+ *  doors down to the market stairs (x ~440-590), the grass ledge either side of that road, the stairs between their
+ *  pillars (x ~482-545), the whole market square and the lanes between its stalls, the south gate arch and entry path
+ *  (x ~482-541), the dirt paths along both river banks, the bridge decks, and the grass under tree canopies (only the
+ *  trunk base of a lone tree blocks). The castle's door corridor (x 487-545) is open so the hero can reach the exit gate. */
+const HEARTLANDS_OBSTACLES = obstaclesFromPixels(HEARTLANDS_IMAGE_SIZE, [
+  // castle: left wing (towers, walls, inner courtyard), keep either side of its door corridor, right wing; the wing
+  // walls end at y ~306 and only the tower bases reach y ~332, so the grass ledge below them stays open
+  [245, 0, 195, 306],
+  [245, 306, 47, 26],
+  [392, 306, 42, 26],
+  [440, 0, 47, 245],
+  [487, 0, 58, 150],
+  [545, 0, 240, 250],
+  [590, 245, 195, 61],
+  [590, 306, 40, 26],
+  [720, 306, 52, 26],
+  // trunks of the two big trees on the castle's south ledge
+  [393, 330, 30, 22],
+  [595, 328, 30, 22],
+  // castle moat: cliff and water along the castle's south ledge (the road at x ~467-558 crosses it)
+  [255, 358, 212, 40],
+  [558, 358, 202, 42],
+  // the two small pools where the moat meets the road
+  [448, 338, 20, 22],
+  [556, 338, 18, 22],
+  // market wall, north side: corner towers, wall runs and the pillars flanking the stairs (stairs stay open)
+  [255, 370, 50, 95],
+  [305, 418, 160, 32],
+  [462, 392, 20, 70],
+  [545, 392, 18, 70],
+  [563, 418, 160, 32],
+  [722, 370, 48, 95],
+  // market wall, east and west sides
+  [264, 460, 26, 300],
+  [738, 460, 26, 300],
+  // market wall, south side: corner towers, wall runs and the pillars flanking the gate arch (the arch stays open)
+  [245, 755, 52, 135],
+  [297, 805, 125, 70],
+  [422, 755, 50, 135],
+  [470, 865, 12, 65],
+  [541, 865, 12, 65],
+  [553, 755, 50, 135],
+  [602, 805, 135, 70],
+  [730, 755, 55, 135],
+  // houses inside the market wall
+  [296, 432, 74, 110],
+  [411, 452, 64, 68],
+  [548, 452, 78, 70],
+  [661, 437, 72, 103],
+  [296, 598, 72, 102],
+  [662, 596, 74, 104],
+  [289, 716, 76, 98],
+  [662, 716, 78, 98],
+  // market stalls
+  [408, 526, 62, 58],
+  [562, 526, 62, 58],
+  [306, 552, 60, 50],
+  [662, 552, 60, 50],
+  [379, 612, 60, 58],
+  [585, 612, 59, 58],
+  [388, 686, 62, 58],
+  [573, 686, 62, 58],
+  // fountain
+  [462, 598, 98, 74],
+  // trees on the market square
+  [372, 440, 40, 58],
+  [632, 442, 40, 54],
+  [463, 700, 28, 30],
+  [533, 700, 28, 30],
+  [372, 765, 42, 34],
+  [608, 765, 42, 34],
+  // river, west bank: waterfall and cliff, then the channel in bands between the two bridges (decks stay open)
+  [95, 0, 140, 100],
+  [100, 100, 145, 100],
+  [128, 238, 34, 25],
+  [160, 245, 80, 25],
+  [155, 270, 90, 55],
+  [165, 325, 100, 118],
+  [158, 480, 100, 32],
+  [80, 528, 158, 82],
+  [160, 610, 42, 142],
+  [198, 562, 24, 140],
+  // west bank trees on the city side of the river, by the lower bridge's east end
+  [222, 610, 38, 32],
+  [240, 655, 24, 22],
+  // harbour: the west-bank house, cargo barrels, crane, the piers (solid wood), the boats, then the open bay
+  [86, 592, 72, 90],
+  [30, 678, 60, 42],
+  [100, 680, 52, 40],
+  [158, 622, 40, 18],
+  [20, 722, 180, 26],
+  [170, 690, 26, 145],
+  [50, 748, 112, 88],
+  [200, 752, 34, 62],
+  [0, 550, 38, 130],
+  [0, 760, 240, 120],
+  // river and cliffs south of the city, and the treeline and peaks along the bottom edge (the entry path stays open)
+  [0, 880, 468, 144],
+  [555, 885, 469, 139],
+  // river, east bank: down from the north moat, then the cliffs and bend south-east of the city
+  [765, 392, 40, 40],
+  [772, 432, 55, 40],
+  [784, 465, 70, 40],
+  [800, 505, 88, 60],
+  [829, 744, 135, 45],
+  [828, 790, 135, 110],
+  [800, 880, 125, 80],
+  // east bridge: parapets either side of the deck, and the cliff and river east of it
+  [884, 552, 14, 85],
+  [929, 552, 13, 85],
+  [938, 562, 86, 68],
+  // farmland: wheat fields and their fences, hay bales, the windmill, the east cottages
+  [814, 133, 112, 120],
+  [850, 92, 105, 42],
+  [925, 136, 60, 12],
+  [818, 252, 102, 28],
+  [925, 293, 99, 120],
+  [938, 196, 70, 68],
+  [830, 285, 72, 97],
+  [893, 402, 65, 62],
+  [962, 465, 62, 76],
+  [798, 612, 68, 78],
+  // trunks of the trees along the east bank of the city wall and around the south-east cottage
+  [772, 485, 20, 20],
+  [772, 570, 26, 20],
+  [822, 592, 24, 20],
+  [765, 640, 22, 35],
+  [772, 745, 40, 35],
+  [866, 742, 26, 24],
+  [908, 722, 24, 26],
+  [952, 655, 26, 22],
+  [995, 660, 26, 25],
+  // trees on the farmland's west edge, between the castle's east tower and the fields
+  [780, 160, 22, 18],
+  [775, 235, 30, 22],
+  [783, 310, 24, 18],
+  // mountains and tree borders: north-west, north-east, north edge, east edge, south-east
+  [0, 0, 95, 235],
+  [0, 190, 35, 110],
+  [0, 355, 40, 60],
+  [775, 0, 170, 95],
+  [940, 0, 84, 115],
+  [995, 100, 29, 90],
+  [995, 405, 29, 50],
+  [940, 735, 84, 230],
+  // west cottages, their trees, and the trees by the west bridge
+  [45, 242, 68, 85],
+  [98, 322, 70, 95],
+  [10, 418, 70, 85],
+  [118, 255, 45, 70],
+  [168, 360, 40, 60],
+  [120, 478, 38, 48],
+]);
+
+function buildHeartlands(): LandDefinition {
+  return {
+    id: "heartlands",
+    image: HEARTLANDS_IMAGE,
+    imageSize: HEARTLANDS_IMAGE_SIZE,
+    gates: [
+      // the south gate's archway: doors x ~487-537, y ~826-868, paved passage x ~483-540; the hero stands at their
+      // threshold, centred in the opening (512, 864 in painting px)
+      { id: "entry", x: 50, y: 84.4, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
+      { id: "boss", x: 51, y: 40, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+      { id: "exit", x: 51, y: 17, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+    ],
+    sprites: [],
+    obstacles: HEARTLANDS_OBSTACLES,
+  };
+}
+
+const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = {
+  forest: buildVerdantia(),
+  oasis: buildSolmara(),
+  sea: buildHeartlands(),
+};
 
 /** The land for a zone theme, or null when that zone's land hasn't been built yet. */
 export function getZoneLand(theme: ZoneTheme): LandDefinition | null {

@@ -21,10 +21,11 @@
 // The image fades in once it has loaded (the overlay with it). Ambient motion is CSS keyframes in gloria.css, which
 // the app's reduced-motion rules switch off (the ambient layer is hidden altogether then); sprites hold their
 // first frame under reduced motion.
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { Lang } from "../../types";
 import type { LandAmbience, LandDefinition, LandGate, LandGateId } from "./gloriaLands";
-import GloriaHeroSprite, { type HeroPoint } from "./GloriaHeroSprite";
+import GloriaHeroSprite, { footprintBlocked, type HeroGateZone } from "./GloriaHeroSprite";
+import { findInsideSpawn, findOutsideStart, isTriggerGate, type TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandSprites from "./GloriaLandSprites";
 import "./gloria.css";
 
@@ -37,6 +38,9 @@ interface Props {
   /** Makes the gates clickable. The locked exit stays clickable too (dimmed and still), so the caller can say why
    *  it won't open. */
   onGateClick?: (gate: LandGateId) => void;
+  /** The hero walked into the entry or exit gate's trigger zone (see gloriaGateTriggers). Called at once for a
+   *  locked exit, after the fade-out for an open one, and after the respawn inside the city for the entry. */
+  onGateReach?: (gate: TriggerGateId) => void;
   /** The exit gate is locked (dimmed, still ring) until the boss is beaten. */
   bossDefeated?: boolean;
 }
@@ -241,7 +245,7 @@ function AmbientLayer({ ambience, w, h, wheatFill }: { ambience: LandAmbience; w
   );
 }
 
-export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossDefeated = false }: Props) {
+export default function GloriaLandCanvas({ land, lang = "en", onGateClick, onGateReach, bossDefeated = false }: Props) {
   const { w, h } = land.imageSize;
   const imgRef = useRef<HTMLImageElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -318,9 +322,20 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
     if (!(e.target as Element).closest?.(".gz-ring")) setTip((t) => (t && t.open ? { ...t, open: false } : t));
   };
 
-  // The entry gate is the hero's spawn point; it starts standing there every time the land mounts.
-  const entryGate = land.gates.find((g) => g.id === "entry");
-  const heroStart: HeroPoint = { x: entryGate?.x ?? 50, y: entryGate?.y ?? 92 };
+  // The hero starts just outside the entry gate every time the land mounts; walking up to the gate carries it to
+  // the inside spawn (gloriaGateTriggers). The zones derive from the land's entry/exit gates, so every land that
+  // defines them gets the behaviour; the exit zone is locked until the boss is beaten.
+  const heroSetup = useMemo(() => {
+    const blocked = (p: { x: number; y: number }) => footprintBlocked(p.x, p.y, land.obstacles ?? [], w, h);
+    return { start: findOutsideStart(land, blocked), spawn: findInsideSpawn(land, blocked) };
+  }, [land, w, h]);
+  const heroGates = useMemo<HeroGateZone[]>(
+    () =>
+      land.gates
+        .filter((g): g is LandGate & { id: TriggerGateId } => isTriggerGate(g.id))
+        .map((g) => ({ id: g.id, x: g.x, y: g.y, locked: g.id === "exit" && !bossDefeated })),
+    [land, bossDefeated],
+  );
 
   // Tooltip position in container pixels: centred above its ring, or below it when the zone badge leaves no room.
   const tipRing = tip ? rings.find((r) => r.gate.id === tip.id) : undefined;
@@ -420,7 +435,16 @@ export default function GloriaLandCanvas({ land, lang = "en", onGateClick, bossD
 
       {view && (
         <GloriaLandSprites sprites={land.sprites ?? []} w={w} h={h} view={view}>
-          <GloriaHeroSprite key={land.id} start={heroStart} landWidth={w} landHeight={h} obstacles={land.obstacles} />
+          <GloriaHeroSprite
+            key={land.id}
+            start={heroSetup.start}
+            landWidth={w}
+            landHeight={h}
+            obstacles={land.obstacles}
+            gates={heroGates}
+            insideSpawn={heroSetup.spawn}
+            onGateReach={onGateReach}
+          />
         </GloriaLandSprites>
       )}
 
