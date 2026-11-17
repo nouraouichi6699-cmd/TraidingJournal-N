@@ -701,7 +701,9 @@ function buildHeartlands(): LandDefinition {
     image: HEARTLANDS_IMAGE,
     imageSize: HEARTLANDS_IMAGE_SIZE,
     gates: [
-      { id: "entry", x: 51, y: 95, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
+      // the south gate's archway: doors x ~487-537, y ~826-868, paved passage x ~483-540; the hero stands at their
+      // threshold, centred in the opening (512, 864 in painting px)
+      { id: "entry", x: 50, y: 84.4, label: { ar: "بوابة الدخول", en: "Entry Gate" } },
       { id: "boss", x: 51, y: 40, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
       { id: "exit", x: 51, y: 17, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
