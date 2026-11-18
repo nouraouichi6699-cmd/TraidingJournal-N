@@ -105,19 +105,19 @@ const INTRO: Record<HeroReason, Record<Lang, (c: IntroCtx) => string>> = {
     fr: (c) => `Vous n'avez clôturé que ${c.trades} trade${c.trades === 1 ? "" : "s"} pour l'instant. Moins de 5 trades, c'est trop peu pour lire un style : vous êtes donc ${c.name} pour le moment. Continuez : un mois plus fourni donnera une lecture plus précise.`,
   },
   elf: {
-    en: (c) => `Every one of your seven trader stats is above 70, and your win rate, drawdown and payoff ratio all clear the legendary bar. Rare air: the ${c.name}.`,
-    ar: (c) => `كل إحصاءاتك السبع فوق 70، ونسبة ربحك وتراجعك ونسبة العائد كلها تتخطى معيار الأسطورة. مستوى نادر: ${c.name}.`,
-    fr: (c) => `Vos sept stats de trader dépassent 70, et votre taux de réussite, votre drawdown et votre ratio gain/perte passent tous le seuil légendaire. Air rare : ${c.name}.`,
+    en: (c) => `Every one of your seven trader stats is above 70, and your win rate, drawdown and average R all clear the legendary bar. Rare air: the ${c.name}.`,
+    ar: (c) => `كل إحصاءاتك السبع فوق 70، ونسبة ربحك وتراجعك ومتوسط R كلها تتخطى معيار الأسطورة. مستوى نادر: ${c.name}.`,
+    fr: (c) => `Vos sept stats de trader dépassent 70, et votre taux de réussite, votre drawdown et votre R moyen passent tous le seuil légendaire. Air rare : ${c.name}.`,
   },
   savage: {
-    en: (c) => `That reading was rough: a low win rate, a deep drawdown and a weak payoff ratio together make you the ${c.name}. It is a starting point, not a verdict; each line below shows what to move.`,
-    ar: (c) => `كانت هذه القراءة صعبة: نسبة ربح منخفضة وتراجع عميق ونسبة عائد ضعيفة جعلتك ${c.name}. إنها نقطة بداية لا حكم نهائي؛ كل سطر أدناه يوضح ما يجب تحسينه.`,
-    fr: (c) => `Cette lecture était difficile : faible taux de réussite, drawdown profond et ratio gain/perte faible font de vous ${c.name}. C'est un point de départ, pas un verdict ; chaque ligne ci-dessous montre quoi faire bouger.`,
+    en: (c) => `That reading was rough: a low win rate, a deep drawdown and a negative average R together make you the ${c.name}. It is a starting point, not a verdict; each line below shows what to move.`,
+    ar: (c) => `كانت هذه القراءة صعبة: نسبة ربح منخفضة وتراجع عميق ومتوسط R سالب جعلتك ${c.name}. إنها نقطة بداية لا حكم نهائي؛ كل سطر أدناه يوضح ما يجب تحسينه.`,
+    fr: (c) => `Cette lecture était difficile : faible taux de réussite, drawdown profond et R moyen négatif font de vous ${c.name}. C'est un point de départ, pas un verdict ; chaque ligne ci-dessous montre quoi faire bouger.`,
   },
   rogue: {
-    en: (c) => `You are hovering around break-even: win rate, drawdown and payoff ratio all sit in the neutral band, with no clear edge yet. That is the ${c.name}.`,
-    ar: (c) => `أنت قرب نقطة التعادل: نسبة الربح والتراجع ونسبة العائد كلها في النطاق المحايد، بلا ميزة واضحة بعد. هذا هو ${c.name}.`,
-    fr: (c) => `Vous oscillez autour de l'équilibre : taux de réussite, drawdown et ratio gain/perte sont dans la bande neutre, sans avantage net. C'est ${c.name}.`,
+    en: (c) => `You are hovering around break-even: win rate, drawdown and average R all sit in the neutral band, with no clear edge yet. That is the ${c.name}.`,
+    ar: (c) => `أنت قرب نقطة التعادل: نسبة الربح والتراجع ومتوسط R كلها في النطاق المحايد، بلا ميزة واضحة بعد. هذا هو ${c.name}.`,
+    fr: (c) => `Vous oscillez autour de l'équilibre : taux de réussite, drawdown et R moyen sont dans la bande neutre, sans avantage net. C'est ${c.name}.`,
   },
   qualified: {
     en: (c) => `You met every requirement of the ${c.name}. When more than one hero qualifies, the best-fitting one is chosen.`,
@@ -139,7 +139,7 @@ export const METRIC_LABEL: Record<CriterionMetric, L> = {
   trades: { en: "Closed trades", ar: "الصفقات المغلقة", fr: "Trades clôturés" },
   winRate: { en: "Win rate", ar: "نسبة الربح", fr: "Taux de réussite" },
   drawdown: { en: "Max drawdown", ar: "أقصى تراجع", fr: "Drawdown max" },
-  rr: { en: "Payoff ratio (RR)", ar: "نسبة العائد (RR)", fr: "Ratio gain/perte (RR)" },
+  rr: { en: "Average R per trade", ar: "متوسط R للصفقة", fr: "R moyen par trade" },
   profitFactor: { en: "Profit factor", ar: "عامل الربح", fr: "Facteur de profit" },
   pairs: { en: "Different pairs", ar: "أزواج مختلفة", fr: "Paires différentes" },
   prevLoss: { en: "Came back from a losing month", ar: "تعافٍ من شهر خاسر", fr: "Remonté d'un mois perdant" },
@@ -170,7 +170,12 @@ export function fmtRequirement(k: Criterion, lang: Lang): string {
     case "gte": return `${ar ? AR_OP.gte : "≥"} ${fmtNum(k.value)}${u}`;
     case "lt": return `${ar ? AR_OP.lt : "<"} ${fmtNum(k.value)}${u}`;
     case "lte": return `${ar ? AR_OP.lte : "≤"} ${fmtNum(k.value)}${u}`;
-    case "between": return ar ? `بين ${fmtNum(k.value)} و ${fmtNum(k.hi ?? k.value)}${u}` : `${fmtNum(k.value)}–${fmtNum(k.hi ?? k.value)}${u}`;
+    case "between": {
+      const lo = fmtNum(k.value), hi = fmtNum(k.hi ?? k.value);
+      // a range that starts below zero ("-0.15 to 0.15") reads badly with an en dash next to a minus sign
+      if (k.value < 0) return ar ? `بين ${lo} و ${hi}${u}` : lang === "fr" ? `de ${lo} à ${hi}${u}` : `${lo} to ${hi}${u}`;
+      return ar ? `بين ${lo} و ${hi}${u}` : `${lo}–${hi}${u}`;
+    }
     case "flag": return "";
   }
 }
@@ -194,7 +199,7 @@ export const STAT_SHORT: Record<"trades" | "winRate" | "drawdown" | "rr" | "plan
   trades: { en: "trades", ar: "صفقة", fr: "trades" },
   winRate: { en: "win rate", ar: "نسبة الربح", fr: "réussite" },
   drawdown: { en: "drawdown", ar: "التراجع", fr: "drawdown" },
-  rr: { en: "RR", ar: "RR", fr: "RR" },
+  rr: { en: "avg R", ar: "متوسط R", fr: "R moyen" },
   plan: { en: "plan followed", ar: "الالتزام بالخطة", fr: "plan suivi" },
 };
 

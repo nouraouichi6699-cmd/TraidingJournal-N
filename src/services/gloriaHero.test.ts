@@ -53,25 +53,26 @@ eq(nextUpdateAt("2026-11-29T10:00:00Z", at("2026-11-29T12:00:00Z")).toISOString(
 eq(nextUpdateAt("2026-11-26T10:00:00Z", at("2026-11-27T00:00:00Z")).toISOString(), "2026-11-28T00:00:00.000Z", "Saturday Nov 28 comes before Dec 1");
 
 // -- 2. legacy equivalence --------------------------------------------------------------------------------------
-// Verbatim copy of determineCharacters + scorePositives as they were before the rules table existed.
+// Copy of determineCharacters + scorePositives as they were before the rules table existed (same structure and
+// tie-break maths), with the avgRR thresholds re-tuned from the old payoff-ratio scale to average R per trade.
 function legacyDetermine(s: GloriaMonthlyStats, radar: GloriaRadarStats) {
   if (s.totalTrades === 0) return null;
   if (s.totalTrades < 5) return { primary: "rogue" as GloriaCharacterId, secondary: null };
   const allAbove70 = Object.values(radar).every((v) => v > 70);
-  if (allAbove70 && s.winRate != null && s.winRate > 60 && s.maxDrawdown != null && s.maxDrawdown < 5 && s.avgRR != null && s.avgRR > 2.0) return { primary: "elf" as GloriaCharacterId, secondary: null };
-  if (s.winRate != null && s.winRate < 35 && s.maxDrawdown != null && s.maxDrawdown > 20 && s.avgRR != null && s.avgRR < 0.5) return { primary: "savage" as GloriaCharacterId, secondary: null };
-  if (s.winRate != null && s.winRate >= 40 && s.winRate <= 50 && s.maxDrawdown != null && s.maxDrawdown >= 10 && s.maxDrawdown <= 15 && s.avgRR != null && s.avgRR >= 0.8 && s.avgRR <= 1.2) return { primary: "rogue" as GloriaCharacterId, secondary: null };
+  if (allAbove70 && s.winRate != null && s.winRate > 60 && s.maxDrawdown != null && s.maxDrawdown < 5 && s.avgRR != null && s.avgRR > 0.7) return { primary: "elf" as GloriaCharacterId, secondary: null };
+  if (s.winRate != null && s.winRate < 35 && s.maxDrawdown != null && s.maxDrawdown > 20 && s.avgRR != null && s.avgRR < -0.2) return { primary: "savage" as GloriaCharacterId, secondary: null };
+  if (s.winRate != null && s.winRate >= 40 && s.winRate <= 50 && s.maxDrawdown != null && s.maxDrawdown >= 10 && s.maxDrawdown <= 15 && s.avgRR != null && s.avgRR >= -0.15 && s.avgRR <= 0.15) return { primary: "rogue" as GloriaCharacterId, secondary: null };
   const wr = s.winRate ?? 0, dd = s.maxDrawdown ?? 0, rr = s.avgRR ?? 0, pf = s.profitFactor ?? 0;
   const hasRR = s.avgRR != null;
   const pairBonus = Math.min(100, s.uniquePairsCount * 20);
   const fewTradesBonus = Math.max(0, 15 - s.totalTrades) * 2;
   const base = [
-    { id: "warrior", qualifies: s.totalTrades >= 20 && wr > 50 && hasRR && rr > 1.0 && dd < 15, score: radar.speed * 0.4 + radar.precision * 0.3 + radar.defense * 0.3 },
-    { id: "sniper", qualifies: s.totalTrades <= 15 && wr > 55 && hasRR && rr > 2.0 && dd < 10, score: radar.precision * 0.4 + radar.power * 0.4 + radar.defense * 0.2 + fewTradesBonus },
-    { id: "tank", qualifies: wr > 50 && dd < 5 && hasRR && rr > 1.0, score: radar.defense * 0.6 + radar.precision * 0.4 },
-    { id: "healer", qualifies: s.previousMonthWasLoss && wr > 55 && hasRR && rr > 1.5, score: radar.recovery * 0.6 + radar.precision * 0.4 },
-    { id: "mage", qualifies: pf > 2.5 && s.uniquePairsCount >= 4 && wr > 50 && hasRR && rr > 2.0, score: radar.intelligence * 0.4 + radar.wisdom * 0.3 + pairBonus * 0.3 },
-    { id: "assassin", qualifies: wr > 60 && hasRR && rr > 2.5 && dd < 8, score: radar.speed * 0.3 + radar.precision * 0.4 + radar.power * 0.3 },
+    { id: "warrior", qualifies: s.totalTrades >= 20 && wr > 50 && hasRR && rr > 0.1 && dd < 15, score: radar.speed * 0.4 + radar.precision * 0.3 + radar.defense * 0.3 },
+    { id: "sniper", qualifies: s.totalTrades <= 15 && wr > 55 && hasRR && rr > 0.4 && dd < 10, score: radar.precision * 0.4 + radar.power * 0.4 + radar.defense * 0.2 + fewTradesBonus },
+    { id: "tank", qualifies: wr > 50 && dd < 5 && hasRR && rr > 0.1, score: radar.defense * 0.6 + radar.precision * 0.4 },
+    { id: "healer", qualifies: s.previousMonthWasLoss && wr > 55 && hasRR && rr > 0.2, score: radar.recovery * 0.6 + radar.precision * 0.4 },
+    { id: "mage", qualifies: pf > 2.5 && s.uniquePairsCount >= 4 && wr > 50 && hasRR && rr > 0.3, score: radar.intelligence * 0.4 + radar.wisdom * 0.3 + pairBonus * 0.3 },
+    { id: "assassin", qualifies: wr > 60 && hasRR && rr > 0.5 && dd < 8, score: radar.speed * 0.3 + radar.precision * 0.4 + radar.power * 0.3 },
   ].map((c) => ({ ...c, score: c.score + (c.qualifies ? 1000 : 0) }));
   const ranked = base.sort((a, b) => b.score - a.score);
   return { primary: ranked[0].id as GloriaCharacterId, secondary: ranked[1].id as GloriaCharacterId };
@@ -94,7 +95,7 @@ for (let i = 0; i < 60000; i++) {
     totalTrades,
     winRate: totalTrades === 0 ? null : near([34.9, 35, 40, 50, 50.01, 55, 60, 60.01], 0, 100),
     maxDrawdown: totalTrades === 0 ? null : near([4.99, 5, 7.99, 8, 9.99, 10, 14.99, 15, 20, 20.01], 0, 40),
-    avgRR: rnd() < 0.1 ? null : near([0.49, 0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 2.01, 2.5, 2.51], 0, 4),
+    avgRR: rnd() < 0.1 ? null : near([-0.21, -0.2, -0.15, 0, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.51, 0.7, 0.71], -1, 1.2),
     profitFactor: rnd() < 0.05 ? null : near([2.5, 2.51], 0, 6),
     uniquePairsCount: Math.floor(rnd() * 8),
     hadRevengeTrades: rnd() < 0.5,
@@ -113,23 +114,59 @@ for (let i = 0; i < 60000; i++) {
 for (const id of Object.keys(CHARACTER_PATHS) as GloriaCharacterId[]) ok((counts[id] ?? 0) > 0, `sweep reaches ${id}: ${JSON.stringify(counts)}`);
 
 // -- 3. progress ------------------------------------------------------------------------------------------------
-const base: GloriaMonthlyStats = { month: "2026-11", totalTrades: 12, winRate: 62, maxDrawdown: 4, avgRR: 2.2, profitFactor: 2.8, uniquePairsCount: 3, hadRevengeTrades: false, followedPlanRate: 80, previousMonthWasLoss: false, netPnl: 500 };
+const base: GloriaMonthlyStats = { month: "2026-11", totalTrades: 12, winRate: 62, maxDrawdown: 4, avgRR: 0.55, profitFactor: 2.8, uniquePairsCount: 3, hadRevengeTrades: false, followedPlanRate: 80, previousMonthWasLoss: false, netPnl: 500 };
 const r0 = calculateRadarStats(base);
 const sniper = characterProgress("sniper", base, r0);
 ok(sniper.qualifies && sniper.percent === 100, "sniper profile -> 100%");
 
-const weak = { ...base, winRate: 30, maxDrawdown: 25, avgRR: 0.3 };
+const weak = { ...base, winRate: 30, maxDrawdown: 25, avgRR: -0.4 };
 const p = characterProgress("tank", weak, calculateRadarStats(weak));
 ok(!p.qualifies && p.percent < 100, "tank not reached with a weak month, percent < 100");
 const better = { ...weak, winRate: 45 };
 ok(characterProgress("tank", better, calculateRadarStats(better)).best.progress > p.best.progress, "improving win rate raises tank progress");
 const noRR = { ...base, avgRR: null };
-ok(characterProgress("sniper", noRR, calculateRadarStats(noRR)).best.results.find((r) => r.criterion.metric === "rr")?.progress === 0, "no payoff ratio yet -> RR criterion at 0");
+ok(characterProgress("sniper", noRR, calculateRadarStats(noRR)).best.results.find((r) => r.criterion.metric === "rr")?.progress === 0, "no average R yet (no stop-losses) -> RR criterion at 0");
 ok(characterProgress("warrior", { ...base, totalTrades: 25, winRate: 50 }, r0).percent < 100, "a strict bound exactly on the line is not 100%");
 // rogue has two paths: 3 trades satisfies the newcomer path
 const few = { ...base, totalTrades: 3 };
 ok(characterProgress("rogue", few, calculateRadarStats(few)).qualifies, "rogue newcomer path (1-4 trades) qualifies");
 ok(pickCharacter(few, calculateRadarStats(few))?.reason === "newcomer", "reason: newcomer");
 ok(pickCharacter({ ...base, totalTrades: 0 }, r0) === null, "no trades -> no pick (the service falls back to the starter)");
+
+// signed progress for average R: a losing month climbs from -1R toward a gate, monotonically, and stays < 1 until met
+{
+  const prog = (avgRR: number) => characterProgress("warrior", { ...base, totalTrades: 25, winRate: 60, maxDrawdown: 4, avgRR }, calculateRadarStats({ ...base, avgRR })).best.results.find((r) => r.criterion.metric === "rr")!;
+  const [a, b, c2, d] = [-0.8, -0.3, 0.05, 0.1].map(prog);
+  ok(a.progress < b.progress && b.progress < c2.progress, "average-R progress rises as the month improves, through negative values");
+  ok(!d.met && d.progress < 1, "avgR exactly on a strict '> 0.1' gate is not met");
+  ok(prog(0.11).met, "just above the gate is met");
+  ok(prog(-5).progress === 0, "a disastrous month reads 0 progress, never negative");
+  const ceil = (avgRR: number) => characterProgress("savage", { ...base, totalTrades: 25, winRate: 30, maxDrawdown: 25, avgRR }, calculateRadarStats({ ...base, avgRR })).best.results.find((r) => r.criterion.metric === "rr")!;
+  ok(ceil(-0.5).met && !ceil(-0.1).met && ceil(0.4).progress < ceil(-0.1).progress, "savage 'avgR < -0.2' ceiling: closer as the month worsens");
+}
+
+// calculateMonthlyStats: avgRR is the plain mean R over ALL closed trades with a valid R (wins and losses in one pool)
+{
+  const { calculateMonthlyStats } = await import("./gloriaCharacterService");
+  let n = 0;
+  // long trade entering at 100 with the stop at 99 (risk 1): exit price == entry + R
+  const tr = (r: number | null, day = 10): import("../types").Trade => ({
+    key: `k${n++}`, accountId: "a", no: n, symbol: "EURUSD", side: "long", qty: 1,
+    entryTime: `2026-11-${String(day).padStart(2, "0")}T08:00:00Z`, entryPrice: 100,
+    exitTime: `2026-11-${String(day).padStart(2, "0")}T09:00:00Z`, exitPrice: r == null ? 100 : 100 + r,
+    pnl: r == null ? 0 : r * 10, returnPct: null, commission: 0, sl: r == null ? null : 99, status: "closed",
+  });
+  const near2 = (x: number | null, y: number) => ok(x != null && Math.abs(x - y) < 1e-9, `avgRR ${x} should be ${y}`);
+  // the old payoff ratio for this set would be mean(wins)/|mean(losses)| = 3 / 0.1 = 30; the plain mean is tiny
+  const small = [3, 3, 3, -0.1, -0.1, -0.1].map((r) => tr(r));
+  near2(calculateMonthlyStats(small, "2026-11").avgRR, (9 - 0.3) / 6);
+  near2(calculateMonthlyStats([tr(2), tr(-1), tr(-1), tr(-1)], "2026-11").avgRR, -0.25);
+  near2(calculateMonthlyStats([tr(1), tr(null as unknown as number), tr(-0.5)], "2026-11").avgRR, 0.25);
+  // trades without a stop-loss have no R and are left out of the mean (not counted as 0)
+  near2(calculateMonthlyStats([{ ...tr(1), sl: null }, tr(0.5), tr(0.5)], "2026-11").avgRR, 0.5);
+  ok(calculateMonthlyStats([{ ...tr(1), sl: null }], "2026-11").avgRR === null, "no valid R at all -> null");
+  ok(calculateMonthlyStats([tr(1, 10)], "2026-10").avgRR === null, "other month's trades are not pooled in");
+  ok(calculateMonthlyStats([tr(1), tr(1)], "2026-11").avgRR === 1, "all winners: a real average, no longer null for lack of losses");
+}
 
 console.log(`gloriaHero.test: ${checks} checks passed`);
