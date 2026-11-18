@@ -52,11 +52,25 @@ const SAVAGE_SHEET: SpriteSheet = {
   },
 };
 
+/** The Rogue sheet (public/sprites/rogue/): north walk only so far, like Savage (other directions fall back to the
+ *  idle pose with the step bob). The walk frames are 60x60 rather than 64x64 and are drawn in a different (blue-cloak)
+ *  design than the dark-hooded idles -- both accepted as generated. GloriaSprite sizes frames by natural width and
+ *  centres them on the 48px core, so the 60px canvas needs no special handling. */
+const ROGUE_SHEET: SpriteSheet = {
+  idle: idleFrames("rogue"),
+  animations: {
+    walk: {
+      north: numbered("/sprites/rogue/walk-n", 8),
+    },
+  },
+};
+
 /** The player classes that have a hero sheet, keyed by GloriaCharacterId. A class with no sheet yet (and a player
  *  with no class at all) plays as the Warrior. */
 const HERO_SHEETS: Partial<Record<GloriaCharacterId, SpriteSheet>> = {
   warrior: WARRIOR_SHEET,
   savage: SAVAGE_SHEET,
+  rogue: ROGUE_SHEET,
 };
 
 interface HeroLook {
