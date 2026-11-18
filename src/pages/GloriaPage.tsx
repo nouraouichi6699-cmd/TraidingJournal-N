@@ -258,7 +258,7 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
 
         {scene === "land" && land && (
           <div className="absolute inset-0">
-            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} />
+            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} character={hero.character} />
           </div>
         )}
 
