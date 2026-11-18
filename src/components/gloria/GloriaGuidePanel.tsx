@@ -1,11 +1,16 @@
-// GLORIA_RPG: the land view's guide -- a codex panel that slides in from the land's end edge, opened by the
-// floating guide button (GloriaLandView). Three tabs: the current zone's challenges + boss, the game rules, and
-// the character roster. The land view owns the selected tab, so the boss gate can open the guide on Challenges. It floats over the land (absolute), above the land art but under the cloud curtain
-// (.gz-tc is z-30). Colours are explicit light-on-dark because game mode is always a dark screen.
-import { useId, useRef, type CSSProperties, type KeyboardEvent, type Ref } from "react";
+// GLORIA_RPG: the guide -- a FULL-SCREEN takeover of the game area (it used to be a side drawer), so the character
+// artwork gets room to breathe. Three tabs along the top: the hero roster and per-character pages, the zone's
+// challenges + boss, and the game rules. GloriaPage owns whether it is open and which tab / character it opens on
+// (the HUD's hero avatar opens it on that hero's page; the land's guide button and the boss gate open Challenges).
+// It covers the whole game screen (absolute, inside GloriaPage's fixed container) above the map/land and HUD but
+// under the hero reveal (z-60). Escape closes it (capture phase, so GloriaPage's own Escape handler does not also
+// leave the land), unless a poster viewer is open on top, which takes the Escape first. Colours are explicit
+// light-on-dark because game mode is always a dark screen.
+import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import { Lock, Skull, X } from "lucide-react";
 import type { Lang } from "../../types";
 import type { GloriaQuestStatus, GloriaRank } from "../../types/gloria";
+import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import { GLORIA_RANK_THRESHOLDS } from "../../types/gloria";
 import type { MapZone } from "./gloriaZones";
 import { Bar, STATUS_ICON, XpChip, zoneDetail } from "./gloriaChallengeUi";
@@ -15,7 +20,7 @@ import CharactersTab, { type GloriaHeroPanelData } from "./GloriaCharactersTab";
 type L = Record<Lang, string>;
 export type GuideTab = "challenges" | "rules" | "characters";
 type Tab = GuideTab;
-const TABS: Tab[] = ["challenges", "rules", "characters"];
+const TABS: Tab[] = ["characters", "challenges", "rules"];
 
 const TAB_TEXT: Record<Tab, L> = {
   challenges: { en: "Challenges", ar: "التحديات", fr: "Défis" },
@@ -90,23 +95,50 @@ const RANK_LADDER = (Object.entries(GLORIA_RANK_THRESHOLDS) as [GloriaRank, numb
 // ── Panel ────────────────────────────────────────────────────────────────────────────────────────────
 
 interface Props {
-  mz: MapZone;
+  /** The zone whose challenges the Challenges tab shows (null: none known yet). */
+  mz: MapZone | null;
   lang: Lang;
   onClose: () => void;
-  /** Lets the land view move focus into the panel when it opens. */
-  closeRef?: Ref<HTMLButtonElement>;
-  id?: string;
-  /** The selected tab (owned by the land view). */
+  /** The selected tab (owned by GloriaPage). */
   tab: GuideTab;
   onTabChange: (tab: GuideTab) => void;
   /** The persisted hero + live stats for the Characters tab. */
   heroData: GloriaHeroPanelData;
+  /** Open the Characters tab on this character's page instead of the roster. */
+  initialCharacter?: GloriaCharacterId | null;
 }
 
-export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id, tab, onTabChange: setTab, heroData }: Props) {
+/** Arrow keys the walking hero listens for on window; swallowed while the guide covers the land. */
+const HERO_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+export default function GloriaGuidePanel({ mz, lang, onClose, tab, onTabChange: setTab, heroData, initialCharacter }: Props) {
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ challenges: null, rules: null, characters: null });
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const baseId = useId();
   const rtl = lang === "ar";
+
+  // Focus moves into the guide on open and back to whatever opened it (the HUD avatar / the guide button) on close.
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (opener?.isConnected) opener.focus?.({ preventScroll: true });
+    };
+  }, []);
+
+  // Escape closes the guide. A poster viewer (data-gz-modal) opened from inside it handles its own Escape first.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector("[data-gz-modal]")) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onCloseRef.current();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   // Arrow keys move between tabs (the WAI-ARIA tabs pattern); arrows follow reading direction.
   const onTabKey = (e: KeyboardEvent<HTMLButtonElement>) => {
@@ -119,65 +151,82 @@ export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id, tab,
   };
 
   return (
-    <aside
-      id={id}
+    <div
+      role="dialog"
+      aria-modal="true"
       aria-label={TEXT.guide[lang]}
-      className="gz-guide absolute inset-y-0 end-0 z-20 flex w-full flex-col border-s border-amber-500/20 bg-gray-900/95 text-stone-100 shadow-2xl shadow-black/60 backdrop-blur-md md:w-[380px]"
-      style={{ "--gz-guide-from": rtl ? "-100%" : "100%" } as CSSProperties}
+      dir={rtl ? "rtl" : "ltr"}
+      // the hero walks on arrow keys (a window listener); keep them for scrolling / tabs while the guide is up
+      onKeyDown={(e) => {
+        if (HERO_KEYS.has(e.key)) e.stopPropagation();
+      }}
+      className="gz-guide-screen absolute inset-0 z-[55] flex flex-col bg-gray-950/[0.985] text-stone-100 backdrop-blur-md"
     >
-      {/* header + tabs */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/10 ps-2 pe-2">
-        <div role="tablist" aria-label={TEXT.guide[lang]} className="flex min-w-0 flex-1">
-          {TABS.map((k) => {
-            const active = tab === k;
-            return (
-              <button
-                key={k}
-                ref={(el) => {
-                  tabRefs.current[k] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`${baseId}-tab-${k}`}
-                aria-selected={active}
-                aria-controls={`${baseId}-panel-${k}`}
-                tabIndex={active ? 0 : -1}
-                onClick={() => setTab(k)}
-                onKeyDown={onTabKey}
-                className={`-mb-px truncate border-b-2 px-3 py-3 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-amber-400 ${
-                  active ? "border-amber-400 text-amber-300" : "border-transparent text-amber-200/50 hover:text-amber-200/80"
-                }`}
-              >
-                {TAB_TEXT[k][lang]}
-              </button>
-            );
-          })}
+      {/* tabs + close, aligned with the content column below */}
+      <div className="shrink-0 border-b border-amber-500/15 bg-black/30">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-2 sm:px-4">
+          <div role="tablist" aria-label={TEXT.guide[lang]} className="flex min-w-0 flex-1">
+            {TABS.map((k) => {
+              const active = tab === k;
+              return (
+                <button
+                  key={k}
+                  ref={(el) => {
+                    tabRefs.current[k] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`${baseId}-tab-${k}`}
+                  aria-selected={active}
+                  aria-controls={`${baseId}-panel-${k}`}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setTab(k)}
+                  onKeyDown={onTabKey}
+                  className={`-mb-px truncate border-b-2 px-3 py-3.5 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-amber-400 sm:px-5 ${
+                    active ? "border-amber-400 text-amber-300" : "border-transparent text-amber-200/50 hover:text-amber-200/80"
+                  }`}
+                >
+                  {TAB_TEXT[k][lang]}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label={TEXT.close[lang]}
+            title={`${TEXT.close[lang]} (Esc)`}
+            className="shrink-0 rounded-full p-2 text-amber-200/60 transition hover:bg-white/5 hover:text-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+          >
+            <X size={20} />
+          </button>
         </div>
-        <button
-          ref={closeRef}
-          type="button"
-          onClick={onClose}
-          aria-label={TEXT.close[lang]}
-          title={`${TEXT.close[lang]} (Esc)`}
-          className="shrink-0 rounded-full p-1.5 text-amber-200/60 transition hover:bg-white/5 hover:text-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
-        >
-          <X size={18} />
-        </button>
       </div>
 
-      {/* tab content; extra bottom padding on phones so the floating guide button never hides the last card */}
+      {/* tab content: one centred column; the scroll lives here so the tab bar stays put */}
       <div
         role="tabpanel"
         id={`${baseId}-panel-${tab}`}
         aria-labelledby={`${baseId}-tab-${tab}`}
         tabIndex={0}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-20 focus-visible:outline-none md:pb-6"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none"
       >
-        {tab === "challenges" && <ChallengesTab mz={mz} lang={lang} />}
-        {tab === "rules" && <RulesTab lang={lang} />}
-        {tab === "characters" && <CharactersTab lang={lang} data={heroData} />}
+        <div className="mx-auto w-full max-w-6xl p-4 pb-10 sm:p-6">
+          {tab === "challenges" && (
+            <div className="mx-auto max-w-2xl">
+              {mz ? <ChallengesTab mz={mz} lang={lang} /> : <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-stone-400">{gt(lang)("noChallenges")}</p>}
+            </div>
+          )}
+          {tab === "rules" && (
+            <div className="mx-auto max-w-2xl">
+              <RulesTab lang={lang} />
+            </div>
+          )}
+          {tab === "characters" && <CharactersTab lang={lang} data={heroData} initialCharacter={initialCharacter} />}
+        </div>
       </div>
-    </aside>
+    </div>
   );
 }
 

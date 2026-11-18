@@ -114,6 +114,9 @@ export default function GloriaCharacterDetail({ id, lang, hero, live, onBack }: 
         <ChevronLeft size={14} className="rtl:rotate-180" aria-hidden /> {t("back")}
       </button>
 
+      {/* two columns on a wide screen: the artwork + name (kept in view while the data scrolls) | the numbers */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-start lg:gap-6">
+      <div className="lg:sticky lg:top-0">
       {/* the full poster, text and all: this page is where the artwork is meant to be appreciated whole */}
       <GloriaPoster
         id={id}
@@ -153,7 +156,9 @@ export default function GloriaCharacterDetail({ id, lang, hero, live, onBack }: 
         <p className="mt-3 text-[13px] leading-relaxed text-stone-200/85">{CHARACTER_DESC[id][lang]}</p>
         {isStarter && <p className="mt-1.5 text-xs font-semibold text-amber-300/90">{t("starterNote")}</p>}
       </div>
+      </div>
 
+      <div className="lg:[&>section:first-child]:mt-0">
       {/* progress */}
       <section className="mt-3 rounded-xl border border-amber-500/15 bg-black/25 p-3.5" aria-label={unlocked ? t("matchNow") : t("progressUnlock")}>
         <div className="flex items-baseline justify-between gap-2">
@@ -242,6 +247,8 @@ export default function GloriaCharacterDetail({ id, lang, hero, live, onBack }: 
           ))}
         </dl>
       </section>
+      </div>
+      </div>
     </div>
   );
 }

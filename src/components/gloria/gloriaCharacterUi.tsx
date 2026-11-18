@@ -270,6 +270,7 @@ function PosterViewer({ id, label, closeLabel, filter, onClose }: { id: GloriaCh
       role="dialog"
       aria-modal="true"
       aria-label={label}
+      data-gz-modal
       className="gz-welcome-backdrop fixed inset-0 z-[130] flex cursor-zoom-out items-center justify-center bg-black/90 p-3 sm:p-6"
       onClick={onClose}
     >

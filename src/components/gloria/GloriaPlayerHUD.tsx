@@ -93,6 +93,8 @@ interface Props {
   character: GloriaCharacterId | null;
   /** True while the hero is the free starter. */
   isStarter?: boolean;
+  /** Click the hero: opens the full-screen guide on this hero's page. */
+  onOpenHero?: () => void;
   totalXp: number;
   rank: GloriaRank;
   elfMeter: number;
@@ -101,7 +103,7 @@ interface Props {
   onRefresh: () => void;
 }
 
-export default function GloriaPlayerHUD({ lang, character, isStarter, totalXp, rank, elfMeter, radar, evaluating, onRefresh }: Props) {
+export default function GloriaPlayerHUD({ lang, character, isStarter, onOpenHero, totalXp, rank, elfMeter, radar, evaluating, onRefresh }: Props) {
   const t = gt(lang);
   const info = character ? CHARACTER_INFO[character] : null;
   const tier = TIER_STYLE[info?.level ?? "none"];
@@ -117,7 +119,14 @@ export default function GloriaPlayerHUD({ lang, character, isStarter, totalXp, r
       <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
 
       {/* hero */}
-      <div className="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        onClick={onOpenHero}
+        disabled={!onOpenHero}
+        aria-label={`${info ? info.name[lang] : t("noHero")}: ${HERO_TEXT.openHero[lang]}`}
+        title={HERO_TEXT.openHero[lang]}
+        className="group -m-1 flex min-w-0 items-center gap-3 rounded-xl p-1 text-start transition enabled:cursor-pointer enabled:hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+      >
         <GloriaPortrait id={character} level={info?.level ?? null} size={56} glow={info?.level === "legendary"} />
         <div className="min-w-0">
           <div className="truncate font-heading text-base font-bold leading-tight text-text">{info ? info.name[lang] : t("noHero")}</div>
@@ -134,7 +143,7 @@ export default function GloriaPlayerHUD({ lang, character, isStarter, totalXp, r
             )}
           </div>
         </div>
-      </div>
+      </button>
 
       {/* rank + xp */}
       <div className="flex min-w-[220px] flex-1 items-center gap-3">

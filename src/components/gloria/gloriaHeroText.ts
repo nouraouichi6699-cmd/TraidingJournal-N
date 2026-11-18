@@ -9,6 +9,7 @@ import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 type L = Record<Lang, string>;
 
 export const HERO_TEXT = {
+  openHero: { en: "Open your hero's page", ar: "افتح صفحة بطلك", fr: "Ouvrir la page de votre héros" },
   yourHero: { en: "Your Hero", ar: "بطلك", fr: "Votre héros" },
   freeStarter: { en: "Free starter", ar: "بداية مجانية", fr: "Héros de départ" },
   currentHero: { en: "Current hero", ar: "البطل الحالي", fr: "Héros actuel" },

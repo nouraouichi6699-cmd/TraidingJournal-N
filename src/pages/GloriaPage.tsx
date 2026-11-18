@@ -19,6 +19,8 @@ import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats, mostRece
 import { getRank } from "../services/gloriaPlayerService";
 import GloriaPlayerHUD from "../components/gloria/GloriaPlayerHUD";
 import GloriaHeroReveal from "../components/gloria/GloriaHeroReveal";
+import GloriaGuidePanel, { type GuideTab } from "../components/gloria/GloriaGuidePanel";
+import type { GloriaCharacterId } from "../services/gloriaCharacterService";
 import GloriaMapView from "../components/gloria/GloriaMapView";
 import GloriaLandView from "../components/gloria/GloriaLandView";
 import GloriaCloudTransition, { prefersReducedMotion } from "../components/gloria/GloriaCloudTransition";
@@ -96,6 +98,15 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
 
   const land = activeLand != null ? mapZones.find((z) => z.visual.order === activeLand) ?? null : null;
   const prev = activeLand != null ? mapZones.find((z) => z.visual.order === activeLand - 1) ?? null : null;
+
+  // ── The full-screen guide ──
+  // Opened by the HUD's hero avatar (Characters, straight onto the hero's page), the land's guide button and its
+  // boss gate (Challenges). `character` only matters for the Characters tab's first render.
+  const [guide, setGuide] = useState<{ tab: GuideTab; character: GloriaCharacterId | null } | null>(null);
+  const openGuide = useCallback((tab: GuideTab, character: GloriaCharacterId | null = null) => setGuide({ tab, character }), []);
+  const closeGuide = useCallback(() => setGuide(null), []);
+  // Challenges shows the land you are standing in; from the world map, the zone you are working on (else the first).
+  const guideZone = land ?? mapZones.find((z) => z.state === "active") ?? mapZones[0] ?? null;
 
   const onOpenZone = useCallback(
     (mz: MapZone) => {
@@ -265,7 +276,7 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
 
         {scene === "land" && land && (
           <div className="absolute inset-0">
-            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} character={hero.character} heroData={heroData} />
+            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} character={hero.character} onOpenGuide={openGuide} />
           </div>
         )}
 
@@ -278,6 +289,7 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
           lang={lang}
           character={hero.loading && !hero.state.character ? null : hero.character}
           isStarter={hero.state.isStarter}
+          onOpenHero={() => openGuide("characters", hero.character)}
           totalXp={totalXp}
           rank={rank}
           elfMeter={live.elfMeter}
@@ -286,6 +298,19 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
           onRefresh={refresh}
         />
       </div>
+
+      {/* the guide: a full-screen takeover above the map/land and HUD, under the reveal */}
+      {guide && (
+        <GloriaGuidePanel
+          mz={guideZone}
+          lang={lang}
+          onClose={closeGuide}
+          tab={guide.tab}
+          onTabChange={(tab) => setGuide((g) => (g ? { ...g, tab } : g))}
+          heroData={heroData}
+          initialCharacter={guide.character}
+        />
+      )}
 
       {/* the reveal, over everything, the next time Gloria opens after a scheduled update changed the hero */}
       {hero.revealPending && hero.state.character && (

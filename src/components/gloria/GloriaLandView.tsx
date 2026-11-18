@@ -3,7 +3,8 @@
 // GloriaLandCanvas from the zone's LandDefinition (gloriaLands). Zones without a land yet show a "Coming soon"
 // placeholder in their colour. The land fills the area edge to edge; all chrome floats over it: zone name
 // (top-centre), exit (top-end), the circular mini-map (bottom-start) that travels back to the world map, and the
-// guide button (bottom-end) that slides in GloriaGuidePanel -- the zone's challenges, the rules and the roster.
+// guide button (bottom-end) that asks GloriaPage to open the full-screen guide (GloriaGuidePanel) -- the zone's
+// challenges, the rules and the roster.
 //
 // The land's gates are wired to the game: clicking the entry gate opens GloriaWelcomeModal (the zone's flavour
 // text), the boss gate opens the guide on its Challenges tab, and the exit gate travels back to the world map once
@@ -15,10 +16,10 @@
 // -- walking into it or clicking it swaps the land to that scene (getLandScene), where the hero starts at the scene's
 // own `start`. The scene is view state, keyed to the zone so travelling away and back reopens the first scene.
 //
-// Escape closes the welcome card, then the guide: while either is open a capture-phase listener swallows the key,
-// so GloriaPage's own Escape handler (land → world map → exit) only runs once both are closed. Colours are explicit
-// light-on-dark (not theme tokens) because game mode is always a dark screen.
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+// Escape closes the welcome card first: while it is open a capture-phase listener swallows the key, so GloriaPage's
+// own Escape handler (land → world map → exit) only runs once it is closed. Colours are explicit light-on-dark (not
+// theme tokens) because game mode is always a dark screen.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, X } from "lucide-react";
 import type { Lang } from "../../types";
 import { ZONE_ICON, type MapZone } from "./gloriaZones";
@@ -27,8 +28,7 @@ import type { TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandCanvas from "./GloriaLandCanvas";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import GloriaMiniMap from "./GloriaMiniMap";
-import GloriaGuidePanel, { type GuideTab } from "./GloriaGuidePanel";
-import type { GloriaHeroPanelData } from "./GloriaCharactersTab";
+import type { GuideTab } from "./GloriaGuidePanel";
 import GloriaWelcomeModal from "./GloriaWelcomeModal";
 import GloriaToast from "./GloriaToast";
 import "./gloria.css";
@@ -50,11 +50,11 @@ interface Props {
   className?: string;
   /** The player's class, which picks the hero sprite. */
   character?: GloriaCharacterId | null;
-  /** The persisted hero and live stats shown in the guide's Characters tab. */
-  heroData: GloriaHeroPanelData;
+  /** Opens the full-screen guide (owned by GloriaPage) on the given tab. */
+  onOpenGuide: (tab: GuideTab) => void;
 }
 
-export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "", character, heroData }: Props) {
+export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "", character, onOpenGuide }: Props) {
   const { visual } = mz;
   const baseLand = getZoneLand(visual.theme);
   // The active scene, remembered with the zone it belongs to: another zone (or coming back) always starts on the
@@ -64,18 +64,12 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
   const land = baseLand ? getLandScene(baseLand, sceneId) : null;
   const icon = ZONE_ICON[visual.theme];
   const worldMapRef = useRef<HTMLButtonElement>(null);
-  const guideBtnRef = useRef<HTMLButtonElement>(null);
-  const guideCloseRef = useRef<HTMLButtonElement>(null);
-  const guideId = useId();
-  const [guideOpen, setGuideOpen] = useState(false);
-  const [guideTab, setGuideTab] = useState<GuideTab>("challenges");
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   // A fresh id per toast restarts it when the same gate is clicked again while it is still showing.
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
 
-  // Arriving in a land: focus the way back (the mini-map), with the guide, welcome card and toast closed.
+  // Arriving in a land: focus the way back (the mini-map), with the welcome card and toast closed.
   useEffect(() => {
-    setGuideOpen(false);
     setWelcomeOpen(false);
     setToast(null);
     worldMapRef.current?.focus({ preventScroll: true });
@@ -91,19 +85,14 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
 
   const enterScene = useCallback((id: LandSceneId) => setScene({ order: visual.order, id }), [visual.order]);
 
-  const openGuide = useCallback((tab: GuideTab) => {
-    setGuideTab(tab);
-    setGuideOpen(true);
-  }, []);
-
   const onGateClick = useCallback(
     (gate: LandGateId) => {
       if (gate === "entry") setWelcomeOpen(true);
-      else if (gate === "boss") openGuide("challenges");
+      else if (gate === "boss") onOpenGuide("challenges");
       else if (mz.bossDefeated) onWorldMap();
       else setToast((t) => ({ id: (t?.id ?? 0) + 1, message: BOSS_FIRST_TEXT[lang] }));
     },
-    [mz.bossDefeated, onWorldMap, openGuide, lang],
+    [mz.bossDefeated, onWorldMap, onOpenGuide, lang],
   );
 
   // The hero walked into a trigger zone (the canvas has already faded it out where that applies). Reaching the exit
@@ -115,31 +104,6 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
     },
     [onGateClick],
   );
-
-  const closeGuide = useCallback(() => {
-    setGuideOpen(false);
-    guideBtnRef.current?.focus({ preventScroll: true });
-  }, []);
-
-  // Opening the guide moves focus into it.
-  useEffect(() => {
-    if (guideOpen) guideCloseRef.current?.focus({ preventScroll: true });
-  }, [guideOpen]);
-
-  // Escape closes the guide before anything else. Capture phase on window runs ahead of GloriaPage's bubble-phase
-  // window listener, and stopImmediatePropagation keeps that one from also leaving the land.
-  // The welcome card has its own listener and comes first.
-  useEffect(() => {
-    if (!guideOpen || welcomeOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      closeGuide();
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [guideOpen, welcomeOpen, closeGuide]);
 
   return (
     <section aria-label={visual.name[lang]} className={`gz-land relative h-full overflow-hidden text-stone-100 ${className}`}>
@@ -171,31 +135,13 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
 
       <GloriaMiniMap ref={worldMapRef} mz={mz} lang={lang} onWorldMap={onWorldMap} />
 
-      {guideOpen && (
-        <GloriaGuidePanel
-          id={guideId}
-          mz={mz}
-          lang={lang}
-          onClose={closeGuide}
-          closeRef={guideCloseRef}
-          tab={guideTab}
-          onTabChange={setGuideTab}
-          heroData={heroData}
-        />
-      )}
-
-      {/* guide button: bottom-end, mirroring the mini-map. Sits above the panel; on wide screens it steps aside to
-          the panel's edge so it never covers the panel's content. */}
+      {/* guide button: bottom-end, mirroring the mini-map. Opens the full-screen guide on its Challenges tab. */}
       <button
-        ref={guideBtnRef}
         type="button"
-        onClick={() => (guideOpen ? closeGuide() : openGuide("challenges"))}
+        onClick={() => onOpenGuide("challenges")}
         aria-label={GUIDE_TEXT[lang]}
-        aria-expanded={guideOpen}
-        aria-controls={guideOpen ? guideId : undefined}
-        className={`gz-guide-btn group absolute bottom-4 end-4 z-[25] flex h-11 w-11 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-900/80 text-amber-200 shadow-lg shadow-black/50 backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:border-amber-400/60 hover:bg-amber-800/90 focus-visible:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 md:h-[52px] md:w-[52px] ${
-          guideOpen ? "border-amber-400/60 bg-amber-800/90 md:end-[396px]" : ""
-        }`}
+        aria-haspopup="dialog"
+        className="gz-guide-btn group absolute bottom-4 end-4 z-[25] flex h-11 w-11 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-900/80 text-amber-200 shadow-lg shadow-black/50 backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:border-amber-400/60 hover:bg-amber-800/90 focus-visible:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 md:h-[52px] md:w-[52px]"
       >
         <BookOpen className="h-5 w-5 md:h-6 md:w-6" aria-hidden />
         <span
