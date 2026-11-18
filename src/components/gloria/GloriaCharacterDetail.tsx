@@ -12,7 +12,7 @@ import { characterProgress, STARTER_CHARACTER, type CriterionResult } from "../.
 import type { GloriaCharacterId, GloriaMonthlyStats } from "../../services/gloriaCharacterService";
 import { nextUpdateAt } from "../../services/gloriaHeroSchedule";
 import type { GloriaHero } from "../../hooks/useGloriaHero";
-import { CHARACTER_DESC, CHARACTER_FOCUS, GloriaPortrait, TIER_STYLE } from "./gloriaCharacterUi";
+import { CHARACTER_DESC, CHARACTER_FOCUS, GloriaPoster, TIER_STYLE } from "./gloriaCharacterUi";
 import { fmtDate, fmtRequirement, fmtValue, heroT, METRIC_LABEL } from "./gloriaHeroText";
 import { CHARACTER_INFO, LEVEL_TEXT, STAT_TEXT } from "./gloriaText";
 
@@ -114,30 +114,40 @@ export default function GloriaCharacterDetail({ id, lang, hero, live, onBack }: 
         <ChevronLeft size={14} className="rtl:rotate-180" aria-hidden /> {t("back")}
       </button>
 
+      {/* the full poster, text and all: this page is where the artwork is meant to be appreciated whole */}
+      <GloriaPoster
+        id={id}
+        label={`${name[lang]}, ${LEVEL_TEXT[level][lang]}`}
+        locked={!unlocked}
+        enlargeLabel={t("enlarge")}
+        closeLabel={t("close")}
+        lockedLabel={t("locked")}
+        tierRing={tier.ring}
+      />
+
       {/* identity */}
       <div
-        className="relative overflow-hidden rounded-2xl border border-white/10 p-4"
+        className="relative mt-3 overflow-hidden rounded-2xl border border-white/10 p-4"
         style={{ background: `radial-gradient(120% 100% at 0% 0%, ${tier.ring}${unlocked ? "26" : "12"}, rgba(12,10,9,0.9) 65%)`, borderInlineStartColor: tier.ring, borderInlineStartWidth: 3 }}
       >
-        <div className="flex items-center gap-4">
-          <GloriaPortrait id={id} level={level} size={88} locked={!unlocked} glow={isCurrent} />
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
             <h3 className="font-heading text-xl font-bold leading-tight text-stone-50">{name[lang]}</h3>
             {lang !== "en" ? (
               <div className="text-xs text-stone-400">{name.en}</div>
             ) : (
               <div className="text-xs text-stone-400" lang="ar">{name.ar}</div>
             )}
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${tier.badge}`}>{LEVEL_TEXT[level][lang]}</span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
-                  isCurrent ? "bg-amber-400/15 text-amber-300 ring-amber-400/50" : unlocked ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40" : "bg-stone-500/15 text-stone-400 ring-stone-500/40"
-                }`}
-              >
-                {isCurrent ? t("currentHero") : unlocked ? t("unlocked") : t("locked")}
-              </span>
-            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${tier.badge}`}>{LEVEL_TEXT[level][lang]}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                isCurrent ? "bg-amber-400/15 text-amber-300 ring-amber-400/50" : unlocked ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40" : "bg-stone-500/15 text-stone-400 ring-stone-500/40"
+              }`}
+            >
+              {isCurrent ? t("currentHero") : unlocked ? t("unlocked") : t("locked")}
+            </span>
           </div>
         </div>
         <p className="mt-3 text-[13px] leading-relaxed text-stone-200/85">{CHARACTER_DESC[id][lang]}</p>

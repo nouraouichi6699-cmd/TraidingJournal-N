@@ -46,6 +46,8 @@ export const HERO_TEXT = {
   unlocked: { en: "Unlocked", ar: "مفتوحة", fr: "Débloqué" },
   toUnlock: { en: "To unlock", ar: "لفتحها", fr: "Pour débloquer" },
   back: { en: "All characters", ar: "كل الشخصيات", fr: "Tous les personnages" },
+  enlarge: { en: "Tap to view the full poster", ar: "انقر لعرض الملصق كاملاً", fr: "Touchez pour voir l'affiche en entier" },
+  close: { en: "Close", ar: "إغلاق", fr: "Fermer" },
   details: { en: "View details", ar: "عرض التفاصيل", fr: "Voir les détails" },
 
   // detail
