@@ -27,6 +27,7 @@ import type { LandAmbience, LandDefinition, LandGate, LandGateId, LandSceneId } 
 import GloriaHeroSprite, { footprintBlocked, type HeroGateZone } from "./GloriaHeroSprite";
 import { findInsideSpawn, findOutsideStart, isTriggerGate, type TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandSprites from "./GloriaLandSprites";
+import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import "./gloria.css";
 
 interface Props {
@@ -48,6 +49,8 @@ interface Props {
   arrived?: boolean;
   /** The exit gate is locked (dimmed, still ring) until the boss is beaten. */
   bossDefeated?: boolean;
+  /** The player's class, which picks the hero sprite (see GloriaHeroSprite). */
+  character?: GloriaCharacterId | null;
 }
 
 /** Ring colour and size (rx/ry in the 1000-unit marker space; ry squashes the ring flat onto the ground). */
@@ -251,7 +254,7 @@ function AmbientLayer({ ambience, w, h, wheatFill }: { ambience: LandAmbience; w
 }
 
 export default function GloriaLandCanvas({
-  land, lang = "en", onGateClick, onGateReach, onSceneChange, arrived = false, bossDefeated = false,
+  land, lang = "en", onGateClick, onGateReach, onSceneChange, arrived = false, bossDefeated = false, character,
 }: Props) {
   const { w, h } = land.imageSize;
   const imgRef = useRef<HTMLImageElement>(null);
@@ -456,6 +459,7 @@ export default function GloriaLandCanvas({
         <GloriaLandSprites sprites={land.sprites ?? []} w={w} h={h} view={view}>
           <GloriaHeroSprite
             key={`${land.id}:${land.image}`}
+            character={character}
             start={heroSetup.start}
             landWidth={w}
             landHeight={h}

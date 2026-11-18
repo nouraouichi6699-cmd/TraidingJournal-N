@@ -17,7 +17,8 @@
 import { useEffect, useRef, useState } from "react";
 import GloriaSprite, { preloadSpriteFrames } from "./GloriaSprite";
 import { prefersReducedMotion } from "./GloriaCloudTransition";
-import { facingOf, idleFrames, numbered, planWalkTable, type SpriteSheet } from "./GloriaLandSprites";
+import { facingOf, idleFrames, numbered, planWalkTable, type PatrolPlan, type SpriteSheet } from "./GloriaLandSprites";
+import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import type { LandObstacle, LandSceneId, SceneTransition, SpriteDirection } from "./gloriaLands";
 import { GATE_REARM_FACTOR, inGateZone, type TriggerGateId } from "./gloriaGateTriggers";
 
@@ -27,7 +28,7 @@ import { GATE_REARM_FACTOR, inGateZone, type TriggerGateId } from "./gloriaGateT
  *  scale, just on a larger canvas (8px of air each side of the 48px core): GloriaSprite centres every frame on the
  *  same 48px core box (coreSize below), so idle and walk neither change size nor shift when the hero starts or
  *  stops. Don't give the walk frames their own coreSize. */
-const HERO_SHEET: SpriteSheet = {
+const WARRIOR_SHEET: SpriteSheet = {
   idle: idleFrames("warrior"),
   animations: {
     walk: {
@@ -37,12 +38,50 @@ const HERO_SHEET: SpriteSheet = {
     },
   },
 };
-// one table covers both looks per facing: `.idle` doesn't depend on the animation key, only `.walk` does
-const HERO_PLAN = planWalkTable(HERO_SHEET, "walk");
-const HERO_ALL_FRAMES = [
-  ...Object.values(HERO_SHEET.idle),
-  ...Object.values(HERO_SHEET.animations.walk ?? {}).flatMap((f) => f ?? []),
-];
+
+/** The Savage sheet (public/sprites/savage/): same layout and sizes as Warrior's, but only the north walk exists so
+ *  far. Every other walk direction is simply absent, and planWalkTable then gives it no `walk`, so the hero shows
+ *  that facing's idle pose with the step bob (see the render below) rather than a blank or a crash. Add
+ *  `south` / `west` entries here as those frames are generated; east mirrors west automatically. */
+const SAVAGE_SHEET: SpriteSheet = {
+  idle: idleFrames("savage"),
+  animations: {
+    walk: {
+      north: numbered("/sprites/savage/walk-n", 8),
+    },
+  },
+};
+
+/** The player classes that have a hero sheet, keyed by GloriaCharacterId. A class with no sheet yet (and a player
+ *  with no class at all) plays as the Warrior. */
+const HERO_SHEETS: Partial<Record<GloriaCharacterId, SpriteSheet>> = {
+  warrior: WARRIOR_SHEET,
+  savage: SAVAGE_SHEET,
+};
+
+interface HeroLook {
+  /** one table covers both looks per facing: `.idle` doesn't depend on the animation key, only `.walk` does */
+  plan: PatrolPlan | null;
+  allFrames: string[];
+}
+
+function buildLook(sheet: SpriteSheet): HeroLook {
+  return {
+    plan: planWalkTable(sheet, "walk"),
+    allFrames: [
+      ...Object.values(sheet.idle),
+      ...Object.values(sheet.animations.walk ?? {}).flatMap((f) => f ?? []),
+    ],
+  };
+}
+
+const HERO_LOOKS: Partial<Record<GloriaCharacterId, HeroLook>> = Object.fromEntries(
+  Object.entries(HERO_SHEETS).map(([id, sheet]) => [id, buildLook(sheet)]),
+);
+const DEFAULT_HERO_LOOK = buildLook(WARRIOR_SHEET);
+
+const heroLookFor = (character?: GloriaCharacterId | null): HeroLook =>
+  (character && HERO_LOOKS[character]) || DEFAULT_HERO_LOOK;
 
 const HERO_SPEED = 90; // painting px/sec -- the player's primary control, so it should feel brisk and immediate
 const HERO_SCALE = 1.2; // ~1.3x the guard/farmer's own 0.9-1.2 scale -- noticeably the lead character, not oversized
@@ -143,6 +182,8 @@ interface Props {
   onSceneChange?: (scene: LandSceneId) => void;
   /** The hero fades in on mount: it has just arrived from another scene. */
   arrive?: boolean;
+  /** The player's class, picking the hero's sheet; unset or a class without a sheet yet plays as the Warrior. */
+  character?: GloriaCharacterId | null;
 }
 
 const NO_OBSTACLES: readonly LandObstacle[] = [];
@@ -150,8 +191,9 @@ const NO_GATES: readonly HeroGateZone[] = [];
 
 export default function GloriaHeroSprite({
   start, landWidth, landHeight, obstacles = NO_OBSTACLES, gates = NO_GATES, insideSpawn, onGateReach, onSceneChange,
-  arrive = false,
+  arrive = false, character,
 }: Props) {
+  const heroLook = heroLookFor(character);
   const live = useRef<LiveHero>({ x: start.x, y: start.y, facing: "north" });
   const [frame, setFrame] = useState<HeroFrame>({ ...live.current, moving: false, now: 0 });
   const [fade, setFade] = useState<{ opacity: number; ms: number }>({ opacity: arrive ? 0 : 1, ms: 0 });
@@ -161,8 +203,8 @@ export default function GloriaHeroSprite({
   gateProps.current = { gates, insideSpawn, onGateReach, onSceneChange };
 
   useEffect(() => {
-    void preloadSpriteFrames(HERO_ALL_FRAMES);
-  }, []);
+    void preloadSpriteFrames(heroLook.allFrames);
+  }, [heroLook]);
 
   // Arriving from another scene: appear with a fade instead of popping in.
   useEffect(() => {
@@ -320,7 +362,7 @@ export default function GloriaHeroSprite({
     };
   }, [landWidth, landHeight, obstacles]);
 
-  const look = HERO_PLAN?.[frame.facing];
+  const look = heroLook.plan?.[frame.facing];
   if (!look) return null;
 
   if (frame.moving && look.walk) {

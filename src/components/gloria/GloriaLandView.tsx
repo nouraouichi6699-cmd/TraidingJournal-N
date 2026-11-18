@@ -25,6 +25,7 @@ import { ZONE_ICON, type MapZone } from "./gloriaZones";
 import { getLandScene, getZoneLand, type LandGateId, type LandSceneId } from "./gloriaLands";
 import type { TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandCanvas from "./GloriaLandCanvas";
+import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import GloriaMiniMap from "./GloriaMiniMap";
 import GloriaGuidePanel, { type GuideTab } from "./GloriaGuidePanel";
 import GloriaWelcomeModal from "./GloriaWelcomeModal";
@@ -46,9 +47,11 @@ interface Props {
   /** Leave game mode entirely. */
   onExitGame?: () => void;
   className?: string;
+  /** The player's class, which picks the hero sprite. */
+  character?: GloriaCharacterId | null;
 }
 
-export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "" }: Props) {
+export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "", character }: Props) {
   const { visual } = mz;
   const baseLand = getZoneLand(visual.theme);
   // The active scene, remembered with the zone it belongs to: another zone (or coming back) always starts on the
@@ -147,6 +150,7 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
             onSceneChange={enterScene}
             arrived={!!sceneId}
             bossDefeated={mz.bossDefeated}
+            character={character}
           />
         </div>
       ) : (
