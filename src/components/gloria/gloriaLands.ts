@@ -59,6 +59,9 @@ export interface LandGate {
 
 export type LandSceneId = string;
 
+/** The id a portal uses to lead back to a land's first scene (the land's own fields, not an entry in `scenes`). */
+export const FIRST_SCENE_ID: LandSceneId = "exterior";
+
 /** Where a scene portal leads: the id of one of the land's extra `scenes`. */
 export interface SceneTransition {
   scene: LandSceneId;
@@ -823,8 +826,9 @@ function buildAurelia(): LandDefinition {
     // the hero starts at the foot of the paved approach, below the temple steps
     start: { x: 50, y: 90 },
     gates: [
-      // the temple's dark doorway (the only gate here): reaching it carries the hero into the interior
-      { id: "entry", x: 50, y: 50, label: { ar: "مدخل المعبد", en: "Temple Entrance" }, to: { scene: "interior" } },
+      // the temple's doorway (the only gate here): reaching it carries the hero into the interior. The trigger sits on
+      // the paved ground in front of the steps (painting y ~632, steps end ~600, door opening ~340-520), never on the door.
+      { id: "entry", x: 50, y: 76, label: { ar: "مدخل المعبد", en: "Temple Entrance" }, to: { scene: "interior" } },
     ],
     sprites: [],
     scenes: {
@@ -834,8 +838,9 @@ function buildAurelia(): LandDefinition {
         // the bottom of the central corridor, where the hero arrives from the exterior
         start: { x: 50, y: 95 },
         gates: [
-          // spawn point only: the hero is already inside, so walking back over it does nothing
-          { id: "entry", x: 50, y: 95, label: { ar: "بوابة الدخول", en: "Entry Gate" }, spawnOnly: true },
+          // where the hero arrives, and the way back: walking onto it again (after leaving its zone) fades the hero
+          // out to the exterior, in front of the same temple door
+          { id: "entry", x: 50, y: 95, label: { ar: "بوابة الدخول", en: "Entry Gate" }, to: { scene: FIRST_SCENE_ID } },
           // open floor just below the dais steps
           { id: "boss", x: 50, y: 30, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
           // at the pharaoh's feet: the throne's solid box ends at y 208, so the hero can stand right below it
@@ -906,19 +911,22 @@ function buildDrakemar(): LandDefinition {
     // the hero starts on the causeway at the foot of the island
     start: { x: 50, y: 90 },
     gates: [
-      // the fort's main gate (the only gate here): reaching it carries the hero into the training yard
-      { id: "entry", x: 50, y: 22, label: { ar: "بوابة الحصن", en: "Fort Gate" }, to: { scene: "interior" } },
+      // the fort's main gate, the double door in the lower wall (the only gate here): reaching it carries the hero into
+      // the training yard. The trigger sits on the path in front of it (painting y ~487; the door's base is ~452), not on it.
+      { id: "entry", x: 50.5, y: 58.5, label: { ar: "بوابة الحصن", en: "Fort Gate" }, to: { scene: "interior" } },
     ],
     sprites: [],
     scenes: {
       interior: {
         image: DRAKEMAR_INTERIOR_IMAGE,
         imageSize: DRAKEMAR_INTERIOR_SIZE,
-        // the open double gate at the bottom of the yard, where the hero arrives from the exterior
-        start: { x: 50, y: 89 },
+        // the yard floor just inside the open double gate (painting y ~649; the gate pillars and leaves start at ~690),
+        // where the hero arrives from the exterior
+        start: { x: 50, y: 78 },
         gates: [
-          // spawn point only: the hero is already inside, so walking back over it does nothing
-          { id: "entry", x: 50, y: 89, label: { ar: "بوابة الدخول", en: "Entry Gate" }, spawnOnly: true },
+          // where the hero arrives, and the way back: walking onto it again (after leaving its zone) fades the hero
+          // out to the exterior, in front of the same fort gate
+          { id: "entry", x: 50, y: 78, label: { ar: "بوابة الدخول", en: "Entry Gate" }, to: { scene: FIRST_SCENE_ID } },
           // open yard floor just below the steps up to the stage
           { id: "boss", x: 50, y: 28, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
           // on the sparring stage, up the steps: a dead end, with no separate exit door painted

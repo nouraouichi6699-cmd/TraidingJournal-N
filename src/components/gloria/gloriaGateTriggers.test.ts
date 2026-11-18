@@ -6,7 +6,7 @@
 // the entry zone is reachable from the start, and the exit zone from the inside spawn. Multi-scene lands (Aurelia)
 // are checked scene by scene: a portal gate must be reachable and lead to a real scene whose start is free, and a
 // scene entered through a portal starts at its own `start` and must reach its boss and exit from there.
-import { getLandScene, getZoneLand, type LandDefinition } from "./gloriaLands";
+import { FIRST_SCENE_ID, getLandScene, getZoneLand, type LandDefinition } from "./gloriaLands";
 import type { ZoneTheme } from "./gloriaZones";
 import { footprintBlocked, stepHero } from "./GloriaHeroSprite";
 import { findInsideSpawn, findOutsideStart, GATE_REARM_FACTOR, gateRadiusPx, inGateZone, isTriggerGate, type Pt } from "./gloriaGateTriggers";
@@ -109,22 +109,47 @@ for (const { base, land, sceneId } of SCENES) {
   if (boss && !respawnEntry) check(walksInto(from, boss), `${tag}: the boss marker is reachable on foot from the start`);
   if (exit) check(walksInto(from, exit), `${tag}: the exit zone is reachable on foot`);
 
-  // a portal leads to a real scene, is reachable from the start, and lands the hero on open ground
+  // a portal leads to a real scene, is reachable from the start, and lands the hero on open ground at the target's
+  // own entry gate (the hero arrives disarmed on it, so it can't flicker back)
   if (entry.to) {
-    const target = base.scenes?.[entry.to.scene];
-    check(!!target, `${tag}: portal leads to scene "${entry.to.scene}"`);
+    const targetId = entry.to.scene;
+    const isFirst = targetId === FIRST_SCENE_ID;
+    check(isFirst || !!base.scenes?.[targetId], `${tag}: portal leads to a real scene ("${targetId}")`);
     check(walksInto(start, entry), `${tag}: the portal is reachable on foot from the start`);
-    if (target) {
-      const tl = getLandScene(base, entry.to.scene);
-      const arrival = tl.start;
-      const tEntry = tl.gates.find((g) => g.id === "entry")!;
-      check(!!arrival, `${tag}: the target scene defines where the hero arrives`);
-      if (arrival) {
-        check(!footprintBlocked(arrival.x, arrival.y, tl.obstacles ?? [], tl.imageSize.w, tl.imageSize.h), `${tag}: arrival (${arrival.x}, ${arrival.y}) is on open ground`);
-        check(arrival.x === tEntry.x && arrival.y === tEntry.y, `${tag}: arrival is the target's entry position`);
-      }
-      check(tl.gates.every((g) => !g.to || g.to.scene !== sceneId), `${tag}: the target has no portal straight back`);
-    }
+    // the opening scene starts the hero clear of its portal; a scene entered by a portal starts ON its entry (disarmed)
+    if (!sceneId) check(!inGateZone(start, entry, land.imageSize), `${tag}: the hero does not start inside the portal zone`);
+    const tl = getLandScene(base, isFirst ? undefined : targetId);
+    check(isFirst ? tl === base : tl !== base, `${tag}: "${targetId}" resolves to the expected scene`);
+    const tEntry = tl.gates.find((g) => g.id === "entry")!;
+    const arrival = { x: tEntry.x, y: tEntry.y };
+    check(!footprintBlocked(arrival.x, arrival.y, tl.obstacles ?? [], tl.imageSize.w, tl.imageSize.h), `${tag}: arrival (${arrival.x}, ${arrival.y}) is on open ground`);
+    // the way back: the target's entry is itself a portal that leads straight back to this scene
+    const back = tEntry.to?.scene;
+    const thisId = sceneId ?? FIRST_SCENE_ID;
+    check(back === thisId, `${tag}: the target's entry leads back to "${thisId}" (round trip)`);
+    // arriving on the entry, the hero is inside its zone (disarmed until it walks clear), never mid-flicker
+    check(inGateZone(arrival, tEntry, tl.imageSize), `${tag}: arrival sits on the target's entry trigger`);
+    // and from the arrival point the hero can walk clear of that zone, then back onto it
+    const out = { x: arrival.x, y: arrival.y - ((gateRadiusPx(tl.imageSize) * (GATE_REARM_FACTOR + 0.1)) / tl.imageSize.h) * 100 };
+    check(!inGateZone(out, tEntry, tl.imageSize, GATE_REARM_FACTOR) && !footprintBlocked(out.x, out.y, tl.obstacles ?? [], tl.imageSize.w, tl.imageSize.h),
+      `${tag}: the target's entry zone can be left (and so re-armed) by walking inward`);
+  }
+}
+
+// ── the exterior trigger sits on the ground in front of the door, never on the door art ──
+// base of the door/steps measured on the 1248x832 exterior paintings (painting px); the trigger disc must start below it
+{
+  const doors: { theme: ZoneTheme; name: string; baseY: number }[] = [
+    { theme: "mountain", name: "aurelia (temple steps end ~y 600)", baseY: 598 },
+    { theme: "castle", name: "drakemar (lower fort gate base ~y 452)", baseY: 452 },
+  ];
+  for (const { theme, name, baseY } of doors) {
+    const land = getZoneLand(theme)!;
+    const gate = land.gates.find((g) => g.id === "entry")!;
+    const cy = (gate.y / 100) * land.imageSize.h;
+    const top = cy - gateRadiusPx(land.imageSize);
+    check(top >= baseY, `${name}: trigger disc top (${top.toFixed(0)}) is below the door base (${baseY})`);
+    check(cy - baseY < 120, `${name}: trigger centre (${cy.toFixed(0)}) is still right in front of the door`);
   }
 }
 
