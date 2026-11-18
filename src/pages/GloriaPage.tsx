@@ -14,9 +14,11 @@ import { Loader2, LogOut, TriangleAlert } from "lucide-react";
 import type { Account, Lang, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { useGloriaQuests } from "../hooks/useGloriaQuests";
-import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats, determineCharacters, mostRecentTradingMonth } from "../services/gloriaCharacterService";
+import { useGloriaHero } from "../hooks/useGloriaHero";
+import { calculateElfMeter, calculateMonthlyStats, calculateRadarStats, mostRecentTradingMonth } from "../services/gloriaCharacterService";
 import { getRank } from "../services/gloriaPlayerService";
 import GloriaPlayerHUD from "../components/gloria/GloriaPlayerHUD";
+import GloriaHeroReveal from "../components/gloria/GloriaHeroReveal";
 import GloriaMapView from "../components/gloria/GloriaMapView";
 import GloriaLandView from "../components/gloria/GloriaLandView";
 import GloriaCloudTransition, { prefersReducedMotion } from "../components/gloria/GloriaCloudTransition";
@@ -66,14 +68,19 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
 
   const mapZones = useMemo(() => buildMapZones(zones, challenges, progress), [zones, challenges, progress]);
 
-  const hero = useMemo(() => {
+  // The hero (who the player IS) is persisted and only changes on the weekly / new-month schedule: useGloriaHero reads
+  // it, running a due update when there is one. `live` below is a different thing: this month's running numbers,
+  // which keep the HUD's radar and Elf Meter moving and feed the roster's progress bars, but never pick the hero.
+  const hero = useGloriaHero(userId, trades, accounts);
+
+  const live = useMemo(() => {
     const month = mostRecentTradingMonth(trades);
     const stats = calculateMonthlyStats(trades, month, accounts);
-    if (!stats.totalTrades) return { character: null, radar: EMPTY_RADAR, elfMeter: 0 };
+    if (!stats.totalTrades) return { stats, radar: EMPTY_RADAR, elfMeter: 0 };
     const radar = calculateRadarStats(stats);
-    const elfMeter = calculateElfMeter(radar);
-    return { character: determineCharacters(stats, radar, elfMeter)?.primary ?? null, radar, elfMeter };
+    return { stats, radar, elfMeter: calculateElfMeter(radar) };
   }, [trades, accounts]);
+  const heroData = useMemo(() => ({ hero, live: { stats: live.stats, radar: live.radar } }), [hero, live]);
 
   const totalXp = playerStats?.totalXp ?? 0;
   const rank = playerStats?.currentRank ?? getRank(totalXp);
@@ -258,7 +265,7 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
 
         {scene === "land" && land && (
           <div className="absolute inset-0">
-            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} character={hero.character} />
+            <GloriaLandView mz={land} prev={prev} lang={lang} onWorldMap={onWorldMap} onExitGame={onExit} character={hero.character} heroData={heroData} />
           </div>
         )}
 
@@ -269,15 +276,27 @@ export default function GloriaPage({ userId, lang, trades, accounts, playerName,
       <div className="shrink-0 border-t border-amber-500/20 bg-black/90 backdrop-blur-sm">
         <GloriaPlayerHUD
           lang={lang}
-          character={hero.character}
+          character={hero.loading && !hero.state.character ? null : hero.character}
+          isStarter={hero.state.isStarter}
           totalXp={totalXp}
           rank={rank}
-          elfMeter={hero.elfMeter}
-          radar={hero.radar}
+          elfMeter={live.elfMeter}
+          radar={live.radar}
           evaluating={evaluating}
           onRefresh={refresh}
         />
       </div>
+
+      {/* the reveal, over everything, the next time Gloria opens after a scheduled update changed the hero */}
+      {hero.revealPending && hero.state.character && (
+        <GloriaHeroReveal
+          character={hero.state.character}
+          previous={hero.state.previousCharacter}
+          kind={hero.state.isStarter ? "starter" : hero.state.previousCharacter ? "change" : "first"}
+          lang={lang}
+          onDismiss={hero.dismissReveal}
+        />
+      )}
     </div>
   );
 

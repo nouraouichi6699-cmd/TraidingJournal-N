@@ -14,7 +14,7 @@ const S = {
   elfMeter: { en: "Elf Meter", ar: "مقياس الإلف", fr: "Jauge Elfe" },
   radar: { en: "Trader stats this month", ar: "إحصاءات المتداول هذا الشهر", fr: "Stats du trader ce mois-ci" },
   noHero: { en: "Unawakened", ar: "لم يستيقظ بعد", fr: "Non éveillé" },
-  noHeroHint: { en: "Close a trade this month to awaken your hero", ar: "أغلق صفقة هذا الشهر لإيقاظ بطلك", fr: "Clôturez un trade ce mois-ci pour éveiller votre héros" },
+  noHeroHint: { en: "Summoning your hero…", ar: "جارٍ استدعاء بطلك…", fr: "Invocation de votre héros…" },
   checkNow: { en: "Check quests", ar: "تحقق من المهام", fr: "Vérifier les quêtes" },
   checking: { en: "Checking…", ar: "جارٍ التحقق…", fr: "Vérification…" },
   loading: { en: "Unrolling the map…", ar: "جارٍ فتح الخريطة…", fr: "Déroulement de la carte…" },

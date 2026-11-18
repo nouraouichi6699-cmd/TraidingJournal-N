@@ -261,6 +261,30 @@
 .gz-welcome-backdrop { animation: gz-welcome-fade 200ms ease-out; }
 .gz-welcome { animation: gz-welcome-in 200ms ease-out; }
 
+/* ---- portrait halo (gloriaCharacterUi.GloriaPortrait): a soft pulse behind the ring, not on the art itself ---- */
+.gz-portrait-halo { animation: gz-glow 3.2s ease-in-out infinite; }
+
+/* ---- hero reveal (GloriaHeroReveal): backdrop fades in, then kicker, portrait burst, name, details and button
+        arrive in sequence. `backwards` keeps each piece hidden until its delay; with animation: none everything is
+        simply visible (rings/sparks/flash are pure motion, so they are hidden instead). ---- */
+@keyframes gz-reveal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gz-reveal-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes gz-reveal-pop { 0% { opacity: 0; transform: scale(0.3); } 60% { opacity: 1; transform: scale(1.12); } 80% { transform: scale(0.97); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes gz-reveal-rays { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes gz-reveal-ring { 0% { opacity: 0; transform: scale(0.45); } 12% { opacity: 0.9; } 100% { opacity: 0; transform: scale(2.3); } }
+@keyframes gz-reveal-flash { 0% { opacity: 0; transform: scale(0.5); } 25% { opacity: 0.95; } 100% { opacity: 0; transform: scale(1.7); } }
+@keyframes gz-reveal-spark { 0% { opacity: 0; transform: translateY(0) scale(0.5); } 25% { opacity: 1; } 100% { opacity: 0; transform: translateY(-64px) scale(1); } }
+.gz-reveal-backdrop { animation: gz-reveal-fade 500ms ease-out both; }
+.gz-reveal-rays { animation: gz-reveal-rays 40s linear infinite, gz-reveal-fade 1400ms ease-out 600ms backwards; }
+.gz-reveal-kicker { animation: gz-reveal-rise 600ms ease-out 300ms backwards; }
+.gz-reveal-hero { animation: gz-reveal-pop 900ms cubic-bezier(0.2, 0.9, 0.3, 1.1) 800ms backwards; }
+.gz-reveal-ring { animation: gz-reveal-ring 1700ms ease-out var(--d, 900ms) backwards; }
+.gz-reveal-flash { animation: gz-reveal-flash 1100ms ease-out 850ms backwards; }
+.gz-reveal-spark { animation: gz-reveal-spark 2200ms ease-out var(--d, 1200ms) infinite backwards; }
+.gz-reveal-name { animation: gz-reveal-rise 600ms ease-out 1500ms backwards; }
+.gz-reveal-meta { animation: gz-reveal-rise 600ms ease-out 1800ms backwards; }
+.gz-reveal-cta { animation: gz-reveal-rise 500ms ease-out 2200ms backwards; }
+
 /* ---- toast (GloriaToast): slides up + fades in, holds, slides down + fades out, all over --gz-toast-ms ---- */
 @keyframes gz-toast {
   0% { opacity: 0; transform: translateY(12px); }
@@ -276,7 +300,12 @@
   .gz-ambient { display: none; }
   /* the welcome card and toast simply appear and disappear (they live in .gz-land, but say so explicitly) */
   .gz-welcome-backdrop, .gz-welcome, .gz-toast { animation: none !important; }
+  /* the reveal overlay is outside .gz-root/.gz-land, so it needs its own rule */
+  [class*="gz-reveal-"], .gz-portrait-halo { animation: none !important; }
+  .gz-reveal-ring, .gz-reveal-flash, .gz-reveal-spark { display: none; }
 }
+[data-reduce-motion="1"] [class*="gz-reveal-"], [data-reduce-motion="1"] .gz-portrait-halo { animation: none !important; }
+[data-reduce-motion="1"] .gz-reveal-ring, [data-reduce-motion="1"] .gz-reveal-flash, [data-reduce-motion="1"] .gz-reveal-spark { display: none; }
 [data-reduce-motion="1"] .gz-welcome-backdrop,
 [data-reduce-motion="1"] .gz-welcome,
 [data-reduce-motion="1"] .gz-toast { animation: none !important; }

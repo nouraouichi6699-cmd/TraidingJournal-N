@@ -3,14 +3,14 @@
 // the character roster. The land view owns the selected tab, so the boss gate can open the guide on Challenges. It floats over the land (absolute), above the land art but under the cloud curtain
 // (.gz-tc is z-30). Colours are explicit light-on-dark because game mode is always a dark screen.
 import { useId, useRef, type CSSProperties, type KeyboardEvent, type Ref } from "react";
-import { Crosshair, HeartPulse, Lock, Shield, Shuffle, Skull, Sparkles, Sword, WandSparkles, X, Zap } from "lucide-react";
+import { Lock, Skull, X } from "lucide-react";
 import type { Lang } from "../../types";
-import type { GloriaCharacterLevel, GloriaQuestStatus, GloriaRank } from "../../types/gloria";
+import type { GloriaQuestStatus, GloriaRank } from "../../types/gloria";
 import { GLORIA_RANK_THRESHOLDS } from "../../types/gloria";
-import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import type { MapZone } from "./gloriaZones";
 import { Bar, STATUS_ICON, XpChip, zoneDetail } from "./gloriaChallengeUi";
-import { CHARACTER_INFO, gt, LEVEL_TEXT, QUEST_STATUS_TEXT, RANK_TEXT } from "./gloriaText";
+import { gt, QUEST_STATUS_TEXT, RANK_TEXT } from "./gloriaText";
+import CharactersTab, { type GloriaHeroPanelData } from "./GloriaCharactersTab";
 
 type L = Record<Lang, string>;
 export type GuideTab = "challenges" | "rules" | "characters";
@@ -59,9 +59,9 @@ const RULES: { title: L; body: L }[] = [
   {
     title: { en: "Characters", ar: "الشخصيات", fr: "Personnages" },
     body: {
-      en: "Your hero is chosen each month from how you actually traded. 9 characters across 4 tiers: Fallen, Neutral, Hero and Legendary.",
-      ar: "يُختار بطلك كل شهر حسب طريقة تداولك الفعلية. 9 شخصيات في 4 مستويات: ساقط، محايد، بطل، وأسطوري.",
-      fr: "Votre héros est choisi chaque mois selon votre façon réelle de trader. 9 personnages sur 4 niveaux : Déchu, Neutre, Héros et Légendaire.",
+      en: "Your hero is chosen from how you actually traded, and re-assessed once a week and at the start of each month; it stays fixed in between. 9 characters across 4 tiers: Fallen, Neutral, Hero and Legendary. New players start as the free Savage.",
+      ar: "يُختار بطلك حسب طريقة تداولك الفعلية، ويُعاد تقييمه مرة كل أسبوع وعند بداية كل شهر، ويبقى ثابتاً بين التحديثين. 9 شخصيات في 4 مستويات: ساقط، محايد، بطل، وأسطوري. يبدأ اللاعبون الجدد بالهمجي المجاني.",
+      fr: "Votre héros est choisi selon votre façon réelle de trader, puis réévalué chaque semaine et au début de chaque mois ; il reste fixe entre-temps. 9 personnages sur 4 niveaux : Déchu, Neutre, Héros et Légendaire. Les nouveaux joueurs commencent avec le Sauvage gratuit.",
     },
   },
   {
@@ -87,42 +87,6 @@ const RANK_LADDER = (Object.entries(GLORIA_RANK_THRESHOLDS) as [GloriaRank, numb
   .sort((a, b) => a[1] - b[1])
   .map(([rank, from], i, all) => ({ rank, from, to: all[i + 1]?.[1] ?? null }));
 
-// ── Characters ───────────────────────────────────────────────────────────────────────────────────────
-
-const CHARACTER_ICON: Record<GloriaCharacterId, typeof Sword> = {
-  savage: Skull,
-  rogue: Shuffle,
-  warrior: Sword,
-  sniper: Crosshair,
-  tank: Shield,
-  healer: HeartPulse,
-  mage: WandSparkles,
-  assassin: Zap,
-  elf: Sparkles,
-};
-
-/** Mirrors gloria_characters.description / description_ar (supabase/migrations/20261114_gloria_characters_reseed.sql). */
-const CHARACTER_DESC: Record<GloriaCharacterId, L> = {
-  savage: { en: "Trades on raw emotion, no plan, no limits.", ar: "يتداول بدافع العاطفة الخام، بلا خطة وبلا حدود.", fr: "Trade à l'émotion brute, sans plan ni limites." },
-  rogue: { en: "Still breaking even, no clear edge yet.", ar: "لا يزال عند نقطة التعادل، بلا ميزة واضحة بعد.", fr: "Toujours à l'équilibre, sans avantage clair pour l'instant." },
-  warrior: { en: "Executes often and keeps the plan under volume.", ar: "ينفذ بكثافة وثبات، صفقة بعد صفقة.", fr: "Exécute souvent et tient son plan malgré le volume." },
-  sniper: { en: "Few shots, each one chosen with precision.", ar: "صفقات قليلة، كل واحدة مختارة بدقة.", fr: "Peu de tirs, chacun choisi avec précision." },
-  tank: { en: "Puts capital first, barely dents the drawdown.", ar: "يضع حماية رأس المال فوق كل شيء.", fr: "Le capital d'abord, un drawdown à peine entamé." },
-  healer: { en: "Came back from a losing month with renewed discipline.", ar: "عاد بعد شهر خاسر بانضباط متجدد.", fr: "Revenu d'un mois perdant avec une discipline renouvelée." },
-  mage: { en: "Reads many markets at once, edge backed by numbers.", ar: "يقرأ أسواقاً متعددة في آن واحد، بميزة تدعمها الأرقام.", fr: "Lit plusieurs marchés à la fois, un avantage prouvé par les chiffres." },
-  assassin: { en: "Fast, precise strikes with high conviction.", ar: "ضربات سريعة ودقيقة بثقة عالية.", fr: "Des frappes rapides et précises, avec conviction." },
-  elf: { en: "Edge, risk and emotion, all finally in balance.", ar: "الميزة والمخاطرة والعاطفة، كلها في توازن تام أخيراً.", fr: "Avantage, risque et émotion, enfin en équilibre." },
-};
-
-const TIER_STYLE: Record<GloriaCharacterLevel, { ring: string; bg: string; fg: string; badge: string }> = {
-  negative: { ring: "#ef4444", bg: "radial-gradient(circle at 35% 30%, #7f1d1d, #1c1917)", fg: "#fecaca", badge: "bg-red-500/15 text-red-300 ring-red-500/40" },
-  neutral: { ring: "#94a3b8", bg: "radial-gradient(circle at 35% 30%, #475569, #1e293b)", fg: "#e2e8f0", badge: "bg-slate-400/15 text-slate-300 ring-slate-400/40" },
-  positive: { ring: "#22c55e", bg: "radial-gradient(circle at 35% 30%, #166534, #052e16)", fg: "#dcfce7", badge: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40" },
-  legendary: { ring: "#facc15", bg: "radial-gradient(circle at 35% 30%, #a16207, #422006)", fg: "#fef9c3", badge: "bg-amber-400/15 text-amber-300 ring-amber-400/50" },
-};
-
-const CHARACTER_IDS = Object.keys(CHARACTER_INFO) as GloriaCharacterId[];
-
 // ── Panel ────────────────────────────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -135,9 +99,11 @@ interface Props {
   /** The selected tab (owned by the land view). */
   tab: GuideTab;
   onTabChange: (tab: GuideTab) => void;
+  /** The persisted hero + live stats for the Characters tab. */
+  heroData: GloriaHeroPanelData;
 }
 
-export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id, tab, onTabChange: setTab }: Props) {
+export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id, tab, onTabChange: setTab, heroData }: Props) {
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ challenges: null, rules: null, characters: null });
   const baseId = useId();
   const rtl = lang === "ar";
@@ -209,7 +175,7 @@ export default function GloriaGuidePanel({ mz, lang, onClose, closeRef, id, tab,
       >
         {tab === "challenges" && <ChallengesTab mz={mz} lang={lang} />}
         {tab === "rules" && <RulesTab lang={lang} />}
-        {tab === "characters" && <CharactersTab lang={lang} />}
+        {tab === "characters" && <CharactersTab lang={lang} data={heroData} />}
       </div>
     </aside>
   );
@@ -351,37 +317,5 @@ function RulesTab({ lang }: { lang: Lang }) {
         </section>
       ))}
     </div>
-  );
-}
-
-function CharactersTab({ lang }: { lang: Lang }) {
-  return (
-    <ul className="flex flex-col gap-2.5">
-      {CHARACTER_IDS.map((id) => {
-        const { name, level } = CHARACTER_INFO[id];
-        const s = TIER_STYLE[level];
-        const Icon = CHARACTER_ICON[id];
-        return (
-          <li key={id} className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/25 p-3" style={{ borderInlineStartColor: s.ring, borderInlineStartWidth: 3 }}>
-            <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2"
-              style={{ borderColor: s.ring, background: s.bg, color: s.fg, boxShadow: level === "legendary" ? `0 0 12px ${s.ring}66` : undefined }}
-              aria-hidden
-            >
-              <Icon size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-sm font-bold text-stone-50">{name[lang]}</span>
-                {lang !== "en" && <span className="text-xs text-stone-400">{name.en}</span>}
-                {lang === "en" && <span className="text-xs text-stone-400" lang="ar">{name.ar}</span>}
-                <span className={`ms-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${s.badge}`}>{LEVEL_TEXT[level][lang]}</span>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-stone-300/80">{CHARACTER_DESC[id][lang]}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

@@ -6,6 +6,7 @@ import type { GloriaRadarStats } from "../types/gloria";
 import { tradeCore, ticketOf } from "../lib/stats";
 import { rMultiple, tiltSplit } from "../lib/tradeLab";
 import { readAnswers } from "../lib/tradeRules";
+import { calculateElfMeter, calculateRadarStats, pickCharacter, type HeroReason } from "./gloriaCharacterRules";
 
 export type GloriaCharacterId = "savage" | "rogue" | "warrior" | "sniper" | "tank" | "healer" | "mage" | "assassin" | "elf";
 
@@ -121,102 +122,47 @@ export function calculateMonthlyStats(allTrades: Trade[], month: string, account
   };
 }
 
-const clamp = (v: number) => Math.max(0, Math.min(100, v));
+// Matching, radar and Elf meter live in gloriaCharacterRules (pure, shared with the roster / progress UI).
+// Re-exported so existing imports keep working.
+export { calculateElfMeter, calculateRadarStats, determineCharacters, pickCharacter } from "./gloriaCharacterRules";
+export type { HeroReason } from "./gloriaCharacterRules";
 
-/** The 7-axis radar, each 0-100, derived from the month's stats. Thresholds are gamification tuning, not risk metrics. */
-export function calculateRadarStats(s: GloriaMonthlyStats): GloriaRadarStats {
-  const wr = s.winRate ?? 0, dd = s.maxDrawdown ?? 0, rr = s.avgRR ?? 0, pf = s.profitFactor ?? 0;
-  return {
-    precision: clamp(wr),
-    speed: clamp((s.totalTrades / 30) * 100),
-    defense: clamp(100 - dd),
-    wisdom: s.followedPlanRate != null ? clamp(s.followedPlanRate) : clamp(wr * 0.6 + (100 - dd) * 0.4),
-    recovery: clamp((s.previousMonthWasLoss && s.netPnl > 0 ? 50 : 0) + wr / 2),
-    intelligence: clamp((pf / 3) * 100),
-    power: clamp((rr / 3) * 100),
-  };
+/** Stats, radar and the pick for one month, or null when it has no closed trades. Pure: no I/O. */
+export function analyzeMonth(allTrades: Trade[], month: string, accounts: Account[] = []): GloriaCharacterAssignmentResult & { reason: HeroReason } | null {
+  const stats = calculateMonthlyStats(allTrades, month, accounts);
+  if (stats.totalTrades === 0) return null;
+  const radar = calculateRadarStats(stats);
+  const picked = pickCharacter(stats, radar);
+  if (!picked) return null;
+  return { ...picked, stats, radar, elfMeter: calculateElfMeter(radar) };
 }
-
-/** Average of the 7 radar axes, rounded. Elf requires every axis above 70 (checked separately, not just the average). */
-export function calculateElfMeter(radar: GloriaRadarStats): number {
-  const vals = Object.values(radar);
-  return Math.round(vals.reduce((a, x) => a + x, 0) / vals.length);
-}
-
-interface PositiveCandidate { id: Exclude<GloriaCharacterId, "savage" | "rogue" | "elf">; qualifies: boolean; score: number }
 
 /**
- * A qualifying character (its hard gates from the design sheet all hold) always outranks a non-qualifying one
- * (the +1000 bonus). Within either group, ties break on a 0-100ish blend of the already-bounded radar axes,
- * so an outlier raw metric (e.g. a profit factor of 20 from one lucky trade) can't swamp the ranking.
+ * Persists a month's analysis into gloria_character_assignments (the per-month record), replacing whatever that
+ * month held. A null analysis (no closed trades) just clears the month. Not called per page load any more: the
+ * scheduled hero update (gloriaHeroService) is the only caller, so these rows move only on the weekly/monthly beat.
  */
-function scorePositives(s: GloriaMonthlyStats, radar: GloriaRadarStats): PositiveCandidate[] {
-  const wr = s.winRate ?? 0, dd = s.maxDrawdown ?? 0, rr = s.avgRR ?? 0, pf = s.profitFactor ?? 0;
-  const hasRR = s.avgRR != null;
-  const pairBonus = Math.min(100, s.uniquePairsCount * 20);
-  const fewTradesBonus = Math.max(0, 15 - s.totalTrades) * 2;
-  const base: PositiveCandidate[] = [
-    { id: "warrior", qualifies: s.totalTrades >= 20 && wr > 50 && hasRR && rr > 1.0 && dd < 15, score: radar.speed * 0.4 + radar.precision * 0.3 + radar.defense * 0.3 },
-    { id: "sniper", qualifies: s.totalTrades <= 15 && wr > 55 && hasRR && rr > 2.0 && dd < 10, score: radar.precision * 0.4 + radar.power * 0.4 + radar.defense * 0.2 + fewTradesBonus },
-    { id: "tank", qualifies: wr > 50 && dd < 5 && hasRR && rr > 1.0, score: radar.defense * 0.6 + radar.precision * 0.4 },
-    { id: "healer", qualifies: s.previousMonthWasLoss && wr > 55 && hasRR && rr > 1.5, score: radar.recovery * 0.6 + radar.precision * 0.4 },
-    { id: "mage", qualifies: pf > 2.5 && s.uniquePairsCount >= 4 && wr > 50 && hasRR && rr > 2.0, score: radar.intelligence * 0.4 + radar.wisdom * 0.3 + pairBonus * 0.3 },
-    { id: "assassin", qualifies: wr > 60 && hasRR && rr > 2.5 && dd < 8, score: radar.speed * 0.3 + radar.precision * 0.4 + radar.power * 0.3 },
-  ];
-  return base.map((c) => ({ ...c, score: c.score + (c.qualifies ? 1000 : 0) }));
-}
-
-/** Pure matching logic: Elf -> Savage -> Rogue -> top 2 of the 6 positive characters. No I/O. */
-export function determineCharacters(s: GloriaMonthlyStats, radar: GloriaRadarStats, elfMeter: number): { primary: GloriaCharacterId; secondary: GloriaCharacterId | null } | null {
-  if (s.totalTrades === 0) return null;
-  if (s.totalTrades < 5) return { primary: "rogue", secondary: null };
-
-  const allAbove70 = Object.values(radar).every((v) => v > 70);
-  if (allAbove70 && s.winRate != null && s.winRate > 60 && s.maxDrawdown != null && s.maxDrawdown < 5 && s.avgRR != null && s.avgRR > 2.0) {
-    return { primary: "elf", secondary: null };
-  }
-
-  if (s.winRate != null && s.winRate < 35 && s.maxDrawdown != null && s.maxDrawdown > 20 && s.avgRR != null && s.avgRR < 0.5) {
-    return { primary: "savage", secondary: null };
-  }
-
-  if (s.winRate != null && s.winRate >= 40 && s.winRate <= 50 && s.maxDrawdown != null && s.maxDrawdown >= 10 && s.maxDrawdown <= 15 && s.avgRR != null && s.avgRR >= 0.8 && s.avgRR <= 1.2) {
-    return { primary: "rogue", secondary: null };
-  }
-
-  const ranked = scorePositives(s, radar).sort((a, b) => b.score - a.score);
-  return { primary: ranked[0].id, secondary: ranked[1].id };
-}
-
-/** Computes and persists the month's character assignment(s) for a user. Returns null when the month has no trades. */
-export async function assignCharacter(userId: string, month: string, allTrades: Trade[], accounts: Account[] = []): Promise<GloriaCharacterAssignmentResult | null> {
-  const stats = calculateMonthlyStats(allTrades, month, accounts);
+export async function saveMonthAssignment(userId: string, month: string, a: GloriaCharacterAssignmentResult | null): Promise<void> {
   const monthDate = `${month}-01`;
-
-  if (stats.totalTrades === 0) {
-    const { error } = await supabase.from("gloria_character_assignments").delete().eq("user_id", userId).eq("month", monthDate);
-    if (error) throw error;
-    return null;
-  }
-
-  const radar = calculateRadarStats(stats);
-  const elfMeter = calculateElfMeter(radar);
-  const picked = determineCharacters(stats, radar, elfMeter);
-  if (!picked) return null;
-
-  const snapshot = { ...stats, radar, elfMeter };
-  const rows = [
-    { user_id: userId, character_id: picked.primary, month: monthDate, is_primary: true, stats_snapshot: snapshot },
-    ...(picked.secondary ? [{ user_id: userId, character_id: picked.secondary, month: monthDate, is_primary: false, stats_snapshot: snapshot }] : []),
-  ];
-
   const { error: delErr } = await supabase.from("gloria_character_assignments").delete().eq("user_id", userId).eq("month", monthDate);
   if (delErr) throw delErr;
+  if (!a) return;
+
+  const snapshot = { ...a.stats, radar: a.radar, elfMeter: a.elfMeter };
+  const rows = [
+    { user_id: userId, character_id: a.primary, month: monthDate, is_primary: true, stats_snapshot: snapshot },
+    ...(a.secondary ? [{ user_id: userId, character_id: a.secondary, month: monthDate, is_primary: false, stats_snapshot: snapshot }] : []),
+  ];
   const { error: insErr } = await supabase.from("gloria_character_assignments").insert(rows);
   // 23505 = unique_violation on (user_id, month, character_id): an overlapping call for this same user (two
   // tabs, or two evaluation passes that raced) already assigned this month between our delete and our insert.
   // Whoever won assigned the same trade history to the same character, so there is nothing to reconcile.
   if (insErr && insErr.code !== "23505") throw insErr;
+}
 
-  return { ...picked, stats, radar, elfMeter };
+/** Computes and persists the month's character assignment(s) for a user. Returns null when the month has no trades. */
+export async function assignCharacter(userId: string, month: string, allTrades: Trade[], accounts: Account[] = []): Promise<GloriaCharacterAssignmentResult | null> {
+  const analysis = analyzeMonth(allTrades, month, accounts);
+  await saveMonthAssignment(userId, month, analysis);
+  return analysis;
 }

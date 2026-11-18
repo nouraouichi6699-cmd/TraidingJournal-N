@@ -27,7 +27,7 @@ import { readAnswers, type RuleAnswer } from "../lib/tradeRules";
 import { readNotes } from "../lib/tradeNotes";
 import { readSettings } from "../useSettings";
 import { getOrCreatePlayerStats, updatePlayerStats } from "./gloriaPlayerService";
-import { assignCharacter, mostRecentTradingMonth } from "./gloriaCharacterService";
+import { mostRecentTradingMonth } from "./gloriaCharacterService";
 
 // ---------------------------------------------------------------------------
 // Row <-> model
@@ -810,6 +810,9 @@ export async function evaluateAllChallenges(userId: string, trades: Trade[], acc
   // their actual XP/rank, Elf Meter, radar and assigned character reflect the trades they do have, not stay at
   // zero/"no hero" until the first challenge happens to clear.
   //
+  // The hero itself is deliberately NOT recomputed here: it changes only on the weekly / new-month schedule
+  // (gloriaHeroService.syncHero, run by useGloriaHero). This pass keeps XP, rank, Elf Meter and radar live.
+  //
   // Isolated in its own try/catch: XP and quest progress are already durably written above by the time we get
   // here -- this is a snapshot refresh, not the source of truth. A failure in it (a transient network blip, a
   // duplicate-assignment race between two overlapping calls) must never bubble up and make the caller think the
@@ -817,9 +820,9 @@ export async function evaluateAllChallenges(userId: string, trades: Trade[], acc
   // leave a brand new player looking at a red error banner instead of an unlocked Zone 1.
   try {
     const month = mostRecentTradingMonth(trades);
-    await Promise.all([updatePlayerStats(userId, trades, accounts, month), assignCharacter(userId, month, trades, accounts)]);
+    await updatePlayerStats(userId, trades, accounts, month);
   } catch (e) {
-    console.error("[gloria] could not refresh player stats/character this pass", e);
+    console.error("[gloria] could not refresh player stats this pass", e);
   }
   return { evaluated, completed, xpAwarded, unlocked: unlockedAll };
 }

@@ -1,32 +1,14 @@
 // GLORIA_RPG: the top HUD -- hero avatar, name + tier, XP bar toward the next rank, rank badge, Elf Meter gauge,
 // and a tiny 7-axis radar of this month's trader stats (hover/focus it for the exact values).
-import { Crosshair, Crown, Gamepad2, HeartPulse, RefreshCw, Shield, Shuffle, Skull, Sparkles, Sword, WandSparkles, Zap } from "lucide-react";
+import { Crown, RefreshCw, Sparkles } from "lucide-react";
 import type { Lang } from "../../types";
-import type { GloriaCharacterLevel, GloriaRadarStats, GloriaRank, GloriaStatFocus } from "../../types/gloria";
+import type { GloriaRadarStats, GloriaRank, GloriaStatFocus } from "../../types/gloria";
 import { GLORIA_RANK_THRESHOLDS } from "../../types/gloria";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import { CHARACTER_INFO, gt, LEVEL_TEXT, RANK_TEXT, STAT_TEXT } from "./gloriaText";
+import { GloriaPortrait, TIER_STYLE } from "./gloriaCharacterUi";
+import { HERO_TEXT } from "./gloriaHeroText";
 import "./gloria.css";
-
-const CHARACTER_ICON: Record<GloriaCharacterId, typeof Sword> = {
-  savage: Skull,
-  rogue: Shuffle,
-  warrior: Sword,
-  sniper: Crosshair,
-  tank: Shield,
-  healer: HeartPulse,
-  mage: WandSparkles,
-  assassin: Zap,
-  elf: Sparkles,
-};
-
-const TIER_STYLE: Record<GloriaCharacterLevel | "none", { ring: string; bg: string; fg: string }> = {
-  negative: { ring: "#ef4444", bg: "radial-gradient(circle at 35% 30%, #7f1d1d, #1c1917)", fg: "#fecaca" },
-  neutral: { ring: "#94a3b8", bg: "radial-gradient(circle at 35% 30%, #475569, #1e293b)", fg: "#e2e8f0" },
-  positive: { ring: "#22c55e", bg: "radial-gradient(circle at 35% 30%, #166534, #052e16)", fg: "#dcfce7" },
-  legendary: { ring: "#facc15", bg: "radial-gradient(circle at 35% 30%, #a16207, #422006)", fg: "#fef9c3" },
-  none: { ring: "#57534e", bg: "radial-gradient(circle at 35% 30%, #44403c, #1c1917)", fg: "#a8a29e" },
-};
 
 const RANK_COLOR: Record<GloriaRank, string> = {
   beginner: "#a8a29e",
@@ -107,7 +89,10 @@ function ElfGauge({ value, lang }: { value: number; lang: Lang }) {
 
 interface Props {
   lang: Lang;
+  /** The persisted hero (see useGloriaHero); null only while it is still loading. */
   character: GloriaCharacterId | null;
+  /** True while the hero is the free starter. */
+  isStarter?: boolean;
   totalXp: number;
   rank: GloriaRank;
   elfMeter: number;
@@ -116,11 +101,10 @@ interface Props {
   onRefresh: () => void;
 }
 
-export default function GloriaPlayerHUD({ lang, character, totalXp, rank, elfMeter, radar, evaluating, onRefresh }: Props) {
+export default function GloriaPlayerHUD({ lang, character, isStarter, totalXp, rank, elfMeter, radar, evaluating, onRefresh }: Props) {
   const t = gt(lang);
   const info = character ? CHARACTER_INFO[character] : null;
   const tier = TIER_STYLE[info?.level ?? "none"];
-  const Icon = character ? CHARACTER_ICON[character] : Gamepad2;
 
   const idx = RANKS.findIndex(([r]) => r === rank);
   const cur = RANKS[idx]?.[1] ?? 0;
@@ -134,19 +118,17 @@ export default function GloriaPlayerHUD({ lang, character, totalXp, rank, elfMet
 
       {/* hero */}
       <div className="flex min-w-0 items-center gap-3">
-        <div
-          className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${info?.level === "legendary" ? "gz-glow" : ""}`}
-          style={{ background: tier.bg, boxShadow: `0 0 0 2px ${tier.ring}, 0 0 16px ${tier.ring}55` }}
-        >
-          <Icon size={28} color={tier.fg} strokeWidth={1.8} />
-        </div>
+        <GloriaPortrait id={character} level={info?.level ?? null} size={56} glow={info?.level === "legendary"} />
         <div className="min-w-0">
           <div className="truncate font-heading text-base font-bold leading-tight text-text">{info ? info.name[lang] : t("noHero")}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
             {info ? (
-              <span className="rounded-full px-1.5 py-px font-bold" style={{ color: tier.ring, background: `${tier.ring}1f` }}>
-                {LEVEL_TEXT[info.level][lang]}
-              </span>
+              <>
+                <span className="rounded-full px-1.5 py-px font-bold" style={{ color: tier.ring, background: `${tier.ring}1f` }}>
+                  {LEVEL_TEXT[info.level][lang]}
+                </span>
+                {isStarter && <span className="rounded-full bg-amber-400/15 px-1.5 py-px font-bold text-amber-400">{HERO_TEXT.freeStarter[lang]}</span>}
+              </>
             ) : (
               <span className="text-muted">{t("noHeroHint")}</span>
             )}

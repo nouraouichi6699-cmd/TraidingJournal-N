@@ -113,6 +113,11 @@ export interface GloriaPlayerStats {
   updatedAt: string;
 }
 
+// --- Scheduled hero (supabase/migrations/20261118_gloria_hero_schedule.sql) ----------------------------------
+
+/** How a hero history row came about: the free starter, the first real reading, or a weekly / new-month update. */
+export type GloriaHeroUpdateKind = "starter" | "initial" | "weekly" | "monthly";
+
 // --- Raw Supabase row shapes (snake_case, as the DB returns them) ---------------------------------------------
 
 export interface GloriaCharacterRow {
@@ -197,4 +202,26 @@ export interface GloriaPlayerStatsRow {
   elf_meter: number;
   radar_stats: Partial<GloriaRadarStats>;
   updated_at: string;
+}
+
+/** The persisted hero columns on gloria_player_stats (all null/false until the first scheduled sync). */
+export interface GloriaPlayerHeroColumns {
+  active_character: string | null;
+  active_character_snapshot: Record<string, unknown> | null;
+  character_checked_at: string | null;
+  is_starter_character: boolean;
+  character_reveal_pending: boolean;
+  previous_character: string | null;
+}
+
+export interface GloriaCharacterHistoryRow {
+  id: string;
+  user_id: string;
+  character_id: string;
+  secondary_id: string | null;
+  previous_id: string | null;
+  kind: GloriaHeroUpdateKind;
+  changed: boolean;
+  assigned_at: string;
+  stats_snapshot: Record<string, unknown>;
 }

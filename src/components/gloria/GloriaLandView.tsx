@@ -28,6 +28,7 @@ import GloriaLandCanvas from "./GloriaLandCanvas";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import GloriaMiniMap from "./GloriaMiniMap";
 import GloriaGuidePanel, { type GuideTab } from "./GloriaGuidePanel";
+import type { GloriaHeroPanelData } from "./GloriaCharactersTab";
 import GloriaWelcomeModal from "./GloriaWelcomeModal";
 import GloriaToast from "./GloriaToast";
 import "./gloria.css";
@@ -49,9 +50,11 @@ interface Props {
   className?: string;
   /** The player's class, which picks the hero sprite. */
   character?: GloriaCharacterId | null;
+  /** The persisted hero and live stats shown in the guide's Characters tab. */
+  heroData: GloriaHeroPanelData;
 }
 
-export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "", character }: Props) {
+export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, className = "", character, heroData }: Props) {
   const { visual } = mz;
   const baseLand = getZoneLand(visual.theme);
   // The active scene, remembered with the zone it belongs to: another zone (or coming back) always starts on the
@@ -177,6 +180,7 @@ export default function GloriaLandView({ mz, lang, onWorldMap, onExitGame, class
           closeRef={guideCloseRef}
           tab={guideTab}
           onTabChange={setGuideTab}
+          heroData={heroData}
         />
       )}
 
