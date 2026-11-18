@@ -1025,6 +1025,102 @@ function buildFrostfell(): LandDefinition {
   };
 }
 
+// ── Throne of Gloria ──────────────────────────────────────────────────────────────────────────────────────
+// The final zone (zone 7, theme "throne"): the fourth TWO-SCENE land, same pattern as Aurelia, Drakemar and Frostfell.
+// It opens on the exterior -- a snowy mountain path up to a glowing purple portal gate set into the ground -- and
+// walking onto the snow in front of the portal's bottom step carries the hero into the interior: a long icy hall whose
+// central carpet runs straight up to the throne, where the frozen king sits looming over the whole walk. Four open
+// alcoves (treasure, weapon shrine, frozen fountain, a second hoard) branch off the hall through floor-level arches:
+// optional detours, never needed for progression. Backgrounds, scene transition, gates and obstacles only so far.
+//
+// The interior painting is square (1024x1024) -- like Heartlands, this land's imageSize differs from the 1248x832 rest.
+// Nothing here assumes an aspect ratio; the gate overlay and obstacles are all in the image's own pixels/percentages.
+const THRONE_EXTERIOR_IMAGE = "/gloria-land-throne-exterior.jpg";
+const THRONE_INTERIOR_IMAGE = "/gloria-land-throne-interior.jpg";
+const THRONE_EXTERIOR_SIZE = { w: 1248, h: 832 };
+const THRONE_INTERIOR_SIZE = { w: 1024, h: 1024 };
+
+/** Measured with a pixel-grid overlay on the 1248x832 exterior painting: [x, y, w, h] in painting px. The walkable
+ *  ground is the snowy clearing below the gate -- the path and its snow banks, x ~440-815 from the foot of the
+ *  painting up to the portal's bottom step (y ~646) -- so the boxes are everything else: the gate structure with its
+ *  torch pillars and steps and all the cliffs and forest above y 646, and either side of the clearing the boulders,
+ *  shrubs, the two big pine trunks and the corner snow mounds. */
+const THRONE_EXTERIOR_OBSTACLES = obstaclesFromPixels(THRONE_EXTERIOR_SIZE, [
+  // the cliffs, forest, gate wall, torch pillars and the portal steps (their foot is ~y 645)
+  [0, 0, 1248, 646],
+  // west of the clearing: the boulder cluster, the pine trunk, the shrubs and the corner mound
+  [0, 646, 440, 186],
+  // east of the clearing: the boulder cluster, the pine trunk, the shrubs and the corner mound
+  [815, 646, 433, 186],
+]);
+
+/** Measured with a pixel-grid overlay on the 1024x1024 interior painting: [x, y, w, h] in painting px. The whole hall
+ *  floor is walkable -- the central carpet (x ~450-575, from the foot up to the throne stair at y ~275), the stone
+ *  floor either side of it, the stair itself (x ~455-568, y ~178-275) and the floors of the four alcoves (north-west
+ *  treasure room y ~300-495, north-east weapon shrine, and the south-west fountain and south-east hoard, which open
+ *  onto the hall floor in front of their arches). Blocked: the back wall and everything above the alcove floors,
+ *  the throne with the frozen king and the ice crystals either side of his stair, the arch rims and recesses of the
+ *  two southern alcoves, the pillars and torch pedestals, the chests, altar, fountain basin and other large props, and
+ *  the outer walls. Rugs, coin piles and the ice sheet are flat and left walkable. */
+const THRONE_INTERIOR_OBSTACLES = obstaclesFromPixels(THRONE_INTERIOR_SIZE, [
+  // the back wall either side of the stair channel, and the throne with the king (the stair top, y ~178, stays open)
+  [0, 0, 455, 300], [570, 0, 454, 300], [455, 0, 115, 178],
+  // the pillars and torch pedestals at the foot of the stair
+  [350, 300, 40, 95], [378, 345, 45, 85], [645, 300, 40, 95], [608, 345, 42, 85],
+  // north-west treasure alcove: the chests, the crown, the small chest, the crystals and the torch pedestal
+  [0, 300, 26, 200], [28, 300, 150, 65], [140, 350, 55, 38], [248, 336, 46, 32], [272, 300, 50, 52], [28, 352, 40, 92], [225, 295, 45, 40],
+  // north-east weapon shrine: the crystals, the altar, the chest, the shield and the weapon rack
+  [682, 305, 65, 85], [765, 300, 145, 100], [900, 350, 70, 65], [945, 300, 50, 50], [890, 300, 45, 55], [958, 365, 35, 80],
+  // the four torch pedestals along the hall
+  [350, 545, 50, 95], [627, 548, 50, 100], [314, 845, 55, 118], [658, 840, 55, 122],
+  // south-west fountain alcove: the arch and recess, the pillar, the torch pedestal, the basin, the crystals, the wall
+  [0, 495, 255, 220], [255, 540, 92, 175], [295, 715, 52, 65], [255, 690, 42, 60], [35, 698, 218, 112], [25, 800, 85, 70], [0, 840, 48, 184],
+  // south-east hoard alcove: the arch and recess, the pillar, the torch pedestal, and the chest, barrel, shield and vase
+  [815, 495, 209, 220], [740, 520, 80, 195], [682, 555, 60, 160], [682, 715, 52, 65], [738, 655, 45, 85],
+  [845, 665, 100, 135], [938, 715, 57, 100], [918, 765, 72, 85], [788, 722, 64, 70], [735, 720, 38, 45], [748, 690, 50, 60], [920, 820, 32, 35], [940, 795, 45, 70],
+  // the outer walls and the stone block in the south-east corner
+  [0, 0, 26, 1024], [975, 0, 49, 1024], [955, 985, 69, 39],
+]);
+
+function buildThroneOfGloria(): LandDefinition {
+  return {
+    id: "throne",
+    // first scene: the exterior. The snowy clearing below the gate is walkable; everything above and beside it is solid.
+    image: THRONE_EXTERIOR_IMAGE,
+    imageSize: THRONE_EXTERIOR_SIZE,
+    // the hero starts in the middle of the path, at the foot of the painting
+    start: { x: 50, y: 94 },
+    gates: [
+      // the magical portal (the only gate here): reaching it carries the hero into the throne hall. The trigger sits on
+      // the snow in front of the portal's bottom step (the steps end at ~y 645; this is painting ~624, 699), never on
+      // the steps themselves, with open snow above it to step clear of the zone and re-arm.
+      { id: "entry", x: 50, y: 84, label: { ar: "البوابة السحرية", en: "Magic Portal" }, to: { scene: "interior" } },
+    ],
+    sprites: [],
+    obstacles: THRONE_EXTERIOR_OBSTACLES,
+    scenes: {
+      interior: {
+        image: THRONE_INTERIOR_IMAGE,
+        imageSize: THRONE_INTERIOR_SIZE,
+        // the bottom of the central corridor, where the hero arrives from the exterior
+        start: { x: 50, y: 95 },
+        gates: [
+          // where the hero arrives, and the way back: walking onto it again (after leaving its zone) fades the hero
+          // out to the exterior, in front of the same portal
+          { id: "entry", x: 50, y: 96, label: { ar: "بوابة الدخول", en: "Entry Gate" }, to: { scene: FIRST_SCENE_ID } },
+          // on the open floor just below the throne stair, with the king looming above
+          { id: "boss", x: 50, y: 27, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+          // on the stair's top step, right in front of the king: a dead end, with no separate exit door painted (the
+          // throne's solid base ends at y ~178, so the hero can stand right below it)
+          { id: "exit", x: 50, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+        ],
+        sprites: [],
+        obstacles: THRONE_INTERIOR_OBSTACLES,
+      },
+    },
+  };
+}
+
 const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = {
   forest: buildVerdantia(),
   oasis: buildSolmara(),
@@ -1032,6 +1128,7 @@ const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = {
   mountain: buildAurelia(),
   castle: buildDrakemar(),
   volcano: buildFrostfell(),
+  throne: buildThroneOfGloria(),
 };
 
 /** The land for a zone theme, or null when that zone's land hasn't been built yet. */

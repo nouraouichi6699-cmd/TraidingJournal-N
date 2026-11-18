@@ -11,8 +11,8 @@ import type { ZoneTheme } from "./gloriaZones";
 import { footprintBlocked, stepHero } from "./GloriaHeroSprite";
 import { findInsideSpawn, findOutsideStart, GATE_REARM_FACTOR, gateRadiusPx, inGateZone, isTriggerGate, type Pt } from "./gloriaGateTriggers";
 
-// every theme that has a land today: Verdantia, Solmara, Heartlands, Aurelia, Drakemar, Frostfell
-const THEMES: ZoneTheme[] = ["forest", "oasis", "sea", "mountain", "castle", "volcano"];
+// every theme that has a land today: Verdantia, Solmara, Heartlands, Aurelia, Drakemar, Frostfell, Throne of Gloria
+const THEMES: ZoneTheme[] = ["forest", "oasis", "sea", "mountain", "castle", "volcano", "throne"];
 // one entry per scene: a single-scene land is just its own scene
 const SCENES: { base: LandDefinition; land: LandDefinition; sceneId?: string }[] = THEMES.flatMap((t) => {
   const base = getZoneLand(t)!;
@@ -143,6 +143,7 @@ for (const { base, land, sceneId } of SCENES) {
     { theme: "mountain", name: "aurelia (temple steps end ~y 600)", baseY: 598 },
     { theme: "castle", name: "drakemar (lower fort gate base ~y 452)", baseY: 452 },
     { theme: "volcano", name: "frostfell (archway base ~y 390)", baseY: 390 },
+    { theme: "throne", name: "throne (portal's bottom step ends ~y 645)", baseY: 645 },
   ];
   for (const { theme, name, baseY } of doors) {
     const land = getZoneLand(theme)!;
@@ -257,6 +258,63 @@ for (const { base, land, sceneId } of SCENES) {
     ["the south-east chest", 1100, 670], ["the north-east chest", 1070, 370], ["the north-west chest", 95, 390], ["the outer west wall", 5, 500],
   ];
   for (const [name, x, y] of solid) check(!at(x, y), `frostfell/interior: ${name} (${x}, ${y}) blocks the hero`);
+}
+
+// ── Throne of Gloria's exterior: the snowy clearing below the portal is walkable; the gate, steps, forest and rocks hold ──
+{
+  const land = getZoneLand("throne")!;
+  const { w, h } = land.imageSize;
+  const pt = (x: number, y: number): Pt => ({ x: (x / w) * 100, y: (y / h) * 100 });
+  const canReach = reachableFrom(land, land.start!);
+  const at = (x: number, y: number) => canReach(pt(x, y));
+  const open: [string, number, number][] = [
+    ["the foot of the path", 624, 800], ["the path, mid", 620, 740], ["the snow in front of the portal (trigger)", 624, 699],
+    ["the path's west bank", 470, 760], ["the path's east bank", 790, 740], ["the snow just below the bottom step", 624, 656],
+  ];
+  for (const [name, x, y] of open) check(at(x, y), `throne/exterior: ${name} (${x}, ${y}) is walkable from the start`);
+  const solid: [string, number, number][] = [
+    ["the portal's bottom step", 624, 630], ["the portal itself", 624, 540], ["the west torch pillar", 475, 560], ["the east torch pillar", 785, 560],
+    ["the west boulders", 370, 660], ["the east boulders", 880, 660], ["the west pine trunk", 180, 720], ["the east pine trunk", 1075, 720],
+    ["the west corner mound", 80, 780], ["the east corner mound", 1170, 780], ["the cliffs", 100, 300], ["the far mountains", 624, 250],
+  ];
+  for (const [name, x, y] of solid) check(!at(x, y), `throne/exterior: ${name} (${x}, ${y}) blocks the hero`);
+}
+
+// ── Throne of Gloria's interior: carpet, hall floor, throne stair and all four alcoves are walkable; the king, walls and props hold ──
+{
+  const land = getLandScene(getZoneLand("throne")!, "interior");
+  const { w, h } = land.imageSize;
+  check(w === 1024 && h === 1024, `throne/interior: keeps its native square size (${w}x${h})`);
+  const pt = (x: number, y: number): Pt => ({ x: (x / w) * 100, y: (y / h) * 100 });
+  const blockedPx = (x: number, y: number) => footprintBlocked(pt(x, y).x, pt(x, y).y, land.obstacles ?? [], w, h);
+  const canReach = reachableFrom(land, land.start!);
+  const at = (x: number, y: number) => canReach(pt(x, y));
+
+  // the central carpet is a clear run from the foot of the painting up to the throne stair
+  let carpetBlocked = 0;
+  for (let y = 190; y <= 1000; y += 4) for (let x = 462; x <= 562; x += 4) if (blockedPx(x, y)) carpetBlocked++;
+  check(carpetBlocked === 0, `throne/interior: the central carpet and stair (x 462-562, y 190-1000) have no obstacles (${carpetBlocked} blocked samples)`);
+
+  const open: [string, number, number][] = [
+    ["the hall foot", 512, 980], ["the carpet, mid", 512, 600], ["the floor below the throne stair (boss spot)", 512, 276],
+    ["the throne stair", 512, 230], ["the top step, in front of the king (exit)", 512, 190],
+    ["the north-west treasure alcove floor", 150, 430], ["the north-west alcove, by the crown", 215, 400],
+    ["the north-east weapon shrine floor", 850, 440], ["the north-east shrine, by the altar", 840, 415],
+    ["the south-west fountain alcove, in front of the basin", 140, 835], ["the south-west alcove, east of the basin", 280, 800],
+    ["the south-east hoard alcove, in front", 880, 880], ["the south-east alcove, on the rug", 820, 850],
+    ["the hall floor between the alcoves, west", 200, 470], ["the hall floor between the alcoves, east", 850, 470], ["the floor beside the lower west pedestal", 280, 900],
+  ];
+  for (const [name, x, y] of open) check(at(x, y), `throne/interior: ${name} (${x}, ${y}) is walkable from the entry`);
+  const solid: [string, number, number][] = [
+    ["the frozen king on his throne", 512, 130], ["the throne's crystals, west", 430, 200], ["the throne's crystals, east", 600, 200],
+    ["the back wall, west", 200, 100], ["the back wall, east", 850, 100], ["the north-west treasure chest", 100, 330],
+    ["the north-east weapon altar", 830, 360], ["the north-east chest", 935, 385], ["the west statue pedestal", 180, 280],
+    ["the fountain basin", 140, 760], ["the fountain alcove's arch", 130, 520], ["the south-east treasure chest", 900, 730],
+    ["the south-east barrel", 965, 760], ["the south-east alcove's arch", 900, 520], ["the west pillar", 320, 700], ["the east pillar", 705, 700],
+    ["a hall torch pedestal, west", 375, 600], ["a hall torch pedestal, east", 650, 600], ["a lower torch pedestal, west", 340, 910],
+    ["a lower torch pedestal, east", 685, 910], ["the outer west wall", 10, 500], ["the outer east wall", 1010, 500],
+  ];
+  for (const [name, x, y] of solid) check(!at(x, y), `throne/interior: ${name} (${x}, ${y}) blocks the hero`);
 }
 
 console.log(failures === 0 ? "\nAll gate trigger checks passed." : `\n${failures} check(s) FAILED.`);
