@@ -939,12 +939,99 @@ function buildDrakemar(): LandDefinition {
   };
 }
 
+// ── Frostfell ─────────────────────────────────────────────────────────────────────────────────────────────
+// The treasure temple beside the volcano (zone 6, theme "volcano"): the third TWO-SCENE land, built on the same pattern
+// as Aurelia and Drakemar. It opens on the exterior -- a cobbled path up a cliff to a stone archway cut into the
+// volcano -- and walking onto the foot of the stairs carries the hero into the interior, a looted vault with lava
+// channels. Greed, not frost: the gold is still here, the lava is taking it back. Backgrounds, scene transition,
+// gates and obstacles only so far; NPCs follow in a later pass.
+const FROSTFELL_EXTERIOR_IMAGE = "/gloria-land-frostfell-exterior.jpg";
+const FROSTFELL_INTERIOR_IMAGE = "/gloria-land-frostfell-interior.jpg";
+const FROSTFELL_EXTERIOR_SIZE = { w: 1248, h: 832 };
+const FROSTFELL_INTERIOR_SIZE = { w: 1248, h: 832 };
+
+/** Measured with a pixel-grid overlay on the 1248x832 exterior painting: [x, y, w, h] in painting px. The walkable
+ *  ground is the cobbled path -- from the foot of the painting (x ~570-1005) narrowing up to the stairs (x ~770-910) --
+ *  so the boxes are everything else: the volcano face above the archway, the cliff faces and rock clusters either
+ *  side of the path, and the stele and braziers at the bottom corners. The lava side (left) is cliff edge, never walkable. */
+const FROSTFELL_EXTERIOR_OBSTACLES = obstaclesFromPixels(FROSTFELL_EXTERIOR_SIZE, [
+  // the volcano face and the archway's own platform: the archway sits at the top of the stairs (door base ~y 390)
+  [0, 0, 1248, 390],
+  // west of the path: the cliff edge above the stairs, the rock cluster beside the cobbles, the stele outcrop below
+  [0, 390, 790, 50], [0, 440, 770, 40], [0, 480, 700, 60], [0, 540, 640, 60], [0, 600, 600, 100], [0, 700, 570, 132],
+  // east of the path: the braziers and rocks beside the stairs, the cliff face and its rocks, the right stele and brazier
+  [910, 390, 338, 90], [850, 480, 398, 220], [1005, 700, 243, 132],
+]);
+
+/** Measured with a pixel-grid overlay on the 1248x832 interior painting: [x, y, w, h] in painting px, generated from the
+ *  walkable floors minus the solid props, so every box edge lies on a floor or prop edge. Walkable: the central
+ *  corridor (x ~572-712, from the bottom edge up to the stair), the stair (x 585-698) and the throne platform above
+ *  it, the four stone slabs that bridge the lava ditches (y ~474-554 and ~652-744, both sides), and the floors of the
+ *  four side chambers they lead to (north-west/north-east y ~346-446, south-west/south-east y ~612-792). Blocked: the
+ *  lava itself, the back walls, the throne, the golden statues with their pedestals, the treasure chests, and the
+ *  platform torches. Small coin piles are left walkable. */
+const FROSTFELL_INTERIOR_OBSTACLES = obstaclesFromPixels(FROSTFELL_INTERIOR_SIZE, [
+  // the back wall, throne and everything above the platform, and the walls either side of the platform and the stair
+  [0, 0, 1248, 165], [840, 165, 408, 40], [0, 165, 420, 50], [428, 205, 26, 10], [824, 205, 424, 20], [0, 215, 454, 22],
+  [813, 225, 435, 12], [0, 237, 585, 73], [698, 237, 550, 73], [0, 310, 572, 36], [712, 310, 536, 36],
+  // north chambers: the statue pedestals, the treasure chests and their coin heaps, the lava slivers, the outer walls
+  [340, 346, 100, 21], [813, 346, 112, 21], [148, 346, 148, 28], [148, 374, 124, 4], [1005, 346, 135, 34],
+  [236, 378, 36, 30], [975, 380, 165, 28], [1005, 408, 135, 4], [60, 348, 72, 74], [0, 346, 10, 94], [1183, 346, 65, 94],
+  [975, 440, 273, 5],
+  // the lava ditches beside the corridor, and the walls and statues between the chambers and the slabs
+  [505, 346, 67, 128], [712, 346, 61, 128], [0, 440, 410, 114], [843, 445, 405, 109], [0, 554, 572, 58],
+  [298, 612, 112, 16], [712, 554, 536, 78], [412, 612, 160, 40], [712, 632, 131, 20],
+  // south chambers: the big statue and chest on the west, the chest on the east, the outer walls
+  [150, 612, 122, 91], [45, 612, 88, 120], [1026, 632, 152, 106], [0, 612, 20, 180],
+  // the lava below the lower slabs, and the stone rim along the foot of the painting
+  [412, 744, 160, 48], [712, 744, 131, 48], [1195, 632, 53, 160], [0, 792, 572, 40], [712, 792, 536, 40],
+]);
+
+function buildFrostfell(): LandDefinition {
+  return {
+    id: "frostfell",
+    // first scene: the exterior. The path and stairs are walkable; the cliffs and rocks either side are solid.
+    image: FROSTFELL_EXTERIOR_IMAGE,
+    imageSize: FROSTFELL_EXTERIOR_SIZE,
+    // the hero starts on the cobbles at the foot of the path
+    start: { x: 62, y: 90 },
+    gates: [
+      // the stone archway cut into the volcano (the only gate here): reaching it carries the hero into the vault. The
+      // trigger sits at the foot of the stairs (painting ~849, 458), clear of the archway whose base is ~y 390.
+      { id: "entry", x: 68, y: 55, label: { ar: "مدخل المعبد الذهبي", en: "Golden Temple Gate" }, to: { scene: "interior" } },
+    ],
+    sprites: [],
+    obstacles: FROSTFELL_EXTERIOR_OBSTACLES,
+    scenes: {
+      interior: {
+        image: FROSTFELL_INTERIOR_IMAGE,
+        imageSize: FROSTFELL_INTERIOR_SIZE,
+        // the bottom of the central corridor, where the hero arrives from the exterior
+        start: { x: 50, y: 95 },
+        gates: [
+          // where the hero arrives, and the way back: walking onto it again (after leaving its zone) fades the hero
+          // out to the exterior, at the foot of the stairs below the same archway
+          { id: "entry", x: 50, y: 95, label: { ar: "بوابة الدخول", en: "Entry Gate" }, to: { scene: FIRST_SCENE_ID } },
+          // on the stair up to the throne platform
+          { id: "boss", x: 50, y: 30, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
+          // on the throne platform, just in front of the throne: a dead end, with no separate exit door painted (the
+          // throne's own solid base ends ~y 165, so the hero can stand right below it)
+          { id: "exit", x: 50, y: 23, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
+        ],
+        sprites: [],
+        obstacles: FROSTFELL_INTERIOR_OBSTACLES,
+      },
+    },
+  };
+}
+
 const LANDS: Partial<Record<ZoneTheme, LandDefinition>> = {
   forest: buildVerdantia(),
   oasis: buildSolmara(),
   sea: buildHeartlands(),
   mountain: buildAurelia(),
   castle: buildDrakemar(),
+  volcano: buildFrostfell(),
 };
 
 /** The land for a zone theme, or null when that zone's land hasn't been built yet. */

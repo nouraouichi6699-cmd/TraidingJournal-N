@@ -11,8 +11,8 @@ import type { ZoneTheme } from "./gloriaZones";
 import { footprintBlocked, stepHero } from "./GloriaHeroSprite";
 import { findInsideSpawn, findOutsideStart, GATE_REARM_FACTOR, gateRadiusPx, inGateZone, isTriggerGate, type Pt } from "./gloriaGateTriggers";
 
-// every theme that has a land today: Verdantia, Solmara, Heartlands, Aurelia, Drakemar
-const THEMES: ZoneTheme[] = ["forest", "oasis", "sea", "mountain", "castle"];
+// every theme that has a land today: Verdantia, Solmara, Heartlands, Aurelia, Drakemar, Frostfell
+const THEMES: ZoneTheme[] = ["forest", "oasis", "sea", "mountain", "castle", "volcano"];
 // one entry per scene: a single-scene land is just its own scene
 const SCENES: { base: LandDefinition; land: LandDefinition; sceneId?: string }[] = THEMES.flatMap((t) => {
   const base = getZoneLand(t)!;
@@ -142,6 +142,7 @@ for (const { base, land, sceneId } of SCENES) {
   const doors: { theme: ZoneTheme; name: string; baseY: number }[] = [
     { theme: "mountain", name: "aurelia (temple steps end ~y 600)", baseY: 598 },
     { theme: "castle", name: "drakemar (lower fort gate base ~y 452)", baseY: 452 },
+    { theme: "volcano", name: "frostfell (archway base ~y 390)", baseY: 390 },
   ];
   for (const { theme, name, baseY } of doors) {
     const land = getZoneLand(theme)!;
@@ -208,6 +209,54 @@ for (const { base, land, sceneId } of SCENES) {
     ["a sparring ring post", 342, 350], ["an archery target", 280, 150],
   ];
   for (const [name, x, y] of solid) check(!at(x, y), `drakemar/interior: ${name} (${x}, ${y}) blocks the hero`);
+}
+
+// ── Frostfell's exterior: the path and stairs are walkable; the cliffs, rocks and lava side hold ──
+{
+  const land = getZoneLand("volcano")!;
+  const { w, h } = land.imageSize;
+  const pt = (x: number, y: number): Pt => ({ x: (x / w) * 100, y: (y / h) * 100 });
+  const canReach = reachableFrom(land, land.start!);
+  const at = (x: number, y: number) => canReach(pt(x, y));
+  const open: [string, number, number][] = [
+    ["the foot of the path", 790, 800], ["the cobbles mid-path", 740, 650], ["the path's narrow neck", 760, 540],
+    ["the foot of the stairs (trigger)", 849, 458], ["the stairs, higher up", 850, 415],
+  ];
+  for (const [name, x, y] of open) check(at(x, y), `frostfell/exterior: ${name} (${x}, ${y}) is walkable from the start`);
+  const solid: [string, number, number][] = [
+    ["the archway doorway itself", 890, 330], ["the cliff face west of the stairs", 600, 440], ["the lava drop to the west", 300, 600],
+    ["the cliff face east of the path", 1000, 560], ["the west stele", 440, 650], ["the east stele", 1140, 700], ["the volcano face", 900, 100],
+  ];
+  for (const [name, x, y] of solid) check(!at(x, y), `frostfell/exterior: ${name} (${x}, ${y}) blocks the hero`);
+}
+
+// ── Frostfell's interior: corridor, slab bridges, the four chambers and the throne platform are walkable ──
+{
+  const land = getLandScene(getZoneLand("volcano")!, "interior");
+  const { w, h } = land.imageSize;
+  const pt = (x: number, y: number): Pt => ({ x: (x / w) * 100, y: (y / h) * 100 });
+  const canReach = reachableFrom(land, land.start!);
+  const at = (x: number, y: number) => canReach(pt(x, y));
+  const open: [string, number, number][] = [
+    ["the corridor foot", 624, 800], ["the corridor, mid", 640, 550], ["the stair up to the throne platform", 640, 270],
+    ["the throne platform in front of the throne (exit)", 624, 190], ["the throne platform, far west", 470, 200],
+    ["the throne platform, far east", 800, 200],
+    ["the north-west chamber floor", 400, 410], ["the north-west chamber, far side", 80, 430], ["the north-east chamber floor", 880, 410],
+    ["the north-east chamber, far side", 1120, 430], ["the south-west chamber floor", 320, 720], ["the south-west chamber, gold heap", 180, 745],
+    ["the south-east chamber floor", 920, 720], ["the south-east chamber, far side", 1160, 760],
+    ["the west upper slab bridge", 480, 515], ["the east upper slab bridge", 800, 515],
+    ["the west lower slab bridge", 480, 700], ["the east lower slab bridge", 780, 700],
+  ];
+  for (const [name, x, y] of open) check(at(x, y), `frostfell/interior: ${name} (${x}, ${y}) is walkable from the entry`);
+  const solid: [string, number, number][] = [
+    ["the throne", 640, 110], ["the back wall", 300, 100], ["the lava ditch, north-west", 535, 400], ["the lava ditch, north-east", 740, 400],
+    ["the lava between the west slabs", 480, 600], ["the lava between the east slabs", 780, 600], ["the lava below the west slab", 460, 800],
+    ["the lava below the east slab", 770, 800], ["the platform front wall, west", 500, 270], ["the platform front wall, east", 780, 270],
+    ["the west pedestal statue", 360, 520], ["the east pedestal statue", 910, 520], ["the north-west pedestal statue", 390, 300],
+    ["the north-east pedestal statue", 870, 300], ["the big west statue", 85, 600], ["the south-west chest", 210, 640],
+    ["the south-east chest", 1100, 670], ["the north-east chest", 1070, 370], ["the north-west chest", 95, 390], ["the outer west wall", 5, 500],
+  ];
+  for (const [name, x, y] of solid) check(!at(x, y), `frostfell/interior: ${name} (${x}, ${y}) blocks the hero`);
 }
 
 console.log(failures === 0 ? "\nAll gate trigger checks passed." : `\n${failures} check(s) FAILED.`);
