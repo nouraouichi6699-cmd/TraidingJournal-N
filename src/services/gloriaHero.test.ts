@@ -1,6 +1,6 @@
 // Run: npx tsx src/services/gloriaHero.test.ts
 // Checks the pure parts of the scheduled-hero system (no Supabase, no DOM):
-//  1. gloriaHeroSchedule: weekly / monthly / initial due-checks and the next-date helpers.
+//  1. gloriaHeroSchedule: weekly (Saturday 00:00 UTC) / monthly / initial due-checks and the next-date helpers.
 //  2. gloriaCharacterRules: the refactored pickCharacter/determineCharacters behaves exactly like the original
 //     hard-coded implementation (kept below as legacyDetermine) over a large randomized sweep -- the refactor moved
 //     the thresholds into a data table, and this guards against any drift.
@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import type { GloriaRadarStats } from "../types/gloria";
 import type { GloriaCharacterId, GloriaMonthlyStats } from "./gloriaCharacterService";
 import { calculateElfMeter, calculateRadarStats, characterProgress, determineCharacters, pickCharacter, CHARACTER_PATHS } from "./gloriaCharacterRules";
-import { dueUpdate, nextMonthStart, nextUpdateAt, nextWeeklyAt, WEEK_MS } from "./gloriaHeroSchedule";
+import { dueUpdate, nextMonthStart, nextSaturdayAfter, nextUpdateAt, nextWeeklyAt } from "./gloriaHeroSchedule";
 
 let checks = 0;
 const ok = (cond: unknown, msg: string) => { checks++; assert.ok(cond, msg); };
@@ -20,19 +20,37 @@ const at = (s: string) => new Date(s);
 eq(dueUpdate(null, at("2026-11-18T10:00:00Z")), "initial", "no stored update -> initial");
 eq(dueUpdate("garbage", at("2026-11-18T10:00:00Z")), "initial", "unparseable stored time -> initial");
 eq(dueUpdate("2026-11-18T10:00:00Z", at("2026-11-18T10:00:00Z")), null, "same instant -> not due");
-eq(dueUpdate("2026-11-10T10:00:00Z", at("2026-11-17T09:59:59Z")), null, "6d23h59m -> not due");
-eq(dueUpdate("2026-11-10T10:00:00Z", at("2026-11-17T10:00:00Z")), "weekly", "exactly 7 days -> weekly");
+// 2026-11-18 is a Wednesday; the next Saturday 00:00 UTC is 2026-11-21
+eq(dueUpdate("2026-11-18T10:00:00Z", at("2026-11-20T23:59:59Z")), null, "Wed check, still Friday -> not due");
+eq(dueUpdate("2026-11-18T10:00:00Z", at("2026-11-21T00:00:00Z")), "weekly", "Wed check, Saturday 00:00 UTC -> weekly");
+eq(dueUpdate("2026-11-18T10:00:00Z", at("2026-11-25T10:00:00Z")), "weekly", "Wed check, a full week later (past Saturday) -> weekly");
+eq(dueUpdate("2026-11-20T23:00:00Z", at("2026-11-21T00:30:00Z")), "weekly", "Friday-night check, 90 minutes later but across Saturday -> weekly");
+eq(dueUpdate("2026-11-14T10:00:00Z", at("2026-11-20T23:00:00Z")), null, "Saturday check: next boundary is the FOLLOWING Saturday, 6 days is not enough");
+eq(dueUpdate("2026-11-14T10:00:00Z", at("2026-11-21T00:00:00Z")), "weekly", "Saturday check -> due the next Saturday");
+eq(dueUpdate("2026-11-15T10:00:00Z", at("2026-11-20T10:00:00Z")), null, "Sunday check, Friday of the same week -> not due");
+eq(dueUpdate("2026-11-15T10:00:00Z", at("2026-11-21T00:00:00Z")), "weekly", "Sunday check -> due that Saturday (6 days, not 7)");
 eq(dueUpdate("2026-11-10T10:00:00Z", at("2026-11-29T10:00:00Z")), "weekly", "long gap in one month -> weekly");
 eq(dueUpdate("2026-11-30T23:00:00Z", at("2026-12-01T00:30:00Z")), "monthly", "crossing a month boundary after 90 minutes -> monthly");
 eq(dueUpdate("2026-11-25T10:00:00Z", at("2026-12-04T10:00:00Z")), "monthly", "both weekly and monthly due -> monthly wins");
 eq(dueUpdate("2025-12-31T10:00:00Z", at("2026-12-31T10:00:00Z")), "monthly", "same month number, different year -> monthly");
 eq(dueUpdate("2026-11-20T10:00:00Z", at("2026-11-18T10:00:00Z")), null, "stored time in the future (clock skew) -> not due");
-eq(nextWeeklyAt("2026-11-18T10:00:00Z", at("2026-11-19T00:00:00Z")).toISOString(), "2026-11-25T10:00:00.000Z", "next weekly = +7 days");
+eq(nextSaturdayAfter(at("2026-11-18T10:00:00Z")).toISOString(), "2026-11-21T00:00:00.000Z", "Wednesday -> that Saturday");
+eq(nextSaturdayAfter(at("2026-11-21T00:00:00Z")).toISOString(), "2026-11-28T00:00:00.000Z", "exactly Saturday 00:00 -> the following one");
+eq(nextSaturdayAfter(at("2026-11-20T23:59:59Z")).toISOString(), "2026-11-21T00:00:00.000Z", "Friday 23:59:59 -> next second's Saturday");
+eq(nextSaturdayAfter(at("2026-11-22T12:00:00Z")).toISOString(), "2026-11-28T00:00:00.000Z", "Sunday -> next Saturday");
+eq(nextSaturdayAfter(at("2026-12-30T12:00:00Z")).toISOString(), "2027-01-02T00:00:00.000Z", "rolls the year");
+for (let d = 0; d < 7; d++) {
+  const day = at(`2026-11-${15 + d}T08:00:00Z`);
+  ok(nextSaturdayAfter(day).getUTCDay() === 6 && nextSaturdayAfter(day).getUTCHours() === 0, `every weekday lands on a Saturday midnight (from ${day.toISOString()})`);
+}
+eq(nextWeeklyAt("2026-11-18T10:00:00Z", at("2026-11-19T00:00:00Z")).toISOString(), "2026-11-21T00:00:00.000Z", "next weekly = upcoming Saturday, not +7 days");
+eq(nextWeeklyAt(null, at("2026-11-18T10:00:00Z")).toISOString(), "2026-11-21T00:00:00.000Z", "no update yet -> upcoming Saturday");
+eq(nextWeeklyAt("2026-11-01T10:00:00Z", at("2026-11-18T10:00:00Z")).toISOString(), "2026-11-21T00:00:00.000Z", "stale stored time never shows a past date");
 eq(nextMonthStart(at("2026-11-18T10:00:00Z")).toISOString(), "2026-12-01T00:00:00.000Z", "next month start");
 eq(nextMonthStart(at("2026-12-31T23:59:59Z")).toISOString(), "2027-01-01T00:00:00.000Z", "next month start rolls the year");
-eq(nextUpdateAt("2026-11-18T10:00:00Z", at("2026-11-19T00:00:00Z")).toISOString(), "2026-11-25T10:00:00.000Z", "weekly comes first");
-eq(nextUpdateAt("2026-11-28T10:00:00Z", at("2026-11-29T00:00:00Z")).toISOString(), "2026-12-01T00:00:00.000Z", "month start comes first");
-ok(WEEK_MS === 604800000, "a week is 7 days in ms");
+eq(nextUpdateAt("2026-11-18T10:00:00Z", at("2026-11-19T00:00:00Z")).toISOString(), "2026-11-21T00:00:00.000Z", "Saturday comes first");
+eq(nextUpdateAt("2026-11-29T10:00:00Z", at("2026-11-29T12:00:00Z")).toISOString(), "2026-12-01T00:00:00.000Z", "month start comes first (Dec 1 is before Saturday Dec 5)");
+eq(nextUpdateAt("2026-11-26T10:00:00Z", at("2026-11-27T00:00:00Z")).toISOString(), "2026-11-28T00:00:00.000Z", "Saturday Nov 28 comes before Dec 1");
 
 // -- 2. legacy equivalence --------------------------------------------------------------------------------------
 // Verbatim copy of determineCharacters + scorePositives as they were before the rules table existed.

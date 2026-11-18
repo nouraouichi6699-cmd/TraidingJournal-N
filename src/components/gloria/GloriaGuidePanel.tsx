@@ -64,9 +64,9 @@ const RULES: { title: L; body: L }[] = [
   {
     title: { en: "Characters", ar: "الشخصيات", fr: "Personnages" },
     body: {
-      en: "Your hero is chosen from how you actually traded, and re-assessed once a week and at the start of each month; it stays fixed in between. 9 characters across 4 tiers: Fallen, Neutral, Hero and Legendary. New players start as the free Savage.",
-      ar: "يُختار بطلك حسب طريقة تداولك الفعلية، ويُعاد تقييمه مرة كل أسبوع وعند بداية كل شهر، ويبقى ثابتاً بين التحديثين. 9 شخصيات في 4 مستويات: ساقط، محايد، بطل، وأسطوري. يبدأ اللاعبون الجدد بالهمجي المجاني.",
-      fr: "Votre héros est choisi selon votre façon réelle de trader, puis réévalué chaque semaine et au début de chaque mois ; il reste fixe entre-temps. 9 personnages sur 4 niveaux : Déchu, Neutre, Héros et Légendaire. Les nouveaux joueurs commencent avec le Sauvage gratuit.",
+      en: "Your hero is chosen from how you actually traded, and re-assessed every Saturday (after the trading week closes) and at the start of each month; it stays fixed in between. 9 characters across 4 tiers: Fallen, Neutral, Hero and Legendary. New players start as the free Savage.",
+      ar: "يُختار بطلك حسب طريقة تداولك الفعلية، ويُعاد تقييمه كل سبت (بعد إغلاق أسبوع التداول) وعند بداية كل شهر، ويبقى ثابتاً بين التحديثين. 9 شخصيات في 4 مستويات: ساقط، محايد، بطل، وأسطوري. يبدأ اللاعبون الجدد بالهمجي المجاني.",
+      fr: "Votre héros est choisi selon votre façon réelle de trader, puis réévalué chaque samedi (après la clôture de la semaine de trading) et au début de chaque mois ; il reste fixe entre-temps. 9 personnages sur 4 niveaux : Déchu, Neutre, Héros et Légendaire. Les nouveaux joueurs commencent avec le Sauvage gratuit.",
     },
   },
   {

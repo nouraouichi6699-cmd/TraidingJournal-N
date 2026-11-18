@@ -122,7 +122,8 @@ export function HeroSection({ hero, lang }: { hero: GloriaHero; lang: Lang }) {
                     <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-400">
                       <CalendarClock size={12} aria-hidden /> {t("nextWeekly")}
                     </div>
-                    <div className="mt-1 text-sm font-bold text-stone-50">{fmtDate(weekly, lang, { weekday: "short", month: "short", day: "numeric" })}</div>
+                    <div className="mt-1 text-sm font-bold text-stone-50">{fmtDate(weekly, lang, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}</div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-stone-500">{t("weeklyNote")}</div>
                   </div>
                 )}
                 <div className={`rounded-lg bg-black/25 px-2.5 py-2 ${weekly ? "" : "col-span-2"}`}>

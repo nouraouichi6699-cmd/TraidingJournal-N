@@ -177,7 +177,7 @@ export default function GloriaCharacterDetail({ id, lang, hero, live, onBack }: 
             <>
               {t("reqMet")}{" "}
               <span className="font-semibold text-stone-100">
-                ({fmtDate(nextAt, lang, { month: "short", day: "numeric" })})
+                ({fmtDate(nextAt, lang, { month: "short", day: "numeric", timeZone: "UTC" })})
               </span>
             </>
           ) : (

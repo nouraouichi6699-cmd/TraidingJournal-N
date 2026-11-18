@@ -18,6 +18,7 @@ export const HERO_TEXT = {
   runnerUp: { en: "Runner-up", ar: "الوصيف", fr: "Second choix" },
   scheduleTitle: { en: "Next updates", ar: "التحديثات القادمة", fr: "Prochaines mises à jour" },
   nextWeekly: { en: "Weekly update", ar: "التحديث الأسبوعي", fr: "Mise à jour hebdo" },
+  weeklyNote: { en: "Every Saturday, after the trading week closes", ar: "كل سبت، بعد إغلاق أسبوع التداول", fr: "Chaque samedi, après la clôture de la semaine de trading" },
   nextMonth: { en: "New month", ar: "بداية الشهر", fr: "Nouveau mois" },
   scheduleNote: {
     en: "Your hero is re-assessed only on these dates and stays fixed in between. A due update is applied the next time you open Gloria.",
