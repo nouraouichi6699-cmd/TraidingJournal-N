@@ -5,7 +5,7 @@ import type { GloriaHeroUpdateKind } from "../../types/gloria";
 import type { Criterion, CriterionMetric, HeroReason } from "../../services/gloriaCharacterRules";
 import { CHARACTER_PATHS } from "../../services/gloriaCharacterRules";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
-import { fmtRatioR } from "../../lib/tradeLab";
+import { avgRText } from "../../lib/tradeLab";
 
 type L = Record<Lang, string>;
 
@@ -140,7 +140,7 @@ export const METRIC_LABEL: Record<CriterionMetric, L> = {
   trades: { en: "Closed trades", ar: "الصفقات المغلقة", fr: "Trades clôturés" },
   winRate: { en: "Win rate", ar: "نسبة الربح", fr: "Taux de réussite" },
   drawdown: { en: "Max drawdown", ar: "أقصى تراجع", fr: "Drawdown max" },
-  rr: { en: "Average R per trade (1:X)", ar: "متوسط R للصفقة (1:X)", fr: "R moyen par trade (1:X)" },
+  rr: { en: "Average R per trade", ar: "متوسط R للصفقة", fr: "R moyen par trade" },
   profitFactor: { en: "Profit factor", ar: "عامل الربح", fr: "Facteur de profit" },
   pairs: { en: "Different pairs", ar: "أزواج مختلفة", fr: "Paires différentes" },
   prevLoss: { en: "Came back from a losing month", ar: "تعافٍ من شهر خاسر", fr: "Remonté d'un mois perdant" },
@@ -150,29 +150,14 @@ export const METRIC_LABEL: Record<CriterionMetric, L> = {
 /** Integer as-is, otherwise up to 2 decimals without trailing zeros (1.50 -> 1.5). */
 export const fmtNum = (n: number): string => String(Math.round(n * 100) / 100);
 
-const UNIT: Partial<Record<CriterionMetric, string>> = { winRate: "%", drawdown: "%" };
+const UNIT: Partial<Record<CriterionMetric, string>> = { winRate: "%", drawdown: "%", rr: "R" };
 
 /** A measured value as text: "62%", "1.8", "Yes". `null` (not measurable yet) is an em dash. */
 export function fmtValue(metric: CriterionMetric, v: number | null, lang: Lang): string {
+  if (metric === "rr") return v == null ? avgRText(null, lang) : `${avgRText(v, lang)} · ${fmtNum(v)}R`; // rounded ratio first, the precise figure beside it
   if (v == null) return "—";
   if (metric === "prevLoss") return v >= 1 ? HERO_TEXT.yes[lang] : HERO_TEXT.no[lang];
-  // average R is shown as the ratio "1:X" (2 decimals here so a value that has cleared a gate never reads as sitting on it)
-  if (metric === "rr") return fmtRatioR(v, 2);
   return `${fmtNum(v)}${UNIT[metric] ?? ""}`;
-}
-
-/** Average-R requirements in the same "1:X" shape as the player's own figure: "> 1:0.3", "1:-0.15 to 1:0.15". Thresholds keep their exact decimals. */
-function fmtRatioRequirement(k: Criterion, lang: Lang): string {
-  const r = (n: number) => `1:${fmtNum(n)}`;
-  const ar = lang === "ar";
-  switch (k.op) {
-    case "gt": return `${ar ? AR_OP.gt : ">"} ${r(k.value)}`;
-    case "gte": return `${ar ? AR_OP.gte : "≥"} ${r(k.value)}`;
-    case "lt": return `${ar ? AR_OP.lt : "<"} ${r(k.value)}`;
-    case "lte": return `${ar ? AR_OP.lte : "≤"} ${r(k.value)}`;
-    case "between": return ar ? `بين ${r(k.value)} و ${r(k.hi ?? k.value)}` : lang === "fr" ? `de ${r(k.value)} à ${r(k.hi ?? k.value)}` : `${r(k.value)} to ${r(k.hi ?? k.value)}`;
-    case "flag": return "";
-  }
 }
 
 /** Arabic reads better with words than with < > symbols sitting inside right-to-left text. */
@@ -182,7 +167,6 @@ const AR_OP: Record<"gt" | "gte" | "lt" | "lte", string> = { gt: "أكثر من"
 export function fmtRequirement(k: Criterion, lang: Lang): string {
   const u = UNIT[k.metric] ?? "";
   const ar = lang === "ar";
-  if (k.metric === "rr") return fmtRatioRequirement(k, lang);
   switch (k.op) {
     case "gt": return `${ar ? AR_OP.gt : ">"} ${fmtNum(k.value)}${u}`;
     case "gte": return `${ar ? AR_OP.gte : "≥"} ${fmtNum(k.value)}${u}`;

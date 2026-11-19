@@ -105,7 +105,7 @@ export function rMultiple(t: Trade): number | null {
 }
 
 // ---------- R summary: the one place "total R" and "average R" are computed and formatted ----------
-// Used by the Dashboard "Avg win/loss trade" card, Gloria's avgRR stat and its labels, and matching the Charts page's
+// Used by the Dashboard "Avg win/loss trade" card and Gloria's avgRR stat and its labels, and matching the Charts page's
 // "R-multiple" analysis (ChartsView rInfo.avg = the same mean). Keep every R figure routed through here so they never diverge.
 
 /** The valid R-multiples of these trades (those with a recorded stop-loss), wins and losses in one pool. */
@@ -121,34 +121,103 @@ export const meanR = (rs: number[]): number | null => (rs.length ? rs.reduce((a,
 export const fmtTotalR = (total: number): string => `${total > 0 ? "+" : ""}${total.toFixed(2)}R`;
 
 /**
- * An average R as a ratio "1:X": on average, 1 unit of risk returned X units. A losing average keeps the same shape
- * with a negative X ("1:-0.8": 1 unit risked returned -0.8). `digits` is 1 for display; the Gloria requirement rows pass
- * 2 so a value of 0.14 is not shown as "1:0.1" next to a "> 1:0.1" line it has in fact cleared.
- * A value that rounds to zero is written "1:0.0", never "1:-0.0".
+ * Outlier guard for the AVERAGE (not for Total R): a trade whose R falls outside [OUTLIER_R_MIN, OUTLIER_R_MAX] is
+ * left out of the average and flagged. These are likely data-entry errors in the stop-loss (a stop typed a few ticks
+ * from the entry makes R explode; a stop far past the exit makes it tiny or hugely negative) -- review these trades.
  */
-export function fmtRatioR(avg: number, digits = 1): string {
-  const x = Number(avg.toFixed(digits));
-  return `1:${(x === 0 ? 0 : x).toFixed(digits)}`;
+export const OUTLIER_R_MAX = 10;
+export const OUTLIER_R_MIN = -3;
+/** Fewer valid (non-outlier) R trades than this and the average is not shown: "Not enough data yet". */
+export const MIN_R_TRADES = 10;
+
+/** The clean ratios an average R is shown as. */
+export const R_STEPS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10];
+
+/**
+ * Nearest display step, signed. Unlike a bare nearest-of-R_STEPS, anything closer to 0 than to the first step (|x| <
+ * 0.25) rounds to 0, so a break-even trader reads "1:0" and not "1:0.5" (which would overstate a 0.05R edge tenfold).
+ */
+export function roundToNearestRatioStep(value: number): number {
+  const abs = Math.abs(value);
+  if (abs < R_STEPS[0] / 2) return 0;
+  let closest = R_STEPS[0];
+  let minDiff = Math.abs(abs - closest);
+  for (const step of R_STEPS) {
+    const diff = Math.abs(abs - step);
+    if (diff < minDiff) { minDiff = diff; closest = step; }
+  }
+  return value < 0 ? -closest : closest;
 }
 
-/** "1:X.X" for a list of R-multiples (the mean, rounded to 1 decimal), or "—" when there are none. */
-export function avgRMultipleRatio(rs: number[]): string {
-  const m = meanR(rs);
-  return m == null ? "—" : fmtRatioR(m);
+/** "1:2" (on average 1 unit of risk returned 2), "1:0" at break-even, "1:0.5 (loss)" for a losing average. */
+export function formatAvgRRatio(avgR: number, lossWord = "loss"): string {
+  const rounded = roundToNearestRatioStep(avgR);
+  return rounded >= 0 ? `1:${rounded}` : `1:${Math.abs(rounded)} (${lossWord})`;
 }
 
-/** The sign rule shared by every R figure: green above zero, red below, neutral at (or rounding to) zero. */
+/** The words the display adds around the ratio, per language. */
+export const R_WORDS = {
+  loss: { en: "loss", ar: "خسارة", fr: "perte" },
+  notEnough: { en: "Not enough data yet", ar: "لا توجد بيانات كافية بعد", fr: "Pas encore assez de données" },
+} as const;
+
+/** The player-facing average-R text: the rounded ratio, or "Not enough data yet". */
+export const avgRText = (avg: number | null, lang: "en" | "ar" | "fr"): string => (avg == null ? R_WORDS.notEnough[lang] : formatAvgRRatio(avg, R_WORDS.loss[lang]));
+
+/** Colour rule for the ratio, by the sign of what is DISPLAYED (so "1:0" is neutral, never green or red). */
+export const ratioTone = (avgR: number | null): "pos" | "neg" | "zero" => {
+  if (avgR == null) return "zero";
+  const r = roundToNearestRatioStep(avgR);
+  return r > 0 ? "pos" : r < 0 ? "neg" : "zero";
+};
+
+/** Colour rule for a plain figure (Total R): green above zero, red below, neutral at (or rounding to) `digits` decimals of zero. */
 export const rTone = (x: number | null, digits = 1): "pos" | "neg" | "zero" => {
   if (x == null) return "zero";
   const r = Number(x.toFixed(digits));
   return r > 0 ? "pos" : r < 0 ? "neg" : "zero";
 };
 
-/** Everything a display needs from a set of trades, in one call. */
-export function rSummary(trades: Trade[]) {
-  const rs = rValues(trades);
-  const avg = meanR(rs);
-  return { n: rs.length, total: totalR(rs), avg, totalText: fmtTotalR(totalR(rs)), ratioText: avgRMultipleRatio(rs) };
+export const NOT_ENOUGH_R = "Not enough data yet";
+
+/** A trade left out of the average because its R is implausible. */
+export interface FlaggedR { key: string; no: number; date: string; symbol: string; r: number }
+
+export interface RStats {
+  /** Trades with a valid R (a recorded stop-loss), outliers included. */
+  validN: number;
+  /** Total R over ALL valid-R trades, outliers included. */
+  total: number;
+  totalText: string;
+  /** Valid-R trades used for the average (outliers removed). */
+  usedN: number;
+  /** Precise, UNROUNDED average over the used trades; null until there are MIN_R_TRADES of them. Thresholds compare this. */
+  avg: number | null;
+  /** The precise average even below MIN_R_TRADES (for the tooltip). null when no trade is used. */
+  avgAny: number | null;
+  /** Enough trades to show the average. */
+  enough: boolean;
+  /** The rounded display ratio, or NOT_ENOUGH_R. */
+  ratioText: string;
+  /** Trades excluded from the average as outliers (still counted in `total`). */
+  flagged: FlaggedR[];
+}
+
+/** Everything an R display needs from a set of closed trades: total, filtered precise average, rounded ratio, flagged outliers. */
+export function rStats(trades: Trade[]): RStats {
+  const used: number[] = [], all: number[] = [], flagged: FlaggedR[] = [];
+  for (const t of trades) {
+    const r = rMultiple(t);
+    if (r == null) continue;
+    all.push(r);
+    if (r > OUTLIER_R_MAX || r < OUTLIER_R_MIN) flagged.push({ key: t.key, no: t.no, date: (t.exitTime ?? t.entryTime ?? "").slice(0, 10), symbol: t.symbol, r });
+    else used.push(r);
+  }
+  const total = totalR(all);
+  const avgAny = meanR(used);
+  const enough = used.length >= MIN_R_TRADES;
+  const avg = enough ? avgAny : null;
+  return { validN: all.length, total, totalText: fmtTotalR(total), usedN: used.length, avg, avgAny, enough, ratioText: avg == null ? NOT_ENOUGH_R : formatAvgRRatio(avg), flagged };
 }
 
 // ---------- Revenge trading ----------

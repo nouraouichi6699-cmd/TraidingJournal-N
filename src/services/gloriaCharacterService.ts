@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import type { Account, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { tradeCore, ticketOf } from "../lib/stats";
-import { meanR, rValues, tiltSplit } from "../lib/tradeLab";
+import { rStats, tiltSplit } from "../lib/tradeLab";
 import { readAnswers } from "../lib/tradeRules";
 import { calculateElfMeter, calculateRadarStats, pickCharacter, type HeroReason } from "./gloriaCharacterRules";
 
@@ -15,7 +15,9 @@ export interface GloriaMonthlyStats {
   totalTrades: number;
   winRate: number | null; // percent, 0-100
   maxDrawdown: number | null; // percent of the month's peak equity, 0-100 (see monthlyDrawdownPct)
-  avgRR: number | null; // average R-multiple per trade (see averageR); can be negative
+  avgRR: number | null; // PRECISE average R-multiple per trade, outliers removed, null under MIN_R_TRADES (see averageR); can be negative
+  rTradesUsed?: number; // trades behind avgRR
+  rTradesFlagged?: number; // outlier trades left out of it
   profitFactor: number | null;
   uniquePairsCount: number;
   hadRevengeTrades: boolean;
@@ -90,13 +92,19 @@ function equityBeforeMonth(allTrades: Trade[], accounts: Account[], month: strin
  * mean of rMultiple() over the shown trades), so the number matches what the player already sees there.
  * (It used to be a payoff ratio, mean win R / mean loss R, which blew up to figures like 8.7 when losses were small.)
  */
-function averageR(closed: Trade[]): number | null {
-  return meanR(rValues(closed)); // lib/tradeLab: the one shared definition (Dashboard card and Charts use it too)
+function averageR(closed: Trade[]): { avg: number | null; used: number; flagged: number } {
+  // lib/tradeLab.rStats: the one shared definition (the Dashboard card uses it too). Outlier R trades (likely stop-loss
+  // data-entry errors) are left out of the mean, and under MIN_R_TRADES valid trades there is no average at all, so a
+  // requirement can never be "met" on a handful of trades. The value is the precise one: thresholds compare THIS, the
+  // rounded "1:X" is display only.
+  const r = rStats(closed);
+  return { avg: r.avg, used: r.usedN, flagged: r.flagged.length };
 }
 
 export function calculateMonthlyStats(allTrades: Trade[], month: string, accounts: Account[] = []): GloriaMonthlyStats {
   const closed = allTrades.filter((t) => isClosedInMonth(t, month));
   const core = tradeCore(closed);
+  const rAvg = averageR(closed);
 
   const revenge = tiltSplit(allTrades).afterLossBigger.some((t) => monthOf(t) === month);
 
@@ -114,7 +122,9 @@ export function calculateMonthlyStats(allTrades: Trade[], month: string, account
     totalTrades: core.n,
     winRate: core.winRate,
     maxDrawdown: monthlyDrawdownPct(closed, equityBeforeMonth(allTrades, accounts, month)),
-    avgRR: averageR(closed),
+    avgRR: rAvg.avg,
+    rTradesUsed: rAvg.used,
+    rTradesFlagged: rAvg.flagged,
     profitFactor: core.pf,
     uniquePairsCount: new Set(closed.map((t) => t.symbol)).size,
     hadRevengeTrades: revenge,
