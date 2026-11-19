@@ -149,20 +149,19 @@ export function roundToNearestRatioStep(value: number): number {
   return value < 0 ? -closest : closest;
 }
 
-/** "1:2" (on average 1 unit of risk returned 2), "1:0" at break-even, "1:0.5 (loss)" for a losing average. */
-export function formatAvgRRatio(avgR: number, lossWord = "loss"): string {
+/** "1:2" (on average 1 unit of risk returned 2), "1:0" at break-even, "-1:0.5" for a losing average (a leading minus, no text label). */
+export function formatAvgRRatio(avgR: number): string {
   const rounded = roundToNearestRatioStep(avgR);
-  return rounded >= 0 ? `1:${rounded}` : `1:${Math.abs(rounded)} (${lossWord})`;
+  return rounded >= 0 ? `1:${rounded}` : `-1:${Math.abs(rounded)}`;
 }
 
-/** The words the display adds around the ratio, per language. */
+/** The words the display adds around the ratio (when there is not enough data), per language. */
 export const R_WORDS = {
-  loss: { en: "loss", ar: "خسارة", fr: "perte" },
   notEnough: { en: "Not enough data yet", ar: "لا توجد بيانات كافية بعد", fr: "Pas encore assez de données" },
 } as const;
 
 /** The player-facing average-R text: the rounded ratio, or "Not enough data yet". */
-export const avgRText = (avg: number | null, lang: "en" | "ar" | "fr"): string => (avg == null ? R_WORDS.notEnough[lang] : formatAvgRRatio(avg, R_WORDS.loss[lang]));
+export const avgRText = (avg: number | null, lang: "en" | "ar" | "fr"): string => (avg == null ? R_WORDS.notEnough[lang] : formatAvgRRatio(avg));
 
 /** Colour rule for the ratio, by the sign of what is DISPLAYED (so "1:0" is neutral, never green or red). */
 export const ratioTone = (avgR: number | null): "pos" | "neg" | "zero" => {

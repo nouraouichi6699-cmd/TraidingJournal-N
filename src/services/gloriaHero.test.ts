@@ -187,10 +187,12 @@ ok(pickCharacter({ ...base, totalTrades: 0 }, r0) === null, "no trades -> no pic
   eq([0, 0.05, 0.24, -0.1].map(roundToNearestRatioStep), [0, 0, 0, 0], "under 0.25 reads 0 (deliberate: never overstate a break-even edge as 1:0.5)");
   eq(formatAvgRRatio(2.2), "1:2", "2.2 -> 1:2");
   eq(formatAvgRRatio(1.4), "1:1.5", "1.4 -> 1:1.5");
-  eq(formatAvgRRatio(-0.8), "1:1 (loss)", "-0.8 -> 1:1 (loss)");
+  eq(formatAvgRRatio(-0.8), "-1:1", "-0.8 -> -1:1");
+  eq([formatAvgRRatio(-0.4), formatAvgRRatio(-0.9), formatAvgRRatio(-2.2), formatAvgRRatio(-1.4)], ["-1:0.5", "-1:1", "-1:2", "-1:1.5"], "losing averages: leading minus, same steps");
+  ok(!["-0.8", "-2.2", "-5"].some((v) => formatAvgRRatio(Number(v)).includes("(")), "no text label on a losing ratio");
   eq(formatAvgRRatio(0.04), "1:0", "break-even -> 1:0");
-  eq(formatAvgRRatio(-0.04), "1:0", "tiny negative -> 1:0, no (loss)");
-  eq(formatAvgRRatio(-2.2, "خسارة"), "1:2 (خسارة)", "loss word is localisable");
+  eq(formatAvgRRatio(-0.04), "1:0", "tiny negative -> 1:0, no minus (rounds to zero)");
+  eq(avgRText(-0.9, "ar"), "-1:1", "the same string in every language");
   eq(avgRText(null, "en"), "Not enough data yet", "null -> not enough data");
   eq(avgRText(1.4, "fr"), "1:1.5", "rounded ratio");
   eq(fmtTotalR(24), "+24.00R", "positive total"); eq(fmtTotalR(-3.5), "-3.50R", "negative total"); eq(fmtTotalR(0), "0.00R", "zero total");
