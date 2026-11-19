@@ -15,6 +15,7 @@ import { getCachedEconMonth, putCachedEconMonth } from "../lib/econNewsCache";
 import { EconFilterChips } from "./EconFilterChips";
 import { computeActivity } from "../lib/activity";
 import { fmt } from "../lib/stats";
+import { rSummary, rTone } from "../lib/tradeLab";
 import { fmtMoney } from "../lib/money";
 import type { CashFlow } from "../lib/cashflow";
 import { dayKey, type Metrics } from "../lib/dashStats";
@@ -494,14 +495,34 @@ export const DEFS: Def[] = [
     render: (c) => c.m.dayWinRate == null ? <Empty lang={c.lang} /> : <Kpi value={`${fmt(c.m.dayWinRate, 1)}%`} sub={`${c.m.days.length} ${S(TR("days", "يوم", "jours"), c)}`} visual={<Donut pct={c.m.dayWinRate} color={GREEN} label="" />} />
   },
   {
-    id: "avg", icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Avg win/loss trade", "متوسط الربح/الخسارة", "Gain/perte moyen"), info: TR("Average winning trade ÷ average losing trade.", "متوسط الصفقة الرابحة ÷ متوسط الصفقة الخاسرة.", "Gain moyen ÷ perte moyenne."),
+    id: "avg", icon: <Scale size={14} />, min: { w: 2, h: 2 }, size: { w: 3, h: 2 }, name: TR("Avg win/loss trade", "متوسط الربح/الخسارة", "Gain/perte moyen"),
+    info: TR(
+      "Two numbers, never mixed up. Total R: the SUM of every closed trade's R-multiple (profit in units of risk). Avg: the AVERAGE R-multiple per trade as 1:X, meaning that on average 1 unit of risk returned X units. Trades without a stop-loss have no R and are left out. The bar underneath is average win vs average loss in money.",
+      "رقمان لا يختلطان. إجمالي R: مجموع مضاعفات R لكل الصفقات المغلقة (الربح بوحدات المخاطرة). المتوسط: متوسط مضاعف R للصفقة بصيغة 1:X، أي أن كل وحدة مخاطرة أعادت في المتوسط X وحدة. الصفقات بلا وقف خسارة لا مضاعف لها وتُستثنى. الشريط أسفلهما هو متوسط الربح مقابل متوسط الخسارة بالمال.",
+      "Deux chiffres, jamais confondus. R total : la SOMME des multiples R de chaque trade clôturé (gain en unités de risque). Moy. : le multiple R MOYEN par trade au format 1:X, soit en moyenne X unités gagnées pour 1 unité risquée. Les trades sans stop-loss n'ont pas de R et sont ignorés. La barre dessous compare gain moyen et perte moyenne en argent.",
+    ),
     render: (c) => {
       if (!c.m.wins && !c.m.losses) return <Empty lang={c.lang} />;
       const t = c.m.avgWin + c.m.avgLoss || 1;
+      const r = rSummary(c.closed);
+      const col = (tone: "pos" | "neg" | "zero") => (tone === "pos" ? GREEN : tone === "neg" ? RED : undefined);
+      const hasR = r.n > 0 && r.avg != null;
+      const totalTip = S(TR("Total R: the sum of all R-multiples", "إجمالي R: مجموع كل مضاعفات R", "R total : somme de tous les multiples R"), c);
+      const avgTip = S(TR("Avg: average R-multiple per trade, as 1:X (on average 1 unit of risk returned X units)", "المتوسط: متوسط مضاعف R للصفقة بصيغة 1:X (كل وحدة مخاطرة أعادت في المتوسط X وحدة)", "Moy. : multiple R moyen par trade, au format 1:X (en moyenne 1 unité risquée a rapporté X unités)"), c);
       return (
         <div className="flex h-full flex-col justify-center gap-1.5">
-          <div className="tnum font-heading font-bold" style={{ fontSize: "clamp(1.2rem,min(24cqh,12cqw),2.6rem)", lineHeight: 1 }}>{c.m.ratio == null ? "∞" : fmt(c.m.ratio)}</div>
-          <div dir="ltr" className="flex h-2.5 overflow-hidden rounded-full bg-border"><div style={{ width: `${(c.m.avgWin / t) * 100}%`, background: GREEN }} /><div style={{ width: `${(c.m.avgLoss / t) * 100}%`, background: RED }} /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div title={totalTip} aria-label={`${S(TR("Total R", "إجمالي R", "R total"), c)}: ${hasR ? r.totalText : "—"}`}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">{S(TR("Total R", "إجمالي R", "R total"), c)}</div>
+              <div dir="ltr" className="tnum font-heading font-bold" style={{ fontSize: "clamp(1rem,min(18cqh,9cqw),2rem)", lineHeight: 1.1, color: hasR ? col(rTone(r.total, 2)) : undefined }}>{hasR ? r.totalText : "—"}</div>
+            </div>
+            <div title={avgTip} aria-label={`${S(TR("Avg", "المتوسط", "Moy."), c)}: ${r.ratioText}`}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">{S(TR("Avg", "المتوسط", "Moy."), c)}</div>
+              <div dir="ltr" className="tnum font-heading font-bold" style={{ fontSize: "clamp(1rem,min(18cqh,9cqw),2rem)", lineHeight: 1.1, color: hasR ? col(rTone(r.avg)) : undefined }}>{r.ratioText}</div>
+            </div>
+          </div>
+          {!hasR && <div className="text-[10px] text-muted">{S(TR("Add a stop-loss to your trades to see R.", "أضف وقف خسارة لصفقاتك لعرض R.", "Ajoutez un stop-loss à vos trades pour voir le R."), c)}</div>}
+          <div dir="ltr" className="flex h-2 overflow-hidden rounded-full bg-border"><div style={{ width: `${(c.m.avgWin / t) * 100}%`, background: GREEN }} /><div style={{ width: `${(c.m.avgLoss / t) * 100}%`, background: RED }} /></div>
           <div className="tnum flex justify-between text-[11px]"><span style={{ color: GREEN }}>{money(c, c.m.avgWin)}</span><span style={{ color: RED }}>{money(c, -c.m.avgLoss, false)}</span></div>
         </div>
       );

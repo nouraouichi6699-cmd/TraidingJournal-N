@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import type { Account, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { tradeCore, ticketOf } from "../lib/stats";
-import { rMultiple, tiltSplit } from "../lib/tradeLab";
+import { meanR, rValues, tiltSplit } from "../lib/tradeLab";
 import { readAnswers } from "../lib/tradeRules";
 import { calculateElfMeter, calculateRadarStats, pickCharacter, type HeroReason } from "./gloriaCharacterRules";
 
@@ -91,8 +91,7 @@ function equityBeforeMonth(allTrades: Trade[], accounts: Account[], month: strin
  * (It used to be a payoff ratio, mean win R / mean loss R, which blew up to figures like 8.7 when losses were small.)
  */
 function averageR(closed: Trade[]): number | null {
-  const rs = closed.map(rMultiple).filter((x): x is number => x != null);
-  return rs.length ? rs.reduce((s, x) => s + x, 0) / rs.length : null;
+  return meanR(rValues(closed)); // lib/tradeLab: the one shared definition (Dashboard card and Charts use it too)
 }
 
 export function calculateMonthlyStats(allTrades: Trade[], month: string, accounts: Account[] = []): GloriaMonthlyStats {

@@ -169,4 +169,28 @@ ok(pickCharacter({ ...base, totalTrades: 0 }, r0) === null, "no trades -> no pic
   ok(calculateMonthlyStats([tr(1), tr(1)], "2026-11").avgRR === 1, "all winners: a real average, no longer null for lack of losses");
 }
 
+// shared R helpers (lib/tradeLab): Total R is a SUM, Avg is the MEAN shown as "1:X.X", one rule for sign colours
+{
+  const { avgRMultipleRatio, fmtRatioR, fmtTotalR, meanR, rSummary, rTone, rValues, totalR } = await import("../lib/tradeLab");
+  const rs = [3, 3, 3, -0.1, -0.1, -0.1];
+  ok(Math.abs(totalR(rs) - 8.7) < 1e-9 && fmtTotalR(totalR(rs)) === "+8.70R", "total R is the sum, written +8.70R");
+  ok(Math.abs((meanR(rs) as number) - 1.45) < 1e-9 && avgRMultipleRatio(rs) === "1:1.5", "avg R is the mean, written 1:1.5 (1 decimal)");
+  eq(avgRMultipleRatio([2.2]), "1:2.2", "avgR 2.2 -> 1:2.2");
+  eq(avgRMultipleRatio([-0.8]), "1:-0.8", "negative average keeps the same shape: 1:-0.8");
+  eq(avgRMultipleRatio([0.04, -0.04, 0.02]), "1:0.0", "rounds to zero -> 1:0.0, never 1:-0.0");
+  eq(fmtRatioR(-0.04), "1:0.0", "a tiny negative reads 1:0.0");
+  eq(fmtRatioR(0.14, 2), "1:0.14", "2-decimal form for requirement rows");
+  eq(avgRMultipleRatio([]), "—", "no R -> dash");
+  eq(fmtTotalR(-3.5), "-3.50R", "negative total");
+  eq(fmtTotalR(0), "0.00R", "zero total has no sign");
+  eq(fmtTotalR(24), "+24.00R", "positive total has a plus");
+  eq([rTone(1.2), rTone(-0.8), rTone(0), rTone(0.04), rTone(-0.04), rTone(null)], ["pos", "neg", "zero", "zero", "zero", "zero"], "sign colours: independent, rounding-aware");
+  eq(rTone(0.04, 2), "pos", "total R keeps 2 decimals for its colour");
+  // rSummary over real trades equals the pieces, and ignores trades without a stop-loss
+  const mk = (r: number, sl: number | null): import("../types").Trade => ({ key: String(Math.random()), accountId: "a", no: 1, symbol: "X", side: "long", qty: 1, entryTime: "2026-11-10T08:00:00Z", entryPrice: 100, exitTime: "2026-11-10T09:00:00Z", exitPrice: 100 + r, pnl: r, returnPct: null, commission: 0, sl, status: "closed" });
+  const sm = rSummary([mk(2, 99), mk(-1, 99), mk(5, null)]);
+  ok(sm.n === 2 && sm.total === 1 && sm.avg === 0.5 && sm.totalText === "+1.00R" && sm.ratioText === "1:0.5", "rSummary: 2 valid R of 3 trades");
+  ok(rValues([mk(5, null)]).length === 0, "no stop-loss -> no R");
+}
+
 console.log(`gloriaHero.test: ${checks} checks passed`);

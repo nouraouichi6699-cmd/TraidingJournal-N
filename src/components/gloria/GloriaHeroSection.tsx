@@ -7,6 +7,7 @@ import type { Lang } from "../../types";
 import { characterProgress } from "../../services/gloriaCharacterRules";
 import { nextMonthStart, nextWeeklyAt } from "../../services/gloriaHeroSchedule";
 import type { GloriaHero } from "../../hooks/useGloriaHero";
+import { fmtRatioR } from "../../lib/tradeLab";
 import { CriterionRow } from "./GloriaCharacterDetail";
 import { CHARACTER_DESC, GloriaPortrait, TIER_STYLE } from "./gloriaCharacterUi";
 import { fmtDate, fmtMonth, fmtNum, heroIntro, heroT, KIND_TEXT, STAT_SHORT } from "./gloriaHeroText";
@@ -33,7 +34,7 @@ export function HeroSection({ hero, lang }: { hero: GloriaHero; lang: Lang }) {
         [STAT_SHORT.trades[lang], String(snap.stats.totalTrades)],
         ...(snap.stats.winRate != null ? [[STAT_SHORT.winRate[lang], `${fmtNum(snap.stats.winRate)}%`] as [string, string]] : []),
         ...(snap.stats.maxDrawdown != null ? [[STAT_SHORT.drawdown[lang], `${fmtNum(snap.stats.maxDrawdown)}%`] as [string, string]] : []),
-        ...(snap.stats.avgRR != null ? [[STAT_SHORT.rr[lang], fmtNum(snap.stats.avgRR)] as [string, string]] : []),
+        ...(snap.stats.avgRR != null ? [[STAT_SHORT.rr[lang], fmtRatioR(snap.stats.avgRR)] as [string, string]] : []),
         ...(snap.stats.followedPlanRate != null ? [[STAT_SHORT.plan[lang], `${fmtNum(snap.stats.followedPlanRate)}%`] as [string, string]] : []),
       ]
     : [];

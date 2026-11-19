@@ -104,6 +104,53 @@ export function rMultiple(t: Trade): number | null {
   return (t.side === "long" ? t.exitPrice - t.entryPrice : t.entryPrice - t.exitPrice) / risk;
 }
 
+// ---------- R summary: the one place "total R" and "average R" are computed and formatted ----------
+// Used by the Dashboard "Avg win/loss trade" card, Gloria's avgRR stat and its labels, and matching the Charts page's
+// "R-multiple" analysis (ChartsView rInfo.avg = the same mean). Keep every R figure routed through here so they never diverge.
+
+/** The valid R-multiples of these trades (those with a recorded stop-loss), wins and losses in one pool. */
+export const rValues = (trades: Trade[]): number[] => trades.map(rMultiple).filter((x): x is number => x != null);
+
+/** Total R: the SUM of the R-multiples. 0 for none. */
+export const totalR = (rs: number[]): number => rs.reduce((a, b) => a + b, 0);
+
+/** Average R: the plain MEAN of the R-multiples, wins and losses pooled (null for none). Same formula as the Charts "R-multiple" metric. */
+export const meanR = (rs: number[]): number | null => (rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null);
+
+/** "+24.00R" / "-3.50R" / "0.00R": a sum, always carrying the R unit and an explicit plus sign. */
+export const fmtTotalR = (total: number): string => `${total > 0 ? "+" : ""}${total.toFixed(2)}R`;
+
+/**
+ * An average R as a ratio "1:X": on average, 1 unit of risk returned X units. A losing average keeps the same shape
+ * with a negative X ("1:-0.8": 1 unit risked returned -0.8). `digits` is 1 for display; the Gloria requirement rows pass
+ * 2 so a value of 0.14 is not shown as "1:0.1" next to a "> 1:0.1" line it has in fact cleared.
+ * A value that rounds to zero is written "1:0.0", never "1:-0.0".
+ */
+export function fmtRatioR(avg: number, digits = 1): string {
+  const x = Number(avg.toFixed(digits));
+  return `1:${(x === 0 ? 0 : x).toFixed(digits)}`;
+}
+
+/** "1:X.X" for a list of R-multiples (the mean, rounded to 1 decimal), or "—" when there are none. */
+export function avgRMultipleRatio(rs: number[]): string {
+  const m = meanR(rs);
+  return m == null ? "—" : fmtRatioR(m);
+}
+
+/** The sign rule shared by every R figure: green above zero, red below, neutral at (or rounding to) zero. */
+export const rTone = (x: number | null, digits = 1): "pos" | "neg" | "zero" => {
+  if (x == null) return "zero";
+  const r = Number(x.toFixed(digits));
+  return r > 0 ? "pos" : r < 0 ? "neg" : "zero";
+};
+
+/** Everything a display needs from a set of trades, in one call. */
+export function rSummary(trades: Trade[]) {
+  const rs = rValues(trades);
+  const avg = meanR(rs);
+  return { n: rs.length, total: totalR(rs), avg, totalText: fmtTotalR(totalR(rs)), ratioText: avgRMultipleRatio(rs) };
+}
+
 // ---------- Revenge trading ----------
 
 export interface TiltGroups { normal: Trade[]; afterLoss: Trade[]; afterLossBigger: Trade[] }
