@@ -5,10 +5,12 @@ import type { GloriaHeroUpdateKind } from "../../types/gloria";
 import type { Criterion, CriterionMetric, HeroReason } from "../../services/gloriaCharacterRules";
 import { CHARACTER_PATHS } from "../../services/gloriaCharacterRules";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
+import { avgRText } from "../../lib/tradeLab";
 
 type L = Record<Lang, string>;
 
 export const HERO_TEXT = {
+  openHero: { en: "Open your hero's page", ar: "افتح صفحة بطلك", fr: "Ouvrir la page de votre héros" },
   yourHero: { en: "Your Hero", ar: "بطلك", fr: "Votre héros" },
   freeStarter: { en: "Free starter", ar: "بداية مجانية", fr: "Héros de départ" },
   currentHero: { en: "Current hero", ar: "البطل الحالي", fr: "Héros actuel" },
@@ -17,6 +19,7 @@ export const HERO_TEXT = {
   runnerUp: { en: "Runner-up", ar: "الوصيف", fr: "Second choix" },
   scheduleTitle: { en: "Next updates", ar: "التحديثات القادمة", fr: "Prochaines mises à jour" },
   nextWeekly: { en: "Weekly update", ar: "التحديث الأسبوعي", fr: "Mise à jour hebdo" },
+  weeklyNote: { en: "Every Saturday, after the trading week closes", ar: "كل سبت، بعد إغلاق أسبوع التداول", fr: "Chaque samedi, après la clôture de la semaine de trading" },
   nextMonth: { en: "New month", ar: "بداية الشهر", fr: "Nouveau mois" },
   scheduleNote: {
     en: "Your hero is re-assessed only on these dates and stays fixed in between. A due update is applied the next time you open Gloria.",
@@ -46,6 +49,8 @@ export const HERO_TEXT = {
   unlocked: { en: "Unlocked", ar: "مفتوحة", fr: "Débloqué" },
   toUnlock: { en: "To unlock", ar: "لفتحها", fr: "Pour débloquer" },
   back: { en: "All characters", ar: "كل الشخصيات", fr: "Tous les personnages" },
+  enlarge: { en: "Tap to view the full poster", ar: "انقر لعرض الملصق كاملاً", fr: "Touchez pour voir l'affiche en entier" },
+  close: { en: "Close", ar: "إغلاق", fr: "Fermer" },
   details: { en: "View details", ar: "عرض التفاصيل", fr: "Voir les détails" },
 
   // detail
@@ -101,19 +106,19 @@ const INTRO: Record<HeroReason, Record<Lang, (c: IntroCtx) => string>> = {
     fr: (c) => `Vous n'avez clôturé que ${c.trades} trade${c.trades === 1 ? "" : "s"} pour l'instant. Moins de 5 trades, c'est trop peu pour lire un style : vous êtes donc ${c.name} pour le moment. Continuez : un mois plus fourni donnera une lecture plus précise.`,
   },
   elf: {
-    en: (c) => `Every one of your seven trader stats is above 70, and your win rate, drawdown and payoff ratio all clear the legendary bar. Rare air: the ${c.name}.`,
-    ar: (c) => `كل إحصاءاتك السبع فوق 70، ونسبة ربحك وتراجعك ونسبة العائد كلها تتخطى معيار الأسطورة. مستوى نادر: ${c.name}.`,
-    fr: (c) => `Vos sept stats de trader dépassent 70, et votre taux de réussite, votre drawdown et votre ratio gain/perte passent tous le seuil légendaire. Air rare : ${c.name}.`,
+    en: (c) => `Every one of your seven trader stats is above 70, and your win rate, drawdown and average R all clear the legendary bar. Rare air: the ${c.name}.`,
+    ar: (c) => `كل إحصاءاتك السبع فوق 70، ونسبة ربحك وتراجعك ومتوسط R كلها تتخطى معيار الأسطورة. مستوى نادر: ${c.name}.`,
+    fr: (c) => `Vos sept stats de trader dépassent 70, et votre taux de réussite, votre drawdown et votre R moyen passent tous le seuil légendaire. Air rare : ${c.name}.`,
   },
   savage: {
-    en: (c) => `That reading was rough: a low win rate, a deep drawdown and a weak payoff ratio together make you the ${c.name}. It is a starting point, not a verdict; each line below shows what to move.`,
-    ar: (c) => `كانت هذه القراءة صعبة: نسبة ربح منخفضة وتراجع عميق ونسبة عائد ضعيفة جعلتك ${c.name}. إنها نقطة بداية لا حكم نهائي؛ كل سطر أدناه يوضح ما يجب تحسينه.`,
-    fr: (c) => `Cette lecture était difficile : faible taux de réussite, drawdown profond et ratio gain/perte faible font de vous ${c.name}. C'est un point de départ, pas un verdict ; chaque ligne ci-dessous montre quoi faire bouger.`,
+    en: (c) => `That reading was rough: a low win rate, a deep drawdown and a negative average R together make you the ${c.name}. It is a starting point, not a verdict; each line below shows what to move.`,
+    ar: (c) => `كانت هذه القراءة صعبة: نسبة ربح منخفضة وتراجع عميق ومتوسط R سالب جعلتك ${c.name}. إنها نقطة بداية لا حكم نهائي؛ كل سطر أدناه يوضح ما يجب تحسينه.`,
+    fr: (c) => `Cette lecture était difficile : faible taux de réussite, drawdown profond et R moyen négatif font de vous ${c.name}. C'est un point de départ, pas un verdict ; chaque ligne ci-dessous montre quoi faire bouger.`,
   },
   rogue: {
-    en: (c) => `You are hovering around break-even: win rate, drawdown and payoff ratio all sit in the neutral band, with no clear edge yet. That is the ${c.name}.`,
-    ar: (c) => `أنت قرب نقطة التعادل: نسبة الربح والتراجع ونسبة العائد كلها في النطاق المحايد، بلا ميزة واضحة بعد. هذا هو ${c.name}.`,
-    fr: (c) => `Vous oscillez autour de l'équilibre : taux de réussite, drawdown et ratio gain/perte sont dans la bande neutre, sans avantage net. C'est ${c.name}.`,
+    en: (c) => `You are hovering around break-even: win rate, drawdown and average R all sit in the neutral band, with no clear edge yet. That is the ${c.name}.`,
+    ar: (c) => `أنت قرب نقطة التعادل: نسبة الربح والتراجع ومتوسط R كلها في النطاق المحايد، بلا ميزة واضحة بعد. هذا هو ${c.name}.`,
+    fr: (c) => `Vous oscillez autour de l'équilibre : taux de réussite, drawdown et R moyen sont dans la bande neutre, sans avantage net. C'est ${c.name}.`,
   },
   qualified: {
     en: (c) => `You met every requirement of the ${c.name}. When more than one hero qualifies, the best-fitting one is chosen.`,
@@ -135,7 +140,7 @@ export const METRIC_LABEL: Record<CriterionMetric, L> = {
   trades: { en: "Closed trades", ar: "الصفقات المغلقة", fr: "Trades clôturés" },
   winRate: { en: "Win rate", ar: "نسبة الربح", fr: "Taux de réussite" },
   drawdown: { en: "Max drawdown", ar: "أقصى تراجع", fr: "Drawdown max" },
-  rr: { en: "Payoff ratio (RR)", ar: "نسبة العائد (RR)", fr: "Ratio gain/perte (RR)" },
+  rr: { en: "Average R per trade", ar: "متوسط R للصفقة", fr: "R moyen par trade" },
   profitFactor: { en: "Profit factor", ar: "عامل الربح", fr: "Facteur de profit" },
   pairs: { en: "Different pairs", ar: "أزواج مختلفة", fr: "Paires différentes" },
   prevLoss: { en: "Came back from a losing month", ar: "تعافٍ من شهر خاسر", fr: "Remonté d'un mois perdant" },
@@ -145,10 +150,11 @@ export const METRIC_LABEL: Record<CriterionMetric, L> = {
 /** Integer as-is, otherwise up to 2 decimals without trailing zeros (1.50 -> 1.5). */
 export const fmtNum = (n: number): string => String(Math.round(n * 100) / 100);
 
-const UNIT: Partial<Record<CriterionMetric, string>> = { winRate: "%", drawdown: "%" };
+const UNIT: Partial<Record<CriterionMetric, string>> = { winRate: "%", drawdown: "%", rr: "R" };
 
 /** A measured value as text: "62%", "1.8", "Yes". `null` (not measurable yet) is an em dash. */
 export function fmtValue(metric: CriterionMetric, v: number | null, lang: Lang): string {
+  if (metric === "rr") return v == null ? avgRText(null, lang) : `${avgRText(v, lang)} · ${fmtNum(v)}R`; // rounded ratio first, the precise figure beside it
   if (v == null) return "—";
   if (metric === "prevLoss") return v >= 1 ? HERO_TEXT.yes[lang] : HERO_TEXT.no[lang];
   return `${fmtNum(v)}${UNIT[metric] ?? ""}`;
@@ -166,7 +172,12 @@ export function fmtRequirement(k: Criterion, lang: Lang): string {
     case "gte": return `${ar ? AR_OP.gte : "≥"} ${fmtNum(k.value)}${u}`;
     case "lt": return `${ar ? AR_OP.lt : "<"} ${fmtNum(k.value)}${u}`;
     case "lte": return `${ar ? AR_OP.lte : "≤"} ${fmtNum(k.value)}${u}`;
-    case "between": return ar ? `بين ${fmtNum(k.value)} و ${fmtNum(k.hi ?? k.value)}${u}` : `${fmtNum(k.value)}–${fmtNum(k.hi ?? k.value)}${u}`;
+    case "between": {
+      const lo = fmtNum(k.value), hi = fmtNum(k.hi ?? k.value);
+      // a range that starts below zero ("-0.15 to 0.15") reads badly with an en dash next to a minus sign
+      if (k.value < 0) return ar ? `بين ${lo} و ${hi}${u}` : lang === "fr" ? `de ${lo} à ${hi}${u}` : `${lo} to ${hi}${u}`;
+      return ar ? `بين ${lo} و ${hi}${u}` : `${lo}–${hi}${u}`;
+    }
     case "flag": return "";
   }
 }
@@ -190,7 +201,7 @@ export const STAT_SHORT: Record<"trades" | "winRate" | "drawdown" | "rr" | "plan
   trades: { en: "trades", ar: "صفقة", fr: "trades" },
   winRate: { en: "win rate", ar: "نسبة الربح", fr: "réussite" },
   drawdown: { en: "drawdown", ar: "التراجع", fr: "drawdown" },
-  rr: { en: "RR", ar: "RR", fr: "RR" },
+  rr: { en: "avg R", ar: "متوسط R", fr: "R moyen" },
   plan: { en: "plan followed", ar: "الالتزام بالخطة", fr: "plan suivi" },
 };
 

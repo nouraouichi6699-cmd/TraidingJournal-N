@@ -22,10 +22,11 @@ export interface GloriaHeroPanelData {
   live: { stats: GloriaMonthlyStats; radar: GloriaRadarStats };
 }
 
-export default function CharactersTab({ lang, data }: { lang: Lang; data: GloriaHeroPanelData }) {
+export default function CharactersTab({ lang, data, initialCharacter }: { lang: Lang; data: GloriaHeroPanelData; initialCharacter?: GloriaCharacterId | null }) {
   const t = heroT(lang);
   const { hero, live } = data;
-  const [selected, setSelected] = useState<GloriaCharacterId | null>(null);
+  // opened from the HUD avatar: straight onto that hero's page; "All characters" then goes back to the roster
+  const [selected, setSelected] = useState<GloriaCharacterId | null>(initialCharacter ?? null);
   const rootRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Partial<Record<GloriaCharacterId, HTMLButtonElement | null>>>({});
 
@@ -56,10 +57,12 @@ export default function CharactersTab({ lang, data }: { lang: Lang; data: Gloria
 
   return (
     <div ref={rootRef} className="flex flex-col gap-4">
-      <HeroSection hero={hero} lang={lang} />
-      <HeroHistory hero={hero} lang={lang} />
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <HeroSection hero={hero} lang={lang} />
+        <HeroHistory hero={hero} lang={lang} />
+      </div>
 
-      <ul className="flex flex-col gap-2.5">
+      <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {CHARACTER_IDS.map((id) => {
           const { name, level } = CHARACTER_INFO[id];
           const tier = TIER_STYLE[level];
@@ -67,7 +70,7 @@ export default function CharactersTab({ lang, data }: { lang: Lang; data: Gloria
           const current = hero.character === id;
           const hint = unlockHint(id, lang);
           return (
-            <li key={id}>
+            <li key={id} className="flex">
               <button
                 ref={(el) => {
                   cardRefs.current[id] = el;
@@ -75,7 +78,7 @@ export default function CharactersTab({ lang, data }: { lang: Lang; data: Gloria
                 type="button"
                 onClick={() => open(id)}
                 aria-label={`${name[lang]}, ${locked ? t("locked") : current ? t("currentHero") : t("unlocked")}. ${t("details")}`}
-                className={`group flex w-full items-start gap-3 rounded-xl border p-3 text-start transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400 ${
+                className={`group flex h-full w-full items-start gap-3 rounded-xl border p-3 text-start transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400 ${
                   current ? "border-amber-400/50 bg-amber-400/[0.07]" : locked ? "border-white/[0.07] bg-black/30 hover:bg-black/40" : "border-white/10 bg-black/25 hover:bg-white/[0.05]"
                 }`}
                 style={{ borderInlineStartColor: locked ? "#44403c" : tier.ring, borderInlineStartWidth: 3, boxShadow: current ? `0 0 14px ${tier.ring}33` : undefined }}

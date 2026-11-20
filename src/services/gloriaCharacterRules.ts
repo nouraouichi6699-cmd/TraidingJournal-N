@@ -23,7 +23,7 @@ export function calculateRadarStats(s: GloriaMonthlyStats): GloriaRadarStats {
     wisdom: s.followedPlanRate != null ? clamp(s.followedPlanRate) : clamp(wr * 0.6 + (100 - dd) * 0.4),
     recovery: clamp((s.previousMonthWasLoss && s.netPnl > 0 ? 50 : 0) + wr / 2),
     intelligence: clamp((pf / 3) * 100),
-    power: clamp((rr / 3) * 100),
+    power: clamp(rr * 100), // average R per trade: 1R or better = full bar, 0 or negative = empty
   };
 }
 
@@ -60,18 +60,18 @@ const c = (metric: CriterionMetric, op: CriterionOp, value: number, hi?: number)
  * drawdown are only ever null for a month with no closed trades, which never reaches the gates, so nothing changes.)
  */
 export const CHARACTER_PATHS: Record<GloriaCharacterId, Criterion[][]> = {
-  elf: [[c("trades", "gte", 5), c("radarMin", "gt", 70), c("winRate", "gt", 60), c("drawdown", "lt", 5), c("rr", "gt", 2.0)]],
-  savage: [[c("trades", "gte", 5), c("winRate", "lt", 35), c("drawdown", "gt", 20), c("rr", "lt", 0.5)]],
+  elf: [[c("trades", "gte", 5), c("radarMin", "gt", 70), c("winRate", "gt", 60), c("drawdown", "lt", 5), c("rr", "gt", 0.7)]],
+  savage: [[c("trades", "gte", 5), c("winRate", "lt", 35), c("drawdown", "gt", 20), c("rr", "lt", -0.2)]],
   rogue: [
     [c("trades", "between", 1, 4)],
-    [c("trades", "gte", 5), c("winRate", "between", 40, 50), c("drawdown", "between", 10, 15), c("rr", "between", 0.8, 1.2)],
+    [c("trades", "gte", 5), c("winRate", "between", 40, 50), c("drawdown", "between", 10, 15), c("rr", "between", -0.15, 0.15)],
   ],
-  warrior: [[c("trades", "gte", 20), c("winRate", "gt", 50), c("rr", "gt", 1.0), c("drawdown", "lt", 15)]],
-  sniper: [[c("trades", "between", 5, 15), c("winRate", "gt", 55), c("rr", "gt", 2.0), c("drawdown", "lt", 10)]],
-  tank: [[c("trades", "gte", 5), c("winRate", "gt", 50), c("drawdown", "lt", 5), c("rr", "gt", 1.0)]],
-  healer: [[c("trades", "gte", 5), c("prevLoss", "flag", 1), c("winRate", "gt", 55), c("rr", "gt", 1.5)]],
-  mage: [[c("trades", "gte", 5), c("profitFactor", "gt", 2.5), c("pairs", "gte", 4), c("winRate", "gt", 50), c("rr", "gt", 2.0)]],
-  assassin: [[c("trades", "gte", 5), c("winRate", "gt", 60), c("rr", "gt", 2.5), c("drawdown", "lt", 8)]],
+  warrior: [[c("trades", "gte", 20), c("winRate", "gt", 50), c("rr", "gt", 0.1), c("drawdown", "lt", 15)]],
+  sniper: [[c("trades", "between", 5, 15), c("winRate", "gt", 55), c("rr", "gt", 0.4), c("drawdown", "lt", 10)]],
+  tank: [[c("trades", "gte", 5), c("winRate", "gt", 50), c("drawdown", "lt", 5), c("rr", "gt", 0.1)]],
+  healer: [[c("trades", "gte", 5), c("prevLoss", "flag", 1), c("winRate", "gt", 55), c("rr", "gt", 0.2)]],
+  mage: [[c("trades", "gte", 5), c("profitFactor", "gt", 2.5), c("pairs", "gte", 4), c("winRate", "gt", 50), c("rr", "gt", 0.3)]],
+  assassin: [[c("trades", "gte", 5), c("winRate", "gt", 60), c("rr", "gt", 0.5), c("drawdown", "lt", 8)]],
 };
 
 /** The 6 characters ranked by score (everything between Rogue and Elf). */
@@ -87,7 +87,7 @@ export function metricValue(m: CriterionMetric, s: GloriaMonthlyStats, radar: Gl
     case "winRate": return s.winRate;
     case "drawdown": return s.maxDrawdown;
     case "profitFactor": return s.profitFactor;
-    case "rr": return s.avgRR; // null stays null: no payoff ratio yet means no RR gate can pass
+    case "rr": return s.avgRR; // null stays null: no trade with a recorded stop-loss means no RR gate can pass
     case "pairs": return s.uniquePairsCount;
     case "prevLoss": return s.previousMonthWasLoss ? 1 : 0;
     case "radarMin": return Math.min(...Object.values(radar));
@@ -100,6 +100,21 @@ export interface CriterionResult {
   met: boolean;
   /** 0-1, how close `current` is to satisfying the criterion; always < 1 while not met. */
   progress: number;
+}
+
+/**
+ * Progress for the average-R metric, which is signed (a losing month is below 0), so the ratio-to-the-line used for
+ * the other metrics does not work. Linear between anchors of -1R (nothing) and +1R (beyond any gate here): reaching a
+ * floor means climbing from -1R up to it; reaching a ceiling means coming down from +1R; a band is approached from
+ * whichever side the player is on.
+ */
+const R_LOW = -1, R_HIGH = 1;
+function rProgress(k: Criterion, cur: number): number {
+  const up = (target: number) => (cur - R_LOW) / (target - R_LOW);
+  const down = (target: number) => (R_HIGH - cur) / (R_HIGH - target);
+  if (k.op === "gt" || k.op === "gte") return up(k.value);
+  if (k.op === "lt" || k.op === "lte") return down(k.value);
+  return cur < k.value ? up(k.value) : down(k.hi ?? k.value);
 }
 
 export function evaluateCriterion(crit: Criterion, s: GloriaMonthlyStats, radar: GloriaRadarStats): CriterionResult {
@@ -117,7 +132,8 @@ export function evaluateCriterion(crit: Criterion, s: GloriaMonthlyStats, radar:
   // Not met: the ratio toward the line, capped just under 1 so a value sitting exactly on a strict bound
   // ("> 50" at exactly 50) never reads as done.
   let p: number;
-  if (op === "gt" || op === "gte" || op === "flag") p = value > 0 ? cur / value : 0;
+  if (crit.metric === "rr") p = rProgress(crit, cur);
+  else if (op === "gt" || op === "gte" || op === "flag") p = value > 0 ? cur / value : 0;
   else if (op === "lt" || op === "lte") p = cur > 0 ? value / cur : 0;
   else p = cur < value ? (value > 0 ? cur / value : 0) : (hi ?? value) / cur;
   return { criterion: crit, current: cur, met, progress: Math.max(0, Math.min(0.99, p)) };

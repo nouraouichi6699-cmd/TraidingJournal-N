@@ -7,6 +7,7 @@ import type { Lang } from "../../types";
 import { characterProgress } from "../../services/gloriaCharacterRules";
 import { nextMonthStart, nextWeeklyAt } from "../../services/gloriaHeroSchedule";
 import type { GloriaHero } from "../../hooks/useGloriaHero";
+import { avgRText } from "../../lib/tradeLab";
 import { CriterionRow } from "./GloriaCharacterDetail";
 import { CHARACTER_DESC, GloriaPortrait, TIER_STYLE } from "./gloriaCharacterUi";
 import { fmtDate, fmtMonth, fmtNum, heroIntro, heroT, KIND_TEXT, STAT_SHORT } from "./gloriaHeroText";
@@ -33,7 +34,7 @@ export function HeroSection({ hero, lang }: { hero: GloriaHero; lang: Lang }) {
         [STAT_SHORT.trades[lang], String(snap.stats.totalTrades)],
         ...(snap.stats.winRate != null ? [[STAT_SHORT.winRate[lang], `${fmtNum(snap.stats.winRate)}%`] as [string, string]] : []),
         ...(snap.stats.maxDrawdown != null ? [[STAT_SHORT.drawdown[lang], `${fmtNum(snap.stats.maxDrawdown)}%`] as [string, string]] : []),
-        ...(snap.stats.avgRR != null ? [[STAT_SHORT.rr[lang], fmtNum(snap.stats.avgRR)] as [string, string]] : []),
+        [STAT_SHORT.rr[lang], avgRText(snap.stats.avgRR, lang)] as [string, string],
         ...(snap.stats.followedPlanRate != null ? [[STAT_SHORT.plan[lang], `${fmtNum(snap.stats.followedPlanRate)}%`] as [string, string]] : []),
       ]
     : [];
@@ -122,7 +123,8 @@ export function HeroSection({ hero, lang }: { hero: GloriaHero; lang: Lang }) {
                     <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-400">
                       <CalendarClock size={12} aria-hidden /> {t("nextWeekly")}
                     </div>
-                    <div className="mt-1 text-sm font-bold text-stone-50">{fmtDate(weekly, lang, { weekday: "short", month: "short", day: "numeric" })}</div>
+                    <div className="mt-1 text-sm font-bold text-stone-50">{fmtDate(weekly, lang, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}</div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-stone-500">{t("weeklyNote")}</div>
                   </div>
                 )}
                 <div className={`rounded-lg bg-black/25 px-2.5 py-2 ${weekly ? "" : "col-span-2"}`}>

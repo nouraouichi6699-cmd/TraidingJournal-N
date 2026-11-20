@@ -13,7 +13,7 @@ import FxWarning from "./FxWarning";
 import { balanceSeries } from "../lib/balance";
 import { signed, type CashFlow } from "../lib/cashflow";
 import { barsCsv, histogram, maxDrawdownWindow, monteCarlo, rollingSeries, seriesCsv, type DdWindow, type McResult, type RollKind } from "../lib/chartAnalytics";
-import { applyWhatIf, cumCurve, currentRisk, findRules, heatmap, labStats, propCheck, propOdds, rMultiple, sizing, tiltSplit, type HeatCell, type PropOdds, type PropResult, type PropRules, type RuleIdea, type Sizing, type WhatIfRules } from "../lib/tradeLab";
+import { applyWhatIf, cumCurve, currentRisk, findRules, heatmap, labStats, meanR, propCheck, propOdds, rMultiple, rValues, sizing, tiltSplit, type HeatCell, type PropOdds, type PropResult, type PropRules, type RuleIdea, type Sizing, type WhatIfRules } from "../lib/tradeLab";
 import type { Key } from "../i18n";
 import type { Account, BalancePoint, Lang, Trade } from "../types";
 
@@ -686,8 +686,8 @@ export default function ChartsView({ t, lang, accounts, trades, balances, flows 
         }
         if (metric === "heat") return { id, name, color, pts: [], bars: [], stats, base, heat: heatmap(shown) };
         if (metric === "rmult") {
-          const rs = shown.map(rMultiple).filter((x): x is number => x != null);
-          const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+          const rs = rValues(shown);
+          const mean = meanR; // lib/tradeLab: shared with the Dashboard card and Gloria's avgRR
           const bars: Bar[] = histogram(rs).map((b, i) => ({
             key: String(i), v: b.count, n: b.count,
             label: b.edge === "under" ? `<${fmt(b.hi, 1)}R` : b.edge === "over" ? `≥${fmt(b.lo, 1)}R` : `${fmt(b.lo, 1)}R`,

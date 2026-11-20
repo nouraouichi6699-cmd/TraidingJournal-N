@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import type { Account, Trade } from "../types";
 import type { GloriaRadarStats } from "../types/gloria";
 import { tradeCore, ticketOf } from "../lib/stats";
-import { rMultiple, tiltSplit } from "../lib/tradeLab";
+import { rStats, tiltSplit } from "../lib/tradeLab";
 import { readAnswers } from "../lib/tradeRules";
 import { calculateElfMeter, calculateRadarStats, pickCharacter, type HeroReason } from "./gloriaCharacterRules";
 
@@ -15,7 +15,9 @@ export interface GloriaMonthlyStats {
   totalTrades: number;
   winRate: number | null; // percent, 0-100
   maxDrawdown: number | null; // percent of the month's peak equity, 0-100 (see monthlyDrawdownPct)
-  avgRR: number | null;
+  avgRR: number | null; // PRECISE average R-multiple per trade, outliers removed, null under MIN_R_TRADES (see averageR); can be negative
+  rTradesUsed?: number; // trades behind avgRR
+  rTradesFlagged?: number; // outlier trades left out of it
   profitFactor: number | null;
   uniquePairsCount: number;
   hadRevengeTrades: boolean;
@@ -81,20 +83,28 @@ function equityBeforeMonth(allTrades: Trade[], accounts: Account[], month: strin
   return base + prior.reduce((s, t) => s + (t.pnl as number), 0);
 }
 
-/** Payoff ratio in R terms: average winning R-multiple over the average losing one (both unsigned). A plain signed
- *  average would wash out near zero for a break-even system even when every trade individually risked well, so
- *  wins and losses are averaged separately first, matching how "RR" is meant in the design sheet's thresholds. */
-function payoffR(closed: Trade[]): number | null {
-  const rs = closed.map(rMultiple).filter((x): x is number => x != null);
-  const wins = rs.filter((x) => x > 0), losses = rs.filter((x) => x < 0).map(Math.abs);
-  if (!wins.length || !losses.length) return null;
-  const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
-  return mean(wins) / mean(losses);
+/**
+ * Average R-multiple per trade: the plain mean of rMultiple() over every closed trade of the month that has a valid R
+ * (a recorded stop-loss), wins and losses in one pool. This is the trade expectancy in R: 0 is break-even, 0.3 means
+ * the average trade made 0.3x what it risked, negative means the month lost money per unit risked. null when no trade
+ * has a valid R (no stop-losses recorded), so no RR gate can pass on guesswork.
+ * This is the same formula as the "R-multiple" analysis on the Charts page (ChartsView, metric "rmult": rInfo.avg =
+ * mean of rMultiple() over the shown trades), so the number matches what the player already sees there.
+ * (It used to be a payoff ratio, mean win R / mean loss R, which blew up to figures like 8.7 when losses were small.)
+ */
+function averageR(closed: Trade[]): { avg: number | null; used: number; flagged: number } {
+  // lib/tradeLab.rStats: the one shared definition (the Dashboard card uses it too). Outlier R trades (likely stop-loss
+  // data-entry errors) are left out of the mean, and under MIN_R_TRADES valid trades there is no average at all, so a
+  // requirement can never be "met" on a handful of trades. The value is the precise one: thresholds compare THIS, the
+  // rounded "1:X" is display only.
+  const r = rStats(closed);
+  return { avg: r.avg, used: r.usedN, flagged: r.flagged.length };
 }
 
 export function calculateMonthlyStats(allTrades: Trade[], month: string, accounts: Account[] = []): GloriaMonthlyStats {
   const closed = allTrades.filter((t) => isClosedInMonth(t, month));
   const core = tradeCore(closed);
+  const rAvg = averageR(closed);
 
   const revenge = tiltSplit(allTrades).afterLossBigger.some((t) => monthOf(t) === month);
 
@@ -112,7 +122,9 @@ export function calculateMonthlyStats(allTrades: Trade[], month: string, account
     totalTrades: core.n,
     winRate: core.winRate,
     maxDrawdown: monthlyDrawdownPct(closed, equityBeforeMonth(allTrades, accounts, month)),
-    avgRR: payoffR(closed),
+    avgRR: rAvg.avg,
+    rTradesUsed: rAvg.used,
+    rTradesFlagged: rAvg.flagged,
     profitFactor: core.pf,
     uniquePairsCount: new Set(closed.map((t) => t.symbol)).size,
     hadRevengeTrades: revenge,
