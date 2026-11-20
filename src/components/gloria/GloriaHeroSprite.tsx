@@ -65,12 +65,71 @@ const ROGUE_SHEET: SpriteSheet = {
   },
 };
 
-/** The player classes that have a hero sheet, keyed by GloriaCharacterId. A class with no sheet yet (and a player
- *  with no class at all) plays as the Warrior. */
-const HERO_SHEETS: Partial<Record<GloriaCharacterId, SpriteSheet>> = {
+/** The Tank sheet (public/sprites/tank/): eight idle rotations and a north walk loop (8 frames), like Savage and Rogue.
+ *  planWalkTable gives the walk to north, and north-east / north-west (north's frames, flipped for north-west); every
+ *  other facing shows this sheet's OWN idle pose with the step bob. */
+const TANK_SHEET: SpriteSheet = {
+  idle: idleFrames("tank"),
+  animations: {
+    walk: {
+      north: numbered("/sprites/tank/walk-n", 8),
+    },
+  },
+};
+
+/** The Sniper sheet (public/sprites/sniper/): eight idles and a north walk, same shape as Tank's. */
+const SNIPER_SHEET: SpriteSheet = {
+  idle: idleFrames("sniper"),
+  animations: {
+    walk: {
+      north: numbered("/sprites/sniper/walk-n", 8),
+    },
+  },
+};
+
+/** The Elf sheet (public/sprites/elf/): eight idles and a north walk, same shape as Tank's. */
+const ELF_SHEET: SpriteSheet = {
+  idle: idleFrames("elf"),
+  animations: {
+    walk: {
+      north: numbered("/sprites/elf/walk-n", 8),
+    },
+  },
+};
+
+/** The Mage sheet (public/sprites/mage/): eight idles and a SOUTH walk (walk-s), unlike the others. planWalkTable gives
+ *  the walk to south, and south-east / south-west (south's frames, flipped for south-west); north, east, west and the
+ *  north diagonals show this sheet's own idle pose with the step bob. */
+const MAGE_SHEET: SpriteSheet = {
+  idle: idleFrames("mage"),
+  animations: {
+    walk: {
+      south: numbered("/sprites/mage/walk-s", 8),
+    },
+  },
+};
+
+/** The Assassin sheet (public/sprites/assassin/): eight idles and a north walk, same shape as Tank's. */
+const ASSASSIN_SHEET: SpriteSheet = {
+  idle: idleFrames("assassin"),
+  animations: {
+    walk: {
+      north: numbered("/sprites/assassin/walk-n", 8),
+    },
+  },
+};
+
+/** The player classes that have a hero sheet, keyed by GloriaCharacterId. A class with no sheet yet (Healer, and a
+ *  player with no class at all) plays as the Warrior. Exported so the sheet test can check every entry. */
+export const HERO_SHEETS: Partial<Record<GloriaCharacterId, SpriteSheet>> = {
   warrior: WARRIOR_SHEET,
   savage: SAVAGE_SHEET,
   rogue: ROGUE_SHEET,
+  tank: TANK_SHEET,
+  sniper: SNIPER_SHEET,
+  elf: ELF_SHEET,
+  mage: MAGE_SHEET,
+  assassin: ASSASSIN_SHEET,
 };
 
 interface HeroLook {
