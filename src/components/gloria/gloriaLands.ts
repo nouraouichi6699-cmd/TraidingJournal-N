@@ -321,11 +321,6 @@ const VERDANTIA_SPRITES: LandSprite[] = [
     id: "guard-windmill", type: "guard", x: 73.5, y: 38, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
     patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }], pathMode: "pingpong",
   },
-  // the Hesitation Serpent coiled inside the boss gate's ring marker, clear of the guard patrolling the gate
-  // doors above it; stationary, always facing south toward the player
-  {
-    id: "boss-serpent", type: "boss-serpent", x: 50, y: 42, scale: 0.5, coreSize: 252, direction: "south",
-  },
 ];
 
 /** Measured with a pixel-grid overlay on the 1248x832 painting: [x, y, w, h] in painting px. Fences keep their gate
