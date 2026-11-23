@@ -338,7 +338,7 @@ const VERDANTIA_SPRITES: LandSprite[] = [
     patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }], pathMode: "pingpong",
   },
   // the forest guardian boss, standing in the battle arena just south of the boss gate marker (50, 35)
-  { id: "boss-verdantia", type: "boss-verdantia", x: 50, y: 42, scale: 0.5, coreSize: 252, direction: "south" },
+  { id: "boss-verdantia", type: "boss-verdantia", x: 50, y: 42, scale: 1.5, coreSize: 48, direction: "south" },
 ];
 
 /** Measured with a pixel-grid overlay on the 1248x832 painting: [x, y, w, h] in painting px. Fences keep their gate
@@ -580,7 +580,7 @@ function buildSolmara(): LandDefinition {
       { id: "exit", x: 51, y: 24, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     // the masked desert warrior boss, standing in the battle arena just south of the boss gate marker (51, 34)
-    sprites: [{ id: "boss-solmara", type: "boss-solmara", x: 51, y: 40, scale: 0.5, coreSize: 252, direction: "south" }],
+    sprites: [{ id: "boss-solmara", type: "boss-solmara", x: 51, y: 40, scale: 1.5, coreSize: 48, direction: "south" }],
     obstacles: SOLMARA_OBSTACLES,
   };
 }
@@ -763,7 +763,7 @@ function buildHeartlands(): LandDefinition {
       { id: "exit", x: 51, y: 17, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
     // the drowned pirate captain boss, standing in the battle arena just south of the boss gate marker (51, 40)
-    sprites: [{ id: "boss-heartlands", type: "boss-heartlands", x: 51, y: 46, scale: 0.5, coreSize: 252, direction: "south" }],
+    sprites: [{ id: "boss-heartlands", type: "boss-heartlands", x: 51, y: 46, scale: 1.5, coreSize: 48, direction: "south" }],
     obstacles: HEARTLANDS_OBSTACLES,
   };
 }
@@ -868,7 +868,7 @@ function buildAurelia(): LandDefinition {
           { id: "exit", x: 50, y: 23.5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
         // the mummy pharaoh king boss, standing in the battle arena just south of the boss gate marker (50, 30)
-        sprites: [{ id: "boss-aurelia", type: "boss-aurelia", x: 50, y: 36, scale: 0.5, coreSize: 252, direction: "south" }],
+        sprites: [{ id: "boss-aurelia", type: "boss-aurelia", x: 50, y: 36, scale: 1.5, coreSize: 48, direction: "south" }],
         obstacles: AURELIA_INTERIOR_OBSTACLES,
       },
     },
@@ -955,7 +955,7 @@ function buildDrakemar(): LandDefinition {
           { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
         // the dark knight boss, standing in the battle arena just south of the boss gate marker (50, 28)
-        sprites: [{ id: "boss-drakemar", type: "boss-drakemar", x: 50, y: 34, scale: 0.5, coreSize: 252, direction: "south" }],
+        sprites: [{ id: "boss-drakemar", type: "boss-drakemar", x: 50, y: 34, scale: 1.5, coreSize: 48, direction: "south" }],
         obstacles: DRAKEMAR_INTERIOR_OBSTACLES,
       },
     },
@@ -1042,7 +1042,7 @@ function buildFrostfell(): LandDefinition {
           { id: "exit", x: 50, y: 23, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
         // the golden temple guardian boss, standing in the battle arena just south of the boss gate marker (50, 30)
-        sprites: [{ id: "boss-frostfell", type: "boss-frostfell", x: 50, y: 36, scale: 0.5, coreSize: 252, direction: "south" }],
+        sprites: [{ id: "boss-frostfell", type: "boss-frostfell", x: 50, y: 36, scale: 1.5, coreSize: 48, direction: "south" }],
         obstacles: FROSTFELL_INTERIOR_OBSTACLES,
       },
     },
@@ -1139,7 +1139,7 @@ function buildThroneOfGloria(): LandDefinition {
           { id: "exit", x: 50, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
         // the frozen king boss (final boss), standing in the battle arena just south of the boss gate marker (50, 27)
-        sprites: [{ id: "boss-throne", type: "boss-throne", x: 50, y: 33, scale: 0.5, coreSize: 252, direction: "south" }],
+        sprites: [{ id: "boss-throne", type: "boss-throne", x: 50, y: 33, scale: 1.5, coreSize: 48, direction: "south" }],
         obstacles: THRONE_INTERIOR_OBSTACLES,
       },
     },
