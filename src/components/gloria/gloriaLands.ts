@@ -173,6 +173,10 @@ export interface LandScene {
   sprites?: LandSprite[];
   /** Solid scenery blocking the player's hero; none means it can roam the whole image. */
   obstacles?: LandObstacle[];
+  /** A wall across the path to whatever lies beyond the boss arena (the exit gate, typically), active only while
+   *  the zone's boss is still undefeated -- the hero simply can't walk past it, same as any other obstacle. Once
+   *  bossDefeated flips true (GloriaLandCanvas's prop), this stops being added to the active obstacle list. */
+  bossBarrier?: LandObstacle;
   /** Where the hero starts standing (image percentages) -- on arrival from a portal, or on opening the land when
    *  this is its first scene. Without it, the hero starts just outside the entry gate (findOutsideStart). */
   start?: { x: number; y: number };
@@ -433,6 +437,11 @@ const VERDANTIA_OBSTACLES = obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [
   [750, 805, 32, 27],
 ]);
 
+// A gate across the dirt path between the boss arena (gate at y 35%, ~291px) and the castle doors (exit gate at
+// y 24.6%, ~205px). The path there runs ~605-640px wide (see guard-gate's patrol above); padded a little for a
+// clean block without pinching the grass edges either side.
+const VERDANTIA_BOSS_BARRIER = obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [[580, 222, 100, 38]])[0];
+
 function buildVerdantia(): LandDefinition {
   const cols = 24;
   const terrain = parseTerrain(VERDANTIA_MAP, cols);
@@ -450,6 +459,7 @@ function buildVerdantia(): LandDefinition {
     ambience: VERDANTIA_AMBIENCE,
     sprites: VERDANTIA_SPRITES,
     obstacles: VERDANTIA_OBSTACLES,
+    bossBarrier: VERDANTIA_BOSS_BARRIER,
     cols,
     rows: VERDANTIA_MAP.length,
     terrain,

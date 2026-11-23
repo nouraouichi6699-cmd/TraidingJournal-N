@@ -257,6 +257,12 @@ export default function GloriaLandCanvas({
   land, lang = "en", onGateClick, onGateReach, onSceneChange, arrived = false, bossDefeated = false, character,
 }: Props) {
   const { w, h } = land.imageSize;
+  // The boss barrier (gloriaLands) only blocks while the zone's boss is still undefeated; once bossDefeated flips
+  // true it drops out of the active obstacle list, same as any other obstacle disappearing.
+  const effectiveObstacles = useMemo(
+    () => (land.bossBarrier && !bossDefeated ? [...(land.obstacles ?? []), land.bossBarrier] : (land.obstacles ?? [])),
+    [land.obstacles, land.bossBarrier, bossDefeated],
+  );
   const imgRef = useRef<HTMLImageElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -336,7 +342,7 @@ export default function GloriaLandCanvas({
   // the inside spawn (gloriaGateTriggers). The zones derive from the land's entry/exit gates, so every land that
   // defines them gets the behaviour; the exit zone is locked until the boss is beaten.
   const heroSetup = useMemo(() => {
-    const blocked = (p: { x: number; y: number }) => footprintBlocked(p.x, p.y, land.obstacles ?? [], w, h);
+    const blocked = (p: { x: number; y: number }) => footprintBlocked(p.x, p.y, effectiveObstacles, w, h);
     // Carried in by a portal, the hero arrives on the scene's own entry gate -- the way back through the door it came
     // from (the exterior's entry is the trigger in front of the main gate). The opening scene uses its `start`.
     const arrival = arrived ? land.gates.find((g) => g.id === "entry") : undefined;
@@ -344,7 +350,7 @@ export default function GloriaLandCanvas({
       start: arrival ? { x: arrival.x, y: arrival.y } : (land.start ?? findOutsideStart(land, blocked)),
       spawn: findInsideSpawn(land, blocked),
     };
-  }, [land, w, h, arrived]);
+  }, [land, w, h, arrived, effectiveObstacles]);
   const heroGates = useMemo<HeroGateZone[]>(
     () =>
       land.gates
@@ -463,7 +469,7 @@ export default function GloriaLandCanvas({
             start={heroSetup.start}
             landWidth={w}
             landHeight={h}
-            obstacles={land.obstacles}
+            obstacles={effectiveObstacles}
             gates={heroGates}
             insideSpawn={heroSetup.spawn}
             onGateReach={onGateReach}
