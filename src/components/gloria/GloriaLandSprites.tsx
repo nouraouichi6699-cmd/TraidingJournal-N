@@ -78,6 +78,14 @@ const SHEETS: Partial<Record<LandSprite["type"], SpriteSheet>> = {
     idle: { south: "/sprites/boss-serpent/idle-south.png" },
     animations: {},
   },
+  // the seven zone bosses: full 8-direction idle rotations, no walk animation yet (stationary in their arena)
+  "boss-solmara": { idle: idleFrames("boss-solmara"), animations: {} },
+  "boss-verdantia": { idle: idleFrames("boss-verdantia"), animations: {} },
+  "boss-aurelia": { idle: idleFrames("boss-aurelia"), animations: {} },
+  "boss-heartlands": { idle: idleFrames("boss-heartlands"), animations: {} },
+  "boss-drakemar": { idle: idleFrames("boss-drakemar"), animations: {} },
+  "boss-frostfell": { idle: idleFrames("boss-frostfell"), animations: {} },
+  "boss-throne": { idle: idleFrames("boss-throne"), animations: {} },
 };
 
 /** A direction's frames from a per-direction table: as is, mirrored from the opposite side, or (with

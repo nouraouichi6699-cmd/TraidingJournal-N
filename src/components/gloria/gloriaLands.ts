@@ -98,7 +98,19 @@ export type SpriteDirection = "south" | "south-east" | "east" | "north-east" | "
  */
 export interface LandSprite {
   id: string;
-  type: "farmer" | "horse" | "guard" | "boss-serpent" | "npc";
+  type:
+    | "farmer"
+    | "horse"
+    | "guard"
+    | "boss-serpent"
+    | "boss-solmara"
+    | "boss-verdantia"
+    | "boss-aurelia"
+    | "boss-heartlands"
+    | "boss-drakemar"
+    | "boss-frostfell"
+    | "boss-throne"
+    | "npc";
   x: number;
   y: number;
   /** Size multiplier: 1 draws one sprite pixel per painting pixel. */
@@ -321,6 +333,8 @@ const VERDANTIA_SPRITES: LandSprite[] = [
     id: "guard-windmill", type: "guard", x: 73.5, y: 38, scale: 0.9, coreSize: 48, direction: "east", animation: "walk", frameDuration: 150,
     patrol: [{ x: 73.5, y: 38 }, { x: 78, y: 38 }], pathMode: "pingpong",
   },
+  // the forest guardian boss, standing in the battle arena just south of the boss gate marker (50, 35)
+  { id: "boss-verdantia", type: "boss-verdantia", x: 50, y: 42, scale: 0.5, coreSize: 252, direction: "south" },
 ];
 
 /** Measured with a pixel-grid overlay on the 1248x832 painting: [x, y, w, h] in painting px. Fences keep their gate
@@ -555,7 +569,8 @@ function buildSolmara(): LandDefinition {
       // at the foot of the gatehouse arch (its solid box ends at y 214, so the hero can stand right below it)
       { id: "exit", x: 51, y: 24, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
-    sprites: [],
+    // the masked desert warrior boss, standing in the battle arena just south of the boss gate marker (51, 34)
+    sprites: [{ id: "boss-solmara", type: "boss-solmara", x: 51, y: 40, scale: 0.5, coreSize: 252, direction: "south" }],
     obstacles: SOLMARA_OBSTACLES,
   };
 }
@@ -737,7 +752,8 @@ function buildHeartlands(): LandDefinition {
       { id: "boss", x: 51, y: 40, label: { ar: "ساحة المعركة", en: "Battle Arena" } },
       { id: "exit", x: 51, y: 17, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
     ],
-    sprites: [],
+    // the drowned pirate captain boss, standing in the battle arena just south of the boss gate marker (51, 40)
+    sprites: [{ id: "boss-heartlands", type: "boss-heartlands", x: 51, y: 46, scale: 0.5, coreSize: 252, direction: "south" }],
     obstacles: HEARTLANDS_OBSTACLES,
   };
 }
@@ -841,7 +857,8 @@ function buildAurelia(): LandDefinition {
           // at the pharaoh's feet: the throne's solid box ends at y 208, so the hero can stand right below it
           { id: "exit", x: 50, y: 23.5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
-        sprites: [],
+        // the mummy pharaoh king boss, standing in the battle arena just south of the boss gate marker (50, 30)
+        sprites: [{ id: "boss-aurelia", type: "boss-aurelia", x: 50, y: 36, scale: 0.5, coreSize: 252, direction: "south" }],
         obstacles: AURELIA_INTERIOR_OBSTACLES,
       },
     },
@@ -927,7 +944,8 @@ function buildDrakemar(): LandDefinition {
           // on the sparring stage, up the steps: a dead end, with no separate exit door painted
           { id: "exit", x: 50, y: 5, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
-        sprites: [],
+        // the dark knight boss, standing in the battle arena just south of the boss gate marker (50, 28)
+        sprites: [{ id: "boss-drakemar", type: "boss-drakemar", x: 50, y: 34, scale: 0.5, coreSize: 252, direction: "south" }],
         obstacles: DRAKEMAR_INTERIOR_OBSTACLES,
       },
     },
@@ -1013,7 +1031,8 @@ function buildFrostfell(): LandDefinition {
           // throne's own solid base ends ~y 165, so the hero can stand right below it)
           { id: "exit", x: 50, y: 23, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
-        sprites: [],
+        // the golden temple guardian boss, standing in the battle arena just south of the boss gate marker (50, 30)
+        sprites: [{ id: "boss-frostfell", type: "boss-frostfell", x: 50, y: 36, scale: 0.5, coreSize: 252, direction: "south" }],
         obstacles: FROSTFELL_INTERIOR_OBSTACLES,
       },
     },
@@ -1109,7 +1128,8 @@ function buildThroneOfGloria(): LandDefinition {
           // throne's solid base ends at y ~178, so the hero can stand right below it)
           { id: "exit", x: 50, y: 19, label: { ar: "بوابة الخروج", en: "Exit Gate" } },
         ],
-        sprites: [],
+        // the frozen king boss (final boss), standing in the battle arena just south of the boss gate marker (50, 27)
+        sprites: [{ id: "boss-throne", type: "boss-throne", x: 50, y: 33, scale: 0.5, coreSize: 252, direction: "south" }],
         obstacles: THRONE_INTERIOR_OBSTACLES,
       },
     },
