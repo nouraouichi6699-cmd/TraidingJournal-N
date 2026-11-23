@@ -260,7 +260,7 @@ export default function GloriaLandCanvas({
   // The boss barrier (gloriaLands) only blocks while the zone's boss is still undefeated; once bossDefeated flips
   // true it drops out of the active obstacle list, same as any other obstacle disappearing.
   const effectiveObstacles = useMemo(
-    () => (land.bossBarrier && !bossDefeated ? [...(land.obstacles ?? []), land.bossBarrier] : (land.obstacles ?? [])),
+    () => (!bossDefeated && land.bossBarrier ? [...(land.obstacles ?? []), ...land.bossBarrier] : (land.obstacles ?? [])),
     [land.obstacles, land.bossBarrier, bossDefeated],
   );
   const imgRef = useRef<HTMLImageElement>(null);

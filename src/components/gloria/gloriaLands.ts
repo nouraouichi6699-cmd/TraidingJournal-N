@@ -157,6 +157,14 @@ function obstaclesFromPixels(size: { w: number; h: number }, boxes: [number, num
   }));
 }
 
+/** A box roughly the size of a boss sprite's own body, centred on the point it stands at (spriteX, spriteY are the
+ *  same image-percentage coordinates passed to its LandSprite -- its feet, per GloriaSprite's placement rule), so
+ *  the hero can't walk through the monster itself. Independent of the land's pixel size (unlike
+ *  obstaclesFromPixels), since it's defined directly in image percentages. */
+function bossFootprint(spriteX: number, spriteY: number): LandObstacle {
+  return { x: spriteX - 4.5, y: spriteY - 9, w: 9, h: 11 };
+}
+
 /**
  * Everything that belongs to one painted background: the image and what sits on it. A single-scene land is just one
  * of these (its LandDefinition); a multi-scene land adds more under `LandDefinition.scenes`.
@@ -173,10 +181,11 @@ export interface LandScene {
   sprites?: LandSprite[];
   /** Solid scenery blocking the player's hero; none means it can roam the whole image. */
   obstacles?: LandObstacle[];
-  /** A wall across the path to whatever lies beyond the boss arena (the exit gate, typically), active only while
-   *  the zone's boss is still undefeated -- the hero simply can't walk past it, same as any other obstacle. Once
-   *  bossDefeated flips true (GloriaLandCanvas's prop), this stops being added to the active obstacle list. */
-  bossBarrier?: LandObstacle;
+  /** Wall(s) between the boss and whatever lies past it: the monster's own footprint (so the hero can't walk
+   *  through its body) and, where measured, a wider block across the path to the exit gate. Solid like
+   *  `obstacles` until the zone's boss is defeated, then ignored. Build footprint boxes with bossFootprint() and
+   *  path blocks with obstaclesFromPixels, like the regular obstacles. */
+  bossBarrier?: LandObstacle[];
   /** Where the hero starts standing (image percentages) -- on arrival from a portal, or on opening the land when
    *  this is its first scene. Without it, the hero starts just outside the entry gate (findOutsideStart). */
   start?: { x: number; y: number };
@@ -440,7 +449,10 @@ const VERDANTIA_OBSTACLES = obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [
 // A gate across the dirt path between the boss arena (gate at y 35%, ~291px) and the castle doors (exit gate at
 // y 24.6%, ~205px). The path there runs ~605-640px wide (see guard-gate's patrol above); padded a little for a
 // clean block without pinching the grass edges either side.
-const VERDANTIA_BOSS_BARRIER = obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [[580, 222, 100, 38]])[0];
+const VERDANTIA_BOSS_BARRIER: LandObstacle[] = [
+  ...obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [[580, 222, 100, 38]]),
+  bossFootprint(50, 42), // the forest guardian's own footprint (boss-verdantia's sprite position)
+];
 
 function buildVerdantia(): LandDefinition {
   const cols = 24;
@@ -581,6 +593,7 @@ function buildSolmara(): LandDefinition {
     ],
     // the masked desert warrior boss, standing in the battle arena just south of the boss gate marker (51, 34)
     sprites: [{ id: "boss-solmara", type: "boss-solmara", x: 51, y: 40, scale: 1.5, coreSize: 48, direction: "south" }],
+    bossBarrier: [bossFootprint(51, 40)],
     obstacles: SOLMARA_OBSTACLES,
   };
 }
@@ -764,6 +777,7 @@ function buildHeartlands(): LandDefinition {
     ],
     // the drowned pirate captain boss, standing in the battle arena just south of the boss gate marker (51, 40)
     sprites: [{ id: "boss-heartlands", type: "boss-heartlands", x: 51, y: 46, scale: 1.5, coreSize: 48, direction: "south" }],
+    bossBarrier: [bossFootprint(51, 46)],
     obstacles: HEARTLANDS_OBSTACLES,
   };
 }
@@ -869,6 +883,7 @@ function buildAurelia(): LandDefinition {
         ],
         // the mummy pharaoh king boss, standing in the battle arena just south of the boss gate marker (50, 30)
         sprites: [{ id: "boss-aurelia", type: "boss-aurelia", x: 50, y: 36, scale: 1.5, coreSize: 48, direction: "south" }],
+        bossBarrier: [bossFootprint(50, 36)],
         obstacles: AURELIA_INTERIOR_OBSTACLES,
       },
     },
@@ -956,6 +971,7 @@ function buildDrakemar(): LandDefinition {
         ],
         // the dark knight boss, standing in the battle arena just south of the boss gate marker (50, 28)
         sprites: [{ id: "boss-drakemar", type: "boss-drakemar", x: 50, y: 34, scale: 1.5, coreSize: 48, direction: "south" }],
+        bossBarrier: [bossFootprint(50, 34)],
         obstacles: DRAKEMAR_INTERIOR_OBSTACLES,
       },
     },
@@ -1043,6 +1059,7 @@ function buildFrostfell(): LandDefinition {
         ],
         // the golden temple guardian boss, standing in the battle arena just south of the boss gate marker (50, 30)
         sprites: [{ id: "boss-frostfell", type: "boss-frostfell", x: 50, y: 36, scale: 1.5, coreSize: 48, direction: "south" }],
+        bossBarrier: [bossFootprint(50, 36)],
         obstacles: FROSTFELL_INTERIOR_OBSTACLES,
       },
     },
@@ -1140,6 +1157,7 @@ function buildThroneOfGloria(): LandDefinition {
         ],
         // the frozen king boss (final boss), standing in the battle arena just south of the boss gate marker (50, 27)
         sprites: [{ id: "boss-throne", type: "boss-throne", x: 50, y: 33, scale: 1.5, coreSize: 48, direction: "south" }],
+        bossBarrier: [bossFootprint(50, 33)],
         obstacles: THRONE_INTERIOR_OBSTACLES,
       },
     },
