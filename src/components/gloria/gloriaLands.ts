@@ -157,12 +157,17 @@ function obstaclesFromPixels(size: { w: number; h: number }, boxes: [number, num
   }));
 }
 
-/** A box roughly the size of a boss sprite's own body, centred on the point it stands at (spriteX, spriteY are the
- *  same image-percentage coordinates passed to its LandSprite -- its feet, per GloriaSprite's placement rule), so
- *  the hero can't walk through the monster itself. Independent of the land's pixel size (unlike
- *  obstaclesFromPixels), since it's defined directly in image percentages. */
-function bossFootprint(spriteX: number, spriteY: number): LandObstacle {
-  return { x: spriteX - 4.5, y: spriteY - 9, w: 9, h: 11 };
+/** A box roughly the size of a boss sprite's own body, so the hero can't walk through the monster itself.
+ *  Independent of the land's pixel size (unlike obstaclesFromPixels), since it's defined directly in image
+ *  percentages.
+ *
+ *  IMPORTANT: `topY` must sit strictly below the boss gate's own trigger point (the "Battle Arena" marker the
+ *  hero walks onto to open the challenge panel) -- never let this box's y-range include that point. stepHero's
+ *  "already overlapping an obstacle -> move freely" escape hatch means a hero standing *inside* this box (as it
+ *  legitimately does at the gate trigger) would be able to walk straight through the monster from there,
+ *  defeating the whole barrier. Pass the land's own measured gap between the gate marker and the sprite's feet. */
+function bossFootprint(spriteX: number, topY: number, height = 7): LandObstacle {
+  return { x: spriteX - 4.5, y: topY, w: 9, h: height };
 }
 
 /**
@@ -451,7 +456,7 @@ const VERDANTIA_OBSTACLES = obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [
 // clean block without pinching the grass edges either side.
 const VERDANTIA_BOSS_BARRIER: LandObstacle[] = [
   ...obstaclesFromPixels(VERDANTIA_IMAGE_SIZE, [[580, 222, 100, 38]]),
-  bossFootprint(50, 42), // the forest guardian's own footprint (boss-verdantia's sprite position)
+  bossFootprint(50, 38), // the forest guardian's own footprint (boss-verdantia's sprite position)
 ];
 
 function buildVerdantia(): LandDefinition {
@@ -593,7 +598,7 @@ function buildSolmara(): LandDefinition {
     ],
     // the masked desert warrior boss, standing in the battle arena just south of the boss gate marker (51, 34)
     sprites: [{ id: "boss-solmara", type: "boss-solmara", x: 51, y: 40, scale: 1.5, coreSize: 48, direction: "south" }],
-    bossBarrier: [bossFootprint(51, 40)],
+    bossBarrier: [bossFootprint(51, 37)],
     obstacles: SOLMARA_OBSTACLES,
   };
 }
@@ -777,7 +782,7 @@ function buildHeartlands(): LandDefinition {
     ],
     // the drowned pirate captain boss, standing in the battle arena just south of the boss gate marker (51, 40)
     sprites: [{ id: "boss-heartlands", type: "boss-heartlands", x: 51, y: 46, scale: 1.5, coreSize: 48, direction: "south" }],
-    bossBarrier: [bossFootprint(51, 46)],
+    bossBarrier: [bossFootprint(51, 43)],
     obstacles: HEARTLANDS_OBSTACLES,
   };
 }
@@ -883,7 +888,7 @@ function buildAurelia(): LandDefinition {
         ],
         // the mummy pharaoh king boss, standing in the battle arena just south of the boss gate marker (50, 30)
         sprites: [{ id: "boss-aurelia", type: "boss-aurelia", x: 50, y: 36, scale: 1.5, coreSize: 48, direction: "south" }],
-        bossBarrier: [bossFootprint(50, 36)],
+        bossBarrier: [bossFootprint(50, 33)],
         obstacles: AURELIA_INTERIOR_OBSTACLES,
       },
     },
@@ -971,7 +976,7 @@ function buildDrakemar(): LandDefinition {
         ],
         // the dark knight boss, standing in the battle arena just south of the boss gate marker (50, 28)
         sprites: [{ id: "boss-drakemar", type: "boss-drakemar", x: 50, y: 34, scale: 1.5, coreSize: 48, direction: "south" }],
-        bossBarrier: [bossFootprint(50, 34)],
+        bossBarrier: [bossFootprint(50, 31)],
         obstacles: DRAKEMAR_INTERIOR_OBSTACLES,
       },
     },
@@ -1059,7 +1064,7 @@ function buildFrostfell(): LandDefinition {
         ],
         // the golden temple guardian boss, standing in the battle arena just south of the boss gate marker (50, 30)
         sprites: [{ id: "boss-frostfell", type: "boss-frostfell", x: 50, y: 36, scale: 1.5, coreSize: 48, direction: "south" }],
-        bossBarrier: [bossFootprint(50, 36)],
+        bossBarrier: [bossFootprint(50, 33)],
         obstacles: FROSTFELL_INTERIOR_OBSTACLES,
       },
     },
@@ -1157,7 +1162,7 @@ function buildThroneOfGloria(): LandDefinition {
         ],
         // the frozen king boss (final boss), standing in the battle arena just south of the boss gate marker (50, 27)
         sprites: [{ id: "boss-throne", type: "boss-throne", x: 50, y: 33, scale: 1.5, coreSize: 48, direction: "south" }],
-        bossBarrier: [bossFootprint(50, 33)],
+        bossBarrier: [bossFootprint(50, 30)],
         obstacles: THRONE_INTERIOR_OBSTACLES,
       },
     },
