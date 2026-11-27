@@ -119,8 +119,21 @@ const ASSASSIN_SHEET: SpriteSheet = {
   },
 };
 
-/** The player classes that have a hero sheet, keyed by GloriaCharacterId. A class with no sheet yet (Healer, and a
- *  player with no class at all) plays as the Warrior. Exported so the sheet test can check every entry. */
+/** The Healer sheet (public/sprites/healer/): eight idles and east/north/south walk loops (8 frames each) -- the
+ *  fullest walk coverage after Warrior's. West mirrors from east automatically. */
+const HEALER_SHEET: SpriteSheet = {
+  idle: idleFrames("healer"),
+  animations: {
+    walk: {
+      east: numbered("/sprites/healer/walk-e", 8),
+      north: numbered("/sprites/healer/walk-n", 8),
+      south: numbered("/sprites/healer/walk-s", 8),
+    },
+  },
+};
+
+/** The player classes that have a hero sheet, keyed by GloriaCharacterId. A class with no sheet yet (and a player
+ *  with no class at all) plays as the Warrior. Exported so the sheet test can check every entry. */
 export const HERO_SHEETS: Partial<Record<GloriaCharacterId, SpriteSheet>> = {
   warrior: WARRIOR_SHEET,
   savage: SAVAGE_SHEET,
@@ -130,6 +143,7 @@ export const HERO_SHEETS: Partial<Record<GloriaCharacterId, SpriteSheet>> = {
   elf: ELF_SHEET,
   mage: MAGE_SHEET,
   assassin: ASSASSIN_SHEET,
+  healer: HEALER_SHEET,
 };
 
 interface HeroLook {
@@ -257,6 +271,9 @@ interface Props {
   arrive?: boolean;
   /** The player's class, picking the hero's sheet; unset or a class without a sheet yet plays as the Warrior. */
   character?: GloriaCharacterId | null;
+  /** A one-shot teleport (fade out, jump, fade in), e.g. the boss "respawns you in the green zone" after it lands
+   *  a hit. Bump `nonce` to trigger it again from the same point; undefined does nothing. */
+  respawn?: { x: number; y: number; nonce: number };
 }
 
 const NO_OBSTACLES: readonly LandObstacle[] = [];
@@ -264,7 +281,7 @@ const NO_GATES: readonly HeroGateZone[] = [];
 
 export default function GloriaHeroSprite({
   start, landWidth, landHeight, obstacles = NO_OBSTACLES, gates = NO_GATES, insideSpawn, onGateReach, onSceneChange,
-  arrive = false, character,
+  arrive = false, character, respawn,
 }: Props) {
   const heroLook = heroLookFor(character);
   const live = useRef<LiveHero>({ x: start.x, y: start.y, facing: "north" });
@@ -285,6 +302,25 @@ export default function GloriaHeroSprite({
     const id = requestAnimationFrame(() => setFade({ opacity: 1, ms: prefersReducedMotion() ? 0 : FADE_MS }));
     return () => cancelAnimationFrame(id);
   }, [arrive]);
+
+  // The boss knocks the hero back to the green zone (cosmetic -- see GloriaLandCanvas): fade out, jump straight
+  // there (no walk), fade back in. `live.current` is the same object the movement loop below closes over, so
+  // writing through it here lands the hero at the new spot for every effect that reads it after this.
+  useEffect(() => {
+    if (!respawn) return;
+    const ms = prefersReducedMotion() ? 0 : FADE_MS;
+    keysDown.current.clear();
+    setFade({ opacity: 0, ms });
+    const t = window.setTimeout(() => {
+      live.current.x = respawn.x;
+      live.current.y = respawn.y;
+      live.current.facing = "north";
+      setFrame({ ...live.current, moving: false, now: performance.now() });
+      setFade({ opacity: 1, ms });
+    }, ms);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [respawn?.nonce]);
 
   // Track the held arrow keys and drive the hero from them. The rAF loop only runs while a key is actually held --
   // it sleeps as soon as the last one releases instead of re-rendering forever at rest -- and a keydown wakes it

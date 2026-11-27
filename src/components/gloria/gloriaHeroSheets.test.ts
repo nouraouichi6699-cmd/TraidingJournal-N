@@ -35,9 +35,13 @@ const EXPECT: Partial<Record<GloriaCharacterId, { walkDirs: SpriteDirection[]; f
   mage: { walkDirs: SOUTH_WALK, frames: "walk-s" },
 };
 
-// the registry holds exactly the characters that have sheets (Healer has none yet and plays as the Warrior)
-eq(Object.keys(HERO_SHEETS).sort(), ["assassin", "elf", "mage", "rogue", "sniper", "tank", "warrior", "savage"].sort(), "registry: warrior, savage, rogue, tank, sniper, elf, mage, assassin");
-ok(!("healer" in HERO_SHEETS), "healer still has no sheet");
+// the registry holds exactly the characters that have sheets (a player with no class, or a class not listed here,
+// plays as the Warrior)
+eq(
+  Object.keys(HERO_SHEETS).sort(),
+  ["assassin", "elf", "healer", "mage", "rogue", "sniper", "tank", "warrior", "savage"].sort(),
+  "registry: warrior, savage, rogue, tank, sniper, elf, mage, assassin, healer",
+);
 
 for (const [id, sheet] of Object.entries(HERO_SHEETS) as [GloriaCharacterId, NonNullable<(typeof HERO_SHEETS)[GloriaCharacterId]>][]) {
   const own = `/sprites/${id}/`;

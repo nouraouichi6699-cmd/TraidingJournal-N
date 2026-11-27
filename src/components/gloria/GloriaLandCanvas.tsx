@@ -29,6 +29,7 @@ import { findInsideSpawn, findOutsideStart, isTriggerGate, type TriggerGateId } 
 import GloriaLandSprites from "./GloriaLandSprites";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
 import { ATTACK_STYLE, AttackEffect, GZ_ATTACK_MS } from "./gloriaAttackEffects";
+import GloriaBossSprite, { isBossType, type BossEncounterState } from "./GloriaBossSprite";
 import "./gloria.css";
 
 interface Props {
@@ -278,6 +279,33 @@ export default function GloriaLandCanvas({
     const t = setTimeout(() => setAttack(null), GZ_ATTACK_MS);
     return () => clearTimeout(t);
   }, [attack]);
+
+  // The boss encounter itself (its own sprite's state, not the hero's attack flourish above): the land's one
+  // boss sprite, pulled out of the ambient list so this component owns its animation instead of it always idling.
+  const bossSprite = useMemo(() => land.sprites?.find((s) => isBossType(s.type)), [land.sprites]);
+  const ambientSprites = useMemo(
+    () => (bossSprite ? (land.sprites ?? []).filter((s) => s.id !== bossSprite.id) : (land.sprites ?? [])),
+    [land.sprites, bossSprite],
+  );
+  const [bossState, setBossState] = useState<BossEncounterState>(bossDefeated ? "gone" : "idle");
+  const wasDefeated = useRef(bossDefeated);
+  // A new land/scene: start from whatever its own bossDefeated already says, with no replay of the fight.
+  useEffect(() => {
+    setBossState(bossDefeated ? "gone" : "idle");
+    wasDefeated.current = bossDefeated;
+    setRespawn(undefined); // a stale respawn shouldn't fire on the fresh hero this new scene mounts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [land.id]);
+  // The real fight (a trading challenge elsewhere) was just won while this scene stayed mounted: play the boss's
+  // death once, same as a fresh defeat should look, rather than just popping it away.
+  useEffect(() => {
+    if (!wasDefeated.current && bossDefeated) setBossState("death");
+    wasDefeated.current = bossDefeated;
+  }, [bossDefeated]);
+  // Knocked back to the green zone after losing to the boss (cosmetic -- the real fight is still the trading
+  // challenge; this never marks it won or lost). Bumping the nonce re-fires GloriaHeroSprite's respawn effect.
+  const [respawn, setRespawn] = useState<{ x: number; y: number; nonce: number } | undefined>(undefined);
+
   const uid = useId().replace(/:/g, "");
   const glowId = `gz-ring-glow-${uid}`;
   const wheatId = `gz-wheat-${uid}`;
@@ -460,9 +488,15 @@ export default function GloriaLandCanvas({
                 ? () => onSceneChange(gate.to!.scene) // clicking a portal walks through it
                 : onGateClick
                   ? () => {
-                      // Cosmetic only: the boss is already beaten (bossDefeated), so this doesn't re-fight
-                      // anything -- it's just the class's signature flourish playing at the gate.
-                      if (gate.id === "boss" && bossDefeated && character) setAttack((n) => (n ?? 0) + 1);
+                      // Cosmetic only, same as the rest of the encounter: the actual win/loss is the trading
+                      // challenge, never decided here.
+                      if (gate.id === "boss" && character) {
+                        if (bossDefeated) {
+                          setAttack((n) => (n ?? 0) + 1); // the class's own signature flourish, already won
+                        } else if (bossSprite && bossState === "idle") {
+                          setBossState("attack"); // boss strikes first; its onAnimationEnd respawns the hero
+                        }
+                      }
                       onGateClick(gate.id);
                     }
                   : undefined
@@ -481,7 +515,20 @@ export default function GloriaLandCanvas({
       </svg>
 
       {view && (
-        <GloriaLandSprites sprites={land.sprites ?? []} w={w} h={h} view={view}>
+        <GloriaLandSprites sprites={ambientSprites} w={w} h={h} view={view}>
+          {bossSprite && bossState !== "gone" && (
+            <GloriaBossSprite
+              sprite={bossSprite}
+              landWidth={w}
+              state={bossState}
+              onAttackEnd={() => {
+                setBossState("idle");
+                // the boss landed its hit: fade the hero out and back in at the green zone it started from
+                setRespawn({ x: heroSetup.start.x, y: heroSetup.start.y, nonce: Date.now() });
+              }}
+              onDeathEnd={() => setBossState("gone")}
+            />
+          )}
           <GloriaHeroSprite
             key={`${land.id}:${land.image}`}
             character={character}
@@ -494,6 +541,7 @@ export default function GloriaLandCanvas({
             onGateReach={onGateReach}
             onSceneChange={onSceneChange}
             arrive={arrived}
+            respawn={respawn}
           />
         </GloriaLandSprites>
       )}
