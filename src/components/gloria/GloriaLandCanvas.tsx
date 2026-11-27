@@ -28,6 +28,7 @@ import GloriaHeroSprite, { footprintBlocked, type HeroGateZone } from "./GloriaH
 import { findInsideSpawn, findOutsideStart, isTriggerGate, type TriggerGateId } from "./gloriaGateTriggers";
 import GloriaLandSprites from "./GloriaLandSprites";
 import type { GloriaCharacterId } from "../../services/gloriaCharacterService";
+import { ATTACK_STYLE, AttackEffect, GZ_ATTACK_MS } from "./gloriaAttackEffects";
 import "./gloria.css";
 
 interface Props {
@@ -269,6 +270,14 @@ export default function GloriaLandCanvas({
   const [box, setBox] = useState<{ cw: number; ch: number } | null>(null);
   // The tooltip stays mounted after it closes (open: false) so it can fade out.
   const [tip, setTip] = useState<TipState | null>(null);
+  // The attack flourish (cosmetic only -- see gloriaAttackEffects): a one-shot key bumps on every click of an
+  // already-defeated boss gate, played then removed; null when nothing is playing.
+  const [attack, setAttack] = useState<number | null>(null);
+  useEffect(() => {
+    if (attack === null) return;
+    const t = setTimeout(() => setAttack(null), GZ_ATTACK_MS);
+    return () => clearTimeout(t);
+  }, [attack]);
   const uid = useId().replace(/:/g, "");
   const glowId = `gz-ring-glow-${uid}`;
   const wheatId = `gz-wheat-${uid}`;
@@ -450,7 +459,12 @@ export default function GloriaLandCanvas({
               gate.to && onSceneChange
                 ? () => onSceneChange(gate.to!.scene) // clicking a portal walks through it
                 : onGateClick
-                  ? () => onGateClick(gate.id)
+                  ? () => {
+                      // Cosmetic only: the boss is already beaten (bossDefeated), so this doesn't re-fight
+                      // anything -- it's just the class's signature flourish playing at the gate.
+                      if (gate.id === "boss" && bossDefeated && character) setAttack((n) => (n ?? 0) + 1);
+                      onGateClick(gate.id);
+                    }
                   : undefined
             }
             onShow={() => showTip(gate.id)}
@@ -459,6 +473,11 @@ export default function GloriaLandCanvas({
           />
         ))}
         {/* challenge locations: to come */}
+        {attack !== null && character && (() => {
+          const bossRing = rings.find((r) => r.gate.id === "boss");
+          if (!bossRing) return null;
+          return <AttackEffect key={attack} style={ATTACK_STYLE[character]} cx={bossRing.px} cy={bossRing.py} scale={scale} />;
+        })()}
       </svg>
 
       {view && (

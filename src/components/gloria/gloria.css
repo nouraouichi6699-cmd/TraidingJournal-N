@@ -293,6 +293,61 @@
 }
 .gz-toast { animation: gz-toast var(--gz-toast-ms, 2000ms) ease-out both; }
 
+/* ---- boss attack flourish (GloriaLandCanvas): a purely cosmetic effect, anchored at the boss gate ring,
+   played when the player clicks an already-defeated boss gate. One keyframe set per class "family"; the element
+   is removed after GZ_ATTACK_MS (see the component), so these just need to look good inside that window. -------- */
+
+@keyframes gz-atk-slash {
+  0% { opacity: 0; transform: rotate(-55deg) scale(0.6); }
+  25% { opacity: 1; transform: rotate(10deg) scale(1); }
+  60% { opacity: 1; transform: rotate(55deg) scale(1.05); }
+  100% { opacity: 0; transform: rotate(70deg) scale(1.1); }
+}
+.gz-atk-slash { animation: gz-atk-slash 650ms ease-out both; transform-origin: 20% 50%; }
+
+@keyframes gz-atk-dagger {
+  0%, 100% { opacity: 0; }
+  10% { opacity: 1; transform: translate(-14px, -4px) rotate(-20deg); }
+  35% { opacity: 1; transform: translate(10px, 2px) rotate(15deg); }
+  60% { opacity: 1; transform: translate(-8px, 6px) rotate(-10deg); }
+  85% { opacity: 1; transform: translate(12px, -2px) rotate(20deg); }
+}
+.gz-atk-dagger { animation: gz-atk-dagger 650ms ease-in-out both; }
+
+@keyframes gz-atk-arrow {
+  0% { opacity: 0; transform: translateX(-70px) scaleX(0.4); }
+  20% { opacity: 1; }
+  80% { opacity: 1; transform: translateX(0) scaleX(1); }
+  100% { opacity: 0; transform: translateX(6px) scaleX(1); }
+}
+.gz-atk-arrow { animation: gz-atk-arrow 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes gz-atk-fireball {
+  0% { opacity: 0; transform: scale(0.2); filter: blur(0px); }
+  30% { opacity: 1; transform: scale(0.7); }
+  70% { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 0; transform: scale(1.8); filter: blur(2px); }
+}
+.gz-atk-fireball { animation: gz-atk-fireball 650ms ease-out both; }
+
+@keyframes gz-atk-holy {
+  0% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  40% { opacity: 1; transform: scale(1.1) rotate(45deg); }
+  100% { opacity: 0; transform: scale(1.6) rotate(90deg); }
+}
+.gz-atk-holy { animation: gz-atk-holy 700ms ease-out both; }
+
+.gz-atk-wrap { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gz-atk-slash, .gz-atk-dagger, .gz-atk-arrow, .gz-atk-fireball, .gz-atk-holy { animation: none !important; display: none; }
+}
+[data-reduce-motion="1"] .gz-atk-slash,
+[data-reduce-motion="1"] .gz-atk-dagger,
+[data-reduce-motion="1"] .gz-atk-arrow,
+[data-reduce-motion="1"] .gz-atk-fireball,
+[data-reduce-motion="1"] .gz-atk-holy { animation: none !important; display: none; }
+
 /* ---- reduced motion: the system preference, or the app's own setting -------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
