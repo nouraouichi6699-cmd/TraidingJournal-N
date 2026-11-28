@@ -346,7 +346,7 @@ export default function GloriaHeroSprite({
     // can turn it on/off (armed only while the boss is actually idle and undefeated) without resubscribing this
     // effect. Distinct from gate zones: no fade/lock of its own -- onBossContact just starts the boss's attack,
     // and the hero's knock-back is a separate `respawn` trigger the parent fires once that finishes.
-    const BOSS_RADIUS_FRAC = 0.045;
+    const BOSS_RADIUS_FRAC = 0.09;
     const bossDist = () => {
       const { dangerZone: z } = gateProps.current;
       if (!z) return Infinity;
