@@ -305,6 +305,11 @@ export default function GloriaLandCanvas({
   // Knocked back to the green zone after losing to the boss (cosmetic -- the real fight is still the trading
   // challenge; this never marks it won or lost). Bumping the nonce re-fires GloriaHeroSprite's respawn effect.
   const [respawn, setRespawn] = useState<{ x: number; y: number; nonce: number } | undefined>(undefined);
+  // The boss strikes first: fired either by touching it (GloriaHeroSprite's proximity check) or by clicking its
+  // gate ring. Its own onAnimationEnd (below, on <GloriaBossSprite>) is what actually knocks the hero back.
+  const strikeBoss = () => {
+    if (bossSprite && bossState === "idle") setBossState("attack");
+  };
 
   const uid = useId().replace(/:/g, "");
   const glowId = `gz-ring-glow-${uid}`;
@@ -491,11 +496,8 @@ export default function GloriaLandCanvas({
                       // Cosmetic only, same as the rest of the encounter: the actual win/loss is the trading
                       // challenge, never decided here.
                       if (gate.id === "boss" && character) {
-                        if (bossDefeated) {
-                          setAttack((n) => (n ?? 0) + 1); // the class's own signature flourish, already won
-                        } else if (bossSprite && bossState === "idle") {
-                          setBossState("attack"); // boss strikes first; its onAnimationEnd respawns the hero
-                        }
+                        if (bossDefeated) setAttack((n) => (n ?? 0) + 1); // the class's own flourish, already won
+                        else strikeBoss();
                       }
                       onGateClick(gate.id);
                     }
@@ -542,6 +544,8 @@ export default function GloriaLandCanvas({
             onSceneChange={onSceneChange}
             arrive={arrived}
             respawn={respawn}
+            dangerZone={!bossDefeated && bossSprite && bossState === "idle" ? { x: bossSprite.x, y: bossSprite.y } : undefined}
+            onBossContact={strikeBoss}
           />
         </GloriaLandSprites>
       )}

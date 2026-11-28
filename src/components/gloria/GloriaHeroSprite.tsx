@@ -274,6 +274,11 @@ interface Props {
   /** A one-shot teleport (fade out, jump, fade in), e.g. the boss "respawns you in the green zone" after it lands
    *  a hit. Bump `nonce` to trigger it again from the same point; undefined does nothing. */
   respawn?: { x: number; y: number; nonce: number };
+  /** The undefeated boss's own position (image percentages): getting within touching distance of it fires
+   *  `onBossContact`, once per approach (it re-arms once the hero has stepped back out). Omit it (the parent does,
+   *  once the boss is mid-animation, defeated, or gone) to suspend the check entirely. */
+  dangerZone?: { x: number; y: number };
+  onBossContact?: () => void;
 }
 
 const NO_OBSTACLES: readonly LandObstacle[] = [];
@@ -281,7 +286,7 @@ const NO_GATES: readonly HeroGateZone[] = [];
 
 export default function GloriaHeroSprite({
   start, landWidth, landHeight, obstacles = NO_OBSTACLES, gates = NO_GATES, insideSpawn, onGateReach, onSceneChange,
-  arrive = false, character, respawn,
+  arrive = false, character, respawn, dangerZone, onBossContact,
 }: Props) {
   const heroLook = heroLookFor(character);
   const live = useRef<LiveHero>({ x: start.x, y: start.y, facing: "north" });
@@ -289,8 +294,8 @@ export default function GloriaHeroSprite({
   const [fade, setFade] = useState<{ opacity: number; ms: number }>({ opacity: arrive ? 0 : 1, ms: 0 });
   const keysDown = useRef<Set<string>>(new Set());
   // the latest gate props, read by the long-lived movement loop below without re-subscribing it on every render
-  const gateProps = useRef({ gates, insideSpawn, onGateReach, onSceneChange });
-  gateProps.current = { gates, insideSpawn, onGateReach, onSceneChange };
+  const gateProps = useRef({ gates, insideSpawn, onGateReach, onSceneChange, dangerZone, onBossContact });
+  gateProps.current = { gates, insideSpawn, onGateReach, onSceneChange, dangerZone, onBossContact };
 
   useEffect(() => {
     void preloadSpriteFrames(heroLook.allFrames);
@@ -337,6 +342,24 @@ export default function GloriaHeroSprite({
     const size = { w: landWidth, h: landHeight };
     const armed = new Map<TriggerGateId, boolean>();
     for (const g of gateProps.current.gates) armed.set(g.id, !inGateZone(p, g, size));
+    // Boss contact: a plain radius check against gateProps.current.dangerZone, re-read every tick so the parent
+    // can turn it on/off (armed only while the boss is actually idle and undefeated) without resubscribing this
+    // effect. Distinct from gate zones: no fade/lock of its own -- onBossContact just starts the boss's attack,
+    // and the hero's knock-back is a separate `respawn` trigger the parent fires once that finishes.
+    const BOSS_RADIUS_FRAC = 0.045;
+    const bossDist = () => {
+      const { dangerZone: z } = gateProps.current;
+      if (!z) return Infinity;
+      return Math.hypot(((p.x - z.x) / 100) * landWidth, ((p.y - z.y) / 100) * landHeight);
+    };
+    const bossRadiusPx = Math.min(landWidth, landHeight) * BOSS_RADIUS_FRAC;
+    let dangerInside = bossDist() <= bossRadiusPx;
+    const checkBoss = () => {
+      const inside = bossDist() <= bossRadiusPx;
+      if (inside && !dangerInside) gateProps.current.onBossContact?.();
+      dangerInside = inside;
+    };
+
     let busy = false;
     const timers: number[] = [];
     const later = (fn: () => void, ms: number) => {
@@ -432,6 +455,7 @@ export default function GloriaHeroSprite({
         obstacles, landWidth, landHeight);
       p.x = next.x;
       p.y = next.y;
+      checkBoss();
       if (checkGates()) {
         setFrame({ ...p, moving: false, now });
         running = false;
